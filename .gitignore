@@ -1,0 +1,25 @@
+# 运行时与密钥
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mimocode/
+.cache/
+
+# 本地数据（角色/日志/数据库，勿提交）
+data/
+*.db
+server_out.txt
+server_err.txt
+test_ai.ps1
+_exp_table.py
+_probe*.py
+_ccs_*.py
+_gen_curl.py
+_ai_direct.py
+
+# 临时
+web/_proto_check.js
+web/_extract.js
+*.log

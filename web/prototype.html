@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>天道因果录 · 界面原型</title>
+<style>
+:root{
+  --bg:#090c11;--bg2:#0f141c;--surface:rgba(16,22,32,.88);--surface2:rgba(22,28,40,.95);
+  --line:rgba(212,175,55,.18);--line2:rgba(212,175,55,.4);
+  --gold:#d4af37;--gold2:#e8c96a;--jade:#3ecf8e;--blood:#ef6b6b;
+  --paper:#f2e8d0;--text:#c9c4b6;--muted:#7d7a70;
+  --serif:"Noto Serif SC","Source Han Serif SC","STSong","SimSun",serif;
+  --sans:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);color:var(--text);background:var(--bg);overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.sky{position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 90% 50% at 50% -12%,rgba(212,175,55,.14),transparent 55%),
+    radial-gradient(ellipse 45% 40% at 100% 100%,rgba(62,207,142,.08),transparent 50%),
+    linear-gradient(165deg,#090c11,#0e131a 45%,#080b10);
+}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* ---------- 入世 ---------- */
+.gate{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px}
+.gate-card{
+  width:min(420px,100%);padding:36px 28px;border-radius:20px;text-align:center;
+  background:var(--surface);border:1px solid var(--line);box-shadow:0 24px 80px rgba(0,0,0,.55);
+  backdrop-filter:blur(16px);
+}
+.seal{
+  width:72px;height:72px;margin:0 auto 16px;border-radius:18px;display:grid;place-items:center;
+  font-family:var(--serif);font-size:34px;font-weight:700;color:#1a1405;
+  background:linear-gradient(145deg,#e8c96a,#a8841a);
+  box-shadow:0 0 40px rgba(212,175,55,.35);
+}
+.gate h1{font-family:var(--serif);color:var(--paper);letter-spacing:.28em;font-size:28px;margin-bottom:8px}
+.gate .sub{color:var(--muted);font-size:12px;letter-spacing:.16em;margin-bottom:24px}
+.gate label{display:block;text-align:left;font-size:11px;color:var(--muted);letter-spacing:.12em;margin-bottom:12px}
+.gate input{
+  width:100%;margin-top:6px;padding:12px 14px;border-radius:10px;
+  background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--paper);font-size:15px;outline:none;
+}
+.gate input:focus{border-color:var(--line2);box-shadow:0 0 0 3px rgba(212,175,55,.12)}
+.btn-gold{
+  width:100%;margin-top:8px;padding:14px;border-radius:12px;
+  font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:.35em;color:#1a1405;
+  background:linear-gradient(180deg,#e8c96a,#c9a227 45%,#a8841a);
+  box-shadow:0 8px 24px rgba(212,175,55,.25);
+}
+.btn-gold:hover{filter:brightness(1.06)}
+
+/* ---------- 壳 ---------- */
+.app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+
+/* 顶栏 */
+.hud{
+  display:flex;align-items:center;gap:14px;padding:10px 16px;
+  border-bottom:1px solid var(--line);background:rgba(9,12,17,.75);backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:140px}
+.brand .mark{
+  width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  font-family:var(--serif);font-weight:700;color:#1a1405;font-size:15px;
+  background:linear-gradient(145deg,#e8c96a,#a8841a);
+}
+.brand .t{font-family:var(--serif);color:var(--paper);font-size:13px;letter-spacing:.18em}
+.brand .s{font-size:10px;color:var(--jade);margin-top:2px}
+.hud-mid{flex:1;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chip-stat{
+  display:flex;flex-direction:column;gap:2px;min-width:70px;padding:6px 12px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+}
+.chip-stat.wide{min-width:130px}
+.chip-stat .k{font-size:10px;color:var(--muted);letter-spacing:.1em}
+.chip-stat b{font-family:var(--serif);color:var(--paper);font-size:13px;white-space:nowrap}
+.bar{height:4px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;width:40%;border-radius:inherit;transition:width .3s}
+.bar.exp i{background:linear-gradient(90deg,#3ecf8e,#8ef0c0)}
+.bar.life i{background:linear-gradient(90deg,#c9a227,#e8c96a)}
+.bar.life.low i{background:linear-gradient(90deg,#b33a3a,#ef6b6b)}
+.hud-right{display:flex;gap:6px}
+.btn-ghost{
+  padding:8px 12px;border-radius:10px;border:1px solid var(--line);color:var(--text);font-size:12px;
+}
+.btn-ghost:hover{border-color:var(--line2);color:var(--gold2)}
+
+/* 三栏 */
+.shell{
+  flex:1;min-height:0;display:grid;grid-template-columns:250px minmax(0,1fr)270px;
+  gap:12px;padding:12px;
+}
+.col{min-height:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:rgba(212,175,55,.3) transparent}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:12px;backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.22);
+}
+.card h3{
+  font-family:var(--serif);font-size:12px;letter-spacing:.2em;color:var(--gold);
+  margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;
+}
+.card h3 .tag{font-family:var(--sans);font-size:10px;letter-spacing:0;color:var(--muted);
+  border:1px solid rgba(255,255,255,.1);padding:1px 7px;border-radius:999px}
+.tag.safe{color:var(--jade);border-color:rgba(62,207,142,.35);background:rgba(62,207,142,.12)}
+.tag.danger{color:var(--blood);border-color:rgba(239,107,107,.35);background:rgba(239,107,107,.12)}
+
+/* 角色卡 */
+.char-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.portrait{
+  width:56px;height:56px;border-radius:16px;display:grid;place-items:center;
+  font-family:var(--serif);font-size:24px;font-weight:700;color:var(--gold2);
+  background:linear-gradient(145deg,rgba(212,175,55,.25),rgba(62,207,142,.1));
+  border:1px solid var(--line2);position:relative;
+}
+.portrait .lv{
+  position:absolute;right:-4px;bottom:-4px;font-size:10px;font-family:var(--sans);
+  background:#1a1408;color:var(--gold2);border:1px solid var(--line2);
+  padding:1px 5px;border-radius:6px;
+}
+.char-head .nm{font-family:var(--serif);color:var(--paper);font-size:16px}
+.char-head .rl{color:var(--jade);font-size:12px;margin-top:2px}
+.meter{margin-bottom:8px}
+.meter .mt{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px}
+.meter .mt b{color:var(--paper);font-weight:500}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.kv div{
+  padding:8px;border-radius:10px;background:rgba(0,0,0,.22);
+  border:1px solid rgba(255,255,255,.04);font-size:11px;
+}
+.kv span{display:block;color:var(--muted);margin-bottom:2px}
+.kv b{color:var(--paper);font-weight:500}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pill{
+  font-size:11px;padding:3px 8px;border-radius:999px;
+  background:rgba(62,207,142,.12);color:var(--jade);border:1px solid rgba(62,207,142,.3);
+}
+.pill.warn{background:rgba(239,150,80,.12);color:#f0a060;border-color:rgba(239,150,80,.35)}
+.pill.gold{background:rgba(212,175,55,.12);color:var(--gold2);border-color:rgba(212,175,55,.35)}
+
+/* 迁跃 */
+.jump-list{display:flex;flex-direction:column;gap:6px}
+.jump{
+  text-align:left;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(0,0,0,.18);color:var(--text);font-size:12px;
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+}
+.jump:hover{border-color:var(--line2);background:rgba(212,175,55,.08);color:var(--gold2)}
+.jump.active{border-color:var(--line2);background:rgba(212,175,55,.1);color:var(--gold2)}
+.jump .z{font-size:10px;color:var(--muted)}
+.jump .z.d{color:var(--blood)}
+.jump .z.s{color:var(--jade)}
+
+/* 中：场景 */
+.center{min-height:0;display:flex;flex-direction:column;gap:10px}
+.scene{
+  position:relative;flex:0 0 auto;min-height:160px;border-radius:18px;overflow:hidden;
+  border:1px solid var(--line);background:#0c1018;
+}
+.scene-bg{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 70% 80% at 70% 30%,rgba(212,175,55,.18),transparent 55%),
+    radial-gradient(ellipse 50% 60% at 20% 80%,rgba(62,207,142,.12),transparent 50%),
+    linear-gradient(160deg,#121820,#0a0e14);
+}
+.scene-bg.danger{
+  background:
+    radial-gradient(ellipse 70% 80% at 70% 30%,rgba(239,107,107,.2),transparent 55%),
+    radial-gradient(ellipse 50% 60% at 20% 80%,rgba(120,40,40,.15),transparent 50%),
+    linear-gradient(160deg,#181014,#0c0a0c);
+}
+.scene-fg{position:relative;padding:18px 20px;display:flex;flex-direction:column;gap:8px;min-height:160px}
+.scene-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.scene-name{font-family:var(--serif);font-size:22px;color:var(--paper);letter-spacing:.08em}
+.scene-sub{font-size:12px;color:var(--muted);line-height:1.6;max-width:70%}
+.scene-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.metric{
+  padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);
+  font-size:11px;color:var(--muted);
+}
+.metric b{color:var(--paper);font-weight:600;margin-left:4px}
+
+/* 行动盘 */
+.pad{flex:0 0 auto}
+.pad h3{margin-bottom:10px}
+.pad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.act{
+  min-height:64px;border-radius:14px;padding:10px 8px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  color:var(--text);transition:background .15s,border-color .15s,transform .1s;
+}
+.act .ic{font-family:var(--serif);font-size:16px;color:var(--gold2)}
+.act .lb{font-size:12px}
+.act .hint{font-size:10px;color:var(--muted)}
+.act:hover{background:rgba(212,175,55,.1);border-color:var(--line2);color:var(--gold2)}
+.act:active{transform:scale(.98)}
+.act.primary{
+  background:linear-gradient(160deg,rgba(212,175,55,.22),rgba(212,175,55,.06));
+  border-color:rgba(212,175,55,.4);
+}
+.act.primary .ic{color:var(--gold2)}
+.act.jade{border-color:rgba(62,207,142,.3)}
+.act.jade .ic{color:var(--jade)}
+.act.danger{border-color:rgba(239,107,107,.3)}
+.act.danger .ic{color:var(--blood)}
+.act[disabled]{opacity:.4;pointer-events:none}
+
+/* 叙事流 */
+.feed{
+  flex:1;min-height:120px;display:flex;flex-direction:column;
+  background:var(--surface2);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+}
+.feed-h{
+  display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  border-bottom:1px solid var(--line);background:rgba(0,0,0,.2);
+}
+.feed-h h3{margin:0}
+.feed-h button{font-size:11px;color:var(--muted);padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.08)}
+.feed-h button:hover{color:var(--gold2)}
+.feed-body{
+  flex:1;overflow-y:auto;padding:12px 14px;font-size:13px;line-height:1.75;
+  display:flex;flex-direction:column;gap:8px;
+}
+.feed-body.collapsed{display:none}
+.msg{white-space:pre-wrap;word-break:break-word;color:var(--text)}
+.msg.sys{color:var(--muted);font-size:12px}
+.msg.ok{color:#8ef0c0}
+.msg.ai{
+  color:var(--paper);padding:8px 12px 8px 14px;position:relative;
+  border-radius:0 10px 10px 0;background:rgba(212,175,55,.06);
+}
+.msg.err{color:var(--blood)}
+.msg .cmd{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--gold2);opacity:.85}
+
+/* 右栏 */
+.goal{
+  padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(0,0,0,.18);margin-bottom:8px;font-size:12px;
+}
+.goal .src{font-size:10px;color:var(--gold2);letter-spacing:.08em;margin-bottom:4px}
+.goal .tt{color:var(--paper);font-family:var(--serif);margin-bottom:4px}
+.goal .ds{color:var(--muted);line-height:1.5}
+.goal .pg{margin-top:6px}
+.goal.done{opacity:.55}
+
+.people{display:flex;flex-direction:column;gap:8px}
+.person{
+  display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;
+  border:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.18);
+}
+.ava{
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;
+  font-family:var(--serif);font-size:14px;color:var(--gold2);
+  background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.25);
+}
+.ava.hostile{color:var(--blood);background:rgba(239,107,107,.1);border-color:rgba(239,107,107,.3)}
+.ava.friendly{color:var(--jade);background:rgba(62,207,142,.1);border-color:rgba(62,207,142,.3)}
+.person .meta{flex:1;min-width:0}
+.person .n{color:var(--paper);font-size:13px;font-family:var(--serif)}
+.person .m{font-size:11px;color:var(--muted);margin-top:2px}
+.person .acts{display:flex;flex-direction:column;gap:4px}
+.person .acts button{
+  font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid rgba(212,175,55,.28);
+  color:var(--gold2);
+}
+.person .acts button:hover{background:rgba(212,175,55,.12)}
+
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mini{
+  padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(0,0,0,.18);font-size:11px;color:var(--text);text-align:center;
+}
+.mini:hover{border-color:var(--line2);color:var(--gold2)}
+
+/* 弹层 */
+.modal{
+  position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;
+  background:rgba(4,6,10,.78);backdrop-filter:blur(6px);
+}
+.modal-card{
+  width:min(440px,100%);padding:24px;border-radius:18px;
+  background:#12161e;border:1px solid var(--line2);box-shadow:0 24px 80px rgba(0,0,0,.55);
+}
+.modal-card h2{font-family:var(--serif);color:var(--gold2);letter-spacing:.16em;font-size:16px;margin-bottom:10px}
+.modal-card p{font-size:13px;color:var(--text);line-height:1.7;margin-bottom:16px}
+.modal-card .row{display:flex;gap:8px}
+.modal-card input{
+  flex:1;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.4);
+  border:1px solid var(--line);color:var(--paper);outline:none;
+}
+.modal-card .btn-gold{width:auto;flex:1;padding:10px 16px;letter-spacing:.2em;margin-top:0}
+.modal-card .btn-ghost{padding:10px 14px}
+
+.proto-badge{
+  position:fixed;right:12px;bottom:12px;z-index:50;font-size:11px;color:var(--muted);
+  background:rgba(10,13,18,.9);border:1px dashed rgba(212,175,55,.35);
+  padding:4px 10px;border-radius:999px;
+}
+
+/* ========== 动效 ========== */
+.motes{
+  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%,rgba(232,201,106,.55),transparent),
+    radial-gradient(1px 1px at 78% 28%,rgba(232,201,106,.35),transparent),
+    radial-gradient(2px 2px at 42% 68%,rgba(62,207,142,.4),transparent),
+    radial-gradient(1px 1px at 88% 76%,rgba(232,201,106,.3),transparent),
+    radial-gradient(1px 1px at 24% 88%,rgba(255,255,255,.22),transparent),
+    radial-gradient(1.5px 1.5px at 58% 12%,rgba(232,201,106,.4),transparent);
+  animation:mote-drift 32s ease-in-out infinite alternate;
+}
+@keyframes mote-drift{
+  from{transform:translate3d(0,0,0) scale(1)}
+  to{transform:translate3d(-18px,-28px,0) scale(1.04)}
+}
+
+.gate-card{animation:card-in .55s cubic-bezier(.2,.8,.2,1) both}
+@keyframes card-in{
+  from{opacity:0;transform:translateY(18px) scale(.97)}
+  to{opacity:1;transform:none}
+}
+.seal{animation:seal-pulse 3.2s ease-in-out infinite}
+@keyframes seal-pulse{
+  0%,100%{box-shadow:0 0 28px rgba(212,175,55,.3)}
+  50%{box-shadow:0 0 48px rgba(212,175,55,.55)}
+}
+
+.app.enter .hud{animation:slide-down .4s ease both}
+.app.enter .col.left{animation:slide-left .45s .05s ease both}
+.app.enter .center{animation:fade-up .5s .08s ease both}
+.app.enter .col.right{animation:slide-right .45s .12s ease both}
+@keyframes slide-down{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+@keyframes slide-left{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+@keyframes slide-right{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes fade-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.scene{transition:box-shadow .35s ease}
+.scene.flash{animation:scene-flash .5s ease}
+@keyframes scene-flash{
+  0%{box-shadow:0 0 0 0 rgba(212,175,55,.55),0 8px 24px rgba(0,0,0,.22)}
+  40%{box-shadow:0 0 0 10px rgba(212,175,55,0),0 8px 40px rgba(212,175,55,.25)}
+  100%{box-shadow:0 0 0 0 rgba(212,175,55,0),0 8px 24px rgba(0,0,0,.22)}
+}
+.scene.flash-danger{animation:scene-flash-danger .55s ease}
+@keyframes scene-flash-danger{
+  0%{box-shadow:0 0 0 0 rgba(239,107,107,.6)}
+  50%{box-shadow:0 0 36px rgba(239,107,107,.35)}
+  100%{box-shadow:0 0 0 0 rgba(239,107,107,0)}
+}
+.scene-name{transition:opacity .25s,transform .25s}
+.scene-name.swap{opacity:0;transform:translateX(-8px)}
+.scene-bg{transition:background .5s ease;animation:aura-breathe 6s ease-in-out infinite}
+@keyframes aura-breathe{
+  0%,100%{filter:brightness(1) saturate(1)}
+  50%{filter:brightness(1.12) saturate(1.08)}
+}
+.scene-bg.danger{animation:aura-danger 2.8s ease-in-out infinite}
+@keyframes aura-danger{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.2) saturate(1.2)}
+}
+
+.act{position:relative;overflow:hidden;transition:transform .15s,background .15s,border-color .15s,opacity .2s}
+.act::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:radial-gradient(circle at center,rgba(232,201,106,.35),transparent 70%);
+  opacity:0;pointer-events:none;
+}
+.act:hover{transform:translateY(-2px)}
+.act:active{transform:scale(.96)}
+.act.busy{animation:act-busy .6s ease}
+.act.busy::after{animation:act-ripple .6s ease}
+@keyframes act-ripple{
+  0%{opacity:.8;transform:scale(.4)}
+  100%{opacity:0;transform:scale(1.6)}
+}
+@keyframes act-busy{
+  0%,100%{box-shadow:none}
+  30%{box-shadow:0 0 20px rgba(212,175,55,.35)}
+}
+
+.msg{animation:msg-in .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes msg-in{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:none}
+}
+.msg.ai::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--gold2),var(--gold));
+  transform-origin:top;animation:line-sweep .45s ease both;
+}
+@keyframes line-sweep{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+
+.bar i{transition:width .45s cubic-bezier(.2,.8,.2,1)}
+.bar.pulse{animation:bar-pulse .5s ease}
+@keyframes bar-pulse{
+  0%,100%{filter:none}
+  40%{filter:brightness(1.5)}
+}
+
+.portrait{animation:portrait-idle 4.5s ease-in-out infinite}
+@keyframes portrait-idle{
+  0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,.15)}
+  50%{box-shadow:0 0 22px rgba(212,175,55,.35)}
+}
+.app.meditating .portrait{animation:portrait-med 3s ease-in-out infinite}
+@keyframes portrait-med{
+  0%,100%{transform:scale(1);box-shadow:0 0 12px rgba(62,207,142,.2)}
+  50%{transform:scale(1.04);box-shadow:0 0 28px rgba(62,207,142,.45)}
+}
+
+.jump{transition:background .18s,border-color .18s,transform .15s}
+.jump:hover{transform:translateX(3px)}
+.jump.active{animation:jump-on .3s ease}
+@keyframes jump-on{
+  from{background:rgba(212,175,55,.02)}
+  to{background:rgba(212,175,55,.1)}
+}
+
+.person{animation:msg-in .3s ease both;transition:border-color .2s,transform .15s}
+.person:hover{transform:translateY(-1px);border-color:rgba(212,175,55,.28)}
+
+.goal{animation:msg-in .3s ease both}
+
+.stat-bump{animation:stat-bump .4s ease}
+@keyframes stat-bump{
+  0%,100%{color:var(--paper)}
+  40%{color:var(--gold2);text-shadow:0 0 12px rgba(232,201,106,.55)}
+}
+
+.modal-card{animation:modal-in .35s cubic-bezier(.2,.8,.2,1) both}
+@keyframes modal-in{
+  from{opacity:0;transform:translateY(16px) scale(.96)}
+  to{opacity:1;transform:none}
+}
+
+.feed-body{scroll-behavior:smooth}
+
+@media (prefers-reduced-motion: reduce){
+  .motes,.seal,.scene-bg,.portrait,.app.meditating .portrait,
+  .gate-card,.app.enter .hud,.app.enter .col.left,.app.enter .center,
+  .app.enter .col.right,.scene.flash,.scene.flash-danger,.act.busy,
+  .act.busy::after,.msg,.msg.ai::before,.bar.pulse,.jump.active,
+  .person,.goal,.stat-bump,.modal-card{
+    animation:none !important;
+  }
+  .act:hover,.jump:hover,.person:hover{transform:none}
+  .bar i{transition:none}
+  .scene-name{transition:none}
+  .scene,.scene-bg,.act,.jump,.person{transition:none}
+}
+
+@media (max-width:1000px){
+  .shell{grid-template-columns:220px minmax(0,1fr)}
+  .col.right{display:none}
+  .pad-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:720px){
+  .shell{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+  .col.left{flex-direction:row;overflow-x:auto}
+  .col.left .card{min-width:240px}
+  .pad-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body data-mock="1">
+<div class="sky"></div>
+<div class="motes" aria-hidden="true"></div>
+
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <div class="seal">道</div>
+    <h1>天道因果录</h1>
+    <p class="sub">界面原型 · 场景 + 行动盘 · 可点演示</p>
+    <label>天道服<input id="serverUrl" value="http://127.0.0.1:8765" /></label>
+    <label>道号<input id="playerName" value="厉飞雨" maxlength="12" /></label>
+    <button class="btn-gold" id="btnJoin">入 世</button>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <header class="hud">
+    <div class="brand">
+      <div class="mark">道</div>
+      <div>
+        <div class="t">天道因果录</div>
+        <div class="s">原型 · 服未接</div>
+      </div>
+    </div>
+    <div class="hud-mid">
+      <div class="chip-stat"><span class="k">境界</span><b id="hRealm">练气期初期</b></div>
+      <div class="chip-stat"><span class="k">位置</span><b id="hLoc">青云坊市客栈</b></div>
+      <div class="chip-stat wide"><span class="k">寿元</span><b id="hLife">88.4 岁</b>
+        <div class="bar life"><i id="hLifeBar" style="width:88%"></i></div>
+      </div>
+      <div class="chip-stat wide"><span class="k">修为</span><b id="hExp">0 / 4500</b>
+        <div class="bar exp"><i id="hExpBar" style="width:0%"></i></div>
+      </div>
+      <div class="chip-stat"><span class="k">灵石</span><b id="hStone">150</b></div>
+      <div class="chip-stat"><span class="k">灵气</span><b id="hQi">0.56x</b></div>
+    </div>
+    <div class="hud-right">
+      <button class="btn-ghost" id="btnDemoDeath">演示转世</button>
+      <button class="btn-ghost" id="btnLogout">暂离</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- 左 -->
+    <aside class="col left">
+      <section class="card">
+        <h3>命盘 <span class="tag" id="protTag">安全</span></h3>
+        <div class="char-head">
+          <div class="portrait" id="ava">厉<span class="lv">炼1</span></div>
+          <div>
+            <div class="nm" id="cName">厉飞雨</div>
+            <div class="rl" id="cRealm">练气期初期 · 散修</div>
+          </div>
+        </div>
+        <div class="meter">
+          <div class="mt"><span>修为</span><b id="cExp">0 / 4500</b></div>
+          <div class="bar exp"><i id="cExpBar" style="width:0%"></i></div>
+        </div>
+        <div class="meter">
+          <div class="mt"><span>寿元</span><b id="cLife">88.4 岁</b></div>
+          <div class="bar life"><i id="cLifeBar" style="width:88%"></i></div>
+        </div>
+        <div class="kv">
+          <div><span>随身灵石</span><b id="cStone">150</b></div>
+          <div><span>金库</span><b id="cVault">0</b></div>
+          <div><span>业 / 德</span><b id="cKarma">0 / 0</b></div>
+          <div><span>全服灵气</span><b id="cQi">0.56x</b></div>
+        </div>
+        <div class="pills" id="cPills">
+          <span class="pill">新手 72h</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>迁跃</h3>
+        <div class="jump-list" id="jumpList"></div>
+      </section>
+    </aside>
+
+    <!-- 中 -->
+    <section class="center">
+      <div class="scene">
+        <div class="scene-bg" id="sceneBg"></div>
+        <div class="scene-fg">
+          <div class="scene-top">
+            <div>
+              <div class="scene-name" id="sName">青云坊市客栈</div>
+              <div class="scene-sub" id="sDesc">青州第一大散修坊市，受元婴级禁制庇护，绝灵止戈，灵气平稳。</div>
+            </div>
+            <span class="tag safe" id="sTag">安全</span>
+          </div>
+          <div class="scene-metrics">
+            <div class="metric">区域<b id="sRegion">东荒·青州</b></div>
+            <div class="metric">灵气密度<b id="sDens">1.0x</b></div>
+            <div class="metric">同场<b id="sCount">3</b></div>
+            <div class="metric">纪元<b id="sSeason">第1纪 · 余84天</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card pad">
+        <h3>行动盘 <span class="tag">点击即可</span></h3>
+        <div class="pad-grid" id="padGrid"></div>
+      </div>
+
+      <div class="feed" id="feed">
+        <div class="feed-h">
+          <h3>天道录</h3>
+          <button id="btnCollapse">收起</button>
+        </div>
+        <div class="feed-body" id="feedBody"></div>
+      </div>
+    </section>
+
+    <!-- 右 -->
+    <aside class="col right">
+      <section class="card">
+        <h3>目标 <span class="tag">可拒</span></h3>
+        <div id="goalList"></div>
+      </section>
+      <section class="card" style="flex:1;display:flex;flex-direction:column;min-height:160px">
+        <h3>同场修士 <span class="tag" id="hereN">3</span></h3>
+        <div class="people" id="peopleList" style="overflow:auto"></div>
+      </section>
+      <section class="card">
+        <h3>仙门 · 天下</h3>
+        <div class="mini-grid">
+          <button class="mini" data-mini="宗门">宗门</button>
+          <button class="mini" data-mini="六榜">六榜</button>
+          <button class="mini" data-mini="秘境">秘境</button>
+          <button class="mini" data-mini="坊市">坊市</button>
+          <button class="mini" data-mini="告示">告示</button>
+          <button class="mini" data-mini="道统">道统</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div id="deathModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>一世终结 · 真灵归寂</h2>
+    <p id="deathText">本世道途已终。真灵可携道统重入轮回。</p>
+    <div id="boostBox" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
+    <div class="row">
+      <button class="btn-gold" id="btnReborn">真灵转世</button>
+      <button class="btn-ghost" id="btnLater">暂驻轮回</button>
+    </div>
+  </div>
+</div>
+
+<div class="proto-badge">原型 · data-mock=1 · 未接服务端</div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+
+  const LOCS = {
+    "青云坊市客栈":{region:"东荒·青州",dens:1.0,safe:true,desc:"青州第一大散修坊市，受元婴级禁制庇护，绝灵止戈，灵气平稳。"},
+    "青云宗外门山门":{region:"东荒·青州",dens:1.3,safe:true,desc:"正道名门青云宗山门，仙鹤腾飞，云海茫茫。"},
+    "宗门玄元洞府":{region:"东荒·青州",dens:1.8,safe:true,desc:"青云宗三阶灵脉洞府，护山大阵日夜运转。"},
+    "落霞山灵泉":{region:"东荒·青州",dens:1.6,safe:false,desc:"深山无主微型灵泉，灵气活泼，常有妖兽散修争夺。"},
+    "万剑仙门峰":{region:"中土·万岳",dens:1.5,safe:true,desc:"插天万刃如巨剑耸立，剑气冲霄。"},
+    "黑风绝渊":{region:"西陲·幽冥渊",dens:2.5,safe:false,desc:"极阴煞古战场绝渊，法外凶域，魔气狂暴！"},
+    "万星古岛":{region:"海外·乱星海",dens:3.0,safe:false,desc:"上古真仙遗迹残址，大凶大机缘共存。"}
+  };
+
+  const state = {
+    name:"厉飞雨",
+    realm:"练气期初期",
+    tier:1,
+    exp:0, expMax:4500,
+    life:88.4,
+    stones:150, vault:0,
+    sin:0, merit:0,
+    qi:0.56,
+    loc:"青云坊市客栈",
+    meditating:false,
+    newbie:true,
+    goals:[
+      {src:"初入道",tt:"引气筑基",ds:"新手庇护期内完成练气圆满并尝试首次筑基渡劫。",done:false,prog:0,max:1},
+      {src:"道途",tt:"问鼎筑基期",ds:"将修为推进至可冲击筑基。",done:false,prog:0,max:4500},
+      {src:"纪元",tt:"第1纪元",ds:"余约84天。未飞升者大劫来时应劫转世。",done:false,prog:0,max:84}
+    ],
+    people:[
+      {n:"陆仁贾",r:"练气期中期",att:"中立",cls:"",pers:"谨慎"},
+      {n:"血刀老祖",r:"筑基期初期",att:"敌对",cls:"hostile",pers:"记仇"},
+      {n:"云鹤道人",r:"筑基期后期",att:"友善",cls:"friendly",pers:"豪爽"}
+    ]
+  };
+
+  const ACTIONS = [
+    {id:"med1",ic:"定",lb:"闭关 1h",hint:"入定吐纳",cls:"primary",cmd:"/闭关 1"},
+    {id:"med8",ic:"定",lb:"闭关 8h",hint:"长时闭关",cls:"primary",cmd:"/闭关 8"},
+    {id:"emerge",ic:"出",lb:"出关",hint:"提前收功",cls:"",cmd:"/出关"},
+    {id:"break",ic:"劫",lb:"突破",hint:"引动天劫",cls:"jade",cmd:"/突破"},
+    {id:"omen",ic:"缘",lb:"推演天机",hint:"主动事件",cls:"",cmd:"/机缘"},
+    {id:"goal",ic:"志",lb:"目标",hint:"六类目标源",cls:"",cmd:"/目标"},
+    {id:"board",ic:"榜",lb:"六榜",hint:"境界/战力…",cls:"",cmd:"/榜"},
+    {id:"secret",ic:"秘",lb:"秘境",hint:"限时开启",cls:"jade",cmd:"/秘境"},
+    {id:"market",ic:"市",lb:"坊市",hint:"买卖寄存",cls:"",cmd:"/坊市"},
+    {id:"sect",ic:"门",lb:"宗门",hint:"天下仙门",cls:"",cmd:"/宗门"},
+    {id:"reclude",ic:"隐",lb:"归隐",hint:"脱战庇护",cls:"",cmd:"/归隐"},
+    {id:"unreclude",ic:"出",lb:"出隐",hint:"再入红尘",cls:"",cmd:"/出隐"},
+    {id:"profile",ic:"身",lb:"道身",hint:"观照自身",cls:"",cmd:"/道身"}
+  ];
+
+  function feed(text, cls, cmd){
+    const body = $("feedBody");
+    const el = document.createElement("div");
+    el.className = "msg " + (cls||"");
+    if (cmd){
+      el.innerHTML = '<div class="cmd">» '+esc(cmd)+'</div>'+esc(text);
+    } else {
+      el.textContent = text;
+    }
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+    while (body.children.length > 80) body.removeChild(body.firstChild);
+  }
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  function pct(){ return Math.min(100, Math.round(state.exp/state.expMax*100)); }
+  function lifePct(){ return Math.min(100, Math.max(0, Math.round(state.life))); }
+
+  function bump(id){
+    const el = $(id);
+    if (!el) return;
+    el.classList.remove("stat-bump");
+    void el.offsetWidth;
+    el.classList.add("stat-bump");
+  }
+  function pulseBar(id){
+    const el = $(id);
+    if (!el || !el.parentElement) return;
+    el.parentElement.classList.remove("pulse");
+    void el.parentElement.offsetWidth;
+    el.parentElement.classList.add("pulse");
+  }
+  function flashScene(danger){
+    const s = document.querySelector(".scene");
+    if (!s) return;
+    s.classList.remove("flash","flash-danger");
+    void s.offsetWidth;
+    s.classList.add(danger ? "flash-danger" : "flash");
+    setTimeout(()=>s.classList.remove("flash","flash-danger"), 600);
+  }
+
+  function render(){
+    $("hRealm").textContent = state.realm;
+    $("hLoc").textContent = state.loc;
+    $("hLife").textContent = state.life.toFixed(1)+" 岁";
+    $("hLifeBar").style.width = lifePct()+"%";
+    $("hLifeBar").parentElement.classList.toggle("low", state.life < 10);
+    $("hExp").textContent = state.exp+" / "+state.expMax;
+    $("hExpBar").style.width = pct()+"%";
+    $("hStone").textContent = state.stones;
+    $("hQi").textContent = state.qi.toFixed(2)+"x";
+
+    $("ava").innerHTML = esc(state.name.slice(0,1))+'<span class="lv">炼'+state.tier+'</span>';
+    $("cName").textContent = state.name;
+    $("cRealm").textContent = state.realm + " · " + (state.sect||"散修");
+    $("cExp").textContent = state.exp+" / "+state.expMax;
+    $("cExpBar").style.width = pct()+"%";
+    $("cLife").textContent = state.life.toFixed(1)+" 岁";
+    $("cLifeBar").style.width = lifePct()+"%";
+    $("cStone").textContent = state.stones;
+    $("cVault").textContent = state.vault;
+    $("cKarma").textContent = state.sin+" / "+state.merit;
+    $("cQi").textContent = state.qi.toFixed(2)+"x";
+
+    const app = $("app");
+    if (app) app.classList.toggle("meditating", !!state.meditating);
+
+    const pills = [];
+    if (state.meditating) pills.push('<span class="pill warn">闭关入定</span>');
+    if (state.newbie) pills.push('<span class="pill">新手 72h</span>');
+    if (state.protect) pills.push('<span class="pill">归隐</span>');
+    pills.push('<span class="pill gold">道统 1</span>');
+    $("cPills").innerHTML = pills.join("");
+
+    const loc = LOCS[state.loc] || LOCS["青云坊市客栈"];
+    $("sName").textContent = state.loc;
+    $("sDesc").textContent = loc.desc;
+    $("sRegion").textContent = loc.region;
+    $("sDens").textContent = loc.dens.toFixed(1)+"x";
+    $("sCount").textContent = state.people.length;
+    $("sTag").textContent = loc.safe ? "安全" : "凶域";
+    $("sTag").className = "tag " + (loc.safe?"safe":"danger");
+    $("sceneBg").className = "scene-bg" + (loc.safe?"":" danger");
+    $("protTag").textContent = loc.safe ? "安全" : "冲突区";
+    $("protTag").className = "tag " + (loc.safe?"safe":"danger");
+
+    // jumps
+    const jl = $("jumpList");
+    jl.innerHTML = "";
+    Object.keys(LOCS).forEach(name=>{
+      const L = LOCS[name];
+      const b = document.createElement("button");
+      b.className = "jump" + (name===state.loc?" active":"");
+      b.innerHTML = esc(name)+' <span class="z '+(L.safe?"s":"d")+'">'+(L.safe?"安全":"凶险")+' · '+L.dens+'x</span>';
+      b.onclick = ()=>doGo(name);
+      jl.appendChild(b);
+    });
+
+    // pad
+    const pad = $("padGrid");
+    pad.innerHTML = "";
+    ACTIONS.forEach(a=>{
+      const b = document.createElement("button");
+      b.className = "act "+(a.cls||"");
+      b.innerHTML = '<span class="ic">'+a.ic+'</span><span class="lb">'+a.lb+'</span><span class="hint">'+a.hint+'</span>';
+      if (state.meditating && !["emerge","profile","goal"].includes(a.id)) b.disabled = true;
+      b.onclick = ()=>doAct(a);
+      pad.appendChild(b);
+    });
+
+    // goals
+    const gl = $("goalList");
+    gl.innerHTML = "";
+    state.goals.forEach(g=>{
+      const d = document.createElement("div");
+      d.className = "goal"+(g.done?" done":"");
+      const p = g.max>1 ? '<div class="pg"><div class="bar exp"><i style="width:'+Math.min(100,g.prog/g.max*100)+'%"></i></div></div>' : "";
+      d.innerHTML = '<div class="src">'+esc(g.src)+'</div><div class="tt">'+esc(g.tt)+'</div><div class="ds">'+esc(g.ds)+'</div>'+p;
+      gl.appendChild(d);
+    });
+
+    // people
+    const pl = $("peopleList");
+    pl.innerHTML = "";
+    $("hereN").textContent = state.people.length;
+    state.people.forEach(p=>{
+      const el = document.createElement("div");
+      el.className = "person";
+      el.innerHTML =
+        '<div class="ava '+p.cls+'">'+esc(p.n.slice(0,1))+'</div>'+
+        '<div class="meta"><div class="n">'+esc(p.n)+'</div><div class="m">'+esc(p.r)+' · 对你'+esc(p.att)+'</div></div>'+
+        '<div class="acts"><button data-talk="'+esc(p.n)+'">交谈</button><button data-fight="'+esc(p.n)+'">斗法</button></div>';
+      pl.appendChild(el);
+    });
+  }
+
+  function doGo(name){
+    if (state.meditating){
+      feed("【闭关锁门】正在洞府入定，不可迁跃。可先出关。","err","/go "+name);
+      return;
+    }
+    state.loc = name;
+    const loc = LOCS[name];
+    if (loc.safe) {
+      state.people = [
+        {n:"陆仁贾",r:"练气期中期",att:"中立",cls:"",pers:"谨慎"},
+        {n:"云鹤道人",r:"筑基期后期",att:"友善",cls:"friendly",pers:"豪爽"}
+      ];
+    } else {
+      state.people = [
+        {n:"血刀老祖",r:"筑基期初期",att:"敌对",cls:"hostile",pers:"记仇"},
+        {n:"无名散修",r:"练气期后期",att:"警惕",cls:"hostile",pers:"贪"}
+      ];
+    }
+    const sn = $("sName");
+    if (sn){
+      sn.classList.add("swap");
+      setTimeout(()=>{ render(); sn.classList.remove("swap"); flashScene(!loc.safe); }, 120);
+    } else {
+      render();
+      flashScene(!loc.safe);
+    }
+    feed("御剑化虹，抵达【"+name+"】。","ai","/go "+name);
+    feed(loc.safe ? "此地有大阵庇护，绝灵止戈。" : "罡风刺骨，灵压驳杂——冲突区，动手无禁。","sys");
+  }
+
+  function markActBusy(lb){
+    document.querySelectorAll(".act").forEach(b=>{
+      const t = (b.querySelector(".lb")||{}).textContent;
+      if (t !== lb) return;
+      b.classList.remove("busy");
+      void b.offsetWidth;
+      b.classList.add("busy");
+      setTimeout(()=>b.classList.remove("busy"), 650);
+    });
+  }
+
+  function doAct(a){
+    markActBusy(a.lb);
+    feed(a.lb + " …", "sys", a.cmd);
+    switch(a.id){
+      case "med1":
+      case "med8": {
+        const h = a.id==="med1"?1:8;
+        state.meditating = true;
+        render();
+        markActBusy(a.lb);
+        feed("【遁入洞府 · 闭关锁门】于【"+state.loc+"】入定 "+h+" 现实小时。\n· 灵气稀释 "+state.qi.toFixed(2)+"x 乘入结算\n· 闭关中不可迁跃/斗法；出关可提前收功","ai");
+        break;
+      }
+      case "emerge": {
+        if (!state.meditating){ feed("未在闭关。","err"); break; }
+        const gain = 80 + Math.floor(Math.random()*120);
+        state.meditating = false;
+        state.exp = Math.min(state.expMax, state.exp + gain);
+        state.life = Math.max(0, state.life - 0.15);
+        state.goals[1].prog = state.exp;
+        render();
+        markActBusy(a.lb);
+        bump("hExp"); bump("cExp"); pulseBar("hExpBar"); pulseBar("cExpBar");
+        feed("【出关】修为 +"+gain+"，寿元余 "+state.life.toFixed(1)+" 岁。","ok");
+        if (state.exp >= state.expMax) feed("修为已圆满，可冲击天劫（点「突破」）。","sys");
+        break;
+      }
+      case "break": {
+        if (state.exp < state.expMax){
+          feed("修为尚未圆满（"+state.exp+"/"+state.expMax+"），不可强行引动天劫。","err");
+          break;
+        }
+        const ok = Math.random() > 0.35;
+        if (ok){
+          state.tier = 2;
+          state.realm = "筑基期初期";
+          state.exp = 0; state.expMax = 24000;
+          state.life += 30;
+          state.goals[1] = {src:"道途",tt:"问鼎金丹期",ds:"将修为推进至可冲击金丹。",done:false,prog:0,max:80000};
+          state.goals[0].done = true;
+          render();
+          markActBusy(a.lb);
+          bump("hRealm"); bump("cRealm"); bump("hLife"); pulseBar("hLifeBar");
+          feed("【灵犀顿悟 / 天劫】四九天劫过，晋为【筑基期初期】，随机增寿 +30 岁。","ai");
+        } else {
+          state.life = Math.max(0, state.life - 8);
+          state.exp = Math.floor(state.expMax * 0.6);
+          render();
+          markActBusy(a.lb);
+          bump("hLife"); pulseBar("hLifeBar");
+          feed("天劫反噬，修为略挫，寿元 -8。侥幸未陨。","err");
+        }
+        break;
+      }
+      case "omen": {
+        const pool = [
+          ["古洞残卷","行至附近崖壁，藤蔓后隐有古洞，得残破玉简一卷。"],
+          ["劫修拦路","三名蒙面劫修截路索财，破财消灾。"],
+          ["天象示警","西方赤霞如血，市井传言近日或有腥风。"]
+        ];
+        const p = pool[Math.floor(Math.random()*pool.length)];
+        if (p[0]==="古洞残卷"){
+          const e = 60+Math.floor(Math.random()*100);
+          state.exp = Math.min(state.expMax, state.exp+e);
+          state.goals[1].prog = state.exp;
+          render();
+          bump("hExp"); pulseBar("hExpBar");
+          feed("【"+p[0]+"】"+p[1]+" 修为 +"+e,"ai");
+        } else if (p[0]==="劫修拦路"){
+          const s = Math.min(state.stones, 40+Math.floor(Math.random()*60));
+          state.stones -= s;
+          render();
+          bump("hStone"); bump("cStone");
+          feed("【"+p[0]+"】"+p[1]+" 灵石 -"+s,"ai");
+        } else {
+          feed("【"+p[0]+"】"+p[1],"ai");
+        }
+        break;
+      }
+      case "goal":
+        feed(state.goals.map(g=>(g.done?"✓ ":"→ ")+g.src+" · "+g.tt+"\n   "+g.ds).join("\n"),"ai","/目标");
+        break;
+      case "board":
+        feed("【境界榜】\n 1. 幽冥老祖 化神期 [NPC]\n 2. 剑圣·独孤败 化神期 [NPC]\n 3. 玄清子 元婴期 [NPC]\n…","ai","/榜");
+        break;
+      case "secret":
+        feed("【秘境天机】\n· 落霞古洞 落霞山 t1+ 危险35% — 已开启\n· 黑风绝渊裂隙 t2+ 危险55% — 已开启\n· 万星遗迹残址 t3+ 危险70% — 已开启\n可接可拒；点「推进」步进（原型略）。","ai","/秘境");
+        break;
+      case "market":
+        feed("【坊市】金库 "+state.vault+" | 随身 "+state.stones+"\n商会货单：一阶青木迷踪阵(120)、筑基丹(150)、聚气丹(40)…","ai","/坊市");
+        break;
+      case "sect":
+        feed("【天下仙门】青云宗/万剑仙门/九幽天魔宗/四海散修商会\n拜入须亲至总坛山门。","ai","/宗门");
+        break;
+      case "reclude":
+        if (!LOCS[state.loc].safe){
+          feed("【此地凶险】冲突区不可归隐，请先迁跃至坊市或宗门。","err");
+          break;
+        }
+        state.protect = true;
+        render();
+        markActBusy(a.lb);
+        feed("【闭关归隐】结庐谢客，庇护中不可被攻击；随身财货不可转移。","ok");
+        break;
+      case "unreclude":
+        if (!state.protect){ feed("本就不在归隐之中。","err"); break; }
+        state.protect = false;
+        render();
+        markActBusy(a.lb);
+        feed("【出隐入世】再踏仙途，庇护解除。","ok");
+        break;
+      case "profile":
+        feed("【"+state.name+"】"+state.realm+"\n寿元 "+state.life.toFixed(1)+"岁 · 灵石 "+state.stones+" · 业/德 "+state.sin+"/"+state.merit+"\n位置 "+state.loc,"ai","/道身");
+        break;
+      default:
+        feed("（原型未覆盖的指令）","sys");
+    }
+  }
+
+  // events
+  $("btnJoin").onclick = ()=>{
+    const n = $("playerName").value.trim() || "厉飞雨";
+    state.name = n;
+    $("gate").classList.add("hidden");
+    const app = $("app");
+    app.classList.remove("hidden","enter");
+    void app.offsetWidth;
+    app.classList.add("enter");
+    render();
+    flashScene(false);
+    feed("【入世】"+n+" · 练气期初期 · 青云坊市客栈","ok");
+    feed("自然寿元约 88 岁 · 灵气稀释 0.56x（全服高阶 10 人）","sys");
+    feed("左侧迁跃换地，中间行动盘修行，右侧目标与同场。此为可点原型，未接真服。","sys");
+  };
+
+  $("btnLogout").onclick = ()=>{
+    feed("【暂离】原型：直接回到入世页。","sys");
+    $("app").classList.add("hidden");
+    $("gate").classList.remove("hidden");
+  };
+
+  $("btnCollapse").onclick = ()=>{
+    const b = $("feedBody");
+    b.classList.toggle("collapsed");
+    $("btnCollapse").textContent = b.classList.contains("collapsed") ? "展开" : "收起";
+  };
+
+  $("peopleList").addEventListener("click", e=>{
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const talk = t.getAttribute("data-talk");
+    const fight = t.getAttribute("data-fight");
+    if (talk) {
+      if (state.meditating){ feed("闭关锁门，不可交谈。","err"); return; }
+      feed("【交谈】你向【"+talk+"】拱手见礼……（原型：态度微调）","ai","/交谈 "+talk);
+    }
+    if (fight){
+      if (state.meditating){ feed("闭关中不可斗法。","err"); return; }
+      if (!LOCS[state.loc].safe){
+        feed("【斗法】你与【"+fight+"】在凶域短兵相接……（原型：随机胜负）","ai","/斗法 "+fight);
+      } else {
+        feed("【天道庇护】安全大阵之内，不可动武。","err");
+      }
+    }
+  });
+
+  $("btnDemoDeath").onclick = ()=>{ $("deathModal").classList.remove("hidden"); };
+  $("btnLater").onclick = ()=>{ $("deathModal").classList.add("hidden"); };
+  $("btnReborn").onclick = ()=>{
+    $("deathModal").classList.add("hidden");
+    state.realm = "练气期初期";
+    state.tier = 1;
+    state.exp = 0; state.expMax = 4500;
+    state.life = 70 + Math.random()*30;
+    state.stones = 150;
+    state.meditating = false;
+    state.protect = false;
+    state.goals[0].done = false;
+    state.goals[1] = {src:"道途",tt:"问鼎筑基期",ds:"将修为推进至可冲击筑基。",done:false,prog:0,max:4500};
+    render();
+    feed("【真灵转世】重踏仙途。道统点化可下阶段接真逻辑。","ok");
+  };
+
+  document.querySelectorAll("[data-mini]").forEach(b=>{
+    b.onclick = ()=>{
+      const k = b.getAttribute("data-mini");
+      const map = {宗门:"sect",六榜:"board",秘境:"secret",坊市:"market"};
+      if (map[k]) doAct(ACTIONS.find(a=>a.id===map[k]));
+      else feed("【"+k+"】原型占位。","sys");
+    };
+  });
+})();
+</script>
+</body>
+</html>

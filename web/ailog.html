@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 调用日志 · 天道因果录</title>
+<style>
+:root{
+  --bg:#0a0d12;--panel:#121820;--line:rgba(212,175,55,.18);
+  --gold:#d4af37;--text:#c9c4b6;--muted:#7d7a70;--red:#ef6b6b;--jade:#3ecf8e;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);padding:16px}
+h1{font-size:18px;color:var(--gold);margin:0 0 8px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+button,input,select{background:#1a2030;border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px}
+button{cursor:pointer}
+button:hover{border-color:var(--gold);color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.ok{color:var(--jade)}
+.bad{color:var(--red)}
+details{margin-top:6px}
+summary{cursor:pointer;color:var(--gold);font-size:12px}
+pre{white-space:pre-wrap;word-break:break-word;background:#0c1018;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px;font-size:11px;max-height:240px;overflow:auto;margin-top:6px}
+.muted{color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<h1>AI 调用日志</h1>
+<p class="muted">每条含：通道、模型、HTTP、耗时、完整 Prompt / 原始回复 / 解析 JSON</p>
+<div class="bar">
+  <label>条数 <select id="n"><option>20</option><option selected>50</option><option>100</option></select></label>
+  <button id="btnLoad">刷新</button>
+  <button id="btnAuto">自动 5s</button>
+  <span id="status" class="muted"></span>
+</div>
+<div id="list"></div>
+<script>
+const $ = (id)=>document.getElementById(id);
+let auto = null;
+function fmtTs(ts){
+  try { return new Date(ts*1000).toLocaleString("zh-CN"); } catch(e){ return ts; }
+}
+async function load(){
+  const n = $("n").value;
+  $("status").textContent = "加载中…";
+  try {
+    const r = await fetch("/ailog?n="+n);
+    const data = await r.json();
+    const box = $("list");
+    box.innerHTML = "";
+    $("status").textContent = data.path + " · " + data.count + " 条";
+    if (!data.items || !data.items.length) {
+      box.innerHTML = '<p class="muted">暂无记录。先在游戏里 /交谈 或 /自创功法 触发 AI。</p>';
+      return;
+    }
+    for (const it of data.items) {
+      const ok = it.status === "ok";
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML =
+        '<div class="meta">' +
+        '<b class="'+(ok?"ok":"bad")+'">'+ (it.status||"?") +'</b>' +
+        '<span>'+ (it.channel||"") +'</span>' +
+        '<span>'+ (it.model||"") +'</span>' +
+        '<span>HTTP '+ (it.http_status==null?"-":it.http_status) +'</span>' +
+        '<span>'+ (it.duration_ms||0) +' ms</span>' +
+        '<span>'+ fmtTs(it.ts) +'</span>' +
+        '<span style="opacity:.6">'+ (it.url||"") +'</span>' +
+        '</div>' +
+        (it.error ? '<div class="bad">错误：'+ it.error +'</div>' : '') +
+        '<details><summary>Prompt（'+ (it.prompt_len||0) +' 字）</summary><pre>'+ esc(it.prompt) +'</pre></details>' +
+        '<details><summary>原始回复</summary><pre>'+ esc(it.raw_text) +'</pre></details>' +
+        '<details><summary>解析 JSON</summary><pre>'+ esc(typeof it.response==="string"?it.response:JSON.stringify(it.response,null,2)) +'</pre></details>';
+      box.appendChild(div);
+    }
+  } catch(e) {
+    $("status").textContent = "失败：" + e.message;
+  }
+}
+function esc(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+$("btnLoad").onclick = load;
+$("btnAuto").onclick = ()=>{
+  if (auto){ clearInterval(auto); auto=null; $("btnAuto").textContent="自动 5s"; return; }
+  auto = setInterval(load, 5000);
+  $("btnAuto").textContent = "停止自动";
+  load();
+};
+load();
+</script>
+</body>
+</html>
