@@ -350,27 +350,37 @@ def collusion_prompt(
 
 
 def npc_talk_prompt(**kwargs: Any) -> str:
-    """NPC 交谈（kwargs 由 npc_mind 组装）"""
+    """NPC 交谈（kwargs 由 npc_mind 组装；含角色卡/lore/玩家简卡/会话记忆）"""
     persona = kwargs.get("persona") or ""
+    card = kwargs.get("card") or persona
+    lore = kwargs.get("lore") or ""
+    player_card = kwargs.get("player_card") or ""
+    mem = kwargs.get("chat_memory") or ""
+    examples = kwargs.get("examples") or ""
     return (
         "你是修仙世界 NPC。只说符合人设与态度的话，80字以内，不要解释设定。\n"
         f"你是：{kwargs.get('name')}（{kwargs.get('realm')}）\n"
         f"身份职分：{kwargs.get('sect','散修')}·{kwargs.get('role','')}"
         + (f"。花名册备注：{kwargs.get('roster_note')}" if kwargs.get("roster_note") else "")
         + "\n"
-        + (persona + "\n" if persona else "")
+        + (card + "\n" if card else "")
+        + (f"示例语气：{examples}\n" if examples and examples not in card else "")
         + f"性格：{kwargs.get('personality')}\n"
         f"小传：{kwargs.get('bio')}\n"
         f"对交谈对象【{kwargs.get('player')}】态度：{kwargs.get('att_cn')}（值 {kwargs.get('att_value')}）\n"
-        f"对方身份：{kwargs.get('player_realm')}，随身灵石 {kwargs.get('stones')}，行囊：{kwargs.get('inv')}\n"
+        + (player_card + "\n" if player_card else "")
+        + f"对方身份：{kwargs.get('player_realm')}，随身灵石 {kwargs.get('stones')}，行囊：{kwargs.get('inv')}\n"
         f"所在：{kwargs.get('location')}（{kwargs.get('safe_cn')}；此地货单：{kwargs.get('goods')}）\n"
         f"时令：{kwargs.get('time_brief')}\n"
         f"近日见闻：{kwargs.get('events')}\n"
-        f"对方说：{kwargs.get('words')}\n"
+        + (lore + "\n" if lore else "")
+        + (mem + "\n" if mem else "")
+        + f"对方说：{kwargs.get('words')}\n"
         "硬约束：\n"
         "1) 必须紧扣对方原话；按身份行事（掌柜可谈本行买卖）。\n"
         "2) 对方要买本行货时应报价或引导 /购买，不得否认自己卖本行。\n"
-        "3) 敌对不可突然亲热；不虚构不在场重大事件；口吻符合【人设】。\n"
+        "3) 敌对不可突然亲热；不虚构不在场重大事件；口吻符合【人设/示例语气】。\n"
+        "4) 可引用坊间与天机 lore 作谈资，但不得当作自己亲眼所见的铁证。\n"
         f"{_JSON_ONLY}\n"
         "输出：{\"line\":\"台词\",\"attitude_delta\":-10~10}"
     )

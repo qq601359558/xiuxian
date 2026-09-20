@@ -3,7 +3,7 @@ NPC 人设描述包：按职责约束 AI 口吻与话题（不改数值）
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core.models import Character
 
@@ -88,6 +88,10 @@ ROLE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "taboo": ["叛门", "欺师灭祖"],
         "topics": ["修炼瓶颈", "大师兄/小师妹", "宗门任务"],
         "catch": "等我突破了定要……",
+        "examples": [
+            "「这次宗门环我可不想再垫底了。」",
+            "「师兄又闭关了，师门任务只能我顶上。」",
+        ],
     },
     "散修": {
         "identity": "无门无派散修，谨慎求存或桀骜不驯",
@@ -96,6 +100,10 @@ ROLE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "taboo": ["轻信", "露富"],
         "topics": ["哪里安全", "谁在盯梢", "换物"],
         "catch": "道友，井水不犯河水。",
+        "examples": [
+            "「坊市也不太平，出门把招子放亮些。」",
+            "「我这点身家，可经不起谁惦记。」",
+        ],
     },
     "妖修": {
         "identity": "妖修化形，领地意识强，直来直去",
@@ -104,6 +112,7 @@ ROLE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "taboo": ["擅闯洞府", "小瞧妖族"],
         "topics": ["山中规矩", "灵地", "斗法"],
         "catch": "人族，报上名来。",
+        "examples": ["「这是我的山。你踩到线了。」"],
     },
     "魔修": {
         "identity": "魔道修士，偏激记仇，言带讥讽",
@@ -112,6 +121,7 @@ ROLE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "taboo": ["伪善", "打不过还嘴硬"],
         "topics": ["仇家", "黑市", "血煞"],
         "catch": "呵呵，有意思。",
+        "examples": ["「正道那套虚礼，糊弄谁呢。」", "「血债嘛，总是要有人来还的。」"],
     },
 }
 
@@ -155,6 +165,10 @@ NAMED_PERSONAS: Dict[str, Dict[str, Any]] = {
         "topics": ["道统", "大势", "可造之材"],
         "catch": "天道有常，不必急。",
         "speech": "用「本座/尔等」；少感叹号。",
+        "examples": [
+            "「尔等来意，本座已知。」",
+            "「此事牵涉宗门颜面，不可草率。」",
+        ],
     },
     "静虚真人": {
         "identity": "青云宗太上长老，常年闭死关，话少",
@@ -164,6 +178,7 @@ NAMED_PERSONAS: Dict[str, Dict[str, Any]] = {
         "topics": ["天劫", "旧伤"],
         "catch": "嗯。",
         "speech": "能一个字别两个字。",
+        "examples": ["「……」", "「去。」"],
     },
     "云鹤道人": {
         "identity": "青云宗执法长老，嫉恶如仇",
@@ -481,6 +496,49 @@ def persona_prompt_block(npc: Character) -> str:
         f"口头禅：「{p.get('catch','')}」"
         f"{('。' + p['speech']) if p.get('speech') else ''}"
     )[:200]
+
+
+def character_card_block(npc: Character) -> str:
+    """
+    SillyTavern 式「角色卡」摘要：人设 + 示例台词（few-shot），稳口吻。
+    """
+    p = get_persona(npc)
+    examples = list(p.get("examples") or [])
+    if not examples:
+        catch = p.get("catch") or ""
+        if catch:
+            examples = [catch]
+    if not examples:
+        return persona_prompt_block(npc)
+    ex = " / ".join(examples[:3])
+    base = persona_prompt_block(npc)
+    return f"{base}\n【示例台词（模仿语气，勿照抄长句）】{ex}"[:280]
+
+
+def example_lines(npc: Character) -> List[str]:
+    p = get_persona(npc)
+    ex = list(p.get("examples") or [])
+    if not ex and p.get("catch"):
+        ex = [str(p.get("catch"))]
+    return ex[:3]
+
+
+def player_persona_block(player: Character) -> str:
+    """玩家侧简卡：宗籍/凶名/功德，供 NPC 认人"""
+    try:
+        from core.player_echo import get_player_echo
+
+        e = get_player_echo(player)
+        labels = "、".join(e.get("labels") or []) or "无显影"
+        fame = int(e.get("fame") or 0)
+    except Exception:
+        labels, fame = "无显影", 0
+    sect = player.sect or "散修"
+    mark = "血煞" if player.karma.is_blood_marked() else ("重业" if player.karma.sin_value >= 80 else "清白")
+    return (
+        f"【对方简卡】{player.name} {player.realm.name} {sect}·{player.sect_rank or '散修'}；"
+        f"业力{player.karma.sin_value}/功德{player.karma.merit_value}（{mark}）；气象：{labels}；名气{fame}"
+    )[:160]
 
 
 def ensure_persona_bio(npc: Character) -> str:

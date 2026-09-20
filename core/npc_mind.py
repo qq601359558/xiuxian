@@ -311,12 +311,28 @@ class NpcDialogueEngine:
         data = None
         if ai_available():
             try:
-                from core.npc_personas import persona_prompt_block, ensure_persona_bio
+                from core.npc_personas import (
+                    persona_prompt_block,
+                    ensure_persona_bio,
+                    character_card_block,
+                    example_lines,
+                    player_persona_block,
+                )
 
                 ensure_persona_bio(npc)
-                persona_blk = persona_prompt_block(npc)
+                card = character_card_block(npc)
+                examples = " / ".join(example_lines(npc))
+                player_card = player_persona_block(player)
             except Exception:
-                persona_blk = ""
+                card, examples, player_card = "", "", ""
+            try:
+                from core.lorebook import lore_prompt_block
+                from core.npc_chat import chat_memory_lines
+
+                lore = lore_prompt_block(player, npc, player_words=words)
+                chat_mem = chat_memory_lines(player.id, npc.id, limit=2)
+            except Exception:
+                lore, chat_mem = "", ""
             try:
                 import core.jianghu as jianghu
                 from ai.facts import build_fact_pack
@@ -337,7 +353,12 @@ class NpcDialogueEngine:
                         "sect": npc.sect or "散修",
                         "role": role,
                         "roster_note": roster_note,
-                        "persona": persona_blk,
+                        "persona": card or persona_prompt_block(npc),
+                        "card": card or persona_prompt_block(npc),
+                        "examples": examples,
+                        "player_card": player_card,
+                        "lore": lore,
+                        "chat_memory": chat_mem,
                         "personality": mind.get("personality"),
                         "bio": bio,
                         "player": player.name,

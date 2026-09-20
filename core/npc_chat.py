@@ -10,9 +10,12 @@ from core.models import Character, CharacterStatus
 from storage.db import CharacterRepository, WorldStateRepository
 
 _KEY = "npc_chat_sessions"
+_MEM_KEY = "npc_chat_memory"
 _MAX_TURNS = 24
 _TIMEOUT_S = 900.0  # 15 分钟无消息自动散
 _MAX_MSG_LEN = 200
+_MEM_MAX_PAIRS = 3
+_MEM_TTL_S = 7 * 86400.0
 
 
 def _load_all() -> Dict[str, Any]:
@@ -49,6 +52,99 @@ def get_session(player_id: str) -> Optional[Dict[str, Any]]:
     return rec
 
 
+def _mem_key(player_id: str, npc_id: str) -> str:
+    return f"{player_id}::{npc_id}"
+
+
+def _load_memory() -> Dict[str, Any]:
+    try:
+        return WorldStateRepository.get(_MEM_KEY) or {}
+    except Exception:
+        return {}
+
+
+def _save_memory(d: Dict[str, Any]) -> None:
+    try:
+        WorldStateRepository.set(_MEM_KEY, d)
+    except Exception:
+        pass
+
+
+def summarize_session_rule(rec: Dict[str, Any], player: Optional[Character] = None, npc: Optional[Character] = None) -> str:
+    """规则摘要（无 AI 也稳定）：提取双方要点"""
+    msgs = rec.get("messages") or []
+    if not msgs:
+        return ""
+    who_p = player.name if player else ""
+    who_n = npc.name if npc else (rec.get("npc_name") or "")
+    p_lines = [m.get("text", "") for m in msgs if (m.get("who") == who_p or (player and m.get("who") == player.name))]
+    n_lines = [m.get("text", "") for m in msgs if (m.get("who") == who_n or m.get("who") == rec.get("npc_name"))]
+    bits = []
+    if p_lines:
+        bits.append(f"{who_p or '对方'}曾问/说：{p_lines[0][:24]}…{p_lines[-1][:20] if len(p_lines)>1 else ''}")
+    if n_lines:
+        bits.append(f"{who_n}曾答：{n_lines[0][:24]}…{n_lines[-1][:20] if len(n_lines)>1 else ''}")
+    end = rec.get("end_reason") or ""
+    turns = int(rec.get("turns") or len(msgs))
+    att = rec.get("final_attitude_delta")
+    extra = f"共{turns}回合"
+    if att is not None:
+        extra += f"，态度Δ{att}"
+    if end:
+        extra += f"；结果：{str(end)[:24]}"
+    return ("；".join(bits) + "；" + extra)[:120]
+
+
+def write_chat_memory(
+    player: Character,
+    npc: Character,
+    rec: Dict[str, Any],
+    summary: str = "",
+) -> Dict[str, Any]:
+    """会话结束：写入双方记忆摘要 + 事件账"""
+    summary = (summary or summarize_session_rule(rec, player, npc) or "曾有一席交谈").strip()[:140]
+    now = time.time()
+    mem = _load_memory()
+    key = _mem_key(player.id, npc.id)
+    row = mem.get(key) or {"summaries": []}
+    rows = list(row.get("summaries") or [])
+    rows.append({"text": summary, "ts": now, "ended": rec.get("end_reason") or ""})
+    # 过期裁剪
+    rows = [r for r in rows if now - float(r.get("ts") or 0) < _MEM_TTL_S]
+    mem[key] = {"summaries": rows[-_MEM_MAX_PAIRS:], "npc_name": npc.name, "player_name": player.name}
+    # 反向也记一份（NPC 侧简表）
+    rkey = _mem_key(npc.id, player.id)
+    rrow = mem.get(rkey) or {"summaries": []}
+    rrows = list(rrow.get("summaries") or [])
+    rrows.append({"text": summary, "ts": now, "ended": rec.get("end_reason") or ""})
+    mem[rkey] = {"summaries": rrows[-_MEM_MAX_PAIRS:], "npc_name": npc.name, "player_name": player.name}
+    _save_memory(mem)
+    try:
+        from core.memory import record_event
+
+        record_event(
+            type="CHAT",
+            actor=npc,
+            target=player,
+            summary=f"与{player.name}交谈：{summary[:60]}",
+            location=npc.location,
+        )
+    except Exception:
+        pass
+    return mem.get(key) or {}
+
+
+def chat_memory_lines(player_id: str, npc_id: str, limit: int = 2) -> str:
+    """下次开口时注入：上次聊过什么"""
+    mem = _load_memory()
+    row = mem.get(_mem_key(player_id, npc_id)) or {}
+    rows = list(row.get("summaries") or [])[-limit:]
+    if not rows:
+        return ""
+    lines = [f"· {r.get('text','')}" for r in rows]
+    return "【上次交谈记忆】\n" + "\n".join(lines)
+
+
 def open_session(player: Character, npc: Character) -> Dict[str, Any]:
     now = time.time()
     if player.id == npc.id:
@@ -75,6 +171,7 @@ def open_session(player: Character, npc: Character) -> Dict[str, Any]:
         "created_at": now,
         "updated_at": now,
         "end_reason": "",
+        "running_attitude_delta": 0,
     }
     _save_all(d)
     return {"success": True, "session": d[player.id], "npc": npc}
@@ -103,6 +200,16 @@ def close_session(player_id: str, reason: str, by: str = "player") -> Optional[D
     rec["updated_at"] = time.time()
     d[player_id] = rec
     _save_all(d)
+    # 写入会话摘要记忆（ST 式）
+    try:
+        if int(rec.get("turns") or 0) >= 2 or len(rec.get("messages") or []) >= 3:
+            player = CharacterRepository.get_by_id(player_id)
+            npc = CharacterRepository.get_by_id(rec.get("npc_id") or "")
+            if player and npc:
+                rec["final_attitude_delta"] = int(rec.get("running_attitude_delta") or 0)
+                write_chat_memory(player, npc, rec)
+    except Exception:
+        pass
     return rec
 
 
@@ -184,6 +291,7 @@ def apply_npc_reply(
         w = int(rec.get("willingness") or 50)
         w = max(0, min(100, w + int(attitude_delta or 0) - (0 if will_continue else 20)))
         rec["willingness"] = w
+        rec["running_attitude_delta"] = int(rec.get("running_attitude_delta") or 0) + int(attitude_delta or 0)
     except Exception:
         pass
 
@@ -193,6 +301,15 @@ def apply_npc_reply(
         rec["ended_by"] = "npc"
         d[player_id] = rec
         _save_all(d)
+        try:
+            if int(rec.get("turns") or 0) >= 2 or len(rec.get("messages") or []) >= 3:
+                player = CharacterRepository.get_by_id(player_id)
+                npc = CharacterRepository.get_by_id(rec.get("npc_id") or "")
+                if player and npc:
+                    rec["final_attitude_delta"] = int(rec.get("running_attitude_delta") or 0)
+                    write_chat_memory(player, npc, rec)
+        except Exception:
+            pass
         return {
             "success": True,
             "line": line,
@@ -249,4 +366,11 @@ def format_chat_panel(player_id: str) -> str:
         "---",
         history_lines(rec, 16),
     ]
+    try:
+        mem = chat_memory_lines(player_id, rec.get("npc_id") or "", limit=2)
+        if mem:
+            lines.append("")
+            lines.append(mem)
+    except Exception:
+        pass
     return "\n".join(lines)
