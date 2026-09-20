@@ -633,6 +633,33 @@ def world_arc_stage_prompt(
     )
 
 
+def npc_chat_summary_prompt(player: str, npc: str, history: str, end_reason: str = "") -> str:
+    """会话结束：一句中文摘要，供下次记忆注入"""
+    return (
+        "你是天道史官，为一段 NPC 会话写一句记忆摘要（40字以内，修仙白话）。\n"
+        f"交谈双方：{player} × {npc}\n"
+        f"结束原因：{end_reason or '自然结束'}\n"
+        f"对话记录：\n{history or '（无）'}\n"
+        "摘要须概括谈了什么与气氛，不编造账上没有的事。\n"
+        f"{_JSON_ONLY}\n"
+        '输出：{"summary":"一句摘要"}'
+    )
+
+
+def scene_banter_prompt(**kwargs: Any) -> str:
+    persona = kwargs.get("persona") or ""
+    return (
+        "你是同场旁听的修仙 NPC，偶尔插一句。只输出 JSON。\n"
+        + (persona + "\n" if persona else "")
+        + f"你是 {kwargs.get('name')}\n"
+        f"场上：{kwargs.get('main_npc')} 与 {kwargs.get('player')} 正在谈。\n"
+        f"最近对话：{kwargs.get('tail')}\n"
+        "插话 15~40 字，符合人设。\n"
+        f"{_JSON_ONLY}\n"
+        '输出：{"line":"..."}'
+    )
+
+
 # 注册表（便于测试与文档）
 PROMPT_BUILDERS = {
     "combat": combat_prompt,
@@ -640,6 +667,8 @@ PROMPT_BUILDERS = {
     "world_event": world_event_prompt,
     "world_director": director_prompt,
     "world_arc_stage": world_arc_stage_prompt,
+    "npc_chat_summary": npc_chat_summary_prompt,
+    "scene_banter": scene_banter_prompt,
     "heart_demon_session": heart_demon_session_prompt,
     "heart_demon_judge": heart_demon_judge_prompt,
     "free_action": free_action_prompt,

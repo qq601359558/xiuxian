@@ -1488,6 +1488,7 @@ class World:
                         "npc": target.name,
                         "attitude": res.get("attitude"),
                         "source": res.get("source"),
+                        "bystanders": res.get("bystanders") or [],
                     }
                 return {"ok": True, "text": greet + "\n\n（可开口：/说 你好）", "chat_open": True, "npc": target.name}
             if action in ("/说", "/say"):
@@ -1596,7 +1597,18 @@ class World:
                     bio = CBR.get(npc.id) or ""
                 except Exception:
                     bio = ""
-                persona = persona_prompt_block(npc)
+                try:
+                    from core.npc_personas import character_card_block, player_persona_block
+                    from core.lorebook import lore_prompt_block
+                    from core.npc_chat import chat_memory_lines
+
+                    persona = character_card_block(npc) or persona_prompt_block(npc)
+                    lore_blk = lore_prompt_block(char, npc, player_words=said["player_text"])
+                    mem_blk = chat_memory_lines(char.id, npc.id, limit=2)
+                    pcard = player_persona_block(char)
+                except Exception:
+                    persona = persona_prompt_block(npc)
+                    lore_blk = mem_blk = pcard = ""
                 hist = npc_chat.history_lines(rec, 10)
                 will_hint = int(rec.get("willingness") or 50)
 
@@ -1609,17 +1621,21 @@ class World:
                     try:
                         prompt = (
                             "你是修仙世界 NPC，正在进行连续交谈。只输出 JSON。\n"
-                            + persona + "\n"
-                            f"你是 {npc.name}（{npc.realm.name}，{npc.sect or '散修'}·{npc.sect_rank}）\n"
-                            f"性格：{mind.get('personality')}\n小传：{bio}\n"
-                            f"对【{char.name}】态度：{att_cn}（值 {att.get('value',0)}）；续聊意愿 {will_hint}/100\n"
-                            f"所在：{npc.location}\n"
-                            f"近日对话：\n{hist}\n"
-                            f"对方刚说：{said['player_text']}\n"
-                            "若你不愿继续，will_continue=false，并可在 hangup_reason 写一句作别（也可空则用默认）。\n"
-                            "attitude_delta -5~5。\n"
-                            "输出：{\"line\":\"台词<=80字\",\"will_continue\":true/false,"
-                            "\"attitude_delta\":0,\"hangup_reason\":\"\"}"
+                            + persona
+                            + "\n"
+                            + ((pcard + "\n") if pcard else "")
+                            + f"你是 {npc.name}（{npc.realm.name}，{npc.sect or '散修'}·{npc.sect_rank}）\n"
+                            + f"性格：{mind.get('personality')}\n小传：{bio}\n"
+                            + f"对【{char.name}】态度：{att_cn}（值 {att.get('value',0)}）；续聊意愿 {will_hint}/100\n"
+                            + f"所在：{npc.location}\n"
+                            + ((lore_blk + "\n") if lore_blk else "")
+                            + ((mem_blk + "\n") if mem_blk else "")
+                            + f"近日对话：\n{hist}\n"
+                            + f"对方刚说：{said['player_text']}\n"
+                            + "若你不愿继续，will_continue=false，并可在 hangup_reason 写一句作别（也可空则用默认）。\n"
+                            + "attitude_delta -5~5。\n"
+                            + "输出：{\"line\":\"台词<=80字\",\"will_continue\":true/false,"
+                            + "\"attitude_delta\":0,\"hangup_reason\":\"\"}"
                         )
                         data = _chat_json(prompt)
                         if data:
@@ -1650,14 +1666,29 @@ class World:
                         CharacterRepository.save(npc)
                     except Exception:
                         pass
+                banter_text = ""
+                banter_list: list = []
+                try:
+                    from core.scene_banter import maybe_banter, format_banter, append_banter_to_session
+
+                    banter_list = maybe_banter(
+                        char, npc, transcript_tail=f"{said['player_text']}\n{line}"
+                    )
+                    if banter_list:
+                        banter_text = "\n" + format_banter(banter_list)
+                        if not out.get("ended"):
+                            append_banter_to_session(char.id, banter_list)
+                except Exception:
+                    banter_text = ""
                 log_event("DECISION", "chat", name=char.name, target=npc.name, source=source, ended=bool(out.get("ended")))
                 return {
                     "ok": True,
-                    "text": out.get("message", line),
+                    "text": (out.get("message", line) or "") + banter_text,
                     "chat_open": not out.get("ended"),
                     "chat_ended": bool(out.get("ended")),
                     "npc": npc.name,
                     "source": source,
+                    "bystanders": banter_list,
                 }
             if action in ("/挂断", "/hangup"):
                 from core import npc_chat
@@ -1665,7 +1696,15 @@ class World:
                 rec = npc_chat.close_session(char.id, "你拱手作别，结束了交谈。", by="player")
                 if not rec:
                     return {"ok": False, "error": "当前无进行中的会话。"}
-                return {"ok": True, "text": f"【挂断】与【{rec.get('npc_name')}】的会话已结束。"}
+                mem = ""
+                try:
+                    mem = npc_chat.chat_memory_lines(char.id, rec.get("npc_id") or "")
+                except Exception:
+                    mem = ""
+                text = f"【挂断】与【{rec.get('npc_name')}】的会话已结束。"
+                if mem:
+                    text += "\n" + mem
+                return {"ok": True, "text": text, "chat_ended": True, "npc": rec.get("npc_name")}
             if action in ("/释放", "/release"):
                 from core.chat_actions import release_captive
 

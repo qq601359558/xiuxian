@@ -95,14 +95,51 @@ def summarize_session_rule(rec: Dict[str, Any], player: Optional[Character] = No
     return ("；".join(bits) + "；" + extra)[:120]
 
 
+def summarize_session_ai(
+    rec: Dict[str, Any],
+    player: Optional[Character] = None,
+    npc: Optional[Character] = None,
+) -> str:
+    """有 AI 时：一句话会话摘要（失败回退规则摘要）"""
+    rule = summarize_session_rule(rec, player, npc)
+    try:
+        from config import ai_available
+
+        if not ai_available():
+            return rule
+        from ai.gateway import _chat_json
+        from ai.play_prompts import npc_chat_summary_prompt
+
+        hist = history_lines(rec, 16)
+        prompt = npc_chat_summary_prompt(
+            player=player.name if player else rec.get("player_name") or "",
+            npc=npc.name if npc else rec.get("npc_name") or "",
+            history=hist,
+            end_reason=rec.get("end_reason") or "",
+        )
+        data = _chat_json(prompt)
+        if data and data.get("summary"):
+            s = str(data["summary"]).strip()[:140]
+            if s:
+                return s
+    except Exception:
+        pass
+    return rule
+
+
 def write_chat_memory(
     player: Character,
     npc: Character,
     rec: Dict[str, Any],
     summary: str = "",
 ) -> Dict[str, Any]:
-    """会话结束：写入双方记忆摘要 + 事件账"""
-    summary = (summary or summarize_session_rule(rec, player, npc) or "曾有一席交谈").strip()[:140]
+    """会话结束：写入双方记忆摘要 + 事件账（优先 AI 摘要）"""
+    summary = (
+        summary
+        or summarize_session_ai(rec, player, npc)
+        or summarize_session_rule(rec, player, npc)
+        or "曾有一席交谈"
+    ).strip()[:140]
     now = time.time()
     mem = _load_memory()
     key = _mem_key(player.id, npc.id)

@@ -432,6 +432,23 @@ class NpcDialogueEngine:
         except Exception:
             eid = ""
 
+        # 同场插话（群聊式）
+        banter_lines: List[Dict[str, Any]] = []
+        try:
+            from core.scene_banter import maybe_banter, format_banter
+
+            banter_lines = maybe_banter(player, npc, transcript_tail=f"{player.name}:{words}\n{npc.name}:{line}")
+        except Exception:
+            banter_lines = []
+        text = f"【{npc.name}·{mind.get('personality')}·{ATTITUDE_LABELS.get(att.get('label'),'中立')}】\n「{line}」"
+        if banter_lines:
+            try:
+                from core.scene_banter import format_banter
+
+                text += "\n" + format_banter(banter_lines)
+            except Exception:
+                pass
+
         return {
             "ok": True,
             "npc": npc.name,
@@ -442,7 +459,8 @@ class NpcDialogueEngine:
             "line": line,
             "source": source,
             "event_id": eid,
-            "text": f"【{npc.name}·{mind.get('personality')}·{ATTITUDE_LABELS.get(att.get('label'),'中立')}】\n「{line}」",
+            "bystanders": banter_lines,
+            "text": text,
         }
 
     @staticmethod

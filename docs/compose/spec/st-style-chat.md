@@ -10,9 +10,9 @@ commits: (landed via feat/world-director)
 
 ## Report
 
-**What was built** — 角色卡 few-shot（`character_card_block` + examples）；玩家简卡；`core/lorebook.py` 关键词注入世界态/史笔/秘境/宗门；会话关闭写入摘要记忆，下次开口注入；`npc_talk_prompt` 全槽位。规则权威不变。
+**What was built** — 角色卡 few-shot（`character_card_block` + examples）；玩家简卡；`core/lorebook.py` 关键词注入世界态/史笔/秘境/宗门；会话关闭写入摘要记忆，下次开口注入；`npc_talk_prompt` 全槽位。**续作**：`core/scene_banter.py` 同场旁听插话（性格加权、冷却、AI 可选一句）；`summarize_session_ai` 长会话 AI 摘要（失败回退规则摘要）；`/说`/`/挂断` 返回插话与记忆。规则权威不变。
 
-**Verification** — `test_st_chat` + npc_chat/personas/talk_context **16 passed**。
+**Verification** — `test_st_chat` + `test_scene_banter` + npc_chat/personas/talk_context **15+ passed**；全量见交付。
 
 ## [S1] Problem
 
