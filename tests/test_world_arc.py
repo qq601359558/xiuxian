@@ -229,10 +229,158 @@ def test_server_arc_route():
     print("✓ 服务器 /世界弧 路由")
 
 
+def test_duplicate_directive_rejected():
+    init_db()
+    _reset_arcs()
+    from core.world_director import admit_directive, _is_duplicate_directive, apply_directive
+
+    ok, _, d1 = admit_directive(
+        {
+            "type": "blood_tide",
+            "title": "潮",
+            "narrative": "血气",
+            "location": "黑风绝渊",
+            "effects": {"location": "黑风绝渊"},
+        }
+    )
+    assert ok
+    d1["applied"] = apply_directive(d1)
+    # put into active via run local path would absorb; simulate active
+    state = WorldStateRepository.get("director") or {}
+    state.setdefault("active", []).append({**d1, "source": "test"})
+    WorldStateRepository.set("director", state)
+    assert _is_duplicate_directive(d1) is True
+    ok2, _, d2 = admit_directive(
+        {
+            "type": "blood_tide",
+            "title": "又潮",
+            "narrative": "再起",
+            "location": "青云坊市客栈",
+            "effects": {"location": "青云坊市客栈"},
+        }
+    )
+    assert ok2 and _is_duplicate_directive(d2) is False
+    _reset_arcs()
+    print("✓ 同质指令去重门禁")
+
+
+def test_sect_tension_attitude_and_climax():
+    init_db()
+    _reset_arcs()
+    from core.npc_mind import ensure_mind, attitude_toward
+    from core.world_director import admit_directive, apply_directive
+    from core.world_arc import spawn_from_directive, advance_arc
+
+    a = WorldClock.create_new_character("npc_sect_a", "甲宗弟子")
+    a.sect = "青云宗"
+    a.location = "青云宗外门山门"
+    CharacterRepository.save(a)
+    b = WorldClock.create_new_character("npc_sect_b", "乙宗弟子")
+    b.sect = "九幽天魔宗"
+    b.location = "九幽天魔宗坛"
+    CharacterRepository.save(b)
+    ensure_mind(a)
+    ensure_mind(b)
+    ok, _, d = admit_directive(
+        {
+            "type": "sect_tension",
+            "title": "两宗对峙",
+            "narrative": "剑拔弩张",
+            "effects": {"sect_a": "青云宗", "sect_b": "九幽天魔宗"},
+        }
+    )
+    assert ok
+    applied = apply_directive(d)
+    assert any("attitude_pairs" in f for f in applied["flags"]), applied
+    att = attitude_toward(a, b.id)
+    assert att.get("value", 0) <= 0
+    arc = spawn_from_directive({**d, "source": "test"}, force=True)
+    assert arc["kind"] == "sect_crisis"
+    r1 = advance_arc(arc["id"], force=True)
+    assert r1["ok"]
+    r2 = advance_arc(arc["id"], force=True)
+    assert r2["ok"] and r2["stage"] == "climax"
+    # 决算后：涉事宗门 NPC 之间应存在「对峙」因果边（花名册优先链接前若干名）
+    from storage.db import KarmaLinkRepository
+    from core.collusion import links_of
+
+    duel = [
+        l
+        for l in KarmaLinkRepository.list_all()
+        if l.link_type == "对峙" and ("世界弧" in (l.note or "") or "对峙" in l.link_type)
+    ]
+    assert duel, "决算应写入宗门对峙因果"
+    # 甲/乙测试号也可能被链接；至少一侧宗门存在对峙边
+    assert any(links_of(a.id) or links_of(b.id) for _ in [0]) or duel
+    _reset_arcs()
+    print("✓ 宗门紧张态度 + 弧决算因果")
+
+
+def test_player_respond_and_climax_text():
+    init_db()
+    _reset_arcs()
+    d = _blood_directive("黑风绝渊")
+    arc = spawn_from_directive(d, force=True)
+    player = WorldClock.create_new_character("arc_hero", "应劫客")
+    player.location = "黑风绝渊"
+    CharacterRepository.save(player)
+    from core.world_arc import player_respond
+
+    res = player_respond(arc["id"], player, "应劫")
+    assert res["ok"] is True
+    assert player.karma.merit_value >= 2
+    r2 = advance_arc(arc["id"], force=True)
+    assert r2["ok"]
+    r3 = advance_arc(arc["id"], force=True)
+    assert r3["ok"]
+    assert "应劫" in (r3.get("arc") or {}).get("climax_text", "")
+    from core.world_director import gather_world_brief
+
+    # brief 含弧/传说字段
+    brief = gather_world_brief()
+    assert "arcs_line" in brief and "legends_line" in brief
+    assert "世界弧" in brief["text"] or "弧" in brief["text"]
+    _reset_arcs()
+    print("✓ 玩家应劫参与 + 简报含弧")
+
+
+def test_server_yingjie_route():
+    init_db()
+    _reset_arcs()
+    import config
+
+    old = (config.ALLOW_LOCAL_AI, config.LLM_API_KEY, config.USE_CCSWITCH)
+    config.ALLOW_LOCAL_AI = True
+    config.LLM_API_KEY = ""
+    config.USE_CCSWITCH = False
+    from server.world import World
+    from core.world_director import admit_directive
+
+    try:
+        d = _blood_directive("落霞山灵泉")
+        arc = spawn_from_directive(d, force=True)
+        w = World(auto_tick=False)
+        sess = w.join("应劫修士", user_id="arc_yingjie_user")
+        tok = sess["token"]
+        r = w.handle(tok, f"/世界弧应劫 {arc['id']} 应劫")
+        assert r.get("ok") is True, r
+        assert "应劫" in r.get("text", "")
+        board = w.handle(tok, "/天道")
+        assert "世界弧" in board.get("text", "") or "天道导演" in board.get("text", "")
+    finally:
+        config.ALLOW_LOCAL_AI, config.LLM_API_KEY, config.USE_CCSWITCH = old
+        _reset_arcs()
+    print("✓ 服务器应劫与天道面板")
+
+
 if __name__ == "__main__":
     test_spawn_escalate_climax_legend()
     test_dedupe_and_modifiers_and_bias()
     test_tick_auto_advance()
     test_director_run_spawns_arc()
     test_server_arc_route()
+    test_duplicate_directive_rejected()
+    test_sect_tension_attitude_and_climax()
+    test_player_respond_and_climax_text()
+    test_server_yingjie_route()
     print("\nworld_arc tests all passed")

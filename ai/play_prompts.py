@@ -573,12 +573,35 @@ def director_prompt(world_brief: str, season_remain_days: float = 0.0, force: bo
     )
 
 
+def world_arc_stage_prompt(
+    kind: str,
+    stage: str,
+    title: str,
+    location: str,
+    prophesy: str,
+    template: str,
+) -> str:
+    """世界弧阶段叙事：结果已由规则裁定，AI 只扩写"""
+    stage_cn = {"escalate": "升级", "climax": "决算"}.get(stage, stage)
+    return (
+        "你是天道导演的说书人。世界弧阶段结果已由规则引擎裁定，你只写叙事，不得改胜负/掉落。\n"
+        f"弧：{title}（{kind}）阶段：{stage_cn}；地点：{location or '各地'}\n"
+        f"预兆原文：{prophesy}\n"
+        f"规则模板（可作事实底稿）：{template}\n"
+        "写一句 40–100 字修仙白话叙事，可提到地点、宗门、血煞/秘境/大劫等与 kind 相符的意象。\n"
+        f"{_JSON_ONLY}\n"
+        '输出：{"narrative":"..."}\n'
+        f"{_NO_CHEAT}"
+    )
+
+
 # 注册表（便于测试与文档）
 PROMPT_BUILDERS = {
     "combat": combat_prompt,
     "tribulation": tribulation_prompt,
     "world_event": world_event_prompt,
     "world_director": director_prompt,
+    "world_arc_stage": world_arc_stage_prompt,
     "heart_demon_session": heart_demon_session_prompt,
     "heart_demon_judge": heart_demon_judge_prompt,
     "free_action": free_action_prompt,

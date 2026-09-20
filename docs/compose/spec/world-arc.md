@@ -3,21 +3,21 @@ feature: world-arc
 status: delivered
 updated: 2026-09-18
 branch: feat/world-director
-commits: (see git log after land)
+commits: landed on main via feat/world-director
 ---
 
 # M2 世界弧 WorldArc
 
 ## Report
 
-**What was built** — `core/world_arc.py`：预兆→升级→决算三段世界弧。导师指令经 `DIRECTIVE_TO_ARC` 升格为弧（同 kind+location 去重）；`tick_world` 墙钟推进；决算写传说与大事记；`world_modifiers` 合并弧热度/血煞/宗门/大劫；NPC 议程读 `agenda_bias_from_arcs`；`/世界弧` 与世情可见；`realm_storm` 升级可强制开秘境。
+**What was built** — 预兆→升级→决算状态机；导师指令升格起弧；tick/强制推进；决算写传说与大事记；世界修饰与导师合并；NPC 偏置；`/世界弧`、`/世界弧应劫`。**补全至模块完全体**：阶段叙事可走 AI（`world_arc_stage`，失败回退模板）；玩家应劫/避祸参与写入决算措辞；宗门危机决算写「对峙」因果边与态度；导演简报含活跃弧与近传说；同质指令去重。
 
-**Verification** — `tests/test_world_arc.py` + `test_world_director.py` **19 passed**；全量 pytest 见交付记录。
+**Verification** — `test_world_arc` + `test_world_director` **23 passed**；全量 **263 passed**。
 
 **Journey log**
-- 阶段时长必须运行时读 `config`，否则测试改 env 无效。
-- 弧是「跨时间的世界故事」，不是再发一条频道。
-- 决算入 `legends`，为 M5 纪元回流留口。
+- 阶段时长运行时读 config。
+- 花名册 NPC 优先占宗门对峙链接前排，验收看 link_type 而非单测号。
+- 弧是跨时间故事：起→升→决算→史笔，不是再发一条频道。
 
 ## [S1] Problem
 

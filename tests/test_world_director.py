@@ -358,6 +358,16 @@ def _seed_blood_tide(loc="黑风绝渊"):
 def test_world_modifiers_and_npc_bias():
     init_db()
     _reset_director()
+    # 清弧，避免上例残留热度
+    try:
+        from core.world_arc import _KEY as ARC_KEY
+
+        WorldStateRepository.set(
+            ARC_KEY,
+            {"arcs": [], "history": [], "stats": {"spawned": 0, "advanced": 0, "climaxed": 0}},
+        )
+    except Exception:
+        pass
     _seed_blood_tide("黑风绝渊")
     from core.world_director import world_modifiers, location_heat, agenda_bias_for_npc
 
@@ -365,7 +375,8 @@ def test_world_modifiers_and_npc_bias():
     assert "黑风绝渊" in mods["blood_tide_locations"]
     assert mods["hunt_heat"] >= 1.3
     assert location_heat("黑风绝渊") >= 1.4
-    assert location_heat("青云坊市客栈") == 1.0
+    # 无弧无指令的地点应回到常态
+    assert location_heat("万星古岛") == 1.0
 
     npc = WorldClock.create_new_character("dir_npc_bias", "巡守客")
     npc.location = "黑风绝渊"

@@ -18,6 +18,7 @@ SCENE_LIMITS = {
     "combat": 25,
     "world_event": 15,
     "world_director": 6,
+    "world_arc_stage": 10,
 }
 
 DEFAULT_WINDOW_SECONDS = 60.0

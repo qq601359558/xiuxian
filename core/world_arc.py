@@ -309,6 +309,7 @@ def advance_arc(
     kind = target.get("kind")
     if nxt == "escalate":
         text = narrative_hint or _escalate_text(kind, title, loc, target)
+        text = _ai_stage_text(target, "escalate", text)
         target["stage"] = "escalate"
         target["escalate_text"] = text
         target["stage_deadline"] = t + _stage_duration("escalate")
@@ -359,6 +360,98 @@ def _escalate_text(kind: str, title: str, loc: str, arc: Dict[str, Any]) -> str:
     return f"【{title}】异象扩大，世间修士皆有所感。"
 
 
+def _ai_stage_text(arc: Dict[str, Any], stage: str, template_text: str) -> str:
+    """有 AI 时按弧上下文改写阶段叙事；失败回退模板（结果已由规则定）"""
+    try:
+        import config as cfg
+
+        if not getattr(cfg, "WORLD_ARC_AI_NARRATIVE", True):
+            return template_text
+        from config import ai_available
+        from ai.gateway import ai_ready
+        from ai.router import invoke
+
+        if not (ai_available() or (ai_ready() and not ai_available())):
+            # local_ai 且无 key：仍可用模板，不伪称 AI
+            if not ai_available():
+                return template_text
+        if not ai_available():
+            return template_text
+        payload = {
+            "kind": arc.get("kind"),
+            "stage": stage,
+            "title": arc.get("title"),
+            "location": arc.get("location") or "",
+            "prophesy": arc.get("prophesy_text") or "",
+            "template": template_text,
+            "participants": arc.get("participants") or [],
+        }
+        r = invoke("world_arc_stage", payload=payload, actor_id=arc.get("id") or "arc", timeout=15.0)
+        if r.get("ok") and isinstance(r.get("data"), dict):
+            line = str(r["data"].get("narrative") or r["data"].get("text") or "").strip()
+            if line:
+                return line[:160]
+    except Exception:
+        pass
+    return template_text
+
+
+def player_respond(
+    arc_id: str,
+    character: Any,
+    choice: str,
+    *,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """玩家应劫/避祸：只记参与与态度，数值由规则钳（功德上限）"""
+    t = _now(now)
+    state = _load()
+    prune_arcs(state, t)
+    target = None
+    for a in state.get("arcs") or []:
+        if a.get("id") == arc_id and a.get("status") == "active":
+            target = a
+            break
+    if not target:
+        return {"ok": False, "error": "弧不存在或已结束"}
+    if character is None:
+        return {"ok": False, "error": "无角色"}
+    choice = (choice or "").strip().lower()
+    cn = ""
+    if choice in ("应劫", "yingjie", "1", "fight", "应"):
+        cn = "应劫"
+        flag = "answered"
+    elif choice in ("避祸", "bihuo", "2", "flee", "避"):
+        cn = "避祸"
+        flag = "avoided"
+    else:
+        return {"ok": False, "error": "用法：/世界弧应劫 <弧id> 应劫|避祸"}
+    name = getattr(character, "name", "") or ""
+    parts = list(target.get("participants") or [])
+    parts.append({"who": name, "choice": cn, "ts": t})
+    target["participants"] = parts[-20:]
+    target.setdefault("flags", []).append(f"{flag}:{name}")
+    target["log"].append(f"玩家{name}选择{cn}")
+    target["updated_at"] = t
+    _save(state)
+    _post(f"【世界弧】{name} 对【{target.get('title')}】表态：{cn}", "info", target.get("location") or "")
+    # 规则小反馈：应劫+1 功德（上限由 add_merit 自身语义；不给灵石/修为）
+    try:
+        if cn == "应劫":
+            character.karma.add_merit(2)
+            from storage.db import CharacterRepository
+
+            CharacterRepository.save(character)
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "text": f"你对【{target.get('title')}】表态：{cn}。天道已录，决算时自有回响。",
+        "arc_id": arc_id,
+        "choice": cn,
+    }
+
+
 def _settle_climax(arc: Dict[str, Any], *, now: Optional[float], reason: str = "") -> Optional[Dict[str, Any]]:
     t = _now(now)
     kind = arc.get("kind")
@@ -366,8 +459,17 @@ def _settle_climax(arc: Dict[str, Any], *, now: Optional[float], reason: str = "
     loc = arc.get("location") or ""
     eff = arc.get("effects") or {}
     climax = reason if reason and len(reason) > 8 else ""
+    # 玩家参与影响决算措辞（不改胜负公式）
+    answered = [p for p in (arc.get("participants") or []) if p.get("choice") == "应劫"]
+    avoided = [p for p in (arc.get("participants") or []) if p.get("choice") == "避祸"]
     if not climax:
         climax = _climax_text(kind, title, loc, eff)
+    if answered:
+        names = "、".join(p.get("who", "") for p in answered[:3])
+        climax = f"{climax}（{names} 等曾应劫）"
+    elif avoided and kind != "omen_arc":
+        climax = f"{climax}（众人多择避祸，风波内敛）"
+    climax = _ai_stage_text(arc, "climax", climax)
     arc["stage"] = "climax"
     arc["status"] = "done"
     arc["climax_text"] = climax
@@ -377,6 +479,59 @@ def _settle_climax(arc: Dict[str, Any], *, now: Optional[float], reason: str = "
     level = "epic" if kind == "calamity_arc" else "major"
     _post(f"【世界弧·决算】{title}：{climax}" + (f" @{loc}" if loc else ""), level, loc)
     _chronicle("决算", f"{title}：{climax[:100]}")
+    # 决算规则落账（宪章内）
+    try:
+        if kind == "sect_crisis":
+            sa = str(eff.get("sect_a") or "")
+            sb = str(eff.get("sect_b") or "")
+            from core.collusion import ensure_link
+            from core.models import CharacterStatus
+            from core.npc_mind import _is_npc, shift_attitude
+            from storage.db import CharacterRepository
+
+            a_list = []
+            b_list = []
+            for c in CharacterRepository.list_all_alive():
+                if not _is_npc(c) or c.status == CharacterStatus.DEAD:
+                    continue
+                if c.sect == sa:
+                    a_list.append(c)
+                elif c.sect == sb:
+                    b_list.append(c)
+            for a in a_list[:4]:
+                for b in b_list[:4]:
+                    ensure_link(a, b, "对峙", note=f"世界弧决算：{title}", now=t)
+                    if answered:
+                        shift_attitude(a, b.id, 5, reason="决算后暂歇")
+                        shift_attitude(b, a.id, 5, reason="决算后暂歇")
+                    else:
+                        shift_attitude(a, b.id, -5, reason="决算后暗流仍在")
+                        shift_attitude(b, a.id, -5, reason="决算后暗流仍在")
+        if kind == "blood_feud":
+            _chronicle("除凶", f"{title} 决算，血煞之势暂歇" + (f"@{loc}" if loc else ""))
+            if answered:
+                try:
+                    from core.legends import add_legend
+                    from core.season import season_info
+
+                    season = int(season_info(t).get("season_number") or 0)
+                    add_legend(
+                        title=f"应劫·{title}",
+                        text=f"有人于{title}中挺身应劫，坊间传为谈资。",
+                        season=season,
+                        tags=["world_arc", "answered"],
+                        actor="天道",
+                        weight=2,
+                        now=t,
+                    )
+                except Exception:
+                    pass
+        if kind == "realm_storm":
+            rid = str(eff.get("realm_id") or "")
+            if rid:
+                _chronicle("秘境", f"【{rid}】风暴决算，{title}")
+    except Exception as e:
+        _chronicle("决算", f"{title} 落账异常 {type(e).__name__}")
     # 传说回流
     try:
         from core.legends import add_legend

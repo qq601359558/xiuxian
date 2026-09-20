@@ -653,6 +653,8 @@ DIRECTIVE_TO_ARC = {
     "calamity_forecast": "calamity_arc",
     "omen": "omen_arc",
 }
+# 世界弧阶段叙事是否尝试 AI 改写（失败回退模板）
+WORLD_ARC_AI_NARRATIVE = os.getenv("WORLD_ARC_AI_NARRATIVE", "1") not in ("0", "false", "False")
 
 # ==================== NPC 议程 ====================
 # 每次世界 tick 最多推进多少名 NPC（控成本）

@@ -169,6 +169,37 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
             rumors = majors
         except Exception:
             rumors = []
+    arcs_line = "无"
+    legends_line = "无"
+    try:
+        from core.world_arc import active_arcs
+
+        _arcs = active_arcs(t)[:4]
+        if _arcs:
+            arcs_line = "；".join(
+                f"{a.get('stage')}:{a.get('kind')}:{a.get('title')}@{a.get('location') or '—'}"
+                for a in _arcs
+            )
+    except Exception:
+        pass
+    try:
+        from core.legends import list_legends
+
+        _legs = list_legends(limit=4)
+        if _legs:
+            legends_line = "；".join(x.text[:40] for x in _legs)
+    except Exception:
+        pass
+    mods_line = ""
+    try:
+        mods = world_modifiers(t)
+        mods_line = (
+            f"当前修饰：血煞地={mods.get('blood_tide_locations') or '无'} "
+            f"宗门紧张={mods.get('sect_tensions') or '无'} "
+            f"大劫={'是' if mods.get('calamity_forecast') else '否'}"
+        )
+    except Exception:
+        mods_line = ""
     info = season_info(t)
     locs = list(WORLD_LOCATIONS.keys())
     brief_text = (
@@ -178,10 +209,14 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
         f"血煞/重业：{'；'.join(blood[:6]) or '无'}\n"
         f"秘境：{'；'.join(realms[:6]) or '—'}\n"
         f"近闻：{'；'.join(rumors) or '风平浪静'}\n"
+        f"进行中世界弧：{arcs_line}\n"
+        f"近传说：{legends_line}\n"
+        f"{mods_line}\n"
         f"地点库：{'、'.join(locs[:10])}\n"
         f"秘境库：{'、'.join(list(SECRET_REALMS.keys()))}\n"
         f"纪元第 {info.get('season_number')} 天；剩余约 {info.get('remain_real_days')} 天；"
-        f"大劫窗口={'是' if info.get('is_final_week') else '否'}"
+        f"大劫窗口={'是' if info.get('is_final_week') else '否'}\n"
+        f"注意：勿与「进行中世界弧/当前修饰」重复提案同质指令。"
     )
     return {
         "text": brief_text,
@@ -190,6 +225,8 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
         "blood": blood,
         "realms": realms,
         "rumors": rumors,
+        "arcs_line": arcs_line,
+        "legends_line": legends_line,
         "season": info,
         "locations": locs,
         "secret_realms": list(SECRET_REALMS.keys()),
@@ -304,6 +341,60 @@ def admit_directive(
     return True, "", cleaned
 
 
+def _is_duplicate_directive(cleaned: Dict[str, Any], now: Optional[float] = None) -> bool:
+    """活跃指令同 type（+location/realm）视为重复，驳回防刷屏"""
+    t = _now(now)
+    state = _load()
+    _prune_active(state, t)
+    dtype = cleaned.get("type")
+    loc = cleaned.get("location") or ""
+    rid = str((cleaned.get("effects") or {}).get("realm_id") or "")
+    sa = str((cleaned.get("effects") or {}).get("sect_a") or "")
+    for d in state.get("active") or []:
+        if d.get("type") != dtype:
+            continue
+        if dtype == "secret_realm_pressure":
+            if rid and (d.get("effects") or {}).get("realm_id") == rid:
+                return True
+            continue
+        if dtype == "sect_tension":
+            da = str((d.get("effects") or {}).get("sect_a") or "")
+            db = str((d.get("effects") or {}).get("sect_b") or "")
+            if sa and {da, db} == {
+                sa,
+                str((cleaned.get("effects") or {}).get("sect_b") or ""),
+            }:
+                return True
+            continue
+        if dtype == "calamity_forecast":
+            return True
+        # blood_tide / omen：同地点或全局
+        if (d.get("location") or "") == loc:
+            return True
+        if not loc and not d.get("location"):
+            return True
+    return False
+
+
+def _dedupe_cleaned(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """同批提案内去重"""
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for d in rows:
+        key = (
+            d.get("type"),
+            d.get("location") or "",
+            str((d.get("effects") or {}).get("realm_id") or ""),
+            str((d.get("effects") or {}).get("sect_a") or ""),
+            str((d.get("effects") or {}).get("sect_b") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+
 def _local_directives(brief: Dict[str, Any], now: float) -> List[Dict[str, Any]]:
     """无真 AI 时的确定性降级（source=local，不冒充天道裁决）"""
     info = brief.get("season") or {}
@@ -327,13 +418,20 @@ def _local_directives(brief: Dict[str, Any], now: float) -> List[Dict[str, Any]]
                 }
             )
     if brief.get("blood"):
+        loc_b = ""
+        try:
+            loc_b = (str(brief.get("blood")[0]).split("@")[-1].split("业力")[0]) if brief.get("blood") else ""
+        except Exception:
+            loc_b = ""
+        if loc_b not in WORLD_LOCATIONS:
+            loc_b = ""
         raw_list.append(
             {
                 "type": "blood_tide",
                 "title": "血煞微涨",
                 "narrative": "坊间血气浮动，除凶与避祸之议再起，安全区外宜谨慎。",
-                "location": "",
-                "effects": {"whisper": "血煞异动"},
+                "location": loc_b,
+                "effects": {"location": loc_b, "whisper": "血煞异动"},
                 "priority": 2,
             }
         )
@@ -348,6 +446,29 @@ def _local_directives(brief: Dict[str, Any], now: float) -> List[Dict[str, Any]]
                 "priority": 3,
             }
         )
+    # 宗门紧张（有 NPC 时才给一对）
+    try:
+        sects = []
+        for c in CharacterRepository.list_all_alive():
+            uid = str(getattr(c, "user_id", "") or "")
+            if not (uid.startswith("npc_") or uid.startswith("ai_npc_")):
+                continue
+            if c.sect and c.sect not in sects:
+                sects.append(c.sect)
+            if len(sects) >= 2:
+                break
+        if len(sects) >= 2:
+            raw_list.append(
+                {
+                    "type": "sect_tension",
+                    "title": "两宗龃龉",
+                    "narrative": f"【{sects[0]}】与【{sects[1]}】门下近日互有龃龉，坊间议论纷纷。",
+                    "effects": {"sect_a": sects[0], "sect_b": sects[1], "whisper": "紧张"},
+                    "priority": 2,
+                }
+            )
+    except Exception:
+        pass
     if not raw_list:
         raw_list.append(
             {
@@ -369,7 +490,13 @@ def _local_directives(brief: Dict[str, Any], now: float) -> List[Dict[str, Any]]
         if ok and item:
             item["source"] = "local"
             cleaned.append(item)
-    return cleaned
+    cleaned = _dedupe_cleaned(cleaned)
+    out = []
+    for item in cleaned:
+        if _is_duplicate_directive(item, now=now):
+            continue
+        out.append(item)
+    return out[:DIRECTOR_MAX_ACTIVE]
 
 
 def _ai_propose(
@@ -417,7 +544,7 @@ def _ai_propose(
             raw_list = []
         cleaned: List[Dict[str, Any]] = []
         rejected = 0
-        for raw in raw_list[:DIRECTOR_MAX_ACTIVE]:
+        for raw in raw_list[:DIRECTOR_MAX_ACTIVE * 2]:
             ok, reason, item = admit_directive(raw, season=season, now=now)
             if ok and item:
                 item["source"] = "ai"
@@ -432,6 +559,16 @@ def _ai_propose(
                         "source": "ai",
                     }
                 )
+        cleaned = _dedupe_cleaned(cleaned)
+        final = []
+        for item in cleaned:
+            if _is_duplicate_directive(item, now=now):
+                rejected += 1
+                _audit({"event": "reject", "reason": "duplicate_active", "source": "ai", "type": item.get("type")})
+                continue
+            final.append(item)
+            if len(final) >= DIRECTOR_MAX_ACTIVE:
+                break
         if rejected:
             try:
                 st = _load()
@@ -439,7 +576,7 @@ def _ai_propose(
                 _save(st)
             except Exception:
                 pass
-        return cleaned, "ai", (f"rejected={rejected}" if rejected and not cleaned else "")
+        return final, "ai", (f"rejected={rejected}" if rejected and not final else "")
     except Exception as e:
         err = f"{type(e).__name__}: {e}"[:200]
         if local_ai_allowed():
@@ -670,22 +807,88 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
     # 血煞/宗门态势（活跃指令即世界修饰源）
     if dtype == "blood_tide":
         applied["flags"].append("blood_tide")
-        if effects.get("location") or loc:
-            applied["flags"].append(f"loc:{effects.get('location') or loc}")
+        eloc = str(effects.get("location") or loc or "")
+        if eloc:
+            applied["flags"].append(f"loc:{eloc}")
+        try:
+            from storage.db import ChronicleRepository
+
+            ChronicleRepository.record(
+                "天道导演", "血煞", f"血煞潮起：{title}" + (f"@{eloc}" if eloc else "")
+            )
+        except Exception:
+            pass
     if dtype == "sect_tension":
-        applied["flags"].append(
-            f"sect:{effects.get('sect_a')}vs{effects.get('sect_b')}"
-        )
-        # 世情/除凶可感知：宗门紧张时同场 NPC 会偏置（见 agenda_bias_for_npc）
+        sa = str(effects.get("sect_a") or "")
+        sb = str(effects.get("sect_b") or "")
+        applied["flags"].append(f"sect:{sa}vs{sb}")
+        try:
+            from storage.db import ChronicleRepository
+
+            ChronicleRepository.record("天道导演", "宗门", f"{sa}×{sb} 关系紧张：{title}")
+        except Exception:
+            pass
+        # 规则侧：双方法门下 NPC 态度微降（可感知宗门紧张，非胜负改数）
+        try:
+            from core.npc_mind import shift_attitude, _is_npc
+
+            npcs_a = []
+            npcs_b = []
+            for c in CharacterRepository.list_all_alive():
+                if not _is_npc(c) or c.status == CharacterStatus.DEAD:
+                    continue
+                if c.sect == sa:
+                    npcs_a.append(c)
+                elif c.sect == sb:
+                    npcs_b.append(c)
+            for a in npcs_a[:3]:
+                for b in npcs_b[:3]:
+                    shift_attitude(a, b.id, -8, reason=f"天道导演·宗门紧张{sa}×{sb}")
+                    shift_attitude(b, a.id, -8, reason=f"天道导演·宗门紧张{sa}×{sb}")
+            if npcs_a or npcs_b:
+                applied["flags"].append(f"attitude_pairs:{min(3,len(npcs_a))}x{min(3,len(npcs_b))}")
+        except Exception as e:
+            applied["flags"].append(f"attitude_err:{type(e).__name__}")
     if dtype == "calamity_forecast":
         applied["flags"].append("calamity_forecast")
+        try:
+            from core.goals import GoalEngine
+            from core.season import season_info as _si
+
+            info = _si(t)
+            g_detail = (
+                f"纪元第 {info.get('season_number')} 天，余约 {info.get('remain_real_days')} 天。"
+                f"{narrative[:80]}"
+            )
+            n_goal = 0
+            for c in CharacterRepository.list_all_alive():
+                uid = str(getattr(c, "user_id", "") or "")
+                if uid.startswith("npc_") or uid.startswith("ai_npc_"):
+                    continue
+                if c.status == CharacterStatus.DEAD:
+                    continue
+                if GoalEngine.add_opportunity(c, f"大劫预兆·{title}", g_detail).get("success"):
+                    n_goal += 1
+                    try:
+                        CharacterRepository.save(c)
+                    except Exception:
+                        pass
+                if n_goal >= DIRECTOR_GOAL_FANOUT:
+                    break
+            applied["goals"] = int(applied.get("goals") or 0) + n_goal
+        except Exception:
+            pass
 
     # 机缘目标投射
     if dtype in ("omen", "secret_realm_pressure") and (
-        effects.get("goal_title") or dtype == "omen"
+        effects.get("goal_title") or dtype == "omen" or dtype == "secret_realm_pressure"
     ):
         g_title = str(effects.get("goal_title") or title)[:40]
         g_detail = str(effects.get("goal_detail") or narrative)[:200]
+        if dtype == "secret_realm_pressure":
+            rid = str(effects.get("realm_id") or "")
+            g_title = str(effects.get("goal_title") or f"秘境风声·{rid or title}")[:40]
+            g_detail = str(effects.get("goal_detail") or narrative)[:200]
         n = 0
         try:
             from core.goals import GoalEngine
@@ -842,6 +1045,16 @@ class WorldDirector:
         else:
             cleaned, source, error = _ai_propose(brief, force=force, now=t)
 
+        # 统一：批内去重 + 对活跃指令去重
+        if cleaned:
+            cleaned = _dedupe_cleaned(cleaned)
+            deduped = []
+            for item in cleaned:
+                if _is_duplicate_directive(item, now=t):
+                    continue
+                deduped.append(item)
+            cleaned = deduped[:DIRECTOR_MAX_ACTIVE]
+
         if source == "error" and not cleaned:
             state.update(
                 {
@@ -969,6 +1182,23 @@ class WorldDirector:
                 f"大劫预兆={'是' if mods.get('calamity_forecast') else '否'} · "
                 f"除凶热度×{mods.get('hunt_heat', 1.0):.2f}"
             )
+        except Exception:
+            pass
+        try:
+            from core.world_arc import active_arcs, format_arc_board
+
+            arcs = active_arcs(t)
+            if arcs:
+                lines.append(f"世界弧（{len(arcs)}）：")
+                for a in arcs[:4]:
+                    stage_cn = {"prophesy": "预兆", "escalate": "升级", "climax": "决算"}.get(
+                        a.get("stage"), a.get("stage")
+                    )
+                    loc = f" @{a.get('location')}" if a.get("location") else ""
+                    lines.append(f"  · [{stage_cn}] {a.get('title')}{loc}（{a.get('kind')}）")
+                lines.append("  详情：/世界弧")
+            else:
+                lines.append("世界弧：暂无进行中")
         except Exception:
             pass
         pe = list(state.get("player_events") or [])[-3:]
