@@ -144,6 +144,13 @@ class World:
                         player_echo.decay_echoes()
                     except Exception:
                         pass
+                    # M5：纪元回流 tick
+                    try:
+                        from core import era_reentry
+
+                        era_reentry.tick()
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -873,11 +880,17 @@ class World:
                 }
             if action in ("/legend", "/传说", "/典籍"):
                 from core.legends import format_legends
+                from core.era_reentry import format_era_board
 
                 season = None
                 if len(parts) > 1 and parts[1].lstrip("-").isdigit():
                     season = int(parts[1])
-                return {"ok": True, "text": format_legends(season=season)}
+                text = format_legends(season=season)
+                try:
+                    text += "\n\n" + format_era_board()
+                except Exception:
+                    pass
+                return {"ok": True, "text": text}
             if action in ("/links", "/关系"):
                 from core.collusion import format_links
                 from storage.db import CharacterRepository as CR
@@ -1323,6 +1336,10 @@ class World:
                 from core.player_echo import handle_echo_command
 
                 return handle_echo_command(parts, char)
+            if action in ("/纪元回流", "/era", "/史笔回流"):
+                from core.era_reentry import handle_era_command
+
+                return handle_era_command(parts)
             if action in ("/宗门令", "/sectorder", "/势力令"):
                 from core.faction import handle_faction_command
 
@@ -2162,7 +2179,7 @@ class World:
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
-            "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
+            "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /纪元回流 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "

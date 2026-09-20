@@ -200,6 +200,18 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
         )
     except Exception:
         mods_line = ""
+    bias_line = "无"
+    try:
+        from core.era_reentry import active_bias, preferred_directive_types, TYPE_CN
+
+        bias = active_bias(t)
+        if bias:
+            pref = preferred_directive_types(t, top=3)
+            bias_line = "；".join(
+                f"{TYPE_CN.get(k, k)}({bias.get(k, 0):.1f})" for k in pref
+            )
+    except Exception:
+        bias_line = "无"
     info = season_info(t)
     locs = list(WORLD_LOCATIONS.keys())
     brief_text = (
@@ -211,12 +223,14 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
         f"近闻：{'；'.join(rumors) or '风平浪静'}\n"
         f"进行中世界弧：{arcs_line}\n"
         f"近传说：{legends_line}\n"
+        f"纪元回流权重（可优先提案）：{bias_line}\n"
         f"{mods_line}\n"
         f"地点库：{'、'.join(locs[:10])}\n"
         f"秘境库：{'、'.join(list(SECRET_REALMS.keys()))}\n"
         f"纪元第 {info.get('season_number')} 天；剩余约 {info.get('remain_real_days')} 天；"
         f"大劫窗口={'是' if info.get('is_final_week') else '否'}\n"
-        f"注意：勿与「进行中世界弧/当前修饰」重复提案同质指令。"
+        f"注意：勿与「进行中世界弧/当前修饰」重复提案同质指令；"
+        f"史笔余势类型应优先考虑。"
     )
     return {
         "text": brief_text,
@@ -227,6 +241,7 @@ def gather_world_brief(now: Optional[float] = None) -> Dict[str, Any]:
         "rumors": rumors,
         "arcs_line": arcs_line,
         "legends_line": legends_line,
+        "era_bias": bias_line,
         "season": info,
         "locations": locs,
         "secret_realms": list(SECRET_REALMS.keys()),
@@ -431,6 +446,13 @@ def _local_directives(brief: Dict[str, Any], now: float) -> List[Dict[str, Any]]
     """无真 AI 时的确定性降级（source=local，不冒充天道裁决）"""
     info = brief.get("season") or {}
     raw_list: List[Dict[str, Any]] = []
+    # M5：史笔余势优先注入
+    try:
+        from core.era_reentry import seed_local_directives
+
+        raw_list.extend(seed_local_directives(now=now) or [])
+    except Exception:
+        pass
     open_realms = [r for r in (brief.get("realms") or []) if "开启" in str(r)]
     if open_realms:
         rid = ""
@@ -593,6 +615,13 @@ def _ai_propose(
                 )
         cleaned = _dedupe_cleaned(cleaned)
         final = []
+        # M5：按史笔 bias 重排
+        try:
+            from core.era_reentry import reorder_by_bias
+
+            cleaned = reorder_by_bias(cleaned, now=now)
+        except Exception:
+            pass
         for item in cleaned:
             if _is_duplicate_directive(item, now=now):
                 rejected += 1
@@ -601,6 +630,25 @@ def _ai_propose(
             final.append(item)
             if len(final) >= DIRECTOR_MAX_ACTIVE:
                 break
+        # M5：若 AI 未给出 bias 优先类型，补一条史笔种子（仍 admit）
+        if final:
+            try:
+                from core.era_reentry import preferred_directive_types, seed_local_directives, note_citation
+
+                pref = preferred_directive_types(now=now, top=2)
+                have = {x.get("type") for x in final}
+                if pref and not any(p in have for p in pref):
+                    for seed in seed_local_directives(now=now):
+                        if seed.get("type") not in pref:
+                            continue
+                        ok_s, _rs, item_s = admit_directive(seed, season=season, now=now)
+                        if ok_s and item_s and not _is_duplicate_directive(item_s, now=now):
+                            item_s["source"] = "ai+era"
+                            final.append(item_s)
+                            note_citation("director_supplement")
+                            break
+            except Exception:
+                pass
         if rejected:
             try:
                 st = _load()
@@ -1318,6 +1366,22 @@ class WorldDirector:
                 lines.append(
                     f"望气：血气{em.get('blood_index', 0):.0f} · 恐慌{em.get('market_panic', 0):.0f} · "
                     f"凶地={em.get('hot_regions') or '无'}"
+                )
+        except Exception:
+            pass
+        try:
+            from core.era_reentry import format_era_board
+
+            # 精简一行
+            from core.era_reentry import active_bias, TYPE_CN
+
+            bias = active_bias(t)
+            if bias:
+                top = sorted(bias.items(), key=lambda x: -x[1])[:3]
+                lines.append(
+                    "纪元回流："
+                    + "、".join(f"{TYPE_CN.get(k, k)}{v:.0f}" for k, v in top)
+                    + "（/纪元回流 详情）"
                 )
         except Exception:
             pass

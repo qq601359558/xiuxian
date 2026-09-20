@@ -103,6 +103,13 @@ def settle_apocalypse(now: Optional[float] = None) -> Dict[str, Any]:
             skip_limit=True,
         )
         write_apocalypse_legends(ended, now=t)
+        # M5：纪元回流（史笔 → 导师 bias）
+        try:
+            from core.era_reentry import on_apocalypse_settle
+
+            on_apocalypse_settle(ended, now=t)
+        except Exception:
+            pass
     except Exception:
         pass
     return {

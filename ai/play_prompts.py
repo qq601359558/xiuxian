@@ -560,6 +560,7 @@ def director_prompt(world_brief: str, season_remain_days: float = 0.0, force: bo
         f"世界简报：\n{world_brief}\n"
         f"纪元剩余约 {season_remain_days:.1f} 现实天。\n"
         "提案 0~3 条世界级指令（directives），宁少而准；无大事可给空数组。\n"
+        "若简报含「纪元回流权重」，应优先提案其中权重更高的 type（史笔余势）。\n"
         "type 只能是：omen | secret_realm_pressure | blood_tide | sect_tension | calamity_forecast "
         "| faction_order | sect_siege\n"
         "effects 只允许世界态势/目标提示键："
