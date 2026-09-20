@@ -119,6 +119,16 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
     else:
         lines.append("  · 暂无")
 
+    # 天道导演态势
+    try:
+        from core.world_director import WorldDirector
+
+        d_rows = WorldDirector.schedule_lines(limit=3)
+    except Exception:
+        d_rows = []
+    lines.append(f"天道导演（{len(d_rows)}）：")
+    lines.extend(d_rows or ["  · 暂无态势（/天道 可览）"])
+
     # 近闻
     try:
         majors = [

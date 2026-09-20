@@ -17,6 +17,7 @@ SCENE_LIMITS = {
     "npc_proactive": 10,
     "combat": 25,
     "world_event": 15,
+    "world_director": 6,
 }
 
 DEFAULT_WINDOW_SECONDS = 60.0

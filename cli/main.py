@@ -165,6 +165,7 @@ def print_help():
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
+  [bold yellow]/天道[/bold yellow]                 - 天道导演态势；/天道 推演 强制一轮
   [bold yellow]/近况[/bold yellow]                 - 世间近况 + 与你何干 + 世间目标
   [bold yellow]/目标[/bold yellow]                 - 查看/刷新世间目标
   [bold yellow]/议程[/bold yellow]                 - 查看 NPC 当前议程一览
@@ -967,15 +968,35 @@ def run_mud():
                         f"[bold red]⚠【{rv['spawned'].name}】已现世于【{rv['spawned'].location}】[/bold red]"
                     )
 
+            elif action in ["/天道", "/heaven", "/导演"]:
+                try:
+                    from core.world_director import handle_heaven_command
+
+                    parts = action.split() + (line.split()[1:] if len(line.split()) > 1 else [])
+                    # 保持与 LAN 一致：parts[0]=指令
+                    raw_parts = line.strip().split()
+                    res = handle_heaven_command(raw_parts[0], raw_parts)
+                    console.print(res.get("text", ""))
+                    if not res.get("ok") and res.get("director", {}).get("source") == "error":
+                        console.print(f"[yellow]{res.get('message') or res.get('text')}[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]天道导演不可用：{e}[/red]")
+
             elif action in ["/世情", "/npc", "npctick"]:
                 # 离线追赶：玩家不在时世界仍在动
                 try:
+                    from core.world_director import WorldDirector
                     from core.jianghu_sim import JianghuSimulator, format_offline_report
 
                     off = JianghuSimulator.simulate_offline()
                     if off.get("waves"):
                         console.print("[bold gold1]═══ 离线江湖 ═══[/bold gold1]")
                         console.print(format_offline_report(off))
+                    drows = WorldDirector.schedule_lines(limit=3)
+                    if drows:
+                        console.print("[bold magenta]═══ 天道导演 ═══[/bold magenta]")
+                        for row in drows:
+                            console.print(row)
                 except Exception as e:
                     console.print(f"[dim]离线结算跳过：{e}[/dim]")
                 acted = NpcAgendaEngine.tick_world(max_npcs=4, force=True)

@@ -90,6 +90,44 @@ def _maybe_open_realm(rid: str, now: float) -> bool:
     return False
 
 
+def director_force_open(rid: str, now: Optional[float] = None) -> bool:
+    """天道导演：使秘境进入「可开启」状态（is_open=True），不绕过探索规则。
+
+    语义：realm_status.is_open = (now - last_open_ts) >= interval。
+    故「提前开启」应把 last 调到 now-interval（或更早），而不是写成 now。
+    """
+    _ensure_loaded()
+    t = now if now is not None else time.time()
+    cfg = SECRET_REALMS.get(rid)
+    if not cfg:
+        return False
+    interval = float(cfg.get("open_interval_hours", 6.0)) * 3600.0
+    # 令 (t - last) >= interval
+    _realm_open_ts[rid] = t - interval
+    _persist_realm_ts()
+    try:
+        from core.world_channel import WorldChannel
+        from storage.db import WorldStateRepository as WSR
+
+        cd = WSR.get("realm_broadcast_cd") or {}
+        last = float(cd.get(rid) or 0.0)
+        if t - last > 1800:
+            cd[rid] = t
+            WSR.set("realm_broadcast_cd", cd)
+            WorldChannel.post(
+                "realm",
+                f"【天道导演】{rid} 禁制提前松动，限时开启。",
+                level="major",
+                actor="director",
+                location=cfg.get("location") or "",
+                now=t,
+                skip_limit=True,
+            )
+    except Exception:
+        pass
+    return True
+
+
 class SecretRealmEngine:
     @staticmethod
     def board_text() -> str:

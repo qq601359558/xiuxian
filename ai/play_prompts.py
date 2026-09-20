@@ -552,11 +552,33 @@ def omen_script_prompt(
     )
 
 
+def director_prompt(world_brief: str, season_remain_days: float = 0.0, force: bool = False) -> str:
+    """天道导演：AI 提案世界级走向；规则门禁再 admit/落账。"""
+    return (
+        "你是《天道因果录》的天道导演（主脑）。你决定共享大世界「下一步往哪走」，"
+        "而不是给单个玩家写旁白。\n"
+        f"世界简报：\n{world_brief}\n"
+        f"纪元剩余约 {season_remain_days:.1f} 现实天。\n"
+        "提案 0~3 条世界级指令（directives），宁少而准；无大事可给空数组。\n"
+        "type 只能是：omen | secret_realm_pressure | blood_tide | sect_tension | calamity_forecast\n"
+        "effects 只允许世界态势/目标提示键："
+        "goal_title/goal_detail/whisper/realm_id/force_open/location/sect_a/sect_b。\n"
+        "禁止：改寿元/修为/灵石/业力/胜负/掉落；点名必杀某玩家；虚构简报中不存在的秘境或地点。\n"
+        "calamity_forecast 仅当纪元进入大劫窗口时使用。\n"
+        f"{_JSON_ONLY}\n"
+        '输出：{"directives":[{"type":"omen","title":"短题","narrative":"60-120字",'
+        '"location":"","priority":1,"duration_sec":3600,"effects":{}}]}\n'
+        f"{_NO_CHEAT}"
+        + ("\n（强制推演：可给略主动的态势，但仍须合法 type/effects）\n" if force else "")
+    )
+
+
 # 注册表（便于测试与文档）
 PROMPT_BUILDERS = {
     "combat": combat_prompt,
     "tribulation": tribulation_prompt,
     "world_event": world_event_prompt,
+    "world_director": director_prompt,
     "heart_demon_session": heart_demon_session_prompt,
     "heart_demon_judge": heart_demon_judge_prompt,
     "free_action": free_action_prompt,

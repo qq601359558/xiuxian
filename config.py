@@ -590,6 +590,46 @@ LAN_PORT = int(os.getenv("LAN_PORT", "8765"))
 # 后台 NPC 议程 tick 间隔（秒）；0 = 关闭自动 tick
 NPC_TICK_INTERVAL_SECONDS = float(os.getenv("NPC_TICK_INTERVAL", "120"))
 
+# ==================== 天道导演 M1（AI 主导走向） ====================
+# tick 循环里导演侧的墙钟闸（比 NPC tick 更疏）
+DIRECTOR_TICK_INTERVAL_SECONDS = float(os.getenv("DIRECTOR_TICK_INTERVAL", "600"))
+# 两次成功 run 之间的最小间隔（force 可越过）
+DIRECTOR_MIN_INTERVAL_SECONDS = float(os.getenv("DIRECTOR_MIN_INTERVAL", "480"))
+# 同时最多活跃指令
+DIRECTOR_MAX_ACTIVE = int(os.getenv("DIRECTOR_MAX_ACTIVE", "3"))
+# 单条指令默认存活
+DIRECTOR_TTL_SECONDS = float(os.getenv("DIRECTOR_TTL", "3600"))
+# 机缘目标最多投给几名在线玩家
+DIRECTOR_GOAL_FANOUT = int(os.getenv("DIRECTOR_GOAL_FANOUT", "5"))
+# 指令类型白名单
+DIRECTOR_TYPES = frozenset(
+    {
+        "omen",
+        "secret_realm_pressure",
+        "blood_tide",
+        "sect_tension",
+        "calamity_forecast",
+    }
+)
+# 提案 effects 强制剥离的数值权威键
+DIRECTOR_STRIP_EFFECT_KEYS = frozenset(
+    {
+        "exp",
+        "stones",
+        "lifespan_years",
+        "sin",
+        "merit",
+        "dao_heart",
+        "power",
+        "death",
+        "kill",
+        "target_player",
+        "item",
+        "skill",
+        "spawn",
+    }
+)
+
 # ==================== NPC 议程 ====================
 # 每次世界 tick 最多推进多少名 NPC（控成本）
 NPC_TICK_MAX = 5

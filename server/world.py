@@ -116,6 +116,13 @@ class World:
                     except Exception:
                         pass
                     NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+                    # 天道导演：AI 主导走向（冷却在 run_cycle 内）
+                    try:
+                        from core.world_director import WorldDirector
+
+                        WorldDirector.run_cycle(trigger="timer", force=False)
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -1090,6 +1097,10 @@ class World:
                 if not acted:
                     return {"ok": True, "text": "诸位 NPC 皆在静观，世间无事。"}
                 return {"ok": True, "text": "\n".join(r.get("text", "") for r in acted), "count": len(acted)}
+            if action in ("/天道", "/heaven", "/导演"):
+                from core.world_director import handle_heaven_command
+
+                return handle_heaven_command(action, parts)
             if action in ("/世情", "/worldinfo"):
                 from core.schedule import format_world_schedule
                 from core import rumors as _rum
@@ -2082,7 +2093,7 @@ class World:
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
-            "/ailog(=AI日志) /ai(=AI自检)"
+            "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮)"
         )
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:
@@ -2325,6 +2336,13 @@ class World:
             try:
                 GoalEngine.on_breakthrough_major(c)
                 CharacterRepository.save(c)
+            except Exception:
+                pass
+            # 大境界突破：尝试触发天道导演（仍受冷却）
+            try:
+                from core.world_director import WorldDirector
+
+                WorldDirector.run_cycle(trigger="breakthrough", force=False)
             except Exception:
                 pass
         if dead:

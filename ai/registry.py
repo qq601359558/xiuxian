@@ -53,6 +53,7 @@ REQUIRE_JSON_OBJECT = FACT_REQUIRED_SCENES | {
     "custom_art",
     "forge",
     "omen_script",
+    "world_director",
 }
 
 
