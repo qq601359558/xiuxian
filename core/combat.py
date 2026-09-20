@@ -108,6 +108,16 @@ class CombatEngine:
         # 计算战力
         att_power = CombatEngine.calculate_power(attacker)
         def_power = CombatEngine.calculate_power(defender)
+        # M3：敌对宗门交手进攻方加成（规则）
+        try:
+            from core.faction import hostile_power_bonus
+
+            att_power *= hostile_power_bonus(
+                getattr(attacker, "sect", "") or "",
+                getattr(defender, "sect", "") or "",
+            )
+        except Exception:
+            pass
 
         # 偷袭先手加成
         if attacker.stealth_active:

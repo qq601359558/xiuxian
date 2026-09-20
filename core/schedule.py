@@ -139,10 +139,22 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
             )
             loc = f" @{a.get('location')}" if a.get("location") else ""
             d_rows.append(f"· 弧[{stage_cn}] {a.get('title')}{loc}")
+        try:
+            from core.faction import faction_modifiers
+
+            fm = faction_modifiers()
+            for s in (fm.get("active_sieges") or [])[:2]:
+                d_rows.append(f"· 宗门围剿【{s.get('sect')}】→{s.get('target')}@{s.get('loc')}")
+            if fm.get("hostile_pairs"):
+                d_rows.append(
+                    "· 敌对：" + "、".join(f"{a}×{b}" for a, b in fm["hostile_pairs"][:3])
+                )
+        except Exception:
+            pass
     except Exception:
         d_rows = []
     lines.append(f"天道导演（{len(d_rows)}）：")
-    lines.extend(d_rows or ["  · 暂无态势（/天道 /世界弧 可览）"])
+    lines.extend(d_rows or ["  · 暂无态势（/天道 /世界弧 /势力 可览）"])
 
     # 近闻
     try:

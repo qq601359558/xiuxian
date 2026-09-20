@@ -214,6 +214,16 @@ class CombatFateEngine:
                     )
                 except Exception:
                     pass
+                # M3：跨宗门击杀影响势力关系
+                try:
+                    sa = getattr(attacker, "sect", "") or ""
+                    sd = getattr(defender, "sect", "") or ""
+                    if sa and sd and sa != sd:
+                        from core.faction import shift_relation
+
+                        shift_relation(sa, sd, -6, note=f"{attacker.name}斩{defender.name}")
+                except Exception:
+                    pass
                 try:
                     from core.jianghu_sim import JianghuSimulator
 

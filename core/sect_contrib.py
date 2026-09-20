@@ -298,4 +298,21 @@ def sect_powerboard() -> str:
     for name, sc in sorted(scores.items(), key=lambda x: -x[1]):
         bar_n = int(round(sc / mx * 10)) if mx else 0
         lines.append(f"· {name} {'█' * bar_n}{'░' * (10 - bar_n)}  {counts[name]} 人 · 分 {sc:.0f}")
+    # M3 势力摘要
+    try:
+        from core.faction import faction_modifiers, STATUS_CN, get_relation
+
+        fm = faction_modifiers()
+        if fm.get("hostile_pairs"):
+            pairs = "、".join(f"{a}×{b}" for a, b in fm["hostile_pairs"][:4])
+            lines.append(f"敌对：{pairs}")
+        if fm.get("tense_pairs"):
+            pairs = "、".join(f"{a}×{b}" for a, b in fm["tense_pairs"][:4])
+            lines.append(f"紧张：{pairs}")
+        if fm.get("active_sieges"):
+            ss = "、".join(f"{s.get('sect')}→{s.get('target')}" for s in fm["active_sieges"][:4])
+            lines.append(f"围剿：{ss}")
+        lines.append(f"开放宗门令：{fm.get('n_open_missions', 0)} 条（/势力 可览）")
+    except Exception:
+        pass
     return "\n".join(lines)

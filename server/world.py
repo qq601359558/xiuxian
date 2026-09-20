@@ -130,6 +130,13 @@ class World:
                         world_arc.tick_world(max_advance=2)
                     except Exception:
                         pass
+                    # M3 势力：关系衰减 + 自动令/围剿
+                    try:
+                        from core import faction
+
+                        faction.tick_world()
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -1286,6 +1293,26 @@ class World:
                 from core.sect_contrib import sect_powerboard
 
                 return {"ok": True, "text": sect_powerboard()}
+            if action in ("/势力", "/faction"):
+                from core.faction import handle_faction_command, format_faction_board
+
+                return handle_faction_command(parts, char)
+            if action in ("/宗门令", "/sectorder", "/势力令"):
+                from core.faction import handle_faction_command
+
+                return handle_faction_command(["/势力", "令"], char)
+            if action in ("/接宗门令", "/acceptorder"):
+                from core.faction import handle_accept_mission
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/接宗门令 <令id>（/势力 或 /宗门令 查看）"}
+                return handle_accept_mission(char, parts[1].strip())
+            if action in ("/交宗门令", "/doneorder"):
+                from core.faction import handle_complete_mission
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/交宗门令 <令id>"}
+                return handle_complete_mission(char, parts[1].strip())
 
             # ---------------- Wave2：除凶 ----------------
             if action in ("/除凶", "/hunt"):
@@ -2111,7 +2138,7 @@ class World:
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫"
         )

@@ -249,6 +249,11 @@ def _strip_effects(raw: Any) -> Dict[str, Any]:
             "location",
             "sect_a",
             "sect_b",
+            "sect",
+            "order_kind",
+            "kind",
+            "target_sect",
+            "target_name",
         ):
             out[key] = str(v)[:80] if v is not None else ""
         elif key == "force_open":
@@ -312,6 +317,33 @@ def admit_directive(
             loc = ""
         effects["location"] = loc
         location = loc or location
+    if dtype == "faction_order":
+        sect = str(effects.get("sect") or "").strip()
+        from config import SECTS_CONFIG as _SC
+
+        if sect not in _SC:
+            return False, "unknown_sect", None
+        effects["sect"] = sect
+        ok_kind = str(effects.get("order_kind") or effects.get("kind") or "patrol").strip()
+        if ok_kind not in ("patrol", "hunt", "boycott", "siege"):
+            ok_kind = "patrol"
+        effects["order_kind"] = ok_kind
+        ts = str(effects.get("target_sect") or "").strip()
+        if ts and ts not in _SC:
+            effects["target_sect"] = ""
+        tn = str(effects.get("target_name") or "").strip()[:20]
+        effects["target_name"] = tn
+    if dtype == "sect_siege":
+        sect = str(effects.get("sect") or "").strip()
+        from config import SECTS_CONFIG as _SC
+
+        if sect not in _SC:
+            return False, "unknown_sect", None
+        effects["sect"] = sect
+        tn = str(effects.get("target_name") or "").strip()[:20]
+        if not tn:
+            return False, "siege_target_required", None
+        effects["target_name"] = tn
     try:
         priority = int(raw.get("priority") or 1)
     except (TypeError, ValueError):
@@ -625,7 +657,7 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
         elif dtype == "calamity_forecast":
             calamity = True
     hunt_heat = 1.35 if blood_locs else (1.15 if any(d.get("type") == "blood_tide" for d in active) else 1.0)
-    # 叠加 M2 世界弧
+    # 叠加 M2 世界弧 + M3 势力
     try:
         from core.world_arc import arc_modifiers
 
@@ -644,7 +676,23 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
         heat_by_location = dict(am.get("heat_by_location") or {})
     except Exception:
         heat_by_location = {}
-    # 指令地点也进 heat
+    faction_info: Dict[str, Any] = {}
+    try:
+        from core.faction import faction_modifiers
+
+        fm = faction_modifiers(t)
+        faction_info = fm
+        for pair in fm.get("hostile_pairs") or []:
+            if pair not in sects:
+                sects.append(pair)
+        for s in fm.get("active_sieges") or []:
+            loc_s = s.get("loc") or ""
+            if loc_s:
+                heat_by_location[loc_s] = max(heat_by_location.get(loc_s, 1.0), 1.35)
+        if fm.get("active_sieges"):
+            hunt_heat = max(hunt_heat, 1.25)
+    except Exception:
+        pass
     for loc in blood_locs:
         heat_by_location[loc] = max(heat_by_location.get(loc, 1.0), 1.45)
     return {
@@ -654,34 +702,55 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
         "calamity_forecast": calamity,
         "hunt_heat": hunt_heat,
         "heat_by_location": heat_by_location,
+        "faction": faction_info,
         "active_types": [d.get("type") for d in active],
         "n_active": len(active),
     }
 
 
 def location_heat(location: str, now: Optional[float] = None) -> float:
-    """某地点因导演/世界弧态势产生的行动热度（1.0=常态）"""
+    """某地点因导演/世界弧/势力态势产生的行动热度（1.0=常态）"""
     if not location:
         return 1.0
     mods = world_modifiers(now)
     by = mods.get("heat_by_location") or {}
+    heat = 1.0
     if location in by:
-        return float(by[location])
-    if location in (mods.get("blood_tide_locations") or []):
-        return 1.45
-    if mods.get("calamity_forecast"):
-        return 1.15
-    return 1.0
+        heat = float(by[location])
+    elif location in (mods.get("blood_tide_locations") or []):
+        heat = 1.45
+    elif mods.get("calamity_forecast"):
+        heat = 1.15
+    return heat
+
+
+def location_heat_for(location: str, viewer_sect: str = "", now: Optional[float] = None) -> float:
+    """带宗门视角的地点热度（敌对总坛加成）"""
+    heat = location_heat(location, now)
+    try:
+        from core.faction import location_faction_heat
+
+        heat = max(heat, location_faction_heat(location, viewer_sect, now))
+    except Exception:
+        pass
+    return heat
 
 
 def agenda_bias_for_npc(npc: Any, now: Optional[float] = None) -> Optional[Dict[str, str]]:
     """
-    导师态势 + 世界弧 对 NPC 本 tick 议程的规则偏置。
-    只影响「选哪条议程」，结算仍走 JianghuSimulator 规则。
+    导师态势 + 世界弧 + 势力 对 NPC 本 tick 议程的规则偏置。
     """
     if npc is None:
         return None
-    # 世界弧优先（更具体）
+    # 势力围剿/敌境优先
+    try:
+        from core.faction import agenda_bias_for_npc as faction_bias
+
+        fb = faction_bias(npc, now=now)
+        if fb:
+            return fb
+    except Exception:
+        pass
     try:
         from core.world_arc import agenda_bias_from_arcs
 
@@ -876,6 +945,37 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
                 if n_goal >= DIRECTOR_GOAL_FANOUT:
                     break
             applied["goals"] = int(applied.get("goals") or 0) + n_goal
+        except Exception:
+            pass
+    if dtype == "faction_order":
+        try:
+            from core import faction as faction_mod
+
+            res = faction_mod.director_apply_faction_order(d, now=t)
+            applied["flags"].append("faction_order_ok" if res.get("ok") else f"faction_order_fail:{res.get('error')}")
+            if res.get("mission"):
+                applied["flags"].append(f"mission:{res['mission'].get('id')}")
+        except Exception as e:
+            applied["flags"].append(f"faction_err:{type(e).__name__}")
+    if dtype == "sect_siege":
+        try:
+            from core import faction as faction_mod
+
+            res = faction_mod.director_apply_sect_siege(d, now=t)
+            applied["flags"].append("siege_ok" if res.get("ok") else f"siege_fail:{res.get('error')}")
+        except Exception as e:
+            applied["flags"].append(f"siege_err:{type(e).__name__}")
+    # 宗门紧张时同步势力系统
+    if dtype == "sect_tension":
+        try:
+            from core import faction as faction_mod
+
+            faction_mod.on_director_sect_tension(
+                str(effects.get("sect_a") or ""),
+                str(effects.get("sect_b") or ""),
+                now=t,
+            )
+            applied["flags"].append("faction_tension_synced")
         except Exception:
             pass
 
@@ -1175,6 +1275,7 @@ class WorldDirector:
                     lines.append(f"  · {parts[2]}（{parts[1]} · {parts[3]}）")
         try:
             mods = world_modifiers(t)
+            fac = mods.get("faction") or {}
             lines.append(
                 "世界修饰："
                 f"血煞潮地={mods.get('blood_tide_locations') or '无'} · "
@@ -1182,6 +1283,11 @@ class WorldDirector:
                 f"大劫预兆={'是' if mods.get('calamity_forecast') else '否'} · "
                 f"除凶热度×{mods.get('hunt_heat', 1.0):.2f}"
             )
+            if fac.get("active_sieges") or fac.get("hostile_pairs"):
+                lines.append(
+                    f"势力：围剿={fac.get('active_sieges') or '无'} · "
+                    f"敌对对={len(fac.get('hostile_pairs') or [])}"
+                )
         except Exception:
             pass
         try:

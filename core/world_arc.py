@@ -128,7 +128,9 @@ def spawn_from_directive(
     if not isinstance(directive, dict):
         return None
     dtype = str(directive.get("type") or "")
-    kind = DIRECTIVE_TO_ARC.get(dtype)
+    kind = DIRECTIVE_TO_ARC.get(dtype, "MISSING")
+    if kind == "MISSING":
+        return None
     if not kind or kind not in WORLD_ARC_TYPES:
         return None
     t = _now(now)
@@ -507,6 +509,13 @@ def _settle_climax(arc: Dict[str, Any], *, now: Optional[float], reason: str = "
                     else:
                         shift_attitude(a, b.id, -5, reason="决算后暗流仍在")
                         shift_attitude(b, a.id, -5, reason="决算后暗流仍在")
+            # M3：同步势力关系/围剿
+            try:
+                from core.faction import on_sect_crisis_climax
+
+                on_sect_crisis_climax(sa, sb, answered=bool(answered), now=t)
+            except Exception:
+                pass
         if kind == "blood_feud":
             _chronicle("除凶", f"{title} 决算，血煞之势暂歇" + (f"@{loc}" if loc else ""))
             if answered:

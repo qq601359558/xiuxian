@@ -212,12 +212,19 @@ class JianghuSimulator:
                 # 野外结算：战力对决
                 acted = True
                 ap = _power(npc) * (1.25 if npc.karma.is_blood_marked() else 1.0)
-                # 天道导演·血煞潮/大劫：地点热度影响行动强度（规则修饰，非 AI 改数）
+                # 天道导演/世界弧：地点热度
                 try:
-                    from core.world_director import location_heat
+                    from core.world_director import location_heat_for
 
-                    heat = location_heat(loc)
+                    heat = location_heat_for(loc, getattr(npc, "sect", "") or "")
                     ap *= max(1.0, min(1.5, heat))
+                except Exception:
+                    pass
+                # M3 敌对宗门战力修正
+                try:
+                    from core.faction import hostile_power_bonus
+
+                    ap *= hostile_power_bonus(getattr(npc, "sect", "") or "", getattr(target, "sect", "") or "")
                 except Exception:
                     pass
                 dp = _power(target)

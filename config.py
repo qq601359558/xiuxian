@@ -656,6 +656,43 @@ DIRECTIVE_TO_ARC = {
 # 世界弧阶段叙事是否尝试 AI 改写（失败回退模板）
 WORLD_ARC_AI_NARRATIVE = os.getenv("WORLD_ARC_AI_NARRATIVE", "1") not in ("0", "false", "False")
 
+# ==================== M3 势力操盘 ====================
+# 关系分：-100 敌对 … 0 中立 … 100 结盟
+FACTION_SCORE_HOSTILE = -40
+FACTION_SCORE_TENSE = -15
+FACTION_SCORE_WARM = 25
+FACTION_SCORE_ALLIED = 55
+FACTION_DECAY_PER_TICK = 1.5  # 每 tick 向中立缓慢回归
+FACTION_MISSION_TTL_H = float(os.getenv("FACTION_MISSION_TTL_H", "24"))
+FACTION_MISSION_MAX_OPEN = int(os.getenv("FACTION_MISSION_MAX_OPEN", "8"))
+FACTION_SIEGE_TTL_H = float(os.getenv("FACTION_SIEGE_TTL_H", "12"))
+FACTION_SIEGE_NPC_MAX = int(os.getenv("FACTION_SIEGE_NPC_MAX", "5"))
+FACTION_MISSION_REWARD = {"patrol": 8, "hunt": 20, "boycott": 5, "siege": 25}
+# 敌对宗门战力/危险修正（规则钳）
+FACTION_HOSTILE_POWER_BONUS = 0.10
+FACTION_HOSTILE_LOC_HEAT = 1.25
+# 导师可提的势力指令类型
+DIRECTOR_TYPES = frozenset(
+    {
+        "omen",
+        "secret_realm_pressure",
+        "blood_tide",
+        "sect_tension",
+        "calamity_forecast",
+        "faction_order",
+        "sect_siege",
+    }
+)
+DIRECTIVE_TO_ARC = {
+    "blood_tide": "blood_feud",
+    "secret_realm_pressure": "realm_storm",
+    "sect_tension": "sect_crisis",
+    "calamity_forecast": "calamity_arc",
+    "omen": "omen_arc",
+    "faction_order": None,  # 不起弧，直接势力系统
+    "sect_siege": "blood_feud",
+}
+
 # ==================== NPC 议程 ====================
 # 每次世界 tick 最多推进多少名 NPC（控成本）
 NPC_TICK_MAX = 5

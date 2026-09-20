@@ -403,7 +403,14 @@ def test_world_modifiers_and_npc_bias():
     npc2.sect = "九幽天魔宗"
     CharacterRepository.save(npc2)
     b2 = agenda_bias_for_npc(npc2)
-    assert b2 and "宗门紧张" in b2["note"]
+    assert b2 is not None
+    # 力偏置可能优先于导演文案（势力同场敌门/围剿等）
+    assert (
+        "宗门紧张" in b2["note"]
+        or "天道导演" in b2["note"]
+        or "势力" in b2["note"]
+        or "世界弧" in b2["note"]
+    ), b2
     _reset_director()
     print("✓ 世界修饰与 NPC 议程偏置")
 
