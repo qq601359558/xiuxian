@@ -121,9 +121,17 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
 
     # 天道导演态势
     try:
-        from core.world_director import WorldDirector
+        from core.world_director import WorldDirector, world_modifiers
 
         d_rows = WorldDirector.schedule_lines(limit=3)
+        mods = world_modifiers()
+        if mods.get("blood_tide_locations"):
+            d_rows.append(f"· 血煞潮地：{'、'.join(mods['blood_tide_locations'][:3])}")
+        if mods.get("sect_tensions"):
+            pairs = "、".join(f"{a}×{b}" for a, b in mods["sect_tensions"][:3])
+            d_rows.append(f"· 宗门紧张：{pairs}")
+        if mods.get("calamity_forecast"):
+            d_rows.append("· 大劫预兆笼罩纪元")
     except Exception:
         d_rows = []
     lines.append(f"天道导演（{len(d_rows)}）：")

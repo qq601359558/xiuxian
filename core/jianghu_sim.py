@@ -212,6 +212,14 @@ class JianghuSimulator:
                 # 野外结算：战力对决
                 acted = True
                 ap = _power(npc) * (1.25 if npc.karma.is_blood_marked() else 1.0)
+                # 天道导演·血煞潮/大劫：地点热度影响行动强度（规则修饰，非 AI 改数）
+                try:
+                    from core.world_director import location_heat
+
+                    heat = location_heat(loc)
+                    ap *= max(1.0, min(1.5, heat))
+                except Exception:
+                    pass
                 dp = _power(target)
                 # 闭关中更易被偷袭
                 if target.status == CharacterStatus.MEDITATING:

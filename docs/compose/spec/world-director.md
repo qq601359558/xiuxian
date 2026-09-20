@@ -20,6 +20,34 @@ commits: 6f9be93..f364951
 - Review major：`stats.runs` 不得在冷却跳过时自增；无 AI 测试必须强制清 Key，否则会空洞通过。
 - AI 可主导「世界发生什么」，不可主导胜负数值——提案协议是后续 M2–M5 的扩展点。
 
+## [S2b] M1 加强（控局力）
+
+> 2026-09-18 创作者要求「做 M1」——在既有导演协议内补强，而非空谈最小闭环。
+
+### 行为增量
+
+| 能力 | 契约 |
+|---|---|
+| **世界修饰导出** | `world_modifiers()` / `location_heat()` / `agenda_bias_for_npc()`：由**活跃指令**推导，供规则系统消费 |
+| **血煞潮** | 活跃 `blood_tide` → 该地点 `location_heat≥1.45`；江湖野外对决 `ap *= heat`（钳 1.0–1.5）；同场 NPC 议程偏置 `patrol` |
+| **宗门紧张** | 涉事宗门 NPC 偏置 `patrol`/`revenge`；世情展示紧张对 |
+| **大劫预兆** | 窗口内若无 `calamity_forecast` 活跃指令，放宽 tick/冷却闸强制提案；满员时优先保留预兆 |
+| **玩家惊动天道** | `note_player_event`：击杀/重业（sin≥80/120/血煞）写入 `player_events` 并可 `run_cycle`；combat_fate 斩杀已挂钩 |
+| **NPC tick 耦合** | `pick_agenda_for_tick` 注入导演偏置高权重候选；结算仍走 `JianghuSimulator` |
+| **到期记事** | 指令过期写 history + `ChronicleRepository` 大事记 |
+| **面板** | `/天道` 显示世界修饰与「近惊动天道」 |
+
+### 仍 Out of Scope
+
+M2 事件弧状态机 · M3 宗门战数值 · M4 全量市场/危险度回写 · M5 传说改写提案权重 · AI 直接改胜负
+
+### Tasks（加强）
+
+- [x] T6: world_modifiers / heat / agenda_bias + NPC tick 注入 — acceptance: 血煞潮地点 heat>1，NPC 多次采样可见导演偏置 (covers: S2b)
+- [x] T7: note_player_event + combat_fate 挂钩 + /天道 面板 — acceptance: 重业触发 run；低业力 skipped (covers: S2b)
+- [x] T8: 大劫窗口放宽闸 + 过期大事记 — acceptance: 窗口内无预兆可提案；过期进 history (covers: S2b)
+- [x] T9: 新测 + 回归 — acceptance: test_world_director 全绿；相关套件不回归 (covers: S2b)
+
 ## [S1] Problem
 
 创作者目标是「网游小说里 AI 主导游戏走向」，不是再堆旁白。现状是规则骨架完整，但世界走向几乎由静态规则与模板决定：AI 只解释结果，不提案「这个世界下一刻往哪走」。玩家感知不到天道/主脑在控局。

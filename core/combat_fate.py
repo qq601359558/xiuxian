@@ -202,6 +202,18 @@ class CombatFateEngine:
 
                 rumors.note_kill(attacker.name, defender.name, attacker.location)
                 ensure_link(attacker, defender, "仇", note=f"斩杀于{attacker.location}")
+                # 击杀惊动天道导演（重罪/血煞可触发提案）
+                try:
+                    from core.world_director import note_player_event
+
+                    note_player_event(
+                        "kill",
+                        character=attacker,
+                        location=attacker.location,
+                        detail=f"斩{defender.name}",
+                    )
+                except Exception:
+                    pass
                 try:
                     from core.jianghu_sim import JianghuSimulator
 

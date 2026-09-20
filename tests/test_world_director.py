@@ -318,6 +318,175 @@ def test_world_server_route():
         _reset_director()
 
 
+def _force_local():
+    import config
+
+    old = (config.ALLOW_LOCAL_AI, config.LLM_API_KEY, config.USE_CCSWITCH)
+    config.ALLOW_LOCAL_AI = True
+    config.LLM_API_KEY = ""
+    config.USE_CCSWITCH = False
+    return old
+
+
+def _restore_ai(old):
+    import config
+
+    config.ALLOW_LOCAL_AI, config.LLM_API_KEY, config.USE_CCSWITCH = old
+
+
+def _seed_blood_tide(loc="黑风绝渊"):
+    ok, _, d = admit_directive(
+        {
+            "type": "blood_tide",
+            "title": "血煞潮",
+            "narrative": "血气浮动",
+            "location": loc,
+            "effects": {"location": loc, "whisper": "潮"},
+        }
+    )
+    assert ok, d
+    d["source"] = "test"
+    d["applied"] = apply_directive(d)
+    state = WorldStateRepository.get("director") or {}
+    active = list(state.get("active") or [])
+    active.append(d)
+    state["active"] = active
+    WorldStateRepository.set("director", state)
+    return d
+
+
+def test_world_modifiers_and_npc_bias():
+    init_db()
+    _reset_director()
+    _seed_blood_tide("黑风绝渊")
+    from core.world_director import world_modifiers, location_heat, agenda_bias_for_npc
+
+    mods = world_modifiers()
+    assert "黑风绝渊" in mods["blood_tide_locations"]
+    assert mods["hunt_heat"] >= 1.3
+    assert location_heat("黑风绝渊") >= 1.4
+    assert location_heat("青云坊市客栈") == 1.0
+
+    npc = WorldClock.create_new_character("dir_npc_bias", "巡守客")
+    npc.location = "黑风绝渊"
+    npc.sect = ""
+    CharacterRepository.save(npc)
+    bias = agenda_bias_for_npc(npc)
+    assert bias and bias["agenda_type"] == "patrol"
+    assert "血煞" in bias["note"]
+
+    # 宗门紧张
+    ok, _, d2 = admit_directive(
+        {
+            "type": "sect_tension",
+            "title": "两宗对峙",
+            "narrative": "气氛紧绷",
+            "effects": {"sect_a": "青云宗", "sect_b": "九幽天魔宗"},
+        }
+    )
+    assert ok
+    state = WorldStateRepository.get("director") or {}
+    state.setdefault("active", []).append({**d2, "source": "test"})
+    WorldStateRepository.set("director", state)
+    npc2 = WorldClock.create_new_character("dir_npc_sect", "魔门弟子")
+    npc2.sect = "九幽天魔宗"
+    CharacterRepository.save(npc2)
+    b2 = agenda_bias_for_npc(npc2)
+    assert b2 and "宗门紧张" in b2["note"]
+    _reset_director()
+    print("✓ 世界修饰与 NPC 议程偏置")
+
+
+def test_player_event_triggers_director():
+    init_db()
+    _reset_director()
+    old = _force_local()
+    try:
+        c = WorldClock.create_new_character("dir_sin_player", "重业修士")
+        c.karma.add_sin(200)
+        c.location = "黑风绝渊"
+        CharacterRepository.save(c)
+        from core.world_director import note_player_event
+
+        res = note_player_event("kill", character=c, location=c.location, detail="测试")
+        # 血煞/重业应触发提案
+        assert res.get("ok") is True or res.get("source") == "local", res
+        state = WorldStateRepository.get("director") or {}
+        assert state.get("player_events"), state
+        assert state.get("last_run_ts", 0) > 0
+        board = WorldDirector.format_heaven_board()
+        assert "近惊动天道" in board or "天道导演" in board
+        # 低业力不触发
+        _reset_director()
+        c2 = WorldClock.create_new_character("dir_calm_player", "清白修士")
+        CharacterRepository.save(c2)
+        r2 = note_player_event("kill", character=c2, detail="轻罪")
+        assert r2.get("skipped") == "event_below_threshold"
+    finally:
+        _restore_ai(old)
+        _reset_director()
+    print("✓ 玩家重业惊动天道")
+
+
+def test_pick_agenda_injects_director_bias():
+    init_db()
+    _reset_director()
+    _seed_blood_tide("黑风绝渊")
+    from core.npc_mind import pick_agenda_for_tick
+    from core.world_director import agenda_bias_for_npc, world_modifiers
+
+    npc = WorldClock.create_new_character("dir_npc_pick", "绝渊修士")
+    npc.location = "黑风绝渊"
+    npc.sect = ""
+    CharacterRepository.save(npc)
+    assert "黑风绝渊" in world_modifiers()["blood_tide_locations"]
+    assert agenda_bias_for_npc(npc) is not None
+    notes = [pick_agenda_for_tick(npc).get("note") or "" for _ in range(16)]
+    assert any("天道导演" in n for n in notes), notes
+    _reset_director()
+    print("✓ NPC tick 议程读取导演偏置")
+
+
+def test_expire_directive_writes_chronicle():
+    init_db()
+    _reset_director()
+    ok, _, d = admit_directive(
+        {
+            "type": "omen",
+            "title": "将散之势",
+            "narrative": "风势将歇",
+            "effects": {"whisper": "x"},
+        },
+        now=1_000_000.0,
+    )
+    assert ok
+    d["expires_at"] = 1_000_000.0 + 60
+    d["source"] = "test"
+    state = WorldStateRepository.get("director") or {}
+    state["active"] = [d]
+    WorldStateRepository.set("director", state)
+    from core.world_director import active_directives
+
+    # 过期后应被 prune，且写入大事记
+    assert active_directives(now=1_000_000.0 + 120) == []
+    state2 = WorldStateRepository.get("director") or {}
+    hist = "\n".join(state2.get("history") or [])
+    assert "将散之势" in hist
+    _reset_director()
+    print("✓ 指令过期写入近史/大事记")
+
+
+def test_jianghu_power_reads_heat():
+    init_db()
+    _reset_director()
+    _seed_blood_tide("黑风绝渊")
+    from core.world_director import location_heat
+
+    assert location_heat("黑风绝渊") > 1.2
+    _reset_director()
+    print("✓ 江湖结算可读取导演地点热度")
+
+
 if __name__ == "__main__":
     test_admit_rejects_illegal_type_and_strips_numeric_effects()
     test_admit_calamity_window_and_realm()
@@ -328,4 +497,9 @@ if __name__ == "__main__":
     test_apply_secret_realm_pressure_goal_and_channel()
     test_heaven_command_board_and_run()
     test_world_server_route()
+    test_world_modifiers_and_npc_bias()
+    test_player_event_triggers_director()
+    test_pick_agenda_injects_director_bias()
+    test_expire_directive_writes_chronicle()
+    test_jianghu_power_reads_heat()
     print("\nworld_director tests all passed")

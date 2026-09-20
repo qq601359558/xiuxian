@@ -229,9 +229,24 @@ def multi_agenda_pack(npc: Character) -> Dict[str, Any]:
 
 
 def pick_agenda_for_tick(npc: Character) -> Dict[str, Any]:
-    """按权重选本 tick 议程（主 60% 权重大头）"""
+    """按权重选本 tick 议程（主 60% 权重大头）；天道导演态势可规则偏置"""
     pack = multi_agenda_pack(npc)
     options = [pack["primary"]] + list(pack["secondary"])
+    # 导演控局：血煞潮/宗门紧张/大劫预兆 → 注入高权重候选（结算仍走规则）
+    try:
+        from core.world_director import agenda_bias_for_npc
+
+        bias = agenda_bias_for_npc(npc)
+        if bias:
+            options = [
+                {
+                    "agenda_type": bias["agenda_type"],
+                    "note": bias["note"],
+                    "weight": 55,
+                }
+            ] + options
+    except Exception:
+        pass
     weights = [max(1, int(o.get("weight") or 10)) for o in options]
     chosen = random.choices(options, weights=weights, k=1)[0]
     return chosen

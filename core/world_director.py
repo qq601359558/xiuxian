@@ -53,6 +53,7 @@ def _load() -> Dict[str, Any]:
     data.setdefault("last_accepted", 0)
     data.setdefault("active", [])
     data.setdefault("history", [])
+    data.setdefault("player_events", [])
     data.setdefault("stats", {"runs": 0, "accepted": 0, "rejected": 0, "attempts": 0})
     if not isinstance(data.get("stats"), dict):
         data["stats"] = {"runs": 0, "accepted": 0, "rejected": 0, "attempts": 0}
@@ -76,12 +77,39 @@ def _audit(rec: Dict[str, Any]) -> None:
 
 def _prune_active(state: Dict[str, Any], now: float) -> None:
     active = []
+    expired = []
     for d in state.get("active") or []:
         if not isinstance(d, dict):
             continue
         if float(d.get("expires_at") or 0) >= now:
             active.append(d)
-    state["active"] = active
+        else:
+            expired.append(d)
+    if expired:
+        for d in expired:
+            _push_history(
+                state,
+                f"{int(now)}|{d.get('type')}|{d.get('title')}|expired|{d.get('id')}",
+            )
+            # 大事记：导演态势消散，供后续世情/传说引用
+            try:
+                from storage.db import ChronicleRepository
+
+                ChronicleRepository.record(
+                    "天道",
+                    "导演",
+                    f"【{d.get('title')}】态势渐散（{d.get('type')}）。",
+                )
+            except Exception:
+                pass
+        state["active"] = active
+        # 读路径 prune 也要落库，否则 history/active 丢失
+        try:
+            WorldStateRepository.set(_KEY, state)
+        except Exception:
+            pass
+    else:
+        state["active"] = active
 
 
 def _push_history(state: Dict[str, Any], line: str, limit: int = 20) -> None:
@@ -419,8 +447,173 @@ def _ai_propose(
         return [], "error", err
 
 
+def active_directives(now: Optional[float] = None) -> List[Dict[str, Any]]:
+    """仍存活的导演指令（供 NPC/江湖/战斗等系统读取）"""
+    t = _now(now)
+    state = _load()
+    _prune_active(state, t)
+    out = []
+    for d in state.get("active") or []:
+        if isinstance(d, dict) and float(d.get("expires_at") or 0) >= t:
+            out.append(d)
+    return out
+
+
+def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
+    """
+    由活跃指令推导的世界修饰（规则侧消费，AI 不直接改数）。
+    - blood_tide_locations: 血煞潮地点列表
+    - sect_tensions: [(sect_a, sect_b), ...]
+    - realm_pressure_ids: 秘境压力
+    - calamity_forecast: 是否有大劫预兆
+    - hunt_heat: 血煞潮全局除凶热度倍率（无潮时为 1.0）
+    """
+    t = _now(now)
+    active = active_directives(t)
+    blood_locs: List[str] = []
+    sects: List[Tuple[str, str]] = []
+    realms: List[str] = []
+    calamity = False
+    for d in active:
+        dtype = d.get("type")
+        eff = d.get("effects") or {}
+        loc = str(eff.get("location") or d.get("location") or "").strip()
+        if dtype == "blood_tide":
+            if loc:
+                blood_locs.append(loc)
+        elif dtype == "sect_tension":
+            sa = str(eff.get("sect_a") or "").strip()
+            sb = str(eff.get("sect_b") or "").strip()
+            if sa and sb:
+                sects.append((sa, sb))
+        elif dtype == "secret_realm_pressure":
+            rid = str(eff.get("realm_id") or "").strip()
+            if rid:
+                realms.append(rid)
+        elif dtype == "calamity_forecast":
+            calamity = True
+    hunt_heat = 1.35 if blood_locs else (1.15 if any(d.get("type") == "blood_tide" for d in active) else 1.0)
+    return {
+        "blood_tide_locations": blood_locs,
+        "sect_tensions": sects,
+        "realm_pressure_ids": realms,
+        "calamity_forecast": calamity,
+        "hunt_heat": hunt_heat,
+        "active_types": [d.get("type") for d in active],
+        "n_active": len(active),
+    }
+
+
+def location_heat(location: str, now: Optional[float] = None) -> float:
+    """某地点因导演态势产生的行动热度（1.0=常态；血煞潮地点 >1）"""
+    if not location:
+        return 1.0
+    mods = world_modifiers(now)
+    if location in mods.get("blood_tide_locations") or []:
+        return 1.45
+    if mods.get("calamity_forecast"):
+        return 1.15
+    return 1.0
+
+
+def agenda_bias_for_npc(npc: Any, now: Optional[float] = None) -> Optional[Dict[str, str]]:
+    """
+    导演态势对 NPC 本 tick 议程的规则偏置（返回建议 agenda_type/note，或 None）。
+    只影响「选哪条议程」，结算仍走 JianghuSimulator 规则。
+    """
+    if npc is None:
+        return None
+    mods = world_modifiers(now)
+    loc = getattr(npc, "location", "") or ""
+    sect = getattr(npc, "sect", "") or ""
+    # 血煞潮地点：巡守/除凶偏置
+    if loc and loc in mods.get("blood_tide_locations"):
+        return {
+            "agenda_type": "patrol",
+            "note": "天道导演·血煞潮：同场戒备，加强巡守",
+        }
+    # 宗门紧张：涉事宗门弟子偏向巡守/结交打探
+    for sa, sb in mods.get("sect_tensions") or []:
+        if sect and sect in (sa, sb):
+            if getattr(npc, "karma", None) is not None and npc.karma.sin_value >= 80:
+                return {
+                    "agenda_type": "revenge",
+                    "note": f"天道导演·宗门紧张（{sa}×{sb}）：借势寻隙",
+                }
+            return {
+                "agenda_type": "patrol",
+                "note": f"天道导演·宗门紧张（{sa}×{sb}）：谨守门户",
+            }
+    # 大劫预兆：求生/避劫
+    if mods.get("calamity_forecast"):
+        try:
+            if npc.realm and getattr(npc.realm, "is_full", False):
+                return {"agenda_type": "seclusion", "note": "天道导演·大劫预兆：闭关冲关"}
+        except Exception:
+            pass
+        return {"agenda_type": "survive", "note": "天道导演·大劫预兆：趋吉避凶"}
+    return None
+
+
+def note_player_event(
+    kind: str,
+    *,
+    character: Any = None,
+    location: str = "",
+    detail: str = "",
+    force_run: bool = False,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    玩家/世界重大行为惊动天道：写入导演近事，必要时触发一轮提案。
+    kind: kill | blood_mark | sin_spike | breakthrough | manual
+    """
+    t = _now(now)
+    state = _load()
+    events = list(state.get("player_events") or [])
+    name = getattr(character, "name", "") or ""
+    sin = 0
+    marked = False
+    try:
+        if character is not None:
+            sin = int(character.karma.sin_value)
+            marked = bool(character.karma.is_blood_marked(t))
+    except Exception:
+        pass
+    events.append(
+        {
+            "kind": kind,
+            "who": name,
+            "sin": sin,
+            "marked": marked,
+            "location": location or getattr(character, "location", "") or "",
+            "detail": (detail or "")[:80],
+            "ts": t,
+        }
+    )
+    state["player_events"] = events[-20:]
+    _save(state)
+
+    should = force_run
+    trigger = kind
+    if not should:
+        if kind in ("blood_mark", "sin_spike") or marked or sin >= 120:
+            should = True
+            trigger = "blood_mark" if marked or sin >= 120 else kind
+        elif kind == "kill" and sin >= 80:
+            should = True
+            trigger = "kill_sin"
+        elif kind == "manual":
+            should = True
+            trigger = "manual"
+    if not should:
+        return {"ok": False, "skipped": "event_below_threshold", "kind": kind}
+
+    return WorldDirector.run_cycle(trigger=trigger, force=force_run or marked or sin >= 120, now=t)
+
+
 def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[str, Any]:
-    """规则侧落账：频道 / 目标 / 秘境开启 / 态势标记"""
+    """规则侧落账：频道 / 目标 / 秘境开启 / 态势标记（态势由 world_modifiers 消费）"""
     t = _now(now)
     applied: Dict[str, Any] = {"channel": False, "goals": 0, "realm": "", "flags": []}
     dtype = d.get("type")
@@ -443,20 +636,22 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
             applied["realm"] = rid if ok else ""
             applied["flags"].append("realm_opened" if ok else "realm_open_failed")
             if ok:
-                # 开启本身可能已广播；导演仍写态势
                 applied["flags"].append(rid)
         except Exception as e:
             applied["flags"].append(f"realm_err:{type(e).__name__}")
 
-    # 血煞/宗门态势
+    # 血煞/宗门态势（活跃指令即世界修饰源）
     if dtype == "blood_tide":
         applied["flags"].append("blood_tide")
-        if effects.get("location"):
-            applied["flags"].append(f"loc:{effects.get('location')}")
+        if effects.get("location") or loc:
+            applied["flags"].append(f"loc:{effects.get('location') or loc}")
     if dtype == "sect_tension":
         applied["flags"].append(
             f"sect:{effects.get('sect_a')}vs{effects.get('sect_b')}"
         )
+        # 世情/除凶可感知：宗门紧张时同场 NPC 会偏置（见 agenda_bias_for_npc）
+    if dtype == "calamity_forecast":
+        applied["flags"].append("calamity_forecast")
 
     # 机缘目标投射
     if dtype in ("omen", "secret_realm_pressure") and (
@@ -540,22 +735,37 @@ class WorldDirector:
         _prune_active(state, t)
 
         last = float(state.get("last_run_ts") or 0)
+        # 大劫窗口：若尚无 calamity_forecast 活跃指令，放宽 tick 闸（仍尊重最小冷却除非 force）
+        try:
+            info_now = season_info(t)
+            in_calamity_window = bool(info_now.get("is_final_week")) or float(
+                info_now.get("remain_real_days") or 0
+            ) <= float(SEASON_WARN_DAYS)
+        except Exception:
+            in_calamity_window = False
+        has_calamity_dir = any(
+            isinstance(d, dict) and d.get("type") == "calamity_forecast"
+            for d in (state.get("active") or [])
+        )
+        calamity_need = in_calamity_window and not has_calamity_dir
+
         if not force and (t - last) < float(DIRECTOR_MIN_INTERVAL_SECONDS):
-            # skip 不计入 runs（仅 attempts）
-            state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
-            state["last_trigger"] = trigger
-            state["last_source"] = "skipped"
-            state["last_error"] = "cooldown"
-            _save(state)
-            return {
-                "ok": False,
-                "skipped": "cooldown",
-                "message": f"天道未至再演之时（冷却 {DIRECTOR_MIN_INTERVAL_SECONDS:.0f}s）",
-            }
+            # 大劫急需且无预兆：允许突破最小冷却
+            if not calamity_need:
+                state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
+                state["last_trigger"] = trigger
+                state["last_source"] = "skipped"
+                state["last_error"] = "cooldown"
+                _save(state)
+                return {
+                    "ok": False,
+                    "skipped": "cooldown",
+                    "message": f"天道未至再演之时（冷却 {DIRECTOR_MIN_INTERVAL_SECONDS:.0f}s）",
+                }
 
         if not force and trigger == "timer":
-            # tick 路径额外墙钟闸，避免 NPC tick 过密
-            if (t - last) < float(DIRECTOR_TICK_INTERVAL_SECONDS):
+            # tick 路径额外墙钟闸；大劫窗口待发预兆时放行
+            if (t - last) < float(DIRECTOR_TICK_INTERVAL_SECONDS) and not calamity_need:
                 state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
                 state["last_trigger"] = trigger
                 state["last_source"] = "skipped"
@@ -564,12 +774,14 @@ class WorldDirector:
                 return {"ok": False, "skipped": "tick_gate", "message": "导演 tick 闸未开"}
 
         if len(state.get("active") or []) >= DIRECTOR_MAX_ACTIVE and not force:
-            state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
-            state["last_trigger"] = trigger
-            state["last_source"] = "skipped"
-            state["last_error"] = "max_active"
-            _save(state)
-            return {"ok": False, "skipped": "max_active", "message": "世间已有足够天道态势"}
+            # 大劫预兆优先：满员时可替换最旧的一条非 calamity
+            if not (calamity_need and in_calamity_window):
+                state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
+                state["last_trigger"] = trigger
+                state["last_source"] = "skipped"
+                state["last_error"] = "max_active"
+                _save(state)
+                return {"ok": False, "skipped": "max_active", "message": "世间已有足够天道态势"}
 
         # 进入实际提案阶段才计 runs
         state["stats"]["runs"] = int(state.get("stats", {}).get("runs") or 0) + 1
@@ -629,11 +841,12 @@ class WorldDirector:
             applied_rows.append(d)
 
         state["active"] = (state.get("active") or []) + applied_rows
-        # 仍按过期剪裁
         _prune_active(state, t)
-        # 若 force 超上限，只保留最新
         if len(state["active"]) > DIRECTOR_MAX_ACTIVE:
-            state["active"] = state["active"][-DIRECTOR_MAX_ACTIVE:]
+            # 大劫预兆优先保留
+            cal = [d for d in state["active"] if d.get("type") == "calamity_forecast"]
+            others = [d for d in state["active"] if d.get("type") != "calamity_forecast"]
+            state["active"] = (others + cal)[-DIRECTOR_MAX_ACTIVE:]
         state["last_run_ts"] = t
         state["last_trigger"] = trigger
         state["last_source"] = source
@@ -711,6 +924,26 @@ class WorldDirector:
                 parts = str(h).split("|")
                 if len(parts) >= 4:
                     lines.append(f"  · {parts[2]}（{parts[1]} · {parts[3]}）")
+        try:
+            mods = world_modifiers(t)
+            lines.append(
+                "世界修饰："
+                f"血煞潮地={mods.get('blood_tide_locations') or '无'} · "
+                f"宗门紧张={mods.get('sect_tensions') or '无'} · "
+                f"大劫预兆={'是' if mods.get('calamity_forecast') else '否'} · "
+                f"除凶热度×{mods.get('hunt_heat', 1.0):.2f}"
+            )
+        except Exception:
+            pass
+        pe = list(state.get("player_events") or [])[-3:]
+        if pe:
+            lines.append("近惊动天道：")
+            for e in reversed(pe):
+                lines.append(
+                    f"  · {e.get('kind')} · {e.get('who') or '—'}"
+                    f"{(' @' + e['location']) if e.get('location') else ''}"
+                    f" · 业力{e.get('sin', 0)}"
+                )
         lines.append("权限边界：AI 只提案态势/目标提示；胜负与掉落仍归规则引擎。")
         return "\n".join(lines)
 
