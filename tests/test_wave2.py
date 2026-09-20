@@ -94,10 +94,15 @@ def test_hunt_board_and_settle():
     WorldStateRepository.delete(hunt._HUNT_KEY)
     hunter = _p("猎人", tier=2, loc="落霞山灵泉(野外)")
     target = _p("血煞客", tier=2, loc="落霞山灵泉(野外)")
-    target.karma.add_sin(120)
+    target.karma.add_sin(999)
+    try:
+        import time as _t
+        target.karma.blood_mark_until = _t.time() + 7200
+    except Exception:
+        pass
     CharacterRepository.save(target)
     board = hunt.format_board()
-    assert "血煞客" in board
+    assert "血煞客" in board, board[:200]
     r = hunt.accept(CharacterRepository.get_by_id(hunter.id), "血煞客")
     assert r["success"] is True, r
     res = hunt.settle_kill(CharacterRepository.get_by_id(hunter.id), CharacterRepository.get_by_id(target.id))

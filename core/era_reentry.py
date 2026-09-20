@@ -17,9 +17,8 @@ from core.world_channel import WorldChannel
 
 _KEY = "era_legacy"
 
-# legend tag → director type 加权
+# legend tag → director type 加权（仅明确类型标签；通用 world_arc 不硬推 omen）
 TAG_TO_TYPE = {
-    "world_arc": "omen",
     "blood_feud": "blood_tide",
     "blood_tide": "blood_tide",
     "sect_crisis": "sect_tension",
@@ -259,62 +258,157 @@ def bias_score(dtype: str, now: Optional[float] = None) -> float:
 
 
 def seed_local_directives(now: Optional[float] = None) -> List[Dict[str, Any]]:
-    """无 AI 时：按传说 bias 生成候选提案原料（仍要 admit）"""
+    """无 AI / 多样性补齐：史笔 bias + 当前世界态势 → 候选提案原料"""
     t = _now(now)
     rebuild_active_bias(t)
     bias = active_bias(t)
     anchors = list((_load().get("anchors") or []))
     seeds: List[Dict[str, Any]] = []
-    ranked = sorted(bias.items(), key=lambda x: -x[1])
-    for dtype, score in ranked[:3]:
-        if float(score) < 0.5:
-            continue
-        loc = ""
-        for a in anchors:
-            if a in WORLD_LOCATIONS:
-                loc = a
-                break
-        rid = ""
-        for a in anchors:
-            if a in SECRET_REALMS:
-                rid = a
-                break
-        title = f"史笔余势·{TYPE_CN.get(dtype, dtype)}"
-        narrative = (
-            f"上纪传说犹在坊间流传，天道记忆未冷，【{TYPE_CN.get(dtype, dtype)}】之势或再起。"
-        )
-        effects: Dict[str, Any] = {"whisper": "纪元回流"}
-        if dtype == "secret_realm_pressure" and rid:
-            effects["realm_id"] = rid
-            effects["force_open"] = False
-            loc = str(SECRET_REALMS.get(rid, {}).get("location") or loc)
-        if dtype == "blood_tide" and loc:
-            effects["location"] = loc
-        if dtype == "omen":
-            effects["goal_title"] = "循史笔而行"
-            effects["goal_detail"] = narrative[:80]
+    seen_types = set()
+
+    def _add(dtype: str, title: str, narrative: str, location: str = "", effects: Optional[Dict[str, Any]] = None) -> None:
+        if dtype in seen_types:
+            return
+        seen_types.add(dtype)
         seeds.append(
             {
                 "type": dtype,
                 "title": title[:40],
                 "narrative": narrative[:160],
-                "location": loc,
-                "effects": effects,
+                "location": location,
+                "effects": effects or {"whisper": "天道"},
                 "priority": 2,
             }
         )
-    return seeds
+
+    loc = ""
+    for a in anchors:
+        if a in WORLD_LOCATIONS:
+            loc = a
+            break
+    rid = ""
+    for a in anchors:
+        if a in SECRET_REALMS:
+            rid = a
+            break
+    # —— 世界态势驱动（优先，打破 omen 单一）——
+    try:
+        from core.faction import faction_modifiers, active_sieges
+        from core.player_echo import echo_modifiers
+        from core.secret_realm import realm_status
+
+        fm = faction_modifiers(t)
+        sieges = active_sieges(t)
+        em = echo_modifiers(t)
+        hot = em.get("hot_regions") or []
+        if sieges:
+            s0 = sieges[0]
+            _add(
+                "blood_tide",
+                f"围剿余波·{s0.get('target_name') or '凶人'}",
+                f"【{s0.get('sect')}】围剿未歇，{s0.get('location') or '坊市'}一带血气浮动，除凶与避祸之议再起。",
+                str(s0.get("location") or ""),
+                {
+                    "location": str(s0.get("location") or ""),
+                    "goal_title": "留意围剿风声",
+                    "goal_detail": f"宗门围剿【{s0.get('target_name')}】进行中，/势力 /除凶 可览。",
+                },
+            )
+        if fm.get("hostile_pairs"):
+            a, b = fm["hostile_pairs"][0]
+            _add(
+                "sect_tension",
+                f"敌门暗涌·{a}×{b}",
+                f"【{a}】与【{b}】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。",
+                "",
+                {"sect_a": a, "sect_b": b, "whisper": "敌对"},
+            )
+        open_realms = [r for r in realm_status(t) if r.get("is_open")]
+        if open_realms:
+            rn = str(open_realms[0].get("name") or "")
+            _add(
+                "secret_realm_pressure",
+                f"秘境躁动·{rn}",
+                f"【{rn}】禁制波动，附近灵气紊乱，机缘与杀劫并存。",
+                str(open_realms[0].get("location") or ""),
+                {"realm_id": rn, "force_open": False},
+            )
+        if hot:
+            hloc = str(hot[0][0])
+            _add(
+                "blood_tide",
+                f"凶地血气·{hloc}",
+                f"【{hloc}】近来血气不散，修士过境多有戒惧。",
+                hloc,
+                {"location": hloc, "whisper": "望气凶地"},
+            )
+        if float(em.get("market_panic") or 0) >= 30:
+            _add(
+                "omen",
+                "坊市惶惶",
+                "坊市人心浮动，货价上扬，或有机缘藏于乱局，亦有趁火打劫者。",
+                "青云坊市客栈",
+                {
+                    "goal_title": "乱市观风",
+                    "goal_detail": "坊市恐慌中留意 /望气 /坊市，谨防凶险。",
+                    "whisper": "恐慌",
+                },
+            )
+        if fm.get("n_open_missions"):
+            # 有宗门令时倾向宗门令提案
+            _add(
+                "faction_order",
+                "宗门催令",
+                "各宗门令频发，弟子宜 /宗门令 查看本门差事，为宗门立功。",
+                "",
+                {"sect": "青云宗", "order_kind": "patrol", "whisper": "宗门令"},
+            )
+    except Exception:
+        pass
+    # —— 史笔 bias 补齐（不覆盖已有类型）——
+    ranked = sorted(bias.items(), key=lambda x: -x[1])
+    for dtype, score in ranked[:3]:
+        if float(score) < 0.5:
+            continue
+        title = f"史笔余势·{TYPE_CN.get(dtype, dtype)}"
+        narrative = f"上纪传说犹在坊间流传，天道记忆未冷，【{TYPE_CN.get(dtype, dtype)}】之势或再起。"
+        effects: Dict[str, Any] = {"whisper": "纪元回流"}
+        dloc = loc
+        if dtype == "secret_realm_pressure" and rid:
+            effects["realm_id"] = rid
+            effects["force_open"] = False
+            dloc = str(SECRET_REALMS.get(rid, {}).get("location") or loc)
+        if dtype == "blood_tide" and loc:
+            effects["location"] = loc
+        if dtype == "omen":
+            effects["goal_title"] = "循史笔而行"
+            effects["goal_detail"] = narrative[:80]
+        _add(dtype, title, narrative, dloc, effects)
+    return seeds[:6]
+
+
+def variety_seeds_from_world(now: Optional[float] = None) -> List[Dict[str, Any]]:
+    """供导师多样性补齐：非 omen 的世界态势种子"""
+    seeds = seed_local_directives(now=now)
+    return [s for s in seeds if s.get("type") != "omen"]
 
 
 def reorder_by_bias(rows: List[Dict[str, Any]], now: Optional[float] = None) -> List[Dict[str, Any]]:
-    """AI 提案按传说 bias 排序（不丢弃合法类型）"""
+    """AI 提案排序：史笔 bias + 世界多样性（非单一 omen）"""
     if not rows:
         return rows
     bias = active_bias(now)
+    # 世界态势也加入排序键
+    try:
+        vs = {s.get("type") for s in variety_seeds_from_world(now)}
+    except Exception:
+        vs = set()
 
-    def _key(d: Dict[str, Any]) -> Tuple[float, float]:
+    def _key(d: Dict[str, Any]) -> Tuple[float, float, float]:
         dt = str(d.get("type") or "")
-        return (-float(bias.get(dt) or 0), -float(d.get("priority") or 1))
+        variety = 2.0 if dt in vs else 0.0
+        omen_pen = -0.5 if dt == "omen" else 0.0
+        return (-variety - float(bias.get(dt) or 0) + omen_pen, -float(d.get("priority") or 1), 0.0)
 
     return sorted(rows, key=_key)
 

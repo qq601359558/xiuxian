@@ -643,13 +643,19 @@ def _ai_propose(
             final.append(item)
             if len(final) >= DIRECTOR_MAX_ACTIVE:
                 break
-        # M5：若 AI 未给出 bias 优先类型，补一条史笔种子（仍 admit）
+        # M5/M-多样性：AI 全 omen 或缺世界态势类型时，从世界态势补种
         if final:
             try:
-                from core.era_reentry import preferred_directive_types, seed_local_directives, note_citation
+                from core.era_reentry import (
+                    preferred_directive_types,
+                    seed_local_directives,
+                    note_citation,
+                    variety_seeds_from_world,
+                )
 
-                pref = preferred_directive_types(now=now, top=2)
                 have = {x.get("type") for x in final}
+                pref = preferred_directive_types(now=now, top=2)
+                # 1) 史笔缺类型
                 if pref and not any(p in have for p in pref):
                     for seed in seed_local_directives(now=now):
                         if seed.get("type") not in pref:
@@ -658,7 +664,26 @@ def _ai_propose(
                         if ok_s and item_s and not _is_duplicate_directive(item_s, now=now):
                             item_s["source"] = "ai+era"
                             final.append(item_s)
-                            note_citation("director_supplement")
+                            note_citation("director_supplement_era")
+                            have.add(item_s.get("type"))
+                            break
+                # 2) 世界态势多样性：全 omen 或缺血煞/宗门/秘境时补
+                need_variety = have == {"omen"} or not (
+                    have & {"blood_tide", "sect_tension", "secret_realm_pressure", "faction_order", "sect_siege"}
+                )
+                if need_variety:
+                    for seed in variety_seeds_from_world(now=now):
+                        if seed.get("type") in have:
+                            continue
+                        ok_s, _rs, item_s = admit_directive(seed, season=season, now=now)
+                        if ok_s and item_s and not _is_duplicate_directive(item_s, now=now):
+                            item_s["source"] = "ai+world"
+                            final.append(item_s)
+                            have.add(item_s.get("type"))
+                            note_citation("director_supplement_world")
+                            if len(final) >= DIRECTOR_MAX_ACTIVE:
+                                break
+                        if len(final) >= DIRECTOR_MAX_ACTIVE:
                             break
             except Exception:
                 pass
