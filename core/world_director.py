@@ -461,12 +461,7 @@ def active_directives(now: Optional[float] = None) -> List[Dict[str, Any]]:
 
 def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
     """
-    由活跃指令推导的世界修饰（规则侧消费，AI 不直接改数）。
-    - blood_tide_locations: 血煞潮地点列表
-    - sect_tensions: [(sect_a, sect_b), ...]
-    - realm_pressure_ids: 秘境压力
-    - calamity_forecast: 是否有大劫预兆
-    - hunt_heat: 血煞潮全局除凶热度倍率（无潮时为 1.0）
+    由活跃指令 + 世界弧推导的世界修饰（规则侧消费，AI 不直接改数）。
     """
     t = _now(now)
     active = active_directives(t)
@@ -493,23 +488,49 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
         elif dtype == "calamity_forecast":
             calamity = True
     hunt_heat = 1.35 if blood_locs else (1.15 if any(d.get("type") == "blood_tide" for d in active) else 1.0)
+    # 叠加 M2 世界弧
+    try:
+        from core.world_arc import arc_modifiers
+
+        am = arc_modifiers(t)
+        for loc in am.get("blood_tide_locations") or []:
+            if loc not in blood_locs:
+                blood_locs.append(loc)
+        for pair in am.get("sect_tensions") or []:
+            if pair not in sects:
+                sects.append(pair)
+        for rid in am.get("realm_pressure_ids") or []:
+            if rid not in realms:
+                realms.append(rid)
+        calamity = calamity or bool(am.get("calamity_forecast"))
+        hunt_heat = max(hunt_heat, float(am.get("hunt_heat") or 1.0))
+        heat_by_location = dict(am.get("heat_by_location") or {})
+    except Exception:
+        heat_by_location = {}
+    # 指令地点也进 heat
+    for loc in blood_locs:
+        heat_by_location[loc] = max(heat_by_location.get(loc, 1.0), 1.45)
     return {
         "blood_tide_locations": blood_locs,
         "sect_tensions": sects,
         "realm_pressure_ids": realms,
         "calamity_forecast": calamity,
         "hunt_heat": hunt_heat,
+        "heat_by_location": heat_by_location,
         "active_types": [d.get("type") for d in active],
         "n_active": len(active),
     }
 
 
 def location_heat(location: str, now: Optional[float] = None) -> float:
-    """某地点因导演态势产生的行动热度（1.0=常态；血煞潮地点 >1）"""
+    """某地点因导演/世界弧态势产生的行动热度（1.0=常态）"""
     if not location:
         return 1.0
     mods = world_modifiers(now)
-    if location in mods.get("blood_tide_locations") or []:
+    by = mods.get("heat_by_location") or {}
+    if location in by:
+        return float(by[location])
+    if location in (mods.get("blood_tide_locations") or []):
         return 1.45
     if mods.get("calamity_forecast"):
         return 1.15
@@ -518,21 +539,28 @@ def location_heat(location: str, now: Optional[float] = None) -> float:
 
 def agenda_bias_for_npc(npc: Any, now: Optional[float] = None) -> Optional[Dict[str, str]]:
     """
-    导演态势对 NPC 本 tick 议程的规则偏置（返回建议 agenda_type/note，或 None）。
+    导师态势 + 世界弧 对 NPC 本 tick 议程的规则偏置。
     只影响「选哪条议程」，结算仍走 JianghuSimulator 规则。
     """
     if npc is None:
         return None
+    # 世界弧优先（更具体）
+    try:
+        from core.world_arc import agenda_bias_from_arcs
+
+        ab = agenda_bias_from_arcs(npc, now=now)
+        if ab:
+            return ab
+    except Exception:
+        pass
     mods = world_modifiers(now)
     loc = getattr(npc, "location", "") or ""
     sect = getattr(npc, "sect", "") or ""
-    # 血煞潮地点：巡守/除凶偏置
     if loc and loc in mods.get("blood_tide_locations"):
         return {
             "agenda_type": "patrol",
             "note": "天道导演·血煞潮：同场戒备，加强巡守",
         }
-    # 宗门紧张：涉事宗门弟子偏向巡守/结交打探
     for sa, sb in mods.get("sect_tensions") or []:
         if sect and sect in (sa, sb):
             if getattr(npc, "karma", None) is not None and npc.karma.sin_value >= 80:
@@ -544,7 +572,6 @@ def agenda_bias_for_npc(npc: Any, now: Optional[float] = None) -> Optional[Dict[
                 "agenda_type": "patrol",
                 "note": f"天道导演·宗门紧张（{sa}×{sb}）：谨守门户",
             }
-    # 大劫预兆：求生/避劫
     if mods.get("calamity_forecast"):
         try:
             if npc.realm and getattr(npc.realm, "is_full", False):
@@ -859,12 +886,21 @@ class WorldDirector:
                 f"{int(t)}|{d.get('type')}|{d.get('title')}|{d.get('source')}|{d.get('id')}",
             )
         _save(state)
+        # M2：导师指令升格世界弧
+        arcs_spawned = []
+        try:
+            from core.world_arc import absorb_director_cycle
+
+            arcs_spawned = absorb_director_cycle(applied_rows, now=t)
+        except Exception:
+            arcs_spawned = []
         return {
             "ok": True,
             "source": source,
             "trigger": trigger,
             "count": len(applied_rows),
             "directives": applied_rows,
+            "arcs_spawned": arcs_spawned,
             "brief_hint": (applied_rows[0].get("title") if applied_rows else "天道沉寂"),
         }
 

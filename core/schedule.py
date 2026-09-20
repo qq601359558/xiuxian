@@ -122,6 +122,7 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
     # 天道导演态势
     try:
         from core.world_director import WorldDirector, world_modifiers
+        from core.world_arc import active_arcs
 
         d_rows = WorldDirector.schedule_lines(limit=3)
         mods = world_modifiers()
@@ -132,10 +133,16 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
             d_rows.append(f"· 宗门紧张：{pairs}")
         if mods.get("calamity_forecast"):
             d_rows.append("· 大劫预兆笼罩纪元")
+        for a in active_arcs()[:3]:
+            stage_cn = {"prophesy": "预兆", "escalate": "升级", "climax": "决算"}.get(
+                a.get("stage"), a.get("stage")
+            )
+            loc = f" @{a.get('location')}" if a.get("location") else ""
+            d_rows.append(f"· 弧[{stage_cn}] {a.get('title')}{loc}")
     except Exception:
         d_rows = []
     lines.append(f"天道导演（{len(d_rows)}）：")
-    lines.extend(d_rows or ["  · 暂无态势（/天道 可览）"])
+    lines.extend(d_rows or ["  · 暂无态势（/天道 /世界弧 可览）"])
 
     # 近闻
     try:

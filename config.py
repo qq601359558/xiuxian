@@ -630,6 +630,30 @@ DIRECTOR_STRIP_EFFECT_KEYS = frozenset(
     }
 )
 
+# ==================== M2 世界弧 ====================
+WORLD_ARC_MAX_ACTIVE = int(os.getenv("WORLD_ARC_MAX_ACTIVE", "3"))
+# 各阶段墙钟（秒）；测试可 env 调短
+WORLD_ARC_PROPHESY_SEC = float(os.getenv("WORLD_ARC_PROPHESY_SEC", "900"))
+WORLD_ARC_ESCALATE_SEC = float(os.getenv("WORLD_ARC_ESCALATE_SEC", "1200"))
+# 同时最多活跃世界弧类型去重：同 kind 同 location 只留一条
+WORLD_ARC_TYPES = frozenset(
+    {
+        "blood_feud",
+        "realm_storm",
+        "sect_crisis",
+        "calamity_arc",
+        "omen_arc",
+    }
+)
+# 导师指令 → 可升级为弧
+DIRECTIVE_TO_ARC = {
+    "blood_tide": "blood_feud",
+    "secret_realm_pressure": "realm_storm",
+    "sect_tension": "sect_crisis",
+    "calamity_forecast": "calamity_arc",
+    "omen": "omen_arc",
+}
+
 # ==================== NPC 议程 ====================
 # 每次世界 tick 最多推进多少名 NPC（控成本）
 NPC_TICK_MAX = 5

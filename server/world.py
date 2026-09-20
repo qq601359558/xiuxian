@@ -123,6 +123,13 @@ class World:
                         WorldDirector.run_cycle(trigger="timer", force=False)
                     except Exception:
                         pass
+                    # M2 世界弧推进
+                    try:
+                        from core import world_arc
+
+                        world_arc.tick_world(max_advance=2)
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -1101,6 +1108,10 @@ class World:
                 from core.world_director import handle_heaven_command
 
                 return handle_heaven_command(action, parts)
+            if action in ("/世界弧", "/arc", "/弧"):
+                from core.world_arc import handle_arc_command
+
+                return handle_arc_command(parts)
             if action in ("/世情", "/worldinfo"):
                 from core.schedule import format_world_schedule
                 from core import rumors as _rum
@@ -2093,7 +2104,7 @@ class World:
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
-            "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮)"
+            "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮) /世界弧|/弧"
         )
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:
