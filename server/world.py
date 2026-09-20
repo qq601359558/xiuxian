@@ -707,6 +707,16 @@ class World:
                     "ai_data": health,
                     "director_quality": q,
                 }
+            if action in ("/帮助", "/help", "/指令"):
+                from core.command_catalog import format_help, search_commands
+
+                kw = " ".join(parts[1:]).strip() if len(parts) > 1 else ""
+                text = format_help(kw)
+                return {
+                    "ok": True,
+                    "text": text,
+                    "commands": search_commands(kw, limit=40) if kw else search_commands("", limit=80),
+                }
             if action in ("/qi", "/灵气"):
                 return {"ok": True, "text": qi_mod.qi_status_text(), "qi": qi_mod.effective_density(1.0)}
             if action in ("/season", "/纪元"):
@@ -2119,8 +2129,11 @@ class World:
                     "outcome": res.get("outcome"),
                     "spawned": bool(spawned),
                 }
-            if action in ("/help", "/帮助"):
-                return {"ok": True, "text": self._help()}
+            if action in ("/help", "/帮助", "/指令"):
+                from core.command_catalog import format_help
+
+                kw = " ".join(parts[1:]).strip() if len(parts) > 1 else ""
+                return {"ok": True, "text": format_help(kw)}
 
             return {"ok": False, "error": f"未知指令 {action}，输入 /帮助"}
 
@@ -2210,7 +2223,7 @@ class World:
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
-            "/ailog(=AI日志) /ai(=AI自检含导演链路) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫 /望气 /势力 /宗门令 /纪元回流"
+            "/ailog(=AI日志) /ai(=AI自检含导演链路) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫 /望气 /势力 /宗门令 /纪元回流 /世界演变"
         )
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:

@@ -986,3 +986,58 @@ a:focus-visible {
 .evo-cell p { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .evo-cell.warn .v { color: var(--blood); }
 .evo-cell.ok .v { color: var(--jade); }
+
+/* ===== Ö¸ÁîÐ±¸Ü²¹È« ===== */
+.composer-wrap { position: relative; }
+.cmd-suggest {
+  position: absolute;
+  left: 0; right: 0; bottom: calc(100% + 6px);
+  z-index: 40;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--surface2);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+.cmd-suggest.hidden { display: none; }
+.cmd-item {
+  display: grid;
+  grid-template-columns: minmax(120px, 28%) 1fr;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.cmd-item:hover,
+.cmd-item.active {
+  background: rgba(212, 175, 55, 0.12);
+}
+.cmd-item .c {
+  color: var(--gold-soft);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.cmd-item .c .usage {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.cmd-item .d { color: var(--text); }
+.cmd-item .cat {
+  color: var(--muted);
+  font-size: 11px;
+  grid-column: 1 / -1;
+  margin-top: -2px;
+}
+.cmd-suggest .hint {
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}

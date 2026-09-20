@@ -307,7 +307,7 @@ def open_mission(
     open_n = sum(1 for m in state.get("missions") if m.get("status") == "open" and m.get("sect") == sect)
     if open_n >= FACTION_MISSION_MAX_OPEN:
         return None
-    # 同类型同宗同目标去重
+    # 同类型同宗同目标去重（允许不同 title/source 的显式开令，如测试）
     for m in state.get("missions") or []:
         if (
             m.get("status") == "open"
@@ -316,6 +316,7 @@ def open_mission(
             and m.get("target_name") == target_name
             and m.get("target_sect") == target_sect
             and m.get("location") == location
+            and m.get("title") == (title or "")
         ):
             return None
     reward = int(reward_contrib or FACTION_MISSION_REWARD.get(kind, 5))

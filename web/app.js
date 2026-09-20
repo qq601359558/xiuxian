@@ -157,6 +157,211 @@
     }
   }
 
+  // ---------- 斜杠指令补全 ----------
+  const cmdSuggest = {
+    items: [],
+    index: 0,
+    cache: null,
+  };
+
+  function cmdListEl() {
+    return $("cmdSuggest");
+  }
+
+  function hideSuggest() {
+    const el = cmdListEl();
+    if (el) {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+    }
+    cmdSuggest.items = [];
+    cmdSuggest.index = 0;
+  }
+
+  async function loadCommandCatalog(force) {
+    if (cmdSuggest.cache && !force) return cmdSuggest.cache;
+    try {
+      const base = (state.base || "").replace(/\/$/, "");
+      const res = await fetch(base + "/commands");
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      cmdSuggest.cache = data.commands || [];
+    } catch (e) {
+      // 本地兜底：与 core/command_catalog 常用子集同步
+      cmdSuggest.cache = [
+        { cmd: "/look", usage: "/look", desc: "观照自身", category_cn: "观照与出入" },
+        { cmd: "/世情", usage: "/世情 [简]", desc: "世界演变总览", category_cn: "天下与演变" },
+        { cmd: "/天道", usage: "/天道 [推演]", desc: "天道导演态势", category_cn: "天下与演变" },
+        { cmd: "/势力", usage: "/势力", desc: "宗门关系/令/围剿", category_cn: "宗门势力" },
+        { cmd: "/望气", usage: "/望气 [己]", desc: "凶地与坊市恐慌", category_cn: "天下与演变" },
+        { cmd: "/世界弧", usage: "/世界弧", desc: "世界弧状态", category_cn: "天下与演变" },
+        { cmd: "/做", usage: "/做 <言行>", desc: "自由言行", category_cn: "人际因果" },
+        { cmd: "/帮助", usage: "/帮助 [关键字]", desc: "指令目录", category_cn: "观照与出入" },
+      ];
+    }
+    return cmdSuggest.cache;
+  }
+
+  function localFuzzy(q) {
+    const all = cmdSuggest.cache || [];
+    const query = (q || "").trim().toLowerCase();
+    if (!query.startsWith("/")) return [];
+    if (query === "/") {
+      return all.slice(0, 14).map((e) => ({ ...e, score: 0 }));
+    }
+    const scored = [];
+    for (const e of all) {
+      const cmd = String(e.cmd || "").toLowerCase();
+      const aliases = (e.aliases || []).map((a) => String(a).toLowerCase());
+      const desc = String(e.desc || "").toLowerCase();
+      const usage = String(e.usage || "").toLowerCase();
+      const core = query.replace(/^\//, "");
+      let s = 0;
+      if (cmd === query) s = 100;
+      else if (cmd.startsWith(query)) s = 80 - (cmd.length - query.length);
+      else if (aliases.some((a) => a === query || a.startsWith(query))) s = 70;
+      else if (core && cmd.indexOf(core) >= 0) s = 55;
+      else if (core && aliases.some((a) => a.indexOf(core) >= 0)) s = 50;
+      else if (core && desc.indexOf(core) >= 0) s = 40;
+      else if (core && usage.indexOf(core) >= 0) s = 35;
+      if (s > 0) scored.push({ ...e, score: s });
+    }
+    scored.sort((a, b) => b.score - a.score || String(a.cmd).localeCompare(String(b.cmd)));
+    return scored.slice(0, 12);
+  }
+
+  function renderSuggest(items) {
+    const el = cmdListEl();
+    if (!el) return;
+    cmdSuggest.items = items || [];
+    if (!cmdSuggest.items.length) {
+      hideSuggest();
+      return;
+    }
+    const hint =
+      '<div class="hint">↑↓ 选择 · Enter 填入 · Esc 关闭 · 共 ' +
+      cmdSuggest.items.length +
+      " 条</div>";
+    el.innerHTML =
+      hint +
+      cmdSuggest.items
+        .map(function (it, i) {
+          return (
+            '<div class="cmd-item' +
+            (i === cmdSuggest.index ? " active" : "") +
+            '" data-i="' +
+            i +
+            '" role="option">' +
+            '<div class="c">' +
+            esc(it.cmd) +
+            (it.usage && it.usage !== it.cmd
+              ? '<span class="usage">' + esc(it.usage) + "</span>"
+              : "") +
+            "</div>" +
+            '<div class="d">' +
+            esc(it.desc || "") +
+            "</div>" +
+            (it.category_cn ? '<div class="cat">' + esc(it.category_cn) + "</div>" : "") +
+            "</div>"
+          );
+        })
+        .join("");
+    el.classList.remove("hidden");
+    el.querySelectorAll(".cmd-item").forEach(function (node) {
+      node.addEventListener("click", function () {
+        const i = Number(node.getAttribute("data-i"));
+        applySuggest(i);
+      });
+      node.addEventListener("mouseenter", function () {
+        cmdSuggest.index = Number(node.getAttribute("data-i"));
+        el.querySelectorAll(".cmd-item").forEach(function (n, j) {
+          n.classList.toggle("active", j === cmdSuggest.index);
+        });
+      });
+    });
+  }
+
+  function applySuggest(i) {
+    const items = cmdSuggest.items;
+    if (!items || !items[i]) return;
+    const cmd = items[i].cmd || "";
+    const usage = String(items[i].usage || cmd);
+    const inp = $("cmdInput");
+    if (!inp) return;
+    // 若 usage 含参数占位，填入 usage；否则填 cmd + 空格方便续写
+    if (usage && /[<>|]/.test(usage)) {
+      inp.value = usage;
+    } else {
+      inp.value = cmd + " ";
+    }
+    hideSuggest();
+    inp.focus();
+  }
+
+  async function updateSuggest() {
+    const inp = $("cmdInput");
+    if (!inp) return;
+    const v = inp.value;
+    if (!v || v[0] !== "/") {
+      hideSuggest();
+      return;
+    }
+    await loadCommandCatalog(false);
+    // 有空格且已有主指令：仍可按整词搜，但优先补主指令
+    let items = localFuzzy(v.split(/\s/)[0]);
+    if (!items.length) items = localFuzzy(v);
+    cmdSuggest.index = 0;
+    renderSuggest(items);
+  }
+
+  function bindSuggest() {
+    const inp = $("cmdInput");
+    if (!inp || inp._sugBound) return;
+    inp._sugBound = true;
+    inp.addEventListener("input", function () {
+      updateSuggest();
+    });
+    inp.addEventListener("focus", function () {
+      if (inp.value && inp.value[0] === "/") updateSuggest();
+    });
+    inp.addEventListener("keydown", function (e) {
+      const el = cmdListEl();
+      const open = el && !el.classList.contains("hidden") && cmdSuggest.items.length;
+      if (!open) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        cmdSuggest.index = Math.min(cmdSuggest.items.length - 1, cmdSuggest.index + 1);
+        renderSuggest(cmdSuggest.items);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        cmdSuggest.index = Math.max(0, cmdSuggest.index - 1);
+        renderSuggest(cmdSuggest.items);
+      } else if (e.key === "Enter") {
+        // 若列表打开且输入以 / 开头且仅是查询（无空格）→ 填入而不是提交
+        if (inp.value && inp.value[0] === "/" && !/\s/.test(inp.value)) {
+          e.preventDefault();
+          applySuggest(cmdSuggest.index);
+        } else if (inp.value && inp.value[0] === "/" && /\s$/.test(inp.value)) {
+          // ignore
+        } else if (cmdSuggest.items.length && inp.value[0] === "/") {
+          // 有参数时 Enter 提交指令；补全仅当无参数
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        hideSuggest();
+      } else if (e.key === "Tab") {
+        if (cmdSuggest.items[cmdSuggest.index]) {
+          e.preventDefault();
+          applySuggest(cmdSuggest.index);
+        }
+      }
+    });
+    document.addEventListener("click", function (e) {
+      const wrap = document.querySelector(".composer-wrap");
+      if (wrap && !wrap.contains(e.target)) hideSuggest();
+    });
+  }
+
   async function api(path, body) {
     const url = state.base.replace(/\/$/, "") + path;
     const opts = body
@@ -412,6 +617,7 @@
     if (state.composerOpen) {
       const inp = $("cmdInput");
       if (inp) inp.focus();
+      bindSuggest();
     }
   }
 
@@ -1001,10 +1207,15 @@
   $("cmdForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const v = $("cmdInput").value;
+    // 打开补全且仅输入 /xxx（无参数）时 Enter 已在 keydown 处理；此处提交完整指令
     lastCmd = v;
     $("cmdInput").value = "";
+    hideSuggest();
     send(v);
   });
+
+  bindSuggest();
+  loadCommandCatalog(true);
 
   document.querySelectorAll("[data-cmd]").forEach((btn) => {
     btn.addEventListener("click", () => {

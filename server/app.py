@@ -178,6 +178,28 @@ class GameHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 return _json_response(self, 500, {"ok": False, "error": str(e)[:200]})
             return _json_response(self, 200, snap)
+        if path == "/commands" or path.startswith("/commands"):
+            from core.command_catalog import catalog_json, search_commands
+
+            qs = urlparse(self.path).query or ""
+            q = ""
+            limit = 20
+            for part in qs.split("&"):
+                if part.startswith("q="):
+                    try:
+                        from urllib.parse import unquote
+
+                        q = unquote(part[2:])
+                    except Exception:
+                        q = part[2:]
+                elif part.startswith("limit="):
+                    try:
+                        limit = max(1, min(80, int(part[6:])))
+                    except ValueError:
+                        pass
+            if q:
+                return _json_response(self, 200, {"ok": True, "query": q, "commands": search_commands(q, limit=limit)})
+            return _json_response(self, 200, catalog_json())
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
     def do_POST(self):

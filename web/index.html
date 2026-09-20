@@ -278,11 +278,14 @@
         </div>
 
         <form id="cmdForm" class="composer">
-          <div class="composer-inner">
-            <span class="prompt">敕令</span>
-            <input id="cmdInput" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="/做 我在坊市打听血刀老祖下落" />
-            <button type="submit" class="btn-primary sm">行</button>
+          <div class="composer-wrap">
+            <div id="cmdSuggest" class="cmd-suggest hidden" role="listbox" aria-label="指令补全"></div>
+            <div class="composer-inner">
+              <span class="prompt">敕令</span>
+              <input id="cmdInput" type="text" autocomplete="off" spellcheck="false"
+                     placeholder="/ 或 /做 我在坊市打听消息 — 斜杠可模糊搜指令" />
+              <button type="submit" class="btn-primary sm">行</button>
+            </div>
           </div>
           <div class="quick-row">
             <button type="button" class="chip" data-cmd="/闭关 1">闭关</button>
