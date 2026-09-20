@@ -214,6 +214,18 @@ class CombatFateEngine:
                     )
                 except Exception:
                     pass
+                # M4：玩家回写
+                try:
+                    from core.player_echo import record_player_kill
+
+                    record_player_kill(
+                        attacker,
+                        defender,
+                        attacker.location,
+                        looted=looted,
+                    )
+                except Exception:
+                    pass
                 # M3：跨宗门击杀影响势力关系
                 try:
                     sa = getattr(attacker, "sect", "") or ""

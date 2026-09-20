@@ -137,6 +137,13 @@ class World:
                         faction.tick_world()
                     except Exception:
                         pass
+                    # M4：玩家回写衰减
+                    try:
+                        from core import player_echo
+
+                        player_echo.decay_echoes()
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -488,6 +495,21 @@ class World:
                                 W.set(flag, now)
                                 text += "\n【天道示警】隐约察觉有人对你动了杀心……"
                             break
+                except Exception:
+                    pass
+                try:
+                    from core.player_echo import format_region_strip, player_echo_text
+
+                    strip = format_region_strip(char)
+                    if strip and "尚稳" not in strip:
+                        text += f"\n【望气】{strip}"
+                    labels = []
+                    from core.player_echo import get_player_echo
+
+                    e = get_player_echo(char)
+                    labels = e.get("labels") or []
+                    if labels:
+                        text += f"\n【凶名】{'、'.join(labels)}"
                 except Exception:
                     pass
                 return {"ok": True, "text": text, "status": self._status_dict(char)}
@@ -1297,6 +1319,10 @@ class World:
                 from core.faction import handle_faction_command, format_faction_board
 
                 return handle_faction_command(parts, char)
+            if action in ("/望气", "/echo", "/天象"):
+                from core.player_echo import handle_echo_command
+
+                return handle_echo_command(parts, char)
             if action in ("/宗门令", "/sectorder", "/势力令"):
                 from core.faction import handle_faction_command
 
@@ -2138,7 +2164,7 @@ class World:
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫"
         )
@@ -2383,6 +2409,12 @@ class World:
             try:
                 GoalEngine.on_breakthrough_major(c)
                 CharacterRepository.save(c)
+            except Exception:
+                pass
+            try:
+                from core.player_echo import record_player_breakthrough
+
+                record_player_breakthrough(c, realm_name=c.realm.name)
             except Exception:
                 pass
             # 大境界突破：尝试触发天道导演（仍受冷却）+ 惊动天道

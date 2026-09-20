@@ -67,6 +67,13 @@ class MarketEngine:
             return {"success": False, "message": "购买数量至少为 1。"}
 
         unit = cfg["price"]
+        # M4：坊市恐慌买价
+        try:
+            from core.player_echo import market_buy_mult
+
+            unit = max(1, int(round(unit * market_buy_mult())))
+        except Exception:
+            pass
         total = unit * qty
         if buyer.spirit_stones < total:
             return {
@@ -117,6 +124,13 @@ class MarketEngine:
     def sell_to_guild(seller: Character, item_name: str, qty: int = 1) -> Dict[str, Any]:
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
         unit_back = max(1, int(cfg["price"] * MARKET_SELL_BACK_RATE))
+        # M4：恐慌压回收价
+        try:
+            from core.player_echo import market_sell_mult
+
+            unit_back = max(1, int(round(unit_back * market_sell_mult())))
+        except Exception:
+            pass
 
         # 优先卖随身杂物，其次阵盘
         have_inv = seller.inventory.count(item_name)

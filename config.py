@@ -693,6 +693,17 @@ DIRECTIVE_TO_ARC = {
     "sect_siege": "blood_feud",
 }
 
+# ==================== M4 玩家回写 ====================
+ECHO_KILL_WINDOW_SEC = float(os.getenv("ECHO_KILL_WINDOW", "3600"))
+ECHO_REGION_DECAY_PER_TICK = float(os.getenv("ECHO_REGION_DECAY", "2.0"))
+ECHO_MARKET_BUY_MAX = float(os.getenv("ECHO_MARKET_BUY_MAX", "1.35"))
+ECHO_MARKET_SELL_MIN = float(os.getenv("ECHO_MARKET_SELL_MIN", "0.75"))
+ECHO_DANGER_HEAT_MAX = float(os.getenv("ECHO_DANGER_HEAT_MAX", "1.55"))
+ECHO_FAME_KILL = int(os.getenv("ECHO_FAME_KILL", "3"))
+ECHO_FAME_BREAKTHROUGH = int(os.getenv("ECHO_FAME_BREAKTHROUGH", "5"))
+ECHO_SIN_SPIKE_THRESHOLD = int(os.getenv("ECHO_SIN_SPIKE_THRESHOLD", "40"))
+ECHO_STREAK_DIRECTOR_TRIGGER = int(os.getenv("ECHO_STREAK_DIRECTOR_TRIGGER", "3"))
+
 # ==================== NPC 议程 ====================
 # 每次世界 tick 最多推进多少名 NPC（控成本）
 NPC_TICK_MAX = 5

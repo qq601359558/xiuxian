@@ -71,6 +71,12 @@ def test_production_forces_realtime(monkey=False):
 def test_buy_from_guild():
     from storage.db import init_db
     init_db()
+    try:
+        from core.player_echo import reset_for_tests
+
+        reset_for_tests()
+    except Exception:
+        pass
     c = WorldClock.create_new_character("buyer_u", "坊市客")
     c.born_at = time.time() - 80 * 3600.0
     c.spirit_stones = 500

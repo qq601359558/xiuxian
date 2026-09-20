@@ -78,6 +78,19 @@ def format_board(limit: int = 12) -> str:
         f"【除凶榜】血煞或业力≥{SIN_THRESHOLD}者；令限时 {int(HUNT_TTL_H)}h。",
         "接令：/接除凶 <道号> · /弃除凶 · /围剿 <道号> 宣告 · /反悬赏 防身",
     ]
+    try:
+        from core.player_echo import bounty_pressure, market_panic_text
+
+        bp = bounty_pressure()
+        if int(bp.get("pool_bonus") or 0) > 0:
+            lines.append(
+                f"除凶压力：重业玩家 {bp.get('n_marked')} · 完成令额外功德 +{min(30, int(bp.get('pool_bonus') or 0))}"
+            )
+        mp = market_panic_text()
+        if mp and "平稳" not in mp:
+            lines.append(mp)
+    except Exception:
+        pass
     hunts = _load()
     for c in rows[:limit]:
         mark = "血煞" if c.karma.is_blood_marked() else "重业"
@@ -175,6 +188,15 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
     d.pop(hunter.id, None)
     _save(d)
     hunter.karma.add_merit(40)
+    try:
+        from core.player_echo import hunt_merit_bonus, record_player_merit
+
+        bonus = hunt_merit_bonus()
+        if bonus:
+            hunter.karma.add_merit(bonus)
+        record_player_merit(hunter, 4, reason="除凶")
+    except Exception:
+        bonus = 0
     hunter.karma.sin_value = max(0, hunter.karma.sin_value - 20)
     CharacterRepository.save(hunter)
     try:
@@ -202,7 +224,7 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
             WorldStateRepository.set(_COUNTER_KEY, cd)
     except Exception:
         pass
-    return {"merit": 40, "sin_reduced": 20}
+    return {"merit": 40 + bonus, "sin_reduced": 20}
 
 
 def settle_hunter_slain(hunter: Character, killer: Character) -> Optional[Dict[str, Any]]:

@@ -60,6 +60,26 @@ def build_profile(viewer: Character, target: Optional[Character] = None) -> Dict
         "stealth": c.stealth_active,
     }
 
+    # M4：望气投影
+    try:
+        from core.player_echo import get_player_echo, player_echo_text, region_info
+
+        e = get_player_echo(c)
+        data["echo_labels"] = list(e.get("labels") or [])
+        data["echo_fame"] = int(e.get("fame") or 0)
+        data["echo_kills"] = int(e.get("kill_total") or 0)
+        ri = region_info(c.location)
+        data["region_danger"] = float(ri.get("danger") or 0)
+        if is_self:
+            try:
+                from core.player_echo import market_panic_text
+
+                data["market_panic_text"] = market_panic_text()
+            except Exception:
+                data["market_panic_text"] = ""
+    except Exception:
+        data["echo_labels"] = []
+
     if is_self:
         data["stones"] = c.spirit_stones
         data["vault"] = c.vault_stones

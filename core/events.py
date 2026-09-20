@@ -157,6 +157,12 @@ class EventEngine:
 
         if effects.get("sin"):
             character.karma.add_sin(int(effects["sin"]))
+            try:
+                from core.player_echo import record_player_sin
+
+                record_player_sin(character, int(effects["sin"]), reason="事件业力")
+            except Exception:
+                pass
             notes.append(f"业力+{int(effects['sin'])}")
 
         if effects.get("merit"):

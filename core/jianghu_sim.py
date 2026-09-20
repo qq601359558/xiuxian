@@ -227,6 +227,13 @@ class JianghuSimulator:
                     ap *= hostile_power_bonus(getattr(npc, "sect", "") or "", getattr(target, "sect", "") or "")
                 except Exception:
                     pass
+                # M4：区域玩家回写热度
+                try:
+                    from core.player_echo import region_heat
+
+                    ap *= max(1.0, min(1.4, region_heat(loc)))
+                except Exception:
+                    pass
                 dp = _power(target)
                 # 闭关中更易被偷袭
                 if target.status == CharacterStatus.MEDITATING:
@@ -256,6 +263,14 @@ class JianghuSimulator:
                     cascade_notes.extend(
                         JianghuSimulator.cascade_kill(npc, target, location=loc, loot=loot)
                     )
+                    try:
+                        uid_k = str(getattr(npc, "user_id", "") or "")
+                        if uid_k and not uid_k.startswith("npc_") and not uid_k.startswith("ai_npc_"):
+                            from core.player_echo import record_player_kill
+
+                            record_player_kill(npc, target, loc, looted=loot)
+                    except Exception:
+                        pass
                     effects = {"stones_gain_npc": loot, "sin": sin, "kill": target.id}
                 else:
                     # 失败：受伤或对方遁走

@@ -693,6 +693,17 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
             hunt_heat = max(hunt_heat, 1.25)
     except Exception:
         pass
+    echo_info: Dict[str, Any] = {}
+    try:
+        from core.player_echo import echo_modifiers
+
+        em = echo_modifiers(t)
+        echo_info = em
+        for loc, heat in (em.get("heat_by_location") or {}).items():
+            heat_by_location[loc] = max(heat_by_location.get(loc, 1.0), float(heat))
+        hunt_heat = max(hunt_heat, float(em.get("hunt_heat") or 1.0))
+    except Exception:
+        pass
     for loc in blood_locs:
         heat_by_location[loc] = max(heat_by_location.get(loc, 1.0), 1.45)
     return {
@@ -703,6 +714,7 @@ def world_modifiers(now: Optional[float] = None) -> Dict[str, Any]:
         "hunt_heat": hunt_heat,
         "heat_by_location": heat_by_location,
         "faction": faction_info,
+        "echo": echo_info,
         "active_types": [d.get("type") for d in active],
         "n_active": len(active),
     }
@@ -725,7 +737,7 @@ def location_heat(location: str, now: Optional[float] = None) -> float:
 
 
 def location_heat_for(location: str, viewer_sect: str = "", now: Optional[float] = None) -> float:
-    """带宗门视角的地点热度（敌对总坛加成）"""
+    """带宗门/玩家回写视角的地点热度"""
     heat = location_heat(location, now)
     try:
         from core.faction import location_faction_heat
@@ -733,16 +745,29 @@ def location_heat_for(location: str, viewer_sect: str = "", now: Optional[float]
         heat = max(heat, location_faction_heat(location, viewer_sect, now))
     except Exception:
         pass
+    try:
+        from core.player_echo import region_heat
+
+        heat = max(heat, region_heat(location, now))
+    except Exception:
+        pass
     return heat
 
 
 def agenda_bias_for_npc(npc: Any, now: Optional[float] = None) -> Optional[Dict[str, str]]:
     """
-    导师态势 + 世界弧 + 势力 对 NPC 本 tick 议程的规则偏置。
+    导师态势 + 世界弧 + 势力 + 玩家回写 对 NPC 议程的规则偏置。
     """
     if npc is None:
         return None
-    # 势力围剿/敌境优先
+    try:
+        from core.player_echo import agenda_bias_from_echo
+
+        eb = agenda_bias_from_echo(npc, now=now)
+        if eb:
+            return eb
+    except Exception:
+        pass
     try:
         from core.faction import agenda_bias_for_npc as faction_bias
 
@@ -1287,6 +1312,12 @@ class WorldDirector:
                 lines.append(
                     f"势力：围剿={fac.get('active_sieges') or '无'} · "
                     f"敌对对={len(fac.get('hostile_pairs') or [])}"
+                )
+            em = mods.get("echo") or {}
+            if em.get("market_panic") or em.get("hot_regions"):
+                lines.append(
+                    f"望气：血气{em.get('blood_index', 0):.0f} · 恐慌{em.get('market_panic', 0):.0f} · "
+                    f"凶地={em.get('hot_regions') or '无'}"
                 )
         except Exception:
             pass

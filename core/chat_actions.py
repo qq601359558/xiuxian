@@ -359,6 +359,12 @@ def do_kidnap(player: Character, npc: Character, rec: Dict[str, Any]) -> Dict[st
         except Exception:
             pass
         try:
+            from core.player_echo import record_player_sin
+
+            record_player_sin(player, 40, reason="擒拿")
+        except Exception:
+            pass
+        try:
             from core.npc_mind import shift_attitude
 
             shift_attitude(npc, player.id, -50, reason="被擒")

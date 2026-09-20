@@ -140,6 +140,14 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
             loc = f" @{a.get('location')}" if a.get("location") else ""
             d_rows.append(f"· 弧[{stage_cn}] {a.get('title')}{loc}")
         try:
+            from core.player_echo import format_region_strip
+
+            strip = format_region_strip()
+            if strip and "尚稳" not in strip:
+                d_rows.append(f"· 望气：{strip}")
+        except Exception:
+            pass
+        try:
             from core.faction import faction_modifiers
 
             fm = faction_modifiers()
@@ -154,7 +162,7 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
     except Exception:
         d_rows = []
     lines.append(f"天道导演（{len(d_rows)}）：")
-    lines.extend(d_rows or ["  · 暂无态势（/天道 /世界弧 /势力 可览）"])
+    lines.extend(d_rows or ["  · 暂无态势（/天道 /世界弧 /势力 /望气 可览）"])
 
     # 近闻
     try:

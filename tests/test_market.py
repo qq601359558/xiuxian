@@ -9,6 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.clock import WorldClock
 from core.market import MarketEngine, ListingStatus
 from core.combat import CombatEngine
+from storage.db import init_db
+
+
+def _reset_market_echo():
+    init_db()
+    try:
+        from core.player_echo import reset_for_tests
+
+        reset_for_tests()
+    except Exception:
+        pass
 
 
 def _char(name: str, stones: int = 500):
@@ -18,6 +29,7 @@ def _char(name: str, stones: int = 500):
 
 
 def test_buy_array_from_guild():
+    _reset_market_echo()
     c = _char("买家", stones=200)
     res = MarketEngine.buy_from_guild(c, "一阶青木迷踪阵", 1)
     assert res["success"] is True
@@ -27,6 +39,7 @@ def test_buy_array_from_guild():
 
 
 def test_sell_back_half_price():
+    _reset_market_echo()
     c = _char("卖家")
     c.inventory.append("妖兽内丹")
     res = MarketEngine.sell_to_guild(c, "妖兽内丹", 1)
