@@ -552,12 +552,29 @@ def omen_script_prompt(
     )
 
 
-def director_prompt(world_brief: str, season_remain_days: float = 0.0, force: bool = False) -> str:
+def director_prompt(
+    world_brief: str,
+    season_remain_days: float = 0.0,
+    force: bool = False,
+    structured: Optional[dict] = None,
+) -> str:
     """天道导演：AI 提案世界级走向；规则门禁再 admit/落账。"""
+    extra = ""
+    if structured:
+        extra = (
+            "\n结构化事实（优先采信，勿编造不在列表中的秘境/地点）：\n"
+            f"秘境：{structured.get('secret_realms')}\n"
+            f"地点：{structured.get('locations')}\n"
+            f"血煞：{structured.get('blood')}\n"
+            f"弧：{structured.get('arcs_line')}\n"
+            f"史笔权重：{structured.get('era_bias')}\n"
+            f"大劫窗口：{structured.get('calamity_window')}\n"
+        )
     return (
         "你是《天道因果录》的天道导演（主脑）。你决定共享大世界「下一步往哪走」，"
         "而不是给单个玩家写旁白。\n"
         f"世界简报：\n{world_brief}\n"
+        f"{extra}"
         f"纪元剩余约 {season_remain_days:.1f} 现实天。\n"
         "提案 0~3 条世界级指令（directives），宁少而准；无大事可给空数组。\n"
         "若简报含「纪元回流权重」，应优先提案其中权重更高的 type（史笔余势）。\n"

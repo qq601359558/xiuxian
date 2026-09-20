@@ -667,6 +667,7 @@ class World:
             if action in ("/ai", "/ai自检"):
                 from ai.gateway import probe_ai_channel, ccswitch_runtime
                 from config import LLM_API_BASE, LLM_MODEL, LLM_API_KEY, USE_CCSWITCH
+                from core.world_director import director_quality_report
 
                 rt = ccswitch_runtime() if USE_CCSWITCH else {}
                 health = probe_ai_channel(force=True)
@@ -679,11 +680,33 @@ class World:
                     f"地址：{base} · 模型：{model}",
                     f"对话测试：{'成功 ' + str(health.get('sample') or '') if ok else '失败 — ' + str(health.get('error') or '')}",
                     "",
+                ]
+                try:
+                    q = director_quality_report()
+                    lines.append(
+                        f"【天道导演链路】{q.get('passed')}/{q.get('total')} 项通过 · "
+                        f"真AI就绪={q.get('ready_for_ai_director')} · 本地降级={q.get('local_fallback_allowed')}"
+                    )
+                    for c in q.get("checks") or []:
+                        mark = "✓" if c.get("ok") else "✗"
+                        lines.append(f"  {mark} {c.get('name')}  {c.get('detail') or ''}")
+                except Exception as e:
+                    q = {}
+                    lines.append(f"【天道导演链路】自检失败：{e}")
+                lines += [
+                    "",
                     "若用 CC Switch：.env 设 USE_CCSWITCH=1，并保持 CC Switch 在线、",
                     "当前 Claude 账号可用（在 CC Switch 界面切换账号）。",
                     "健康结果已写入 world_state，失败时交谈/事件会降级并提示。",
+                    "网页 HUD：/world/director · 按钮：天道/势力/望气/世界弧/纪元回流",
                 ]
-                return {"ok": True, "text": "\n".join(lines), "ai_ok": ok, "ai_data": health}
+                return {
+                    "ok": True,
+                    "text": "\n".join(lines),
+                    "ai_ok": ok,
+                    "ai_data": health,
+                    "director_quality": q,
+                }
             if action in ("/qi", "/灵气"):
                 return {"ok": True, "text": qi_mod.qi_status_text(), "qi": qi_mod.effective_density(1.0)}
             if action in ("/season", "/纪元"):
@@ -2183,7 +2206,7 @@ class World:
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
-            "/ailog(=AI日志) /ai(=AI自检) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫"
+            "/ailog(=AI日志) /ai(=AI自检含导演链路) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫 /望气 /势力 /宗门令 /纪元回流"
         )
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:

@@ -165,6 +165,14 @@ class GameHandler(BaseHTTPRequestHandler):
                     "messages": [m.model_dump() for m in msgs],
                 },
             )
+        if path == "/world/director" or path.startswith("/world/director"):
+            from core.world_director import director_snapshot
+
+            try:
+                snap = director_snapshot()
+            except Exception as e:
+                return _json_response(self, 500, {"ok": False, "error": str(e)[:200]})
+            return _json_response(self, 200, snap)
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
     def do_POST(self):

@@ -578,6 +578,19 @@ def _ai_propose(
             "world_brief": brief.get("text", ""),
             "season_remain_days": float(season.get("remain_real_days") or 0),
             "force": bool(force),
+            # 深化：结构化事实，降低幻觉
+            "structured": {
+                "players": brief.get("players") or [],
+                "blood": brief.get("blood") or [],
+                "realms": brief.get("realms") or [],
+                "locations": (brief.get("locations") or [])[:12],
+                "secret_realms": brief.get("secret_realms") or [],
+                "arcs_line": brief.get("arcs_line") or "",
+                "legends_line": brief.get("legends_line") or "",
+                "era_bias": brief.get("era_bias") or "",
+                "calamity_window": bool(season.get("is_final_week"))
+                or float(season.get("remain_real_days") or 0) <= SEASON_WARN_DAYS,
+            },
         }
         r = invoke(
             "world_director",
@@ -596,7 +609,8 @@ def _ai_propose(
             raw_list = data
         if not isinstance(raw_list, list):
             raw_list = []
-        cleaned: List[Dict[str, Any]] = []
+        # 深化：结构化 brief 一并给模型（router payload 已带；此处保底）
+        cleaned = []
         rejected = 0
         for raw in raw_list[:DIRECTOR_MAX_ACTIVE * 2]:
             ok, reason, item = admit_directive(raw, season=season, now=now)
@@ -613,15 +627,14 @@ def _ai_propose(
                         "source": "ai",
                     }
                 )
-        cleaned = _dedupe_cleaned(cleaned)
-        final = []
-        # M5：按史笔 bias 重排
         try:
             from core.era_reentry import reorder_by_bias
 
             cleaned = reorder_by_bias(cleaned, now=now)
         except Exception:
             pass
+        cleaned = _dedupe_cleaned(cleaned)
+        final = []
         for item in cleaned:
             if _is_duplicate_directive(item, now=now):
                 rejected += 1
@@ -1446,6 +1459,194 @@ def director_prompt_for_test(brief: Dict[str, Any], force: bool = False) -> str:
         season_remain_days=float(info.get("remain_real_days") or 0),
         force=force,
     )
+
+
+def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
+    """网页/HUD 结构化快照：导师 + 弧 + 势力 + 望气 + 纪元回流"""
+    t = _now(now)
+    state = _load()
+    _prune_active(state, t)
+    snap: Dict[str, Any] = {
+        "ok": True,
+        "server_time": t,
+        "director": {
+            "last_run_ts": state.get("last_run_ts"),
+            "last_trigger": state.get("last_trigger") or "",
+            "last_source": state.get("last_source") or "",
+            "last_error": state.get("last_error") or "",
+            "last_accepted": state.get("last_accepted") or 0,
+            "stats": state.get("stats") or {},
+            "active": [
+                {
+                    "id": d.get("id"),
+                    "type": d.get("type"),
+                    "title": d.get("title"),
+                    "narrative": d.get("narrative"),
+                    "location": d.get("location"),
+                    "source": d.get("source"),
+                    "expires_at": d.get("expires_at"),
+                    "applied": d.get("applied") or {},
+                }
+                for d in (state.get("active") or [])[:8]
+            ],
+            "history": list(state.get("history") or [])[-8:],
+            "board_text": "",
+        },
+        "modifiers": {},
+        "arcs": [],
+        "faction": {},
+        "echo": {},
+        "era": {},
+        "quality": {},
+    }
+    try:
+        snap["director"]["board_text"] = WorldDirector.format_heaven_board(t)
+        snap["modifiers"] = world_modifiers(t)
+    except Exception as e:
+        snap["director"]["board_text"] = f"导演面板暂不可用：{e}"
+    try:
+        from core.world_arc import active_arcs, format_arc_board
+
+        snap["arcs"] = [
+            {
+                "id": a.get("id"),
+                "kind": a.get("kind"),
+                "title": a.get("title"),
+                "stage": a.get("stage"),
+                "location": a.get("location"),
+                "stage_deadline": a.get("stage_deadline"),
+            }
+            for a in active_arcs(t)[:8]
+        ]
+        snap["arc_board_text"] = format_arc_board(t)
+    except Exception:
+        snap["arc_board_text"] = ""
+    try:
+        from core.faction import faction_modifiers, format_faction_board, get_relation
+        from config import SECTS_CONFIG as _SC
+
+        fm = faction_modifiers(t)
+        relations = []
+        names = list(_SC.keys())
+        for i, a in enumerate(names):
+            for b in names[i + 1 :]:
+                r = get_relation(a, b, t)
+                relations.append(
+                    {
+                        "a": r.get("a") or a,
+                        "b": r.get("b") or b,
+                        "score": r.get("score"),
+                        "status": r.get("status"),
+                        "note": r.get("note"),
+                    }
+                )
+        snap["faction"] = {
+            "modifiers": fm,
+            "relations": relations,
+            "board_text": format_faction_board(now=t),
+        }
+    except Exception:
+        snap["faction"] = {"modifiers": {}, "relations": [], "board_text": ""}
+    try:
+        from core.player_echo import echo_modifiers, format_echo_board
+
+        snap["echo"] = {
+            "modifiers": echo_modifiers(t),
+            "board_text": format_echo_board(t),
+        }
+    except Exception:
+        snap["echo"] = {"modifiers": {}, "board_text": ""}
+    try:
+        from core.era_reentry import active_bias, format_era_board, TYPE_CN
+
+        bias = active_bias(t)
+        snap["era"] = {
+            "bias": bias,
+            "bias_cn": {TYPE_CN.get(k, k): v for k, v in bias.items()},
+            "board_text": format_era_board(t),
+        }
+    except Exception:
+        snap["era"] = {"bias": {}, "bias_cn": {}, "board_text": ""}
+    try:
+        snap["quality"] = director_quality_report(t)
+    except Exception:
+        snap["quality"] = {}
+    return snap
+
+
+def director_quality_report(now: Optional[float] = None) -> Dict[str, Any]:
+    """导师链路质量自检（不打真实 LLM，只查本地状态与模块）"""
+    t = _now(now)
+    state = _load()
+    _prune_active(state, t)
+    checks: List[Dict[str, Any]] = []
+
+    def _ck(name: str, ok: bool, detail: str = "") -> None:
+        checks.append({"name": name, "ok": bool(ok), "detail": detail[:120]})
+
+    from config import ai_available, local_ai_allowed
+
+    _ck("ai_channel_configured", ai_available() or local_ai_allowed(),
+        "有 Key/CCSWITCH" if ai_available() else ("仅本地降级" if local_ai_allowed() else "未配置且禁止降级"))
+    try:
+        from ai.gateway import ai_health_status as _hs
+
+        health = _hs() or {}
+        err = str(health.get("error") or "")
+        _ck("ai_health_probe", bool(health.get("ok")) or not err,
+            err[:80] if err else str(health.get("ok") or "未探测/缓存无错")[:80])
+    except Exception as e:
+        _ck("ai_health_probe", False, type(e).__name__)
+    _ck("director_types", "omen" in DIRECTOR_TYPES, f"types={sorted(DIRECTOR_TYPES)}")
+    _ck("active_directives", True, f"n={len(state.get('active') or [])}")
+    stats = state.get("stats") or {}
+    _ck("director_runs", int(stats.get("runs") or 0) >= 0,
+        f"runs={stats.get('runs',0)} accepted={stats.get('accepted',0)} rejected={stats.get('rejected',0)}")
+    try:
+        from core.world_arc import active_arcs
+
+        _ck("world_arc", True, f"active={len(active_arcs(t))}")
+    except Exception as e:
+        _ck("world_arc", False, type(e).__name__)
+    try:
+        from core.faction import faction_modifiers
+
+        fm = faction_modifiers(t)
+        _ck("faction", True, f"sieges={len(fm.get('active_sieges') or [])} hostile={len(fm.get('hostile_pairs') or [])}")
+    except Exception as e:
+        _ck("faction", False, type(e).__name__)
+    try:
+        from core.player_echo import echo_modifiers
+
+        em = echo_modifiers(t)
+        _ck("player_echo", True, f"panic={em.get('market_panic')} hot={len(em.get('hot_regions') or [])}")
+    except Exception as e:
+        _ck("player_echo", False, type(e).__name__)
+    try:
+        from core.era_reentry import active_bias
+
+        bias = active_bias(t)
+        _ck("era_reentry", True, f"bias_keys={list(bias.keys())[:4]}")
+    except Exception as e:
+        _ck("era_reentry", False, type(e).__name__)
+    # 门禁自证：非法 type 应被拒
+    ok_gate, reason_gate, _ = admit_directive({"type": "nuke", "title": "x", "narrative": "y"}, now=t)
+    _ck("gate_rejects_illegal", ok_gate is False, reason_gate)
+    ok_strip, _, item_strip = admit_directive(
+        {"type": "omen", "title": "t", "narrative": "n", "effects": {"exp": 9999}},
+        now=t,
+    )
+    _ck("gate_strips_numeric", ok_strip and item_strip is not None and "exp" not in (item_strip.get("effects") or {}), "")
+    passed = sum(1 for c in checks if c["ok"])
+    return {
+        "passed": passed,
+        "total": len(checks),
+        "checks": checks,
+        "ready_for_ai_director": ai_available(),
+        "local_fallback_allowed": local_ai_allowed(),
+        "prompt_scene": "world_director",
+        "quota_hint": "见 ai/quota SCENE_LIMITS.world_director",
+    }
 
 
 def handle_heaven_command(action: str, parts: List[str]) -> Dict[str, Any]:
