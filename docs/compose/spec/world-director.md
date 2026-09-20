@@ -3,7 +3,7 @@ feature: world-director
 status: delivered
 updated: 2026-09-18
 branch: feat/world-director
-commits: 6f9be93..feat/world-director (see git log)
+commits: 6f9be93..f364951
 ---
 
 # M1 天道导演 WorldDirector
