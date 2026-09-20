@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>天道因果录 · 世界演变态势</title>
+  <style>
+    :root {
+      --bg: #0a0d12;
+      --bg2: #10151c;
+      --surface: rgba(18, 23, 32, 0.88);
+      --line: rgba(212, 175, 55, 0.22);
+      --gold: #d4af37;
+      --gold-soft: #e8c96a;
+      --jade: #3ecf8e;
+      --blood: #ef6b6b;
+      --paper: #f2e8d0;
+      --text: #c9c4b6;
+      --muted: #7d7a70;
+      --serif: "Noto Serif SC", "Source Han Serif SC", STSong, SimSun, serif;
+      --sans: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 90% 50% at 50% -10%, rgba(212, 175, 55, 0.12), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(62, 207, 142, 0.06), transparent 50%),
+        var(--bg);
+      padding: 24px 16px 48px;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    header {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px;
+      margin-bottom: 16px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 {
+      font-family: var(--serif);
+      font-size: 22px; font-weight: 600; color: var(--gold-soft);
+    }
+    .sub { color: var(--muted); font-size: 13px; flex: 1; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input[type=text] {
+      background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: 6px 10px; min-width: 220px; font-size: 13px;
+    }
+    button {
+      cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+      color: var(--gold-soft); border-radius: 8px; padding: 6px 12px; font-size: 13px;
+    }
+    button:hover { border-color: var(--gold); }
+    button.primary { background: rgba(212, 175, 55, 0.15); }
+    .note {
+      font-size: 12px; color: var(--muted); margin: 8px 0 16px; line-height: 1.5;
+    }
+    .note code { color: var(--gold); }
+    .summary {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; margin-bottom: 14px; font-size: 14px; line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px; margin-bottom: 16px;
+    }
+    .cell {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; min-height: 88px;
+    }
+    .cell h3 { font-size: 12px; color: var(--gold); margin-bottom: 6px; font-weight: 600; }
+    .cell .v { font-family: var(--serif); font-size: 22px; color: var(--paper); }
+    .cell p { margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .cell.ok .v { color: var(--jade); }
+    .cell.warn .v { color: var(--blood); }
+    .sections { display: grid; gap: 12px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .panel h2 {
+      font-family: var(--serif); font-size: 15px; color: var(--gold-soft);
+      margin-bottom: 8px; border-left: 3px solid var(--gold); padding-left: 8px;
+    }
+    .panel ul { list-style: none; }
+    .panel li {
+      font-size: 13px; padding: 4px 0; border-bottom: 1px dashed rgba(212,175,55,0.08);
+      line-height: 1.45;
+    }
+    .panel li:last-child { border-bottom: 0; }
+    .dim { color: var(--muted); }
+    footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>世界演变态势</h1>
+      <div class="sub">《天道因果录》玩家向总览 · 频道=新闻，此页=世界账本</div>
+      <div class="toolbar">
+        <input id="base" type="text" placeholder="http://127.0.0.1:8765" />
+        <button type="button" class="primary" id="btnLoad">拉取态势</button>
+        <button type="button" id="btnDemo">离线演示</button>
+      </div>
+    </header>
+    <div class="note">
+      启动局域网服：<code>.venv\Scripts\python.exe -m server.run</code>；
+      本页读取 <code>GET /world/director</code>（含 <code>evolution</code>）。
+      游戏内同功能：指令 <code>/世情</code> 或 <code>/世界演变</code>；网页客户端「世间」页态势卡。
+      玩家看态势与结果；门禁/提案原文/自检用 <code>/ai</code> 与服务器日志。
+    </div>
+
+    <div class="summary" id="summary">尚未加载。可点击「离线演示」查看布局，或配置服务器地址后「拉取态势」。</div>
+    <div class="grid" id="grid"></div>
+    <div class="sections">
+      <div class="panel"><h2>天道导演</h2><ul id="sDirector"><li class="dim">—</li></ul></div>
+      <div class="panel"><h2>世界弧</h2><ul id="sArcs"><li class="dim">—</li></ul></div>
+      <div class="panel"><h2>势力格局</h2><ul id="sFaction"><li class="dim">—</li></ul></div>
+      <div class="panel"><h2>望气 · 坊市 · 血煞</h2><ul id="sEcho"><li class="dim">—</li></ul></div>
+      <div class="panel"><h2>纪元回流 · 秘境</h2><ul id="sEra"><li class="dim">—</li></ul></div>
+      <div class="panel"><h2>近闻（新闻摘要）</h2><ul id="sNews"><li class="dim">—</li></ul></div>
+    </div>
+    <footer>规则权威 · AI 提案 · 玩家可见态势，不暴露门禁内部。</footer>
+  </div>
+  <script>
+    (function () {
+      var $ = function (id) { return document.getElementById(id); };
+      var lastBase = localStorage.getItem("td_evo_base") || "http://127.0.0.1:8765";
+      $("base").value = lastBase;
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function li(ul, items) {
+        ul.innerHTML = "";
+        if (!items || !items.length) {
+          ul.innerHTML = '<li class="dim">暂无</li>';
+          return;
+        }
+        items.forEach(function (t) {
+          var el = document.createElement("li");
+          el.textContent = t;
+          ul.appendChild(el);
+        });
+      }
+
+      function render(data) {
+        var evo = data.evolution || data || {};
+        var d = evo.director || data.director || {};
+        var arcs = evo.arcs || data.arcs || [];
+        var fac = evo.faction || data.faction || {};
+        var fm = fac.modifiers || {};
+        var echo = evo.echo || data.echo || {};
+        var em = echo.modifiers || {};
+        var era = evo.era || data.era || {};
+        var bias = era.bias_cn || {};
+        var blood = evo.blood || [];
+        var realms = evo.realms_open || [];
+        var news = evo.channel_recent || [];
+        var panic = Number(em.market_panic || 0);
+        var sieges = fm.active_sieges || [];
+        var rels = fac.relations || [];
+        var hostiles = rels.filter(function (r) { return r.status === "hostile"; });
+        var summary = data.summary_lines || evo.summary_lines || [];
+        $("summary").textContent = summary.length
+          ? summary.join(" · ")
+          : "（无摘要）";
+
+        var biasTop = Object.keys(bias).sort(function (a, b) { return Number(bias[b]) - Number(bias[a]); })
+          .slice(0, 2).map(function (k) { return k + Number(bias[k]).toFixed(0); }).join(" ");
+        var cells = [
+          { h: "天道导演", v: String((d.active || []).length), p: d.last_source ? "来源 " + d.last_source : "暂无活跃", c: (d.active || []).length ? "ok" : "" },
+          { h: "世界弧", v: String(arcs.length), p: arcs[0] ? arcs[0].title : "无进行中", c: arcs.length ? "ok" : "" },
+          { h: "宗门围剿", v: String(sieges.length), p: sieges[0] ? sieges[0].sect + "→" + sieges[0].target : (hostiles.length ? "敌对 " + hostiles.length : "平稳"), c: sieges.length ? "warn" : "" },
+          { h: "坊市恐慌", v: panic.toFixed(0), p: em.market_reason || (panic < 8 ? "平稳" : "人心浮动"), c: panic >= 30 ? "warn" : "" },
+          { h: "凶地热点", v: String((em.hot_regions || []).length), p: (em.hot_regions || []).length ? (em.hot_regions || []).slice(0, 2).map(function (x) { return x[0]; }).join("、") : "无显著", c: (em.hot_regions || []).length ? "warn" : "ok" },
+          { h: "血煞/重业", v: String(blood.length), p: blood[0] ? blood[0].name : "清朗", c: blood.length ? "warn" : "ok" },
+          { h: "秘境开启", v: String(realms.length), p: realms[0] ? String(realms[0].name || realms[0]) : "暂无", c: realms.length ? "ok" : "" },
+          { h: "史笔回流", v: biasTop || "—", p: biasTop ? "影响下一拍" : "传说未积", c: "" }
+        ];
+        var grid = $("grid");
+        grid.innerHTML = "";
+        cells.forEach(function (c) {
+          var div = document.createElement("div");
+          div.className = "cell " + (c.c || "");
+          div.innerHTML = "<h3>" + esc(c.h) + '</h3><div class="v">' + esc(c.v) + "</div><p>" + esc(c.p) + "</p>";
+          grid.appendChild(div);
+        });
+
+        li($("sDirector"), (d.active || []).map(function (a) {
+          return "[" + a.type + "] " + a.title + (a.location ? " @" + a.location : "");
+        }).concat(d.last_trigger ? ["上次触发 " + d.last_trigger + " · 来源 " + (d.last_source || "—")] : []));
+
+        li($("sArcs"), arcs.map(function (a) {
+          return "[" + a.stage + "] " + a.title + (a.location ? " @" + a.location : "") + "（" + a.kind + "）";
+        }));
+
+        li($("sFaction"), hostiles.map(function (r) { return "敌对 " + r.a + "×" + r.b + " " + (r.score || ""); })
+          .concat((fm.tense_pairs || []).map(function (p) { return "紧张 " + p[0] + "×" + p[1]; }))
+          .concat(sieges.map(function (s) { return "围剿 " + s.sect + "→" + s.target + " @" + (s.loc || ""); }))
+          .concat(fm.n_open_missions ? ["开放宗门令 " + fm.n_open_missions + " 条"] : []));
+
+        var echoLines = [];
+        echoLines.push(panic >= 8 ? "坊市恐慌 " + panic.toFixed(0) + " " + (em.market_reason || "") : "坊市平稳");
+        (em.hot_regions || []).forEach(function (x) { echoLines.push("凶地 " + x[0] + " 危险 " + Number(x[1]).toFixed(0)); });
+        blood.forEach(function (b) { echoLines.push("血煞 " + b.name + (b.location ? " @" + b.location : "")); });
+        li($("sEcho"), echoLines);
+
+        var eraLines = Object.keys(bias).sort(function (a, b) { return Number(bias[b]) - Number(bias[a]); })
+          .map(function (k) { return k + " " + Number(bias[k]).toFixed(1); });
+        realms.forEach(function (r) { eraLines.push("秘境开启 " + (r.name || r)); });
+        li($("sEra"), eraLines);
+
+        li($("sNews"), news.map(function (m) { return m.text; }));
+      }
+
+      function demo() {
+        render({
+          summary_lines: ["天道活跃态势 2 条", "世界弧 3 场", "宗门围剿 1", "坊市恐慌 22", "史笔：机缘预兆24"],
+          director: {
+            active: [
+              { type: "omen", title: "遗迹回响", location: "万星古岛" },
+              { type: "blood_tide", title: "血煞微涨", location: "黑风绝渊" }
+            ],
+            last_trigger: "command",
+            last_source: "server AI"
+          },
+          arcs: [
+            { stage: "prophesy", title: "遗迹回响", location: "万星古岛", kind: "omen_arc" },
+            { stage: "escalate", title: "两宗对峙", location: "", kind: "sect_crisis" }
+          ],
+          faction: {
+            modifiers: {
+              active_sieges: [{ sect: "青云宗", target: "幽冥老祖", loc: "青云坊市客栈" }],
+              tense_pairs: [["青云宗", "万剑仙门"]],
+              n_open_missions: 2
+            },
+            relations: [{ a: "青云宗", b: "九幽天魔宗", status: "hostile", score: -55 }]
+          },
+          echo: {
+            modifiers: {
+              market_panic: 22,
+              market_reason: "世道不宁，坊市人心惶惶",
+              market_buy_mult: 1.11,
+              hot_regions: [["黑风绝渊", 48]]
+            }
+          },
+          era: { bias_cn: { 机缘预兆: 24, 大劫预兆: 6, 宗门紧张: 2 } },
+          blood: [{ name: "幽冥老祖", location: "青云坊市客栈" }],
+          realms_open: [{ name: "落霞古洞" }],
+          channel_recent: [
+            { text: "【天道导演】遗迹回响 @万星古岛" },
+            { text: "【宗门围剿·青云宗】共诛【幽冥老祖】" }
+          ]
+        });
+      }
+
+      async function load() {
+        var base = ($("base").value || "").replace(/\/$/, "");
+        localStorage.setItem("td_evo_base", base);
+        $("summary").textContent = "加载中…";
+        try {
+          var res = await fetch(base + "/world/director");
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var data = await res.json();
+          if (!data.ok) throw new Error(data.error || "ok=false");
+          render(data);
+        } catch (e) {
+          $("summary").textContent =
+            "拉取失败：" + e.message + "。请确认局域网服已启动，或点击「离线演示」。";
+        }
+      }
+
+      $("btnLoad").addEventListener("click", load);
+      $("btnDemo").addEventListener("click", demo);
+      // 若服已开则自动尝试
+      load();
+    })();
+  </script>
+</body>
+</html>

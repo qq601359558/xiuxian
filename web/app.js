@@ -57,6 +57,106 @@
     if (el && v != null && v !== "") el.textContent = v;
   }
 
+  // ---------- 世界演变态势卡 ----------
+  function renderEvolution(data) {
+    const grid = $("evoGrid");
+    const sum = $("evoSummary");
+    const meta = $("evoMeta");
+    if (!grid) return;
+    if (meta) {
+      const ts = data && data.updated_at ? new Date(Number(data.updated_at) * 1000) : new Date();
+      meta.textContent = "更新 " + ts.toLocaleTimeString();
+    }
+    if (sum) {
+      const lines = (data && data.summary_lines) || [];
+      sum.textContent = lines.length ? lines.join(" · ") : "世界暂稳，可 /天道 推演";
+    }
+    const d = (data && data.director) || {};
+    const arcs = (data && data.arcs) || [];
+    const fm = ((data && data.faction) || {}).modifiers || {};
+    const em = ((data && data.echo) || {}).modifiers || {};
+    const bias = ((data && data.era) || {}).bias_cn || {};
+    const blood = (data && data.blood) || [];
+    const realms = (data && data.realms_open) || [];
+    const panic = Number(em.market_panic || 0);
+    const sieges = fm.active_sieges || [];
+    const rels = ((data && data.faction) || {}).relations || [];
+    const nHostile = rels.filter((r) => r.status === "hostile").length;
+    const biasTop = Object.keys(bias)
+      .sort((a, b) => Number(bias[b]) - Number(bias[a]))
+      .slice(0, 2)
+      .map((k) => k + Number(bias[k]).toFixed(0))
+      .join(" ");
+    const cells = [
+      { h: "天道导演", v: String((d.active || []).length), p: d.last_source ? "来源 " + d.last_source : "暂无活跃", cls: (d.active || []).length ? "ok" : "" },
+      { h: "世界弧", v: String(arcs.length), p: arcs[0] ? arcs[0].title : "无进行中", cls: arcs.length ? "ok" : "" },
+      { h: "宗门围剿", v: String(sieges.length), p: sieges[0] ? sieges[0].sect + "→" + sieges[0].target : nHostile ? "敌对 " + nHostile : "格局平稳", cls: sieges.length ? "warn" : "" },
+      { h: "坊市恐慌", v: panic.toFixed(0), p: em.market_reason || (panic < 8 ? "平稳" : "人心浮动"), cls: panic >= 30 ? "warn" : "" },
+      { h: "凶地热点", v: String((em.hot_regions || []).length), p: (em.hot_regions || []).length ? (em.hot_regions || []).slice(0, 2).map((x) => x[0]).join("、") : "无显著", cls: (em.hot_regions || []).length ? "warn" : "ok" },
+      { h: "血煞/重业", v: String(blood.length), p: blood[0] ? blood[0].name + "@" + (blood[0].location || "") : "天道清朗", cls: blood.length ? "warn" : "ok" },
+      { h: "秘境开启", v: String(realms.length), p: realms[0] ? String(realms[0].name || realms[0]) : "暂无", cls: realms.length ? "ok" : "" },
+      { h: "史笔回流", v: biasTop || "—", p: biasTop ? "影响下一拍提案" : "传说未积", cls: "" },
+    ];
+    grid.innerHTML = cells
+      .map(function (c) {
+        return '<div class="evo-cell ' + (c.cls || "") + '"><h4>' + esc(c.h) + '</h4><div class="v">' + esc(c.v) + "</div><p>" + esc(c.p) + "</p></div>";
+      })
+      .join("");
+  }
+
+  async function loadEvolutionCard() {
+    const meta = $("evoMeta");
+    try {
+      const base = (state.base || "").replace(/\/$/, "");
+      const res = await fetch(base + "/world/director");
+      if (!res.ok) throw new Error(res.statusText || String(res.status));
+      const data = await res.json();
+      const evoSrc = data.evolution || {};
+      const d = evoSrc.director || data.director || {};
+      const em = ((evoSrc.echo || data.echo) || {}).modifiers || (evoSrc.echo && evoSrc.echo.modifiers) || ((data.echo || {}).modifiers) || {};
+      const fm = ((evoSrc.faction || data.faction) || {}).modifiers || ((data.faction || {}).modifiers) || {};
+      const ev = {
+        updated_at: data.server_time || evoSrc.updated_at || Date.now() / 1000,
+        director: d,
+        arcs: evoSrc.arcs || data.arcs || [],
+        faction: evoSrc.faction || data.faction || {},
+        echo: { modifiers: em, board_text: evoSrc.echo_board_text || (data.echo || {}).board_text || "" },
+        era: evoSrc.era || data.era || {},
+        blood: evoSrc.blood || [],
+        realms_open: evoSrc.realms_open || [],
+        summary_lines: data.summary_lines || evoSrc.summary_lines || [],
+      };
+      if (!ev.summary_lines.length) {
+        const n = (d.active || []).length;
+        ev.summary_lines.push(n ? "天道活跃态势 " + n + " 条" : "天道暂无活跃态势");
+        if ((ev.arcs || []).length) ev.summary_lines.push("世界弧 " + ev.arcs.length + " 场");
+        if ((fm.active_sieges || []).length) ev.summary_lines.push("宗门围剿 " + fm.active_sieges.length);
+        if (Number(em.market_panic || 0) >= 8) ev.summary_lines.push("坊市恐慌 " + Number(em.market_panic).toFixed(0));
+        if ((em.hot_regions || []).length) ev.summary_lines.push("凶地 " + em.hot_regions.length);
+      }
+      renderEvolution(ev);
+    } catch (e) {
+      if (meta) meta.textContent = "态势卡不可用：" + (e && e.message ? e.message : e);
+      // 回退：走 /世情 文本里的 evolution
+      try {
+        if (state.token) {
+          const r = await api("/action", { token: state.token, command: "/世情 简" });
+          if (r && r.evolution) renderEvolution(r.evolution);
+        }
+      } catch (e2) {}
+    }
+  }
+
+  function bindEvoCard() {
+    const btn = $("evoRefresh");
+    if (btn && !btn._bound) {
+      btn._bound = true;
+      btn.addEventListener("click", function () {
+        loadEvolutionCard();
+      });
+    }
+  }
+
   async function api(path, body) {
     const url = state.base.replace(/\/$/, "") + path;
     const opts = body
@@ -298,6 +398,10 @@
     document.querySelectorAll(".pane").forEach((p) => {
       p.classList.toggle("active", p.id === "pane-" + name);
     });
+    if (name === "world") {
+      bindEvoCard();
+      loadEvolutionCard();
+    }
   }
 
   function openComposer(open) {
@@ -613,9 +717,12 @@
       switchTab("goals");
     }
     // 世间类结果
-    if (lastCmd && /榜|宗门|秘境|灵气|纪元|who|天下|告示|坊市|世情/.test(lastCmd) && !isErr) {
+    if (lastCmd && /榜|宗门|秘境|灵气|纪元|who|天下|告示|坊市|世情|世界演变|天道|势力|望气|世界弧|纪元回流/.test(lastCmd) && !isErr) {
       const wb = $("worldBody");
       if (wb) wb.textContent = text;
+      if (data.evolution) renderEvolution(data.evolution);
+      // /世情 /世界演变 也刷新态势卡
+      if (/世情|世界演变|演变/.test(lastCmd)) loadEvolutionCard();
       // 不强制切走，保留 feed 可见
     }
 
@@ -1150,8 +1257,11 @@
     }, 5000);
     worldTimer = setInterval(() => {
       pollWorldMessages();
-    }, 15000);
+      loadEvolutionCard();
+    }, 20000);
     pollWorldMessages();
+    bindEvoCard();
+    loadEvolutionCard();
   }
   function stopPolling() {
     if (pollTimer) {

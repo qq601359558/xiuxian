@@ -1186,7 +1186,7 @@ class World:
                         "error": "用法：/世界弧应劫 <弧id> 应劫|避祸（先 /世界弧 查看）",
                     }
                 return player_respond(parts[1].strip(), char, " ".join(parts[2:]))
-            if action in ("/世情", "/worldinfo"):
+            if action in ("/世情", "/worldinfo", "/世界演变", "/演变"):
                 from core.schedule import format_world_schedule
                 from core import rumors as _rum
 
@@ -1194,7 +1194,6 @@ class World:
                     _rum.maybe_ambient_tick(chance=0.10)
                 except Exception:
                     pass
-                # 与 CLI 对齐：先离线江湖追赶，再看日程
                 offline_txt = ""
                 try:
                     from core.jianghu_sim import JianghuSimulator, format_offline_report
@@ -1221,7 +1220,12 @@ class World:
                     text += "\n\n【江湖因果账】\n" + _jh.format_brief(6)
                 except Exception:
                     pass
-                return {"ok": True, "text": text, "actions": r.get("actions")}
+                return {
+                    "ok": True,
+                    "text": text,
+                    "actions": r.get("actions"),
+                    "evolution": r.get("evolution"),
+                }
             if action in ("/追", "/follow"):
                 from core.schedule import follow_action
 

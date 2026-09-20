@@ -167,9 +167,14 @@ class GameHandler(BaseHTTPRequestHandler):
             )
         if path == "/world/director" or path.startswith("/world/director"):
             from core.world_director import director_snapshot
+            from core.schedule import build_world_evolution
 
             try:
                 snap = director_snapshot()
+                evo = build_world_evolution()
+                # 态势卡：director snapshot + /世情 同构 evolution
+                snap["evolution"] = evo
+                snap["summary_lines"] = evo.get("summary_lines") or []
             except Exception as e:
                 return _json_response(self, 500, {"ok": False, "error": str(e)[:200]})
             return _json_response(self, 200, snap)

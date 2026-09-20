@@ -231,8 +231,18 @@
             <div id="goalsBody" class="pane-scroll"></div>
           </div>
           <div id="pane-world" class="pane">
+            <div id="evoCard" class="evo-card" aria-live="polite">
+              <div class="evo-head">
+                <strong>世界演变态势</strong>
+                <span id="evoMeta" class="evo-meta">连接服务器后自动拉取</span>
+                <button type="button" class="btn-soft sm" id="evoRefresh">刷新</button>
+              </div>
+              <div id="evoSummary" class="evo-summary"></div>
+              <div id="evoGrid" class="evo-grid"></div>
+            </div>
             <div id="worldFeed" class="world-feed" aria-live="polite"></div>
             <div class="world-actions">
+              <button class="btn-soft" data-cmd="/世情">世界演变</button>
               <button class="btn-soft" data-cmd="/频道">刷新频道</button>
               <button class="btn-soft" data-cmd="/公告">公告</button>
               <button class="btn-soft" data-cmd="/传闻">传闻</button>
