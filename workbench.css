@@ -638,8 +638,13 @@ html[data-theme="light"] .gate-card {
 .modal.hidden,
 #chatModal.hidden {
   display: none !important;
-  visibility: hidden;
-  pointer-events: none;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#chatModal:not(.hidden) {
+  visibility: visible !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 .slab {
   width: min(460px, 100%);

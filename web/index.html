@@ -190,6 +190,8 @@
         if (!m) return;
         m.classList.add("hidden");
         m.style.display = "none";
+        m.style.visibility = "hidden";
+        m.style.pointerEvents = "none";
         m.setAttribute("aria-hidden", "true");
       }
       document.addEventListener("click", function (e) {

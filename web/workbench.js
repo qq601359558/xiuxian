@@ -1035,11 +1035,18 @@
         const name = person.getAttribute("data-person");
         if (!state.chat.lines.length || state.chat.npc !== name) state.chat.lines = [];
         openChat(name);
+        ensureChatVisible();
         if (!state.demo) {
           pushFeed("» /交谈 " + name, "cmd");
           api("/action", { token: state.token, command: "/交谈 " + name })
-            .then(handleChatData)
-            .catch((err) => chatMsg("", "无法交谈：" + err.message, "sys"));
+            .then((data) => {
+              handleChatData(data);
+              ensureChatVisible();
+            })
+            .catch((err) => {
+              openChat(name);
+              chatMsg("", "无法交谈：" + err.message, "sys");
+            });
         }
         return;
       }
