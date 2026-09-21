@@ -408,14 +408,15 @@ class NpcDialogueEngine:
                     from config import ITEM_CATALOG
                     pills = [n for n, c in ITEM_CATALOG.items() if c.get("kind") == "pill"]
                     pill_s = "、".join(pills[:4]) or "聚气丹、筑基丹"
-                    return (
-                        f"{npc.name}拨弄药瓶：「{pill_s} 都在架上，官人要哪味？也可直接 /购买。」",
-                        1,
-                    )
+                    line = f"{npc.name}拨弄药瓶：「{pill_s} 都在架上，官人要哪味？也可直接 /购买。」"
+                    delta = 1
+                    source = "local"
                 except Exception:
-                    pass
-            line, delta = NpcDialogueEngine._local_line(npc, player, att, mind, words)
-            source = "local_fallback"
+                    line, delta = NpcDialogueEngine._local_line(npc, player, att, mind, words)
+                    source = "local_fallback"
+            else:
+                line, delta = NpcDialogueEngine._local_line(npc, player, att, mind, words)
+                source = "local_fallback"
 
         if delta:
             att = shift_attitude(npc, player.id, delta, reason="交谈")

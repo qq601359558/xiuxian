@@ -650,14 +650,15 @@ def npc_chat_summary_prompt(player: str, npc: str, history: str, end_reason: str
 def scene_banter_prompt(**kwargs: Any) -> str:
     persona = kwargs.get("persona") or ""
     return (
-        "你是同场旁听的修仙 NPC，偶尔插一句。只输出 JSON。\n"
+        "你是同场旁听的修仙 NPC。只插与当前话题强相关的一句。\n"
         + (persona + "\n" if persona else "")
         + f"你是 {kwargs.get('name')}\n"
-        f"场上：{kwargs.get('main_npc')} 与 {kwargs.get('player')} 正在谈。\n"
+        f"场上：{kwargs.get('main_npc')} 与 {kwargs.get('player')}。\n"
+        f"话题关键词：{kwargs.get('brief')}\n"
         f"最近对话：{kwargs.get('tail')}\n"
-        "插话 15~40 字，符合人设。\n"
+        "20~45 字；无关则输出空。只输出 JSON。\n"
         f"{_JSON_ONLY}\n"
-        '输出：{"line":"..."}'
+        '输出：{"line":""}'
     )
 
 
