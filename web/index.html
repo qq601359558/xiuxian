@@ -1,497 +1,206 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>天道因果录</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>天道因果录 · 工作台</title>
+  <meta name="description" content="局域网修仙模拟 · 世界态势与同场交谈工作台" />
+  <link rel="stylesheet" href="workbench.css" />
 </head>
 <body>
-  <div class="sky" aria-hidden="true"></div>
-  <div class="motes" aria-hidden="true"></div>
-  <div id="worldToast" role="status" aria-live="polite"></div>
+  <div id="offlineBar" class="offline-bar" role="status">
+    <span>网络或服务器不可用 · 界面只读，可稍后重试</span>
+    <button type="button" class="btn sm" id="btnRetry">重试连接</button>
+  </div>
 
-  <!-- NPC 会话窗口 -->
-  <div id="chatModal" class="chat-modal hidden" aria-hidden="true">
-    <div class="chat-box">
-      <header class="chat-h">
-        <h3 id="chatNpcName">交谈</h3>
-        <button type="button" class="chat-close" id="chatClose" title="挂断">×</button>
-      </header>
-      <div id="chatLog" class="chat-log" aria-live="polite"></div>
-      <form id="chatForm" class="chat-input">
-        <input id="chatInput" type="text" maxlength="200" placeholder="直接说话/写动作…（如：最近可太平？递上聚气丹）回车发送" autocomplete="off" />
-        <button type="submit" class="btn-primary sm">说</button>
+  <!-- 入世 -->
+  <div id="gate" class="gate" role="dialog" aria-labelledby="gateTitle">
+    <div class="gate-panel">
+      <h1 id="gateTitle">天道因果录</h1>
+      <p class="sub">局域网修仙模拟 · 观天道、遇同道、决行止</p>
+      <div class="gate-tabs" role="tablist">
+        <button type="button" class="tab active" data-gate-tab="login" role="tab" aria-selected="true">登录</button>
+        <button type="button" class="tab" data-gate-tab="register" role="tab" aria-selected="false">注册</button>
+      </div>
+      <form id="gateForm" autocomplete="on">
+        <div class="field">
+          <label for="gUser">账号</label>
+          <input id="gUser" name="username" type="text" autocomplete="username" required maxlength="32" />
+        </div>
+        <div class="field" id="fieldName">
+          <label for="gName">道号</label>
+          <input id="gName" name="name" type="text" autocomplete="nickname" maxlength="12" />
+        </div>
+        <div class="field">
+          <label for="gPass">口令</label>
+          <input id="gPass" name="password" type="password" autocomplete="current-password" required maxlength="64" />
+        </div>
+        <div class="field">
+          <label for="gServer">服务器</label>
+          <input id="gServer" type="url" placeholder="http://127.0.0.1:8765" />
+        </div>
+        <div id="gateMsg" class="gate-msg" role="alert"></div>
+        <div class="gate-actions">
+          <button type="submit" class="btn primary" id="gateSubmit">进入大世界</button>
+          <button type="button" class="btn" id="btnDemo">离线演示（无服）</button>
+        </div>
       </form>
+      <p class="compose-hint" style="margin-top:16px">
+        有服请先运行 <kbd>.venv\Scripts\python.exe -m server.run</kbd>
+      </p>
     </div>
   </div>
 
-  <!-- 奇遇弹窗 -->
-  <div id="omenModal" class="chat-modal hidden" aria-hidden="true">
-    <div class="chat-box omen-box">
-      <header class="chat-h">
-        <h3 id="omenTitle">奇遇</h3>
-        <button type="button" class="chat-close" id="omenClose" title="抽身">×</button>
-      </header>
-      <div id="omenMeta" class="omen-meta"></div>
-      <div id="omenLog" class="chat-log" aria-live="polite"></div>
-      <div id="omenChips" class="quick-row omen-chips"></div>
-      <form id="omenForm" class="chat-input">
-        <input id="omenInput" type="text" maxlength="200" placeholder="你想如何应对…（回车）" autocomplete="off" />
-        <button type="submit" class="btn-primary sm">应</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- ========== 入世 ========== -->
-  <div id="gate" class="gate">
-    <div class="gate-stage">
-      <div class="gate-visual">
-        <div class="orb">
-          <div class="orb-core"></div>
-          <div class="orb-ring r1"></div>
-          <div class="orb-ring r2"></div>
-          <div class="orb-ring r3"></div>
-          <span class="orb-char">道</span>
-        </div>
-        <h1>天道因果录</h1>
-        <p class="tagline">共享一界 · 向死求仙 · 天道自衡</p>
-      </div>
-      <form class="gate-form" id="gateForm" autocomplete="off">
-        <label class="field">
-          <span>天道服</span>
-          <input id="serverUrl" type="text" value="http://127.0.0.1:8765" spellcheck="false" />
-        </label>
-        <div class="auth-tabs">
-          <button type="button" class="tab active" id="tabLogin">登录</button>
-          <button type="button" class="tab" id="tabReg">注册</button>
-        </div>
-        <label class="field">
-          <span>用户名</span>
-          <input id="username" type="text" placeholder="2–16 位中文/字母/数字" maxlength="16" />
-        </label>
-        <label class="field">
-          <span>密码</span>
-          <input id="password" type="password" placeholder="至少 6 位" autocomplete="current-password" />
-        </label>
-        <label class="field" id="fieldChar" style="display:none">
-          <span>道号（注册时可选，留空同用户名）</span>
-          <input id="playerName" type="text" placeholder="厉飞雨" maxlength="12" />
-        </label>
-        <button id="btnJoin" class="btn-primary" type="button">登 录</button>
-        <p id="gateMsg" class="gate-msg"></p>
-        <p class="gate-hint">先启动局域网服 · <code>python server/start.py</code> · 角色数据存于本机数据库，重启可续玩</p>
-      </form>
-    </div>
-  </div>
-
-  <!-- ========== 主界面 ========== -->
-  <div id="app" class="app hidden">
-    <!-- 顶栏 HUD -->
-    <header class="hud">
-      <div class="hud-brand">
-        <span class="mark">道</span>
-        <div>
-          <div class="title">天道因果录</div>
-          <div class="sub" id="aiBadge">连接中…</div>
+  <div id="app" class="hidden">
+    <header class="app-header">
+      <button type="button" class="icon-btn" id="btnNav" aria-label="打开迁跃列表">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
+      </button>
+      <div class="brand">
+        <div class="brand-mark">道</div>
+        <div class="brand-text">
+          <strong>天道因果录</strong>
+          <span>工作台</span>
         </div>
       </div>
-
-      <div class="hud-stats">
-        <div class="stat">
-          <span class="k">境界</span>
-          <b id="hudRealm">—</b>
-        </div>
-        <div class="stat">
-          <span class="k">位置</span>
-          <b id="hudLoc">—</b>
-        </div>
-        <div class="stat wide">
-          <span class="k">寿元</span>
-          <b id="hudLife">—</b>
-          <div class="bar life"><i id="hudLifeBar"></i></div>
-        </div>
-        <div class="stat wide">
-          <span class="k">修为</span>
-          <b id="hudExp">—</b>
-          <div class="bar exp"><i id="hudExpBar"></i></div>
-        </div>
-        <div class="stat">
-          <span class="k">灵石</span>
-          <b id="hudStones">—</b>
-        </div>
-        <div class="stat">
-          <span class="k">灵气</span>
-          <b id="hudQi">—</b>
+      <div class="header-center">
+        <div class="pill" id="serverPill" title="服务器状态">
+          <span class="dot" id="serverDot"></span>
+          <span id="serverLabel">未连接</span>
         </div>
       </div>
-
-      <div class="hud-actions">
-        <button class="btn-icon" data-cmd="/look" title="观照">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-          <span>观照</span>
+      <div class="header-actions">
+        <button type="button" class="icon-btn" id="btnTheme" aria-label="切换主题" title="浅色/深色">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         </button>
-        <button class="btn-icon" data-cmd="/here" title="同场">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16" cy="14" r="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 19c1.2-3 3-4.5 5-4.5S13 16 14 19" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-          <span>同场</span>
+        <button type="button" class="icon-btn" id="btnSide" aria-label="打开详情" title="详情 / 交谈">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h10v14H4zM14 5h6v14h-6z"/></svg>
         </button>
-        <button class="btn-icon" data-cmd="/legacy" title="道统">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 6.6H21l-5.4 4 2.1 6.4L12 16.8 6.3 20l2.1-6.4L3 9.6h6.8L12 3z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span>道统</span>
+        <button type="button" class="icon-btn" id="btnHelp" aria-label="敕令帮助" title="敕令目录">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 17v.01M9.5 9.5a2.5 2.5 0 114 2c-.8.6-1.5 1.2-1.5 2.5"/></svg>
         </button>
-        <a class="btn-icon" href="ailog.html" target="_blank" title="AI 调用日志" style="text-decoration:none">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-          <span>AI日志</span>
-        </a>
-        <button class="btn-icon" id="btnLogout" title="暂离">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6H6v12h4M14 8l4 4-4 4M18 12H9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <span>暂离</span>
+        <button type="button" class="icon-btn" id="btnLogout" aria-label="暂离" title="暂离大世界">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 6H6a2 2 0 00-2 2v8a2 2 0 002 2h4M14 16l4-4-4-4M18 12H9"/></svg>
         </button>
       </div>
     </header>
 
-    <main class="shell">
-      <!-- 左：修行台 -->
-      <aside class="rail left">
-        <section class="card fate">
-          <header class="card-h">
-            <h2>命盘</h2>
-            <span id="stProt" class="pill hide"></span>
-          </header>
-          <div class="avatar-row">
-            <div class="avatar" id="avatarChar">修</div>
-            <div class="avatar-meta">
-              <div class="name" id="stName">—</div>
-              <div class="realm" id="stRealm">—</div>
-            </div>
-          </div>
-          <div class="meters">
-            <div class="meter">
-              <div class="meter-top"><span>修为</span><b id="stExp">—</b></div>
-              <div class="bar exp"><i id="stExpBar"></i></div>
-            </div>
-            <div class="meter">
-              <div class="meter-top"><span>寿元</span><b id="stLife">—</b></div>
-              <div class="bar life"><i id="stLifeBar"></i></div>
-            </div>
-          </div>
-          <dl class="kv">
-            <div><dt>灵根</dt><dd id="stRoot">—</dd></div>
-            <div><dt>位置</dt><dd id="stLoc">—</dd></div>
-            <div><dt>随身</dt><dd id="stStones">—</dd></div>
-            <div><dt>金库</dt><dd id="stVault">—</dd></div>
-            <div><dt>业 / 德</dt><dd id="stKarma">—</dd></div>
-            <div><dt>灵气</dt><dd id="stQi">—</dd></div>
-          </dl>
-          <div id="stProtRow" class="note hide"></div>
-        </section>
+    <div class="shell">
+      <!-- 天道盘 -->
+      <div class="dial" id="dial" aria-label="天道盘">
+        <div class="dial-item">
+          <div class="label">道号</div>
+          <div class="value gold" id="dName">—</div>
+          <div class="sub" id="dSect">散修</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">境界</div>
+          <div class="value" id="dRealm">—</div>
+          <div class="sub" id="dExp">—</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">位置</div>
+          <div class="value" id="dLoc" style="font-family:var(--font-ui);font-size:14px">—</div>
+          <div class="sub" id="dSafe">—</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">寿元</div>
+          <div class="value" id="dLife">—</div>
+          <div class="sub" id="dLifeSub">岁</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">灵石</div>
+          <div class="value gold" id="dStones">—</div>
+          <div class="sub" id="dVault">金库 —</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">业力 / 功德</div>
+          <div class="value" id="dKarma">—</div>
+          <div class="sub" id="dBlood">—</div>
+        </div>
+        <div class="dial-item">
+          <div class="label">世界脉搏</div>
+          <div class="value ok" id="dWorld" style="font-family:var(--font-ui);font-size:13px">—</div>
+          <div class="sub" id="dWorldSub">天道态势</div>
+        </div>
+        <div class="dial-thread" aria-hidden="true"></div>
+      </div>
 
-        <section class="card">
-          <header class="card-h"><h2>修行</h2></header>
-          <div class="btn-grid">
-            <button class="btn-soft" data-cmd="/闭关 1">闭关 1h</button>
-            <button class="btn-soft" data-cmd="/闭关 8">闭关 8h</button>
-            <button class="btn-soft" data-cmd="/出关">出关</button>
-            <button class="btn-soft accent" data-cmd="/突破">突破</button>
-            <button class="btn-soft" data-cmd="/归隐">归隐</button>
-            <button class="btn-soft" data-cmd="/出隐">出隐</button>
+      <!-- 左：迁跃 -->
+      <nav class="nav" aria-label="迁跃">
+        <div class="nav-section">
+          <h2>迁跃</h2>
+          <p class="nav-hint">点地点前往。安全区大阵庇护，野外可斗法。</p>
+          <div class="search-box" style="margin-top:10px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+            <input id="locSearch" type="search" placeholder="搜索地点…" aria-label="搜索地点" />
           </div>
-        </section>
+        </div>
+        <div class="nav-list" id="locList" role="list"></div>
+      </nav>
 
-        <section class="card">
-          <header class="card-h"><h2>迁跃</h2></header>
-          <div class="btn-grid">
-            <button class="btn-soft" data-go="青云坊市客栈">坊市</button>
-            <button class="btn-soft" data-go="青云宗外门山门">青云宗</button>
-            <button class="btn-soft" data-go="宗门玄元洞府">玄元洞</button>
-            <button class="btn-soft" data-go="落霞山灵泉">落霞山</button>
-            <button class="btn-soft" data-go="万剑仙门峰">万剑</button>
-            <button class="btn-soft" data-go="黑风绝渊">黑风渊</button>
-            <button class="btn-soft" data-go="万星古岛">乱星海</button>
+      <!-- 中：工作面 -->
+      <main class="main">
+        <div class="main-head">
+          <div class="tabs" role="tablist" aria-label="主视图">
+            <button type="button" class="tab active" data-view="here" role="tab" aria-selected="true">同场</button>
+            <button type="button" class="tab" data-view="feed" role="tab" aria-selected="false">动态</button>
+            <button type="button" class="tab" data-view="world" role="tab" aria-selected="false">世界</button>
           </div>
-        </section>
+          <h2 id="viewTitle">同场修士</h2>
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+            <input id="listSearch" type="search" placeholder="筛选…" aria-label="筛选当前列表" />
+          </div>
+          <button type="button" class="btn sm" id="btnRefresh">刷新</button>
+        </div>
+        <div class="pane-body" id="paneBody" aria-live="polite"></div>
+      </main>
+
+      <!-- 右：详情 / 交谈 -->
+      <aside class="side" id="side" aria-label="详情">
+        <div class="side-section">
+          <div class="section-head" style="margin:0">
+            <h3 id="detailTitle">详情</h3>
+            <button type="button" class="btn sm" id="btnCloseSide">收起</button>
+          </div>
+        </div>
+        <div class="side-section grow" id="detailBody">
+          <div class="detail-empty">
+            <div>
+              <strong style="display:block;color:var(--ink-2);margin-bottom:6px">选一位同道</strong>
+              点击同场列表可开聊窗；买卖、打听、动手都会由规则结算。
+            </div>
+          </div>
+        </div>
       </aside>
 
-      <!-- 中：天道录 -->
-      <section class="stage">
-        <div class="stage-top">
-          <div class="tabs" role="tablist">
-            <button class="tab active" data-tab="feed">天道录</button>
-            <button class="tab" data-tab="goals">目标</button>
-            <button class="tab" data-tab="world" id="tabWorld">世界<span id="worldBadge" class="badge hidden">0</span></button>
-          </div>
-          <div class="scene-chip" id="sceneChip">—</div>
-        </div>
-
-        <div class="panes">
-          <div id="pane-feed" class="pane active">
-            <div id="log" class="log" aria-live="polite"></div>
-          </div>
-          <div id="pane-goals" class="pane">
-            <div id="goalsBody" class="pane-scroll"></div>
-          </div>
-          <div id="pane-world" class="pane">
-            <div id="evoCard" class="evo-card" aria-live="polite">
-              <div class="evo-head">
-                <strong>世界演变态势</strong>
-                <span id="evoMeta" class="evo-meta">连接服务器后自动拉取</span>
-                <button type="button" class="btn-soft sm" id="evoRefresh">刷新</button>
-              </div>
-              <div id="evoSummary" class="evo-summary"></div>
-              <div id="evoGrid" class="evo-grid"></div>
-            </div>
-            <div id="worldFeed" class="world-feed" aria-live="polite"></div>
-            <div class="world-actions">
-              <button class="btn-soft" data-cmd="/世情">世界演变</button>
-              <button class="btn-soft" data-cmd="/频道">刷新频道</button>
-              <button class="btn-soft" data-cmd="/公告">公告</button>
-              <button class="btn-soft" data-cmd="/传闻">传闻</button>
-              <button class="btn-soft" data-cmd="/传说">传说</button>
-              <button class="btn-soft" data-cmd="/目标">刷新目标</button>
-              <button class="btn-soft" data-cmd="/灵气">全服灵气</button>
-              <button class="btn-soft" data-cmd="/纪元">纪元</button>
-              <button class="btn-soft" data-cmd="/榜">六榜</button>
-              <button class="btn-soft" data-cmd="/榜 境界">境界</button>
-              <button class="btn-soft" data-cmd="/榜 战力">战力</button>
-              <button class="btn-soft" data-cmd="/榜 凶名">凶名</button>
-              <button class="btn-soft" data-cmd="/榜 道行">道行</button>
-              <button class="btn-soft" data-cmd="/秘境">秘境</button>
-              <button class="btn-soft" data-cmd="/宗门">宗门</button>
-              <button class="btn-soft" data-cmd="/告示">告示</button>
-              <button class="btn-soft" data-cmd="/who">天下</button>
-              <button class="btn-soft" data-cmd="/坊市">坊市</button>
-              <button class="btn-soft" data-cmd="/世情">世间动向</button>
-              <button class="btn-soft accent" data-cmd="/天道">天道导演</button>
-              <button class="btn-soft" data-cmd="/天道 推演">天道推演</button>
-              <button class="btn-soft" data-cmd="/世界弧">世界弧</button>
-              <button class="btn-soft" data-cmd="/势力">势力</button>
-              <button class="btn-soft" data-cmd="/宗门令">宗门令</button>
-              <button class="btn-soft" data-cmd="/望气">望气</button>
-              <button class="btn-soft" data-cmd="/望气 己">望气·己</button>
-              <button class="btn-soft" data-cmd="/纪元回流">纪元回流</button>
-              <button class="btn-soft" data-cmd="/机缘">推演天机</button>
-              <button class="btn-soft" data-cmd="/回访">因果回访</button>
-              <button class="btn-soft" data-cmd="/帮助">敕令一览</button>
-            </div>
-            <div id="worldBody" class="pane-scroll dim-block"></div>
-          </div>
-        </div>
-
-        <form id="cmdForm" class="composer">
-          <div class="composer-wrap">
-            <div id="cmdSuggest" class="cmd-suggest hidden" role="listbox" aria-label="指令补全"></div>
-            <div class="composer-inner">
-              <span class="prompt">敕令</span>
-              <input id="cmdInput" type="text" autocomplete="off" spellcheck="false"
-                     placeholder="/ 或 /做 我在坊市打听消息 — 斜杠可模糊搜指令" />
-              <button type="submit" class="btn-primary sm">行</button>
-            </div>
-          </div>
-          <div class="quick-row">
-            <button type="button" class="chip" data-cmd="/道身">道身</button>
-            <button type="button" class="chip" data-cmd="/目标">目标</button>
-            <button type="button" class="chip" data-cmd="/天道">天道</button>
-            <button type="button" class="chip" data-drawer="cultivate">修行…</button>
-            <button type="button" class="chip" data-drawer="market">交易…</button>
-            <button type="button" class="chip" data-drawer="explore">历练…</button>
-          </div>
+      <!-- 底：敕令 / 自由发言 -->
+      <footer class="compose">
+        <div id="suggest" class="suggest hidden" role="listbox" aria-label="指令建议"></div>
+        <form id="composeForm" class="compose-row" autocomplete="off">
+          <span class="compose-prefix" id="composeMode">敕令</span>
+          <input
+            id="composeInput"
+            type="text"
+            maxlength="200"
+            placeholder="输入 / 可搜指令；或直接说话（会话中）"
+            aria-label="敕令或发言"
+          />
+          <button type="submit" class="btn primary">行</button>
         </form>
-      </section>
-
-      <!-- 右：场景 — 聊天主交互，功能收抽屉 -->
-      <aside class="rail right scene-rail">
-        <section class="card scene">
-          <header class="card-h">
-            <h2>此地 · 聊天为主</h2>
-            <span id="zoneTag" class="tag">—</span>
-          </header>
-          <div class="scene-name" id="sceneName">—</div>
-          <div class="scene-meta" id="sceneMeta">点同场道友开聊窗；下方抽屉收纳修行/交易等</div>
-          <div class="scene-actions">
-            <button class="btn-soft sm" data-cmd="/here">刷新同场</button>
-            <button class="btn-soft sm" data-cmd="/做 我环顾四周">环顾四周</button>
-          </div>
-        </section>
-
-        <section class="card grow chat-primary">
-          <header class="card-h">
-            <h2>同场修士</h2>
-            <span class="muted" id="hereCount"></span>
-          </header>
-          <div id="hereList" class="here-list">
-            <p class="empty">尚无同道 · 点人即可开聊</p>
-          </div>
-        </section>
-
-        <section class="drawer-section">
-          <div class="drawer-bar" role="tablist" aria-label="场景功能">
-            <button type="button" class="drawer-tab" data-drawer="cultivate">修行</button>
-            <button type="button" class="drawer-tab" data-drawer="market">交易</button>
-            <button type="button" class="drawer-tab" data-drawer="explore">历练</button>
-            <button type="button" class="drawer-tab" data-drawer="sect">仙门</button>
-            <button type="button" class="drawer-tab" data-drawer="world">天下</button>
-          </div>
-          <div id="drawer-cultivate" class="drawer-panel hidden" data-drawer-panel="cultivate">
-            <div class="drawer-hint">闭关 / 突破 / 功法 / 装备</div>
-            <div class="btn-grid">
-              <button class="btn-soft" data-cmd="/闭关 1">闭关 1h</button>
-              <button class="btn-soft" data-cmd="/闭关 8">闭关 8h</button>
-              <button class="btn-soft" data-cmd="/出关">出关</button>
-              <button class="btn-soft accent" data-cmd="/突破">突破</button>
-              <button class="btn-soft" data-cmd="/归隐">归隐</button>
-              <button class="btn-soft" data-cmd="/出隐">出隐</button>
-              <button class="btn-soft" data-cmd="/功法">我的功法</button>
-              <button class="btn-soft" data-prompt="自创功法" data-cmd-prefix="/自创功法" data-placeholder="理念，如：噬血炼骨">自创功法…</button>
-              <button class="btn-soft" data-prompt="穿戴" data-cmd-prefix="/穿戴" data-placeholder="装备名">穿戴…</button>
-              <button class="btn-soft" data-prompt="卸下" data-cmd-prefix="/卸下" data-placeholder="装备名">卸下…</button>
-              <button class="btn-soft" data-prompt="服用" data-cmd-prefix="/服用" data-placeholder="丹药名">服用…</button>
-              <button class="btn-soft" data-cmd="/灵气">全服灵气</button>
-            </div>
-          </div>
-          <div id="drawer-market" class="drawer-panel hidden" data-drawer-panel="market">
-            <div class="drawer-hint">坊市买卖 / 金库 / 寄售 / 悬赏</div>
-            <div class="btn-grid">
-              <button class="btn-soft" data-cmd="/坊市">坊市</button>
-              <button class="btn-soft" data-prompt="购买" data-cmd-prefix="/购买" data-placeholder="货名 [数量]">购买…</button>
-              <button class="btn-soft" data-prompt="出售" data-cmd-prefix="/出售" data-placeholder="货名 [数量]">出售…</button>
-              <button class="btn-soft" data-prompt="寄存" data-cmd-prefix="/寄存" data-placeholder="灵石" data-num="1">寄存…</button>
-              <button class="btn-soft" data-prompt="支取" data-cmd-prefix="/支取" data-placeholder="灵石" data-num="1">支取…</button>
-              <button class="btn-soft" data-prompt="寄售" data-cmd-prefix="/寄售" data-placeholder="货 价格">寄售…</button>
-              <button class="btn-soft" data-prompt="买寄售" data-cmd-prefix="/买寄售" data-placeholder="编号" data-num="1">买寄售…</button>
-              <button class="btn-soft" data-prompt="撤单" data-cmd-prefix="/撤单" data-placeholder="编号" data-num="1">撤单…</button>
-              <button class="btn-soft" data-cmd="/npc货单">NPC货单</button>
-              <button class="btn-soft" data-cmd="/告示">告示</button>
-              <button class="btn-soft" data-prompt="挂赏" data-cmd-prefix="/挂赏" data-placeholder="道号 赏金 [缘由]">挂赏…</button>
-              <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="编号" data-num="1">接令…</button>
-              <button class="btn-soft" data-cmd="/望气">望气</button>
-            </div>
-          </div>
-          <div id="drawer-explore" class="drawer-panel hidden" data-drawer-panel="explore">
-            <div class="drawer-hint">探险 / 秘境 / 机缘 / 探查</div>
-            <div class="btn-grid">
-              <button class="btn-soft" data-cmd="/探查">探查</button>
-              <button class="btn-soft" data-cmd="/机缘">探机缘</button>
-              <button class="btn-soft" data-cmd="/探险">探险列表</button>
-              <button class="btn-soft" data-prompt="探险" data-cmd-prefix="/探险" data-placeholder="野外 / 秘境名">外出探险…</button>
-              <button class="btn-soft" data-cmd="/秘境">天机榜</button>
-              <button class="btn-soft" data-cmd="/秘境 落霞古洞">落霞古洞</button>
-              <button class="btn-soft" data-cmd="/秘境 黑风绝渊裂隙">黑风裂隙</button>
-              <button class="btn-soft" data-cmd="/秘境 万星遗迹残址">万星残址</button>
-              <button class="btn-soft accent" data-cmd="/秘境 探">推进</button>
-              <button class="btn-soft" data-cmd="/秘境 弃">放弃</button>
-              <button class="btn-soft" data-cmd="/挖宝">挖宝</button>
-              <button class="btn-soft" data-cmd="/除凶">除凶榜</button>
-              <button class="btn-soft" data-cmd="/回访">因果回访</button>
-            </div>
-          </div>
-          <div id="drawer-sect" class="drawer-panel hidden" data-drawer-panel="sect">
-            <div class="drawer-hint">宗门 / 势力 / 宗门令</div>
-            <div class="btn-grid">
-              <button class="btn-soft" data-cmd="/宗门">宗门</button>
-              <button class="btn-soft" data-prompt="拜入" data-cmd-prefix="/拜入" data-placeholder="宗门名">拜入…</button>
-              <button class="btn-soft" data-cmd="/叛门">叛门</button>
-              <button class="btn-soft" data-cmd="/领俸禄">领俸</button>
-              <button class="btn-soft" data-cmd="/晋升">晋升</button>
-              <button class="btn-soft" data-prompt="传功" data-cmd-prefix="/传功" data-placeholder="弟子道号">传功…</button>
-              <button class="btn-soft" data-cmd="/势力">势力</button>
-              <button class="btn-soft" data-cmd="/宗门令">宗门令</button>
-              <button class="btn-soft" data-cmd="/宗门势">宗门势</button>
-              <button class="btn-soft" data-cmd="/宗门环">日环</button>
-              <button class="btn-soft" data-cmd="/贡献">贡献</button>
-              <button class="btn-soft" data-cmd="/大劫">大劫</button>
-              <button class="btn-soft" data-cmd="/转世">道统/转世</button>
-            </div>
-          </div>
-          <div id="drawer-world" class="drawer-panel hidden" data-drawer-panel="world">
-            <div class="drawer-hint">世界演变 / 榜 / 频道 / 史笔</div>
-            <div class="btn-grid">
-              <button class="btn-soft accent" data-cmd="/世情">世界演变</button>
-              <button class="btn-soft" data-cmd="/天道">天道</button>
-              <button class="btn-soft" data-cmd="/天道 推演">天道推演</button>
-              <button class="btn-soft" data-cmd="/世界弧">世界弧</button>
-              <button class="btn-soft" data-cmd="/纪元回流">纪元回流</button>
-              <button class="btn-soft" data-cmd="/传说">传说</button>
-              <button class="btn-soft" data-cmd="/频道">频道</button>
-              <button class="btn-soft" data-cmd="/榜">六榜</button>
-              <button class="btn-soft" data-cmd="/who">天下</button>
-              <button class="btn-soft" data-cmd="/大事记">大事记</button>
-              <button class="btn-soft" data-cmd="/因果">因果链</button>
-              <button class="btn-soft" data-cmd="/帮助 天下">帮助·天下</button>
-            </div>
-          </div>
-        </section>
-      </aside>
-    </main>
-  </div>
-
-  <!-- ========== 弹层 ========== -->
-  <div id="promptModal" class="modal hidden">
-    <div class="modal-card prompt-card">
-      <h2 id="promptTitle">输入</h2>
-      <p class="hint" id="promptHint"></p>
-      <div class="prompt-row">
-        <input id="promptInput" type="text" autocomplete="off" spellcheck="false" />
-        <button id="promptOk" class="btn-primary sm">行</button>
-        <button id="promptCancel" class="btn-ghost sm">取消</button>
-      </div>
+        <div class="compose-hint">
+          <span><kbd>/</kbd> 模糊指令</span>
+          <span><kbd>Enter</kbd> 发送</span>
+          <span><kbd>Esc</kbd> 关面板</span>
+          <span id="composeTarget">未锁定交谈</span>
+        </div>
+      </footer>
     </div>
   </div>
 
-  <div id="demonModal" class="modal hidden">
-    <div class="modal-card demon">
-      <div class="demon-mark">魔</div>
-      <h2>域外天魔 · 识海问心</h2>
-      <p id="demonText" class="demon-text"></p>
-      <div id="demonOpts" class="demon-opts"></div>
-      <div class="demon-free">
-        <input id="demonFree" type="text" placeholder="其他：写下你的破法…" />
-        <button id="demonFreeGo" class="btn-primary sm">裁决</button>
-      </div>
-    </div>
-  </div>
+  <div class="toast-host" id="toasts" aria-live="polite"></div>
 
-  <div id="deathModal" class="modal hidden">
-    <div class="modal-card death">
-      <h2>一世终结 · 真灵归寂</h2>
-      <p id="deathText" class="demon-text"></p>
-      <div id="deathLegacy" class="legacy-box"></div>
-      <div id="boostBox" class="boost-box"></div>
-      <div class="death-actions">
-        <input id="rebornName" type="text" placeholder="新道号（可选）" maxlength="12" />
-        <button id="btnReborn" class="btn-primary">真灵转世</button>
-        <button id="btnLater" class="btn-ghost">暂驻轮回</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-  <script>
-    // 抽屉：composer chips 与场景 tabs 共用 data-drawer
-    (function () {
-      function bind() {
-        document.querySelectorAll("[data-drawer]").forEach(function (el) {
-          if (el._drawerBound) return;
-          el._drawerBound = true;
-          el.addEventListener("click", function (e) {
-            e.preventDefault();
-            var name = el.getAttribute("data-drawer");
-            var panels = document.querySelectorAll("[data-drawer-panel]");
-            var tabs = document.querySelectorAll(".drawer-tab, [data-drawer]");
-            var target = document.querySelector('[data-drawer-panel="' + name + '"]');
-            var willOpen = target && target.classList.contains("hidden");
-            panels.forEach(function (p) {
-              p.classList.toggle("hidden", !(willOpen && p.getAttribute("data-drawer-panel") === name));
-            });
-            tabs.forEach(function (t) {
-              if (!t.classList.contains("drawer-tab")) return;
-              t.classList.toggle("active", willOpen && t.getAttribute("data-drawer") === name);
-            });
-          });
-        });
-      }
-      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
-      else bind();
-    })();
-  </script>
+  <script src="workbench.js"></script>
 </body>
 </html>
