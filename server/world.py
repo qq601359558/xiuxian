@@ -450,6 +450,65 @@ class World:
                         "status": self._status_dict(char),
                     }
 
+            # ---------------- 免斜杠：会话中自由发言 / 无会话时智能路由 ----------------
+            raw_cmd = command.strip()
+            if raw_cmd and not raw_cmd.startswith("/") and not raw_cmd.startswith("「"):
+                try:
+                    from core import npc_chat as _nc
+
+                    sess = _nc.get_session(char.id)
+                    if sess:
+                        return self.handle(token, f"/说 {raw_cmd}")
+                except Exception:
+                    pass
+                # 无会话：尝试同场唯一/最像 NPC 对象自动开聊
+                try:
+                    from storage.db import CharacterRepository as CR
+                    from core.npc_mind import _is_npc as _inpc
+
+                    here = list_here(char)
+                    cands = []
+                    for row in here:
+                        nm = row.get("name") or ""
+                        if not nm or nm == char.name:
+                            continue
+                        obj = CR.get_by_name(nm)
+                        if not obj or obj.id == char.id:
+                            continue
+                        if obj.status == CharacterStatus.DEAD:
+                            continue
+                        if _inpc(obj) or not str(obj.user_id).startswith("npc_"):
+                            # 玩家或 NPC 均可聊；优先 NPC
+                            cands.append(obj)
+                    npcs = [c for c in cands if _inpc(c)]
+                    pool = npcs or cands
+                    # 文本点名命中则优先
+                    pick = None
+                    for c in pool:
+                        if c.name and c.name in raw_cmd:
+                            pick = c
+                            break
+                    if not pick and len(pool) == 1:
+                        pick = pool[0]
+                    if pick:
+                        return self.handle(token, f"/交谈 {pick.name} {raw_cmd}")
+                    if pool:
+                        names = "、".join(c.name for c in pool[:6])
+                        return {
+                            "ok": False,
+                            "error": (
+                                f"同场可交谈：{names}。"
+                                f"点击头像开聊，或说「我想和{pool[0].name}说…」，也可 /交谈 <道号>"
+                            ),
+                        }
+                except Exception:
+                    pass
+                return {
+                    "ok": False,
+                    "error": "此处无人可交谈。可 /here 看同场，或用 /做 描述自由行动。",
+                    "hint": "free_text",
+                }
+
             # 闭关锁定：洞府入定，只许观照/出关等只读敕令
             if char.status == CharacterStatus.MEDITATING:
                 med_ok = (

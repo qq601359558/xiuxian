@@ -16,6 +16,7 @@
     lastLegacy: null,
     composerOpen: false,
     chatEnded: false,
+    chatNpc: "",
   };
   let lastCmd = "";
 
@@ -587,10 +588,19 @@
         `${pers ? pers + " · " : ""}${r.is_npc ? "对你：" : ""}` +
         `<span class="${attCls}">${esc(att)}</span>${ag ? " · " + ag : ""}</div>` +
         `<div class="acts">` +
-        `<button data-talk="${esc(r.name)}">交谈</button>` +
+        `<button class="btn-primary sm" data-talk="${esc(r.name)}">点开聊窗</button>` +
         `<button data-fight="${esc(r.name)}">斗法</button>` +
         `<button data-profile="${esc(r.name)}">人物</button>` +
         `</div>`;
+      // 整卡点击也能开聊
+      card.style.cursor = "pointer";
+      card.addEventListener("click", (ev) => {
+        if (ev.target.closest("button") || ev.target.closest("a")) return;
+        if (!r.name || r.name === state.name) return;
+        openChat(r.name);
+        lastCmd = "/交谈 " + r.name;
+        send("/交谈 " + r.name);
+      });
       box.appendChild(card);
     }
   }
@@ -679,6 +689,10 @@
         const input = $("cmdInput");
         if (input) input.focus();
       }
+      const cinp = $("chatInput");
+      if (cinp && !$("chatModal").classList.contains("hidden") && !state.chatEnded) {
+        cinp.focus();
+      }
     }
   }
 
@@ -699,6 +713,7 @@
     m.classList.remove("hidden");
     m.setAttribute("aria-hidden", "false");
     state.chatEnded = false;
+    if (npcName) state.chatNpc = npcName;
     setChatInputEnabled(true);
     if ($("chatNpcName") && npcName) $("chatNpcName").textContent = "交谈 · " + npcName;
     const inp = $("chatInput");
@@ -730,6 +745,7 @@
     m.classList.add("hidden");
     m.setAttribute("aria-hidden", "true");
     state.chatEnded = false;
+    state.chatNpc = "";
     setChatInputEnabled(true);
   }
   function handleChatPayload(data, text) {
@@ -740,6 +756,7 @@
         for (const ln of lines) {
           if (/会话开始|用 \/说|可开口/.test(ln)) chatAppend("", ln, "sys");
           else if (/【会话已终】|作别|不愿再言|挂断|动手|赠礼|成交|行窃|擒拿|释放/.test(ln)) chatAppend("", ln, "sys");
+          else if (/【同场】/.test(ln)) chatAppend("", ln, "sys");
           else chatAppend(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
         }
       } else if (!data.ok && data.error) {
@@ -837,6 +854,26 @@
     const form = $("chatForm");
     const inp = $("chatInput");
     const btn = $("chatClose");
+    // 聊天窗：直接自由发言，无需 /说；服务端判行为
+    async function sendChatFree(v) {
+      if (!state.token) {
+        chatAppend("", "尚未入世", "sys");
+        return;
+      }
+      setBusy(true);
+      try {
+        const body = { token: state.token, text: v };
+        if (state.chatNpc) body.to = state.chatNpc;
+        const data = await api("/chat", body);
+        if (data.status) applyStatus(data.status);
+        handleResult(data);
+      } catch (e) {
+        chatAppend("", "发送失败：" + e.message, "sys");
+      } finally {
+        setBusy(false);
+        if (inp && !state.chatEnded) inp.focus();
+      }
+    }
     if (form && inp) {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -845,8 +882,11 @@
         if (!v) return;
         inp.value = "";
         chatAppend("你", v, "me");
-        lastCmd = "/说";
-        send("/说 " + v);
+        // 有目标时带上 to，保证服务端能对上号
+        if (state.chatNpc && !$("chatNpcName").textContent.includes(state.chatNpc)) {
+          /* header already set */
+        }
+        sendChatFree(v);
       });
     }
     if (btn) {
@@ -1295,14 +1335,11 @@
         return;
       }
       if (talk) {
+        // 点开聊窗：直接进入会话，无需再弹「输入指令」
+        openChat(talk);
+        state.chatNpc = talk;
         lastCmd = "/交谈 " + talk;
-        openPrompt(
-          "交谈 · " + talk,
-          "输入想说的话；留空仅拱手一礼。",
-          "/交谈 " + talk,
-          "例如：打听血刀老祖下落 / 可有买卖？",
-          false
-        );
+        send("/交谈 " + talk);
         return;
       } else if (fight) {
         if (confirm("确定对「" + fight + "」动手？")) {

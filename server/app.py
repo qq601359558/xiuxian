@@ -264,6 +264,25 @@ class GameHandler(BaseHTTPRequestHandler):
                 log_event("GATE", "action_rejected", cmd=command[:40], error=result.get("error"))
             return _json_response(self, 200, result)
 
+        if path == "/chat":
+            """聊天窗 API：点名开聊 + 自由发言（无需斜杠）"""
+            token = str(data.get("token") or "")
+            if not token:
+                return _json_response(self, 400, {"ok": False, "error": "需要 token"})
+            to = str(data.get("to") or "").strip()
+            text = str(data.get("text") or "").strip()
+            if not to and not text:
+                return _json_response(self, 400, {"ok": False, "error": "需要 to 或 text"})
+            if to and text:
+                cmd = f"/交谈 {to} {text}"
+            elif text:
+                cmd = text
+            else:
+                cmd = f"/交谈 {to}"
+            log_event("CMD", "chat", cmd=cmd.split()[0] if cmd else "")
+            result = WORLD.handle(token, cmd)
+            return _json_response(self, 200, result)
+
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
 
@@ -300,7 +319,7 @@ def main():
 
     httpd = ThreadingHTTPServer((host, port), GameHandler)
     print(f"《天道因果录》局域网服已启动 http://{host}:{port}")
-    print("接口：POST /register /login /join /action /logout  GET /who /health")
+    print("接口：POST /register /login /join /action /chat /logout  GET /who /health /commands /world/director")
     log_event("SEASON", "server_start", host=host, port=port)
     print("示例：curl -X POST http://127.0.0.1:8765/join -d '{\"name\":\"厉飞雨\"}'")
     try:
