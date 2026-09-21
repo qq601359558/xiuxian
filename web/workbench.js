@@ -463,6 +463,32 @@
   }
 
   // ---------- 交谈玉简 ----------
+  function closeChat(hangup) {
+    // 1) 先关 UI，避免网络失败导致关不掉
+    state.chat.open = false;
+    state.chat.npc = "";
+    try {
+      setText("cmdTarget", "未锁定交谈");
+      setText("cmdTag", "敕令");
+    } catch (_) {}
+    const modal = $("chatModal");
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+      modal.style.visibility = "hidden";
+      modal.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("chat-open");
+    // 2) 后台挂断（失败忽略）
+    try {
+      if (hangup && !state.demo && state.token) {
+        api("/action", { token: state.token, command: "/挂断" })
+          .then(() => {})
+          .catch(() => {});
+      }
+    } catch (_) {}
+  }
+
   function openChat(npc) {
     state.chat.open = true;
     state.chat.npc = npc || "";
@@ -472,6 +498,7 @@
     const m = $("chatModal");
     if (m) {
       m.classList.remove("hidden");
+      m.style.display = "";
       m.setAttribute("aria-hidden", "false");
     }
     if (!state.chat.lines.length) {
@@ -480,24 +507,6 @@
     renderChat(true);
     const inp = $("chatInput");
     if (inp) setTimeout(() => inp.focus(), 50);
-  }
-
-  function closeChat(hangup) {
-    if (hangup && !state.demo && state.token) {
-      api("/action", { token: state.token, command: "/挂断" })
-        .then(handleResult)
-        .catch(() => {});
-    }
-    state.chat.open = false;
-    state.chat.npc = "";
-    state.chat.lines = [];
-    setText("cmdTarget", "未锁定交谈");
-    setText("cmdTag", "敕令");
-    const m = $("chatModal");
-    if (m) {
-      m.classList.add("hidden");
-      m.setAttribute("aria-hidden", "true");
-    }
   }
 
   function chatMsg(who, text, cls) {
@@ -950,30 +959,41 @@
   }
 
   // ---------- 绑定 ----------
+  function on(id, ev, fn) {
+    const el = $(id);
+    if (!el) return;
+    try {
+      el.addEventListener(ev, fn);
+    } catch (_) {}
+  }
+
   function bind() {
     setTheme(state.theme);
-    $("fServer").value = state.base;
-    if (state.user) $("fUser").value = state.user;
-    if (state.name) $("fName").value = state.name;
-    $("fNameWrap").classList.add("hidden");
+    try {
+      if ($("fServer")) $("fServer").value = state.base;
+      if (state.user && $("fUser")) $("fUser").value = state.user;
+      if (state.name && $("fName")) $("fName").value = state.name;
+      if ($("fNameWrap")) $("fNameWrap").classList.add("hidden");
+    } catch (_) {}
 
     document.querySelectorAll("[data-mode]").forEach((t) => {
       t.addEventListener("click", () => {
         state.mode = t.getAttribute("data-mode") === "register" ? "register" : "login";
         document.querySelectorAll("[data-mode]").forEach((x) => {
-          const on = x === t;
-          x.classList.toggle("active", on);
+          x.classList.toggle("active", x === t);
         });
-        $("fNameWrap").classList.toggle("hidden", state.mode !== "register");
-        $("gateSubmit").textContent = state.mode === "register" ? "创建并入世" : "进入大世界";
+        if ($("fNameWrap")) $("fNameWrap").classList.toggle("hidden", state.mode !== "register");
+        if ($("gateSubmit")) {
+          $("gateSubmit").textContent = state.mode === "register" ? "创建并入世" : "进入大世界";
+        }
       });
     });
 
-    $("gateForm").addEventListener("submit", doAuth);
-    $("btnProbe").addEventListener("click", probeServer);
-    $("btnDemo").addEventListener("click", loadDemo);
-    $("btnTheme").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
-    $("btnLogout").addEventListener("click", async () => {
+    on("gateForm", "submit", doAuth);
+    on("btnProbe", "click", probeServer);
+    on("btnDemo", "click", loadDemo);
+    on("btnTheme", "click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
+    on("btnLogout", "click", async () => {
       try {
         if (!state.demo && state.token) await api("/logout", { token: state.token });
       } catch (_) {}
@@ -981,13 +1001,13 @@
       localStorage.removeItem("wb.token");
       showGate("已暂离");
     });
-    $("btnHelp").addEventListener("click", () => sendCmd("/帮助"));
-    $("btnRefresh").addEventListener("click", () => refreshAll());
-    $("btnRetry").addEventListener("click", () => {
+    on("btnHelp", "click", () => sendCmd("/帮助"));
+    on("btnRefresh", "click", () => refreshAll());
+    on("btnRetry", "click", () => {
       if (state.token && !state.demo) refreshAll();
       else showGate("请先登录");
     });
-    $("btnNav").addEventListener("click", () => document.body.classList.toggle("nav-open"));
+    on("btnNav", "click", () => document.body.classList.toggle("nav-open"));
 
     document.querySelectorAll(".rail-btn[data-view]").forEach((b) => {
       b.addEventListener("click", () => setView(b.getAttribute("data-view")));
@@ -1066,36 +1086,50 @@
       if (b) applySug(Number(b.getAttribute("data-i")));
     });
 
-    $("chatForm").addEventListener("submit", (e) => {
+    $("chatForm") && $("chatForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const v = $("chatInput").value;
       if (!v.trim()) return;
       $("chatInput").value = "";
       sendChat(v);
     });
-    $("chatClose").addEventListener("click", () => closeChat(true));
-    $("btnChatHang").addEventListener("click", () => closeChat(true));
-    $("btnChatMem").addEventListener("click", () => {
+    // 关闭：UI 立刻关，挂断请求后台发
+    on("chatClose", "click", () => closeChat(true));
+    on("btnChatHang", "click", () => closeChat(true));
+    on("btnChatMem", "click", () => {
       if (!state.demo && state.token) sendCmd("/会话");
       else chatMsg("", "（演示）无会话记忆", "sys");
     });
-    $("chatModal").addEventListener("click", (e) => {
-      if (e.target === $("chatModal")) closeChat(false);
+    const modal = $("chatModal");
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeChat(false);
+      });
+    }
+    // 关闭按钮兜底（防止 workbench 绑定失败）
+    document.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest("#chatClose") || t.closest("#btnChatHang")) {
+        closeChat(t.closest("#chatClose") || t.closest("#btnChatHang").id === "btnChatHang");
+      }
+      if (t.closest("[data-close-chat]")) closeChat(false);
     });
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         hideSug();
-        if ($("chatModal") && !$("chatModal").classList.contains("hidden")) closeChat(false);
+        const m = $("chatModal");
+        if (m && !m.classList.contains("hidden")) closeChat(false);
         document.body.classList.remove("nav-open");
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
-        const t = state.chat.open ? $("chatInput") : $("cmdInput");
-        if (t) {
-          t.focus();
-          if (t === $("cmdInput") && !t.value) {
-            t.value = "/";
+        const target = state.chat.open ? $("chatInput") : $("cmdInput");
+        if (target) {
+          target.focus();
+          if (target === $("cmdInput") && !target.value) {
+            target.value = "/";
             renderSug();
           }
         }

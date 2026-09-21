@@ -635,7 +635,12 @@ html[data-theme="light"] .gate-card {
   background: rgba(4, 6, 10, 0.7);
   backdrop-filter: blur(6px);
 }
-.modal.hidden { display: none !important; }
+.modal.hidden,
+#chatModal.hidden {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
 .slab {
   width: min(460px, 100%);
   max-height: min(680px, calc(100vh - 40px));

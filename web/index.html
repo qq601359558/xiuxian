@@ -162,7 +162,7 @@
           <h2 id="chatTitle">交谈</h2>
           <p id="chatSub">在下方直接说话；买卖与动作由规则结算</p>
         </div>
-        <button type="button" class="icon-btn" id="chatClose" aria-label="关闭">
+        <button type="button" class="icon-btn" id="chatClose" data-close-chat="1" aria-label="关闭">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
@@ -174,12 +174,37 @@
       </form>
       <div class="slab-foot">
         <button type="button" class="btn sm" id="btnChatMem">会话记忆</button>
-        <button type="button" class="btn sm" id="btnChatHang">挂断</button>
+        <button type="button" class="btn sm" id="btnChatHang" data-close-chat="1">挂断并关闭</button>
+        <button type="button" class="btn sm" data-close-chat="1">关闭</button>
       </div>
     </div>
   </div>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
   <script src="workbench.js"></script>
+  <!-- 弹窗关闭兜底：即使主脚本绑定失败也能关掉 -->
+  <script>
+    (function () {
+      function hideChat() {
+        var m = document.getElementById("chatModal");
+        if (!m) return;
+        m.classList.add("hidden");
+        m.style.display = "none";
+        m.setAttribute("aria-hidden", "true");
+      }
+      document.addEventListener("click", function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest("[data-close-chat]") || t.closest("#chatClose") || t.closest("#btnChatHang")) {
+          hideChat();
+        }
+        var m = document.getElementById("chatModal");
+        if (m && t === m) hideChat();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") hideChat();
+      });
+    })();
+  </script>
 </body>
 </html>
