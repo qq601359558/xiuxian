@@ -381,7 +381,6 @@ class World:
             if not parts:
                 return {"ok": True, "text": ""}
             action = parts[0].lower()
-
             # 心魔待决优先
             if session and session.pending_heart_demon:
                 hd = self.hd_sessions.get(session.pending_heart_demon)
@@ -465,8 +464,9 @@ class World:
                 try:
                     from storage.db import CharacterRepository as CR
                     from core.npc_mind import _is_npc as _inpc
+                    from core.here import list_here as _list_here_fn
 
-                    here = list_here(char)
+                    here = _list_here_fn(char)
                     cands = []
                     for row in here:
                         nm = row.get("name") or ""
@@ -478,11 +478,9 @@ class World:
                         if obj.status == CharacterStatus.DEAD:
                             continue
                         if _inpc(obj) or not str(obj.user_id).startswith("npc_"):
-                            # 玩家或 NPC 均可聊；优先 NPC
                             cands.append(obj)
                     npcs = [c for c in cands if _inpc(c)]
                     pool = npcs or cands
-                    # 文本点名命中则优先
                     pick = None
                     for c in pool:
                         if c.name and c.name in raw_cmd:
@@ -1494,62 +1492,74 @@ class World:
                 res = announce_siege(char, "".join(parts[1:]))
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/talk", "/交谈"):
-                from core import npc_chat
+                try:
+                    from core import npc_chat
 
-                if len(parts) < 2:
-                    panel = npc_chat.format_chat_panel(char.id)
-                    return {"ok": True, "text": panel}
-                target_name = parts[1]
-                words = " ".join(parts[2:]) if len(parts) > 2 else ""
-                target = CharacterRepository.get_by_name(target_name)
-                if not target:
-                    nearby = [x.get("name") for x in list_here(char) if target_name in (x.get("name") or "")]
-                    if len(nearby) == 1:
-                        target = CharacterRepository.get_by_name(nearby[0])
-                    elif nearby:
-                        return {"ok": False, "error": f"道号不精确，同场有：{'、'.join(nearby[:6])}。请用完整道号。"}
-                    else:
-                        here_names = [x.get("name") for x in list_here(char)][:8]
-                        hint = ("同场有：" + "、".join(here_names)) if here_names else "此地暂无其他修士，先 /前往 或 /同场"
-                        return {"ok": False, "error": f"查无此人：{target_name}。{hint}"}
-                if target.id == char.id:
-                    return {"ok": False, "error": "自言自语？"}
-                # 开启/续用会话
-                opened = npc_chat.open_session(char, target)
-                if not opened.get("success"):
-                    return {"ok": False, "error": opened.get("message", "无法交谈")}
-                greet = (
-                    f"【会话开始】与【{target.name}】交谈中。\n"
-                    f"用 /说 <内容> 继续，/挂断 结束；对方不愿聊时会自行作别。"
-                )
-                if words:
-                    res = NpcDialogueEngine.talk(target, char, words)
-                    log_event("DECISION", "talk", name=char.name, target=target.name, words_len=len(words), source=res.get("source"))
-                    if not res.get("ok"):
-                        return {"ok": False, "error": res.get("error", "无法交谈")}
-                    # 记入会话
-                    try:
-                        rec = npc_chat.get_session(char.id)
-                        if rec:
-                            rec.setdefault("messages", []).append({"who": char.name, "text": words, "ts": time.time()})
-                            rec.setdefault("messages", []).append({"who": target.name, "text": res.get("text", ""), "ts": time.time()})
-                            from storage.db import WorldStateRepository as W
+                    if len(parts) < 2:
+                        panel = npc_chat.format_chat_panel(char.id)
+                        return {"ok": True, "text": panel}
+                    target_name = parts[1]
+                    words = " ".join(parts[2:]) if len(parts) > 2 else ""
+                    target = CharacterRepository.get_by_name(target_name)
+                    if not target:
+                        try:
+                            from core.here import list_here as _lh
 
-                            d = W.get(npc_chat._KEY) or {}
-                            d[char.id] = rec
-                            W.set(npc_chat._KEY, d)
-                    except Exception:
-                        pass
+                            rows = _lh(char)
+                        except Exception:
+                            rows = []
+                        nearby = [x.get("name") for x in rows if target_name in (x.get("name") or "")]
+                        if len(nearby) == 1:
+                            target = CharacterRepository.get_by_name(nearby[0])
+                        elif nearby:
+                            return {"ok": False, "error": f"道号不精确，同场有：{'、'.join(nearby[:6])}。请用完整道号。"}
+                        else:
+                            here_names = [x.get("name") for x in rows][:8]
+                            hint = ("同场有：" + "、".join(here_names)) if here_names else "此地暂无其他修士，先 /前往 或 /同场"
+                            return {"ok": False, "error": f"查无此人：{target_name}。{hint}"}
+                    if target.id == char.id:
+                        return {"ok": False, "error": "自言自语？"}
+                    opened = npc_chat.open_session(char, target)
+                    if not opened.get("success"):
+                        return {"ok": False, "error": opened.get("message", "无法交谈")}
+                    greet = (
+                        f"【会话开始】与【{target.name}】交谈中。\n"
+                        f"用 /说 <内容> 继续，/挂断 结束；聊天窗可直接打字。"
+                    )
+                    if words:
+                        res = NpcDialogueEngine.talk(target, char, words)
+                        log_event("DECISION", "talk", name=char.name, target=target.name, words_len=len(words), source=res.get("source"))
+                        if not res.get("ok"):
+                            return {"ok": False, "error": res.get("error", "无法交谈")}
+                        try:
+                            rec = npc_chat.get_session(char.id)
+                            if rec:
+                                rec.setdefault("messages", []).append({"who": char.name, "text": words, "ts": time.time()})
+                                rec.setdefault("messages", []).append({"who": target.name, "text": res.get("text", ""), "ts": time.time()})
+                                from storage.db import WorldStateRepository as W
+
+                                d = W.get(npc_chat._KEY) or {}
+                                d[char.id] = rec
+                                W.set(npc_chat._KEY, d)
+                        except Exception:
+                            pass
+                        return {
+                            "ok": True,
+                            "text": greet + "\n\n" + res.get("text", ""),
+                            "chat_open": True,
+                            "npc": target.name,
+                            "attitude": res.get("attitude"),
+                            "source": res.get("source"),
+                            "bystanders": res.get("bystanders") or [],
+                        }
                     return {
                         "ok": True,
-                        "text": greet + "\n\n" + res.get("text", ""),
+                        "text": greet + "\n\n（可开口：直接在聊天窗打字，无需 /说）",
                         "chat_open": True,
                         "npc": target.name,
-                        "attitude": res.get("attitude"),
-                        "source": res.get("source"),
-                        "bystanders": res.get("bystanders") or [],
                     }
-                return {"ok": True, "text": greet + "\n\n（可开口：/说 你好）", "chat_open": True, "npc": target.name}
+                except Exception as _talk_ex:
+                    return {"ok": False, "error": f"交谈异常：{type(_talk_ex).__name__}: {_talk_ex}"}
             if action in ("/说", "/say"):
                 from core import npc_chat
                 from ai.play_prompts import npc_talk_prompt

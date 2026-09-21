@@ -1041,3 +1041,68 @@ a:focus-visible {
   border-bottom: 1px solid var(--line);
   margin-bottom: 2px;
 }
+
+/* ===== 场景页：聊天主交互 + 功能抽屉 ===== */
+.scene-rail .chat-primary {
+  min-height: 200px;
+  flex: 1 1 auto;
+}
+.scene-rail .chat-primary .here-list {
+  max-height: min(42vh, 420px);
+  overflow: auto;
+}
+.scene-rail .scene-actions .btn-soft.sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.drawer-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.drawer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0,0,0,0.2);
+}
+.drawer-tab {
+  flex: 1 1 auto;
+  min-width: 56px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.drawer-tab:hover { color: var(--gold-soft); }
+.drawer-tab.active {
+  color: var(--gold-soft);
+  border-color: var(--line-strong);
+  background: rgba(212,175,55,0.12);
+}
+.drawer-panel {
+  padding: 10px 12px 12px;
+  max-height: 280px;
+  overflow: auto;
+}
+.drawer-panel.hidden { display: none !important; }
+.drawer-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.drawer-panel .btn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 6px;
+}
+.here-card {
+  cursor: pointer;
+}

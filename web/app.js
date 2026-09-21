@@ -1257,7 +1257,47 @@
   bindSuggest();
   loadCommandCatalog(true);
 
+  // ---------- 场景抽屉 ----------
+  function toggleDrawer(name) {
+    const panels = document.querySelectorAll("[data-drawer-panel]");
+    const tabs = document.querySelectorAll(".drawer-tab");
+    let opened = false;
+    panels.forEach((p) => {
+      const on = p.getAttribute("data-drawer-panel") === name && p.classList.contains("hidden");
+      // 简单：点同一 tab 再点则关
+      const isTarget = p.getAttribute("data-drawer-panel") === name;
+      const willOpen = isTarget && p.classList.contains("hidden");
+      if (willOpen) opened = true;
+    });
+    panels.forEach((p) => {
+      const isTarget = p.getAttribute("data-drawer-panel") === name;
+      if (isTarget) {
+        if (opened) p.classList.remove("hidden");
+        else p.classList.add("hidden");
+      } else {
+        p.classList.add("hidden");
+      }
+    });
+    tabs.forEach((t) => {
+      t.classList.toggle("active", opened && t.getAttribute("data-drawer") === name);
+    });
+  }
+
+  function bindDrawers() {
+    document.querySelectorAll("[data-drawer]").forEach((el) => {
+      if (el._drawerBound) return;
+      el._drawerBound = true;
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDrawer(el.getAttribute("data-drawer"));
+      });
+    });
+  }
+
   document.querySelectorAll("[data-cmd]").forEach((btn) => {
+    if (btn._cmdBound) return;
+    btn._cmdBound = true;
     btn.addEventListener("click", () => {
       lastCmd = btn.getAttribute("data-cmd");
       send(lastCmd);
@@ -1529,6 +1569,7 @@
   if (state.name && $("playerName")) $("playerName").value = state.name;
   ensureToggle();
   openComposer(false);
+  bindDrawers();
 
   // 恢复会话：token 仍有效则续用；失效则用 user_id/道号自动重登
   (async function restore() {
