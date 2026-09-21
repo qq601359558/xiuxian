@@ -491,14 +491,18 @@
 
   function openChat(npc) {
     state.chat.open = true;
-    state.chat.npc = npc || "";
-    setText("chatTitle", "交谈 · " + (npc || "同道"));
-    setText("cmdTarget", "交谈：" + (npc || "—"));
+    if (npc) state.chat.npc = npc;
+    const who = state.chat.npc || "同道";
+    setText("chatTitle", "交谈 · " + who);
+    setText("cmdTarget", "交谈：" + who);
     setText("cmdTag", "言语");
     const m = $("chatModal");
     if (m) {
       m.classList.remove("hidden");
       m.style.display = "";
+      m.style.visibility = "visible";
+      m.style.pointerEvents = "auto";
+      m.style.opacity = "1";
       m.setAttribute("aria-hidden", "false");
     }
     if (!state.chat.lines.length) {
@@ -506,7 +510,26 @@
     }
     renderChat(true);
     const inp = $("chatInput");
-    if (inp) setTimeout(() => inp.focus(), 50);
+    if (inp) {
+      try { inp.disabled = false; } catch (e) {}
+      setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+    }
+  }
+
+  function ensureChatVisible() {
+    try {
+      const m = $("chatModal");
+      if (!m) {
+        openChat(state.chat.npc);
+        return;
+      }
+      const hidden = m.classList.contains("hidden")
+        || m.style.display === "none"
+        || m.style.visibility === "hidden";
+      if (hidden) openChat(state.chat.npc);
+    } catch (e) {
+      try { openChat(state.chat.npc); } catch (e2) {}
+    }
   }
 
   function chatMsg(who, text, cls) {
