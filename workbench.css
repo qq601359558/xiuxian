@@ -310,14 +310,6 @@ a { color: var(--brand-soft); text-decoration: none; }
 }
 .pane-body::-webkit-scrollbar-track { background: var(--bg-inset); }
 .pane-body.dense { padding: 0; }
-.people-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  /* 不撑破容器：允许被 .pane-body 裁切并滚动 */
-  min-height: 0;
-  padding-bottom: 12px;
-}
 .person-row { flex: 0 0 auto; }
 
 /* 时间线 */
@@ -358,7 +350,13 @@ a { color: var(--brand-soft); text-decoration: none; }
 .tl-meta { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
 /* 同场列表 */
-.people-list { display: flex; flex-direction: column; gap: 2px; }
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding-bottom: 12px;
+}
 .person-row {
   width: 100%;
   display: grid;

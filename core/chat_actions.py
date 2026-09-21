@@ -257,7 +257,7 @@ def _match_catalog(item_hint: str) -> Optional[str]:
 
 
 def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
-    """按职分给一小撮可卖货（规则过滤，非全货单灌屏）"""
+    """按职分给一小撮可卖货（去重，非全货单灌屏）"""
     try:
         from core.npc_personas import get_persona
 
@@ -265,7 +265,10 @@ def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
     except Exception:
         role = npc.sect_rank or ""
     pills, mats, arrs = [], [], []
+    seen = set()
     for name, cfg in ITEM_CATALOG.items():
+        if name in seen:
+            continue
         kind = cfg.get("kind")
         if kind == "pill":
             pills.append(name)
@@ -273,18 +276,31 @@ def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
             arrs.append(name)
         else:
             mats.append(name)
-    if any(k in (role + (npc.name or "")) for k in ("丹", "药")):
-        return pills[:limit]
-    if "阵" in role or (npc.sect and "剑" in npc.sect):
-        return arrs[:limit] or mats[:limit]
-    if "掌柜" in role or "商会" in (npc.sect or "") or "会长" in role:
-        # 混合货架
+        seen.add(name)
+    blob = role + (npc.name or "") + (npc.sect or "")
+    if any(k in blob for k in ("丹", "药")):
+        out = pills[:limit]
+    elif "阵" in role or "剑" in (npc.sect or ""):
+        out = arrs[:limit] or mats[:limit]
+    elif any(k in role for k in ("掌柜", "会长")) or "商会" in (npc.sect or ""):
         out = []
         for src in (pills, mats, arrs):
             if src:
                 out.append(src[0])
-        return (out + pills[:2] + mats[:2])[:limit]
-    return (mats[:3] + pills[:2])[:limit]
+        for x in pills + mats + arrs:
+            if x not in out:
+                out.append(x)
+            if len(out) >= limit:
+                break
+        out = out[:limit]
+    else:
+        out = (mats[:3] + pills[:2] + arrs[:1])[:limit]
+    # 保底去重
+    final = []
+    for n in out:
+        if n not in final:
+            final.append(n)
+    return final[:limit]
 
 
 def do_trade(player: Character, npc: Character, item_hint: str, stones: int, text: str = "") -> Dict[str, Any]:
