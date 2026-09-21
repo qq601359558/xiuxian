@@ -157,19 +157,22 @@ a { color: var(--brand-soft); text-decoration: none; }
 /* ========== 布局 ========== */
 .shell {
   height: calc(100% - var(--header-h));
+  max-height: calc(100% - var(--header-h));
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr) 280px;
+  /* dial 固定高、主区可滚、输入条固定 —— 中列必须 minmax(0,1fr) 才能出滚动条 */
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "dial dial dial"
     "nav main side"
     "compose compose compose";
+  overflow: hidden;
 }
-.dial { grid-area: dial; }
-.nav { grid-area: nav; }
-.main { grid-area: main; }
-.side { grid-area: side; }
-.compose { grid-area: compose; }
+.dial { grid-area: dial; min-width: 0; }
+.nav { grid-area: nav; min-width: 0; }
+.main { grid-area: main; min-width: 0; min-height: 0; }
+.side { grid-area: side; min-width: 0; min-height: 0; }
+.compose { grid-area: compose; min-width: 0; }
 
 /* 天道盘 — 连续仪器条 */
 .dial {
@@ -214,10 +217,12 @@ a { color: var(--brand-soft); text-decoration: none; }
   background: var(--bg-panel);
   display: flex; flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .nav-section {
   padding: var(--space-3);
   border-bottom: 1px solid var(--line-soft);
+  flex: 0 0 auto;
 }
 .nav-section h2, .side-section h2, .main-head h2 {
   font-family: var(--font-display);
@@ -225,7 +230,7 @@ a { color: var(--brand-soft); text-decoration: none; }
   letter-spacing: 0.06em;
 }
 .nav-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
-.nav-list { overflow: auto; flex: 1; padding: 6px; }
+.nav-list { overflow: auto; flex: 1 1 auto; min-height: 0; padding: 6px; }
 .list-item {
   width: 100%;
   text-align: left;
@@ -251,9 +256,10 @@ a { color: var(--brand-soft); text-decoration: none; }
 
 /* 主区 */
 .main {
-  min-width: 0; min-height: 0;
+  min-width: 0; min-height: 0; max-height: 100%;
   display: flex; flex-direction: column;
   background: var(--bg);
+  overflow: hidden;
 }
 .main-head {
   display: flex; align-items: center; gap: var(--space-3);
@@ -285,9 +291,34 @@ a { color: var(--brand-soft); text-decoration: none; }
 .tab:hover { color: var(--ink); }
 .tab[aria-selected="true"] { background: var(--brand-dim); color: var(--brand-soft); }
 .pane-body {
-  flex: 1; min-height: 0; overflow: auto; padding: var(--space-3) var(--space-4) var(--space-4);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  /* 明确出现纵向滚动条（同场多人、动态/世界长文） */
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand) transparent;
+  overscroll-behavior: contain;
 }
+.pane-body::-webkit-scrollbar { width: 10px; height: 10px; }
+.pane-body::-webkit-scrollbar-thumb {
+  background: var(--brand);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+.pane-body::-webkit-scrollbar-track { background: var(--bg-inset); }
 .pane-body.dense { padding: 0; }
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 不撑破容器：允许被 .pane-body 裁切并滚动 */
+  min-height: 0;
+  padding-bottom: 12px;
+}
+.person-row { flex: 0 0 auto; }
 
 /* 时间线 */
 .timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
@@ -429,6 +460,7 @@ a { color: var(--brand-soft); text-decoration: none; }
   background: var(--bg-panel);
   display: flex; flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .side-section { padding: var(--space-3); border-bottom: 1px solid var(--line-soft); }
 .side-section.grow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
