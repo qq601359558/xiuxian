@@ -1,30 +1,25 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
-title 天道因果录 · 局域网服
+title Tiandao LAN Server
 cd /d "%~dp0"
 
 set PYTHON=%~dp0.venv\Scripts\python.exe
-if not exist "%PYTHON%" (
-  set PYTHON=python
-)
+if not exist "%PYTHON%" set PYTHON=python
 
 echo ============================================
-echo   天道因果录 · 启动局域网服
+echo   TianDao YinGuoLu - LAN Server
 echo ============================================
-echo 项目目录：%cd%
-echo 本机访问：http://127.0.0.1:8765/
-echo 局域网：http://&lt;本机IP&gt;:8765/  （可用 ipconfig 查看 IPv4）
-echo 按 Ctrl+C 可停止服务器
+echo Project dir: %cd%
+echo Local URL:   http://127.0.0.1:8765/
+echo LAN URL:     http://YOUR-IP:8765/
+echo Find IP:     ipconfig  -^> IPv4
+echo Stop server: Ctrl+C in this window
 echo --------------------------------------------
-
-rem 避免本地模板干扰真 AI 时，可在此取消注释：
-rem set ALLOW_LOCAL_AI=0
-rem set AI_REQUIRED=1
 
 "%PYTHON%" -m server.run
 if errorlevel 1 (
   echo.
-  echo [错误] 服务器异常退出。请检查：.venv 是否存在、端口 8765 是否被占用。
+  echo [ERROR] Server stopped. Check .venv and port 8765.
 )
 echo.
 pause
