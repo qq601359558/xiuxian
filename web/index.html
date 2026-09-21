@@ -37,12 +37,13 @@
         </div>
         <div class="field">
           <label for="gServer">服务器</label>
-          <input id="gServer" type="url" placeholder="http://127.0.0.1:8765" />
+          <input id="gServer" type="text" placeholder="http://127.0.0.1:8765" spellcheck="false" />
         </div>
         <div id="gateMsg" class="gate-msg" role="alert"></div>
         <div class="gate-actions">
           <button type="submit" class="btn primary" id="gateSubmit">进入大世界</button>
           <button type="button" class="btn" id="btnDemo">离线演示（无服）</button>
+          <button type="button" class="btn" id="btnProbe">测试服务器连接</button>
         </div>
       </form>
       <p class="compose-hint" style="margin-top:16px">

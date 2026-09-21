@@ -38,10 +38,55 @@ class GameHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
+    def _serve_static(self, path: str) -> bool:
+        """托管工作台前端（web/ 与仓库根目录同名资源）"""
+        from config import BASE_DIR
+        from urllib.parse import unquote
+
+        if path in ("/", "/index.html", "/web", "/web/", "/web/index.html"):
+            rel = "web/index.html"
+        elif path.startswith("/web/"):
+            rel = "web/" + unquote(path[len("/web/"):])
+        elif path in ("/workbench.css", "/workbench.js", "/app.css", "/app.js", "/style.css"):
+            rel = unquote(path.lstrip("/"))
+        else:
+            return False
+        # 防路径穿越
+        root = BASE_DIR.resolve()
+        fp = (root / rel).resolve()
+        try:
+            fp.relative_to(root)
+        except ValueError:
+            return False
+        if not fp.is_file():
+            return False
+        ctype = "application/octet-stream"
+        if fp.suffix == ".html":
+            ctype = "text/html; charset=utf-8"
+        elif fp.suffix == ".css":
+            ctype = "text/css; charset=utf-8"
+        elif fp.suffix == ".js":
+            ctype = "text/javascript; charset=utf-8"
+        elif fp.suffix == ".json":
+            ctype = "application/json; charset=utf-8"
+        elif fp.suffix == ".svg":
+            ctype = "image/svg+xml"
+        data = fp.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(data)
+        return True
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/health":
             return _json_response(self, 200, {"ok": True, "service": "tiandao-lan"})
+        if self._serve_static(path):
+            return
         if path == "/ailog":
             from ai.calllog import tail_ai_calls, AI_LOG_PATH
 
@@ -319,7 +364,7 @@ def main():
 
     httpd = ThreadingHTTPServer((host, port), GameHandler)
     print(f"《天道因果录》局域网服已启动 http://{host}:{port}")
-    print("接口：POST /register /login /join /action /chat /logout  GET /who /health /commands /world/director")
+    print("接口：网页 http://%s:%s/  · API POST /register /login /join /action /chat /logout  GET /who /health /commands /world/director" % (LAN_HOST, LAN_PORT))
     log_event("SEASON", "server_start", host=host, port=port)
     print("示例：curl -X POST http://127.0.0.1:8765/join -d '{\"name\":\"厉飞雨\"}'")
     try:

@@ -90,8 +90,10 @@
   }
 
   async function api(path, body, opts) {
-    const url = (state.base || "").replace(/\/$/, "") + path;
-    const init = opts || {};
+    let server = (state.base || "").trim().replace(/\/$/, "");
+    if (server && !/^https?:\/\//i.test(server)) server = "http://" + server;
+    const url = server + path;
+    const init = Object.assign({}, opts || {});
     if (body) {
       init.method = "POST";
       init.headers = { "Content-Type": "application/json" };
@@ -104,10 +106,10 @@
       res = await fetch(url, init);
     } catch (e) {
       setOffline(true);
-      throw new Error("无法连接服务器");
+      throw new Error("无法连接服务器 " + server + "（请确认 server.run 已启动）");
     }
     if (!res.ok) {
-      let detail = res.statusText;
+      let detail = res.statusText || String(res.status);
       try {
         const j = await res.json();
         detail = j.error || j.message || detail;
@@ -210,9 +212,12 @@
     setText("dName", s.name || "—");
     setText("dSect", (s.sect || "散修") + (s.rank ? "·" + s.rank : ""));
     setText("dRealm", s.realm || "—");
-    setText("dExp", s.exp || (s.status === "MEDITATING" ? "闭关中" : "行止自由"));
+    setText("dExp", s.exp || (s.status === "MEDITATING" || s.meditating ? "闭关中" : "行止自由"));
     setText("dLoc", s.location || "—");
-    setText("dSafe", s.location_safe === false ? "野外凶险" : "安全区");
+    const locSafe = s.location_safe;
+    const safeTxt =
+      locSafe === false ? "野外凶险" : s.conflict_zone ? "冲突区" : s.newbie_protected ? "新手庇护中" : locSafe === true ? "安全区" : "—";
+    setText("dSafe", safeTxt);
     const life = Number(s.rem_years || 0);
     setText("dLife", life ? life.toFixed(0) : "—");
     const lifeEl = $("dLife");
@@ -690,6 +695,10 @@
   async function sendRaw(text) {
     const c = (text || "").trim();
     if (!c) return;
+    if (state.busy) {
+      toast("天道正在裁决，请稍候…");
+      return;
+    }
     busy(true);
     try {
       let data;
@@ -698,14 +707,7 @@
       } else if (state.chat.open && !c.startsWith("/")) {
         pushFeed(c, "cmd");
         chatAppend("你", c, "me");
-        data = await api("/chat", { token: state.token, text: c, to: state.chat.npc });
-      } else if (c.startsWith("/")) {
-        pushFeed("» " + c, "cmd");
-        data = await api("/action", { token: state.token, command: c });
-      } else if (state.chat.open) {
-        pushFeed("» " + c, "cmd");
-        chatAppend("你", c, "me");
-        data = await api("/chat", { token: state.token, text: c, to: state.chat.npc });
+        data = await api("/chat", { token: state.token, text: c, to: state.chat.npc || undefined });
       } else {
         pushFeed("» " + c, "cmd");
         data = await api("/action", { token: state.token, command: c });
@@ -714,6 +716,7 @@
     } catch (e) {
       pushFeed("失败：" + e.message, "bad");
       toast(e.message, "bad");
+      if (state.chat.open) chatAppend("", "失败：" + e.message, "sys");
     } finally {
       busy(false);
       $("composeInput").value = "";
@@ -746,11 +749,15 @@
           .split("\n")
           .filter(Boolean)
           .forEach((ln) => {
-            if (/会话开始|可开口|挂断|作别|同场】/.test(ln)) chatAppend("", ln, "sys");
-            else chatAppend(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
+            if (/会话开始|可开口|挂断|作别|【同场】|会话记忆|上次交谈|直接打字/.test(ln)) {
+              chatAppend("", ln, "sys");
+            } else {
+              chatAppend(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
+            }
           });
+        pushFeed(text, "npc");
       }
-      if (text) pushFeed(text, "npc");
+      if (state.view === "here") renderView();
       return;
     }
     if (data.chat_ended) {
@@ -758,8 +765,12 @@
       pushFeed(text, "sys");
       return;
     }
-    if (text) pushFeed(text);
-    // 常用回包刷新
+    if (data.ok === false && state.chat.open) {
+      chatAppend("", text || "操作未完成", "sys");
+      pushFeed(text || "操作未完成", "bad");
+      return;
+    }
+    if (text) pushFeed(text, data.ok === false ? "bad" : undefined);
     if (state.view !== "feed") renderView();
   }
 
@@ -769,26 +780,36 @@
       renderAll();
       return;
     }
+    if (!state.token) return;
     loadingPane();
+    const errors = [];
+    let look = null;
+    let here = null;
+    let world = null;
     try {
-      const [look, here, world] = await Promise.all([
-        api("/action", { token: state.token, command: "/look" }),
-        api("/action", { token: state.token, command: "/here" }),
-        api("/world/director").catch(() => null),
-      ]);
-      if (look && look.status) applyStatus(look.status);
-      else if (look && look.text) parseLook(look.text);
-      state.here = here.here || state.here || [];
-      if (world && world.ok !== false) state.world = world;
-      pulseFromWorld();
-      renderAll();
+      look = await api("/action", { token: state.token, command: "/look" });
     } catch (e) {
-      const pane = $("paneBody");
-      if (pane)
-        pane.innerHTML = emptyState("刷新失败", e.message, [
-          { label: "重试", act: "refresh" },
-        ]);
-      toast(e.message, "bad");
+      errors.push("观照：" + e.message);
+    }
+    try {
+      here = await api("/action", { token: state.token, command: "/here" });
+    } catch (e) {
+      errors.push("同场：" + e.message);
+    }
+    try {
+      world = await api("/world/director");
+    } catch (e) {
+      errors.push("世界：" + e.message);
+    }
+    if (look && look.status) applyStatus(look.status);
+    else if (look && look.text) parseLook(look.text);
+    if (here && Array.isArray(here.here)) state.here = here.here;
+    if (world && world.ok !== false) state.world = world;
+    pulseFromWorld();
+    renderAll();
+    if (errors.length && (!look || !here)) {
+      pushFeed("部分数据刷新失败：" + errors.join("；"), "bad");
+      toast("刷新失败：" + errors[0], "bad");
     }
   }
 
@@ -797,20 +818,38 @@
     const name = (text.match(/【([^】]+)】/) || [])[1];
     const loc = (text.match(/位置：([^（\n]+)/) || [])[1];
     const stones = (text.match(/随身灵石\s*(\d+)/) || [])[1];
+    const vault = (text.match(/金库\s*(\d+)/) || [])[1];
     const life = (text.match(/寿元约([\d.]+)/) || [])[1];
+    const realm = (text.match(/】\s*([^\s|]+)/) || [])[1];
     if (name) s.name = name;
+    if (realm) s.realm = realm;
     if (loc) s.location = loc.trim();
     if (stones) s.stones = Number(stones);
+    if (vault) s.vault = Number(vault);
     if (life) s.rem_years = Number(life);
+    if (/安全/.test(text) && !/凶险|野外/.test(text.split("\n").find((l) => l.includes("位置：")) || "")) {
+      s.location_safe = true;
+    } else if (/凶险|大凶|野外/.test(text)) {
+      s.location_safe = false;
+    }
     applyStatus(s);
   }
 
   function showApp() {
     $("gate").classList.add("hidden");
     $("app").classList.remove("hidden");
-    setOffline(state.demo);
-    if (state.demo) $("serverLabel").textContent = "离线演示";
-    else setOffline(false);
+    if (state.demo) {
+      $("serverLabel").textContent = "离线演示";
+    } else {
+      setOffline(false);
+      const label = $("serverLabel");
+      if (label) label.textContent = (state.base || "").replace(/^https?:\/\//, "");
+      const dot = $("serverDot");
+      if (dot) {
+        dot.classList.remove("off");
+        dot.classList.add("on");
+      }
+    }
   }
 
   function showGate(msg) {
@@ -820,11 +859,15 @@
   }
 
   async function doAuth(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const username = $("gUser").value.trim();
     const password = $("gPass").value;
     const name = ($("gName").value || username).trim();
-    const server = ($("gServer").value || state.base || "").trim().replace(/\/$/, "");
+    let server = ($("gServer").value || state.base || "").trim().replace(/\/$/, "");
+    if (server && !/^https?:\/\//i.test(server)) {
+      server = "http://" + server;
+      $("gServer").value = server;
+    }
     if (server) {
       state.base = server;
       localStorage.setItem("td_wb_base", state.base);
@@ -834,6 +877,10 @@
       $("gateMsg").textContent = "请填写账号与口令";
       return;
     }
+    const btn = $("gateSubmit");
+    const oldLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "连接中…";
     try {
       let payload;
       if (state.gateMode === "register") {
@@ -841,12 +888,23 @@
       } else {
         payload = await api("/login", { username, password, name });
       }
-      if (!payload || payload.ok === false) throw new Error((payload && payload.error) || "入世失败");
+      if (!payload || payload.ok === false) {
+        throw new Error((payload && payload.error) || "入世失败");
+      }
+      if (!payload.token) throw new Error("服务器未返回会话令牌");
       state.token = payload.token;
-      if (!state.token) throw new Error("服务器未返回会话令牌");
       state.name = payload.name || name;
       state.user = username;
       state.uid = payload.user_id || "";
+      if (payload.realm) {
+        applyStatus({
+          name: state.name,
+          realm: payload.realm,
+          location: payload.location,
+          rem_years: payload.rem_years,
+          stones: 0,
+        });
+      }
       localStorage.setItem("td_wb_token", state.token);
       localStorage.setItem("td_wb_user", state.user);
       localStorage.setItem("td_wb_name", state.name);
@@ -854,11 +912,41 @@
       state.demo = false;
       localStorage.removeItem("td_wb_demo");
       showApp();
-      await loadCommands();
-      await refreshAll();
       toast("已入世 · " + state.name, "ok");
+      // 刷新失败不阻断已登录
+      try {
+        await loadCommands();
+        await refreshAll();
+      } catch (e2) {
+        pushFeed("界面刷新不完整：" + (e2 && e2.message), "bad");
+      }
+      if (payload.newbie_feed) pushFeed(payload.newbie_feed, "sys");
     } catch (err) {
       $("gateMsg").textContent = err.message || "无法进入大世界";
+      toast($("gateMsg").textContent, "bad");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldLabel;
+    }
+  }
+
+  async function probeServer() {
+    let server = ($("gServer").value || state.base || "").trim().replace(/\/$/, "");
+    if (server && !/^https?:\/\//i.test(server)) server = "http://" + server;
+    $("gateMsg").textContent = "正在连接 " + server + " …";
+    try {
+      const r = await fetch(server + "/health");
+      const j = await r.json();
+      if (j && j.ok) {
+        $("gateMsg").textContent = "服务器可达：" + server + "（可登录）";
+        state.base = server;
+        localStorage.setItem("td_wb_base", state.base);
+      } else {
+        $("gateMsg").textContent = "服务器无响应格式，请检查地址";
+      }
+    } catch (e) {
+      $("gateMsg").textContent =
+        "连不上 " + server + "。请先运行 .venv\\Scripts\\python.exe -m server.run，或点「离线演示」。";
     }
   }
 
@@ -873,7 +961,8 @@
     if (!state.token) return;
     try {
       const look = await api("/action", { token: state.token, command: "/look" });
-      if (!look || look.ok === false) throw new Error(look && look.error);
+      if (!look || look.ok === false) throw new Error((look && look.error) || "token invalid");
+      if (look.status) applyStatus(look.status);
       state.demo = false;
       showApp();
       await loadCommands();
@@ -907,6 +996,7 @@
     $("fieldName").classList.add("hidden");
     $("gateForm").addEventListener("submit", doAuth);
     $("btnDemo").addEventListener("click", loadDemo);
+    if ($("btnProbe")) $("btnProbe").addEventListener("click", probeServer);
 
     $("btnTheme").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
     $("btnRetry").addEventListener("click", () => {
