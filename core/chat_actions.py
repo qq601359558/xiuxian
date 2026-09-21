@@ -18,7 +18,11 @@ _KW = {
     "attack": ["偷袭", "伏击", "斩杀", "灭杀", "拍死", "一掌", "一拳", "动手", "拍", "打", "杀", "斩"],
     "steal": ["顺走", "窃取", "摸走", "偷走", "偷", "摸"],
     "gift": ["奉上", "孝敬", "递给", "递上", "送上", "送给", "赠", "赠上"],
-    "trade": ["交易", "出价", "买下", "购买", "换你", "卖我", "买", "卖", "换"],
+    "trade": [
+        "交易", "出价", "买下", "购买", "换你", "卖我", "买", "卖", "换",
+        "卖你", "卖给", "出售", "卖出", "收购", "收不收", "作价", "开价",
+        "货单", "有何货", "有什么货", "可卖", "多少钱",
+    ],
 }
 
 # 长词优先，避免「打」误吞「一掌拍过去」
@@ -175,7 +179,116 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
     }
 
 
-def do_trade(player: Character, npc: Character, item_hint: str, stones: int) -> Dict[str, Any]:
+def _npc_trade_role(npc: Character) -> str:
+    """shop：可按货单买卖；person：散修私易；hostile：敌对拒商"""
+    try:
+        from core.npc_personas import get_persona
+
+        role = (get_persona(npc) or {}).get("role") or ""
+        note = ""
+        try:
+            from core.npc_roster import ROSTER
+
+            for row in ROSTER:
+                if row.get("name") == npc.name:
+                    note = row.get("note") or ""
+                    role = role or row.get("rank") or ""
+                    break
+        except Exception:
+            pass
+        blob = f"{role} {note} {npc.sect_rank or ''} {npc.sect or ''}"
+        if any(k in blob for k in ("掌柜", "会长", "伙计", "商会", "丹铺", "牙人", "镖头")):
+            return "shop"
+        if any(k in blob for k in ("宗主", "魔修", "妖修")):
+            return "person"
+    except Exception:
+        pass
+    if npc.sect and "商会" in npc.sect:
+        return "shop"
+    return "person"
+
+
+def _extract_qty(text: str) -> int:
+    t = text or ""
+    m = re.search(r"(\d+)\s*[个颗枚件份张套]", t)
+    if m:
+        try:
+            return max(1, min(20, int(m.group(1))))
+        except Exception:
+            return 1
+    m = re.search(r"(?:买|购|卖|出售)[^\d]{0,12}(\d+)", t)
+    if m:
+        try:
+            n = int(m.group(1))
+            if 1 <= n <= 20:
+                return n
+        except Exception:
+            pass
+    # 句末小数量：卖你xx 2 / 买xx3
+    for n in reversed(re.findall(r"(\d+)", t)):
+        try:
+            ni = int(n)
+        except Exception:
+            continue
+        if 1 <= ni <= 20:
+            return ni
+        if ni > 20:
+            break
+    return 1
+
+
+def _is_selling(text: str) -> bool:
+    t = (text or "")
+    return any(k in t for k in ("卖你", "卖给", "出售", "卖出", "卖给你", "你收不", "收不收", "变现"))
+
+
+def _is_asking_goods(text: str) -> bool:
+    t = (text or "")
+    return any(k in t for k in ("有什么货", "有何货", "货单", "可卖什么", "卖什么", "店里有什么", "货架"))
+
+
+def _match_catalog(item_hint: str) -> Optional[str]:
+    if not item_hint:
+        return None
+    for name in ITEM_CATALOG:
+        if name == item_hint or item_hint in name or name in item_hint:
+            return name
+    return None
+
+
+def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
+    """按职分给一小撮可卖货（规则过滤，非全货单灌屏）"""
+    try:
+        from core.npc_personas import get_persona
+
+        role = (get_persona(npc) or {}).get("role") or ""
+    except Exception:
+        role = npc.sect_rank or ""
+    pills, mats, arrs = [], [], []
+    for name, cfg in ITEM_CATALOG.items():
+        kind = cfg.get("kind")
+        if kind == "pill":
+            pills.append(name)
+        elif kind == "array":
+            arrs.append(name)
+        else:
+            mats.append(name)
+    if any(k in (role + (npc.name or "")) for k in ("丹", "药")):
+        return pills[:limit]
+    if "阵" in role or (npc.sect and "剑" in npc.sect):
+        return arrs[:limit] or mats[:limit]
+    if "掌柜" in role or "商会" in (npc.sect or "") or "会长" in role:
+        # 混合货架
+        out = []
+        for src in (pills, mats, arrs):
+            if src:
+                out.append(src[0])
+        return (out + pills[:2] + mats[:2])[:limit]
+    return (mats[:3] + pills[:2])[:limit]
+
+
+def do_trade(player: Character, npc: Character, item_hint: str, stones: int, text: str = "") -> Dict[str, Any]:
+    """会话内交易：买货单 / 卖行囊 / 问货单 / 人情；规则落账"""
     try:
         from core.npc_mind import attitude_toward
 
@@ -183,62 +296,177 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int) -> 
         v = int(att.get("value") or 0)
     except Exception:
         v = 0
-    if v < -20:
-        line = _polish(npc, player, "trade", f"「{npc.name}」冷笑：「与你做买卖？免了。」")
-        return {"ok": True, "action": "trade", "text": f"【交易被拒】\n{line}", "ended": False}
+    role = _npc_trade_role(npc)
+    try:
+        from core.npc_mind import attitude_toward as _at
 
+        if _at(npc, player.id).get("label") == "hostile" or v < -20:
+            line = _polish(npc, player, "trade", f"「{npc.name}」冷笑：「与你做买卖？免了。」")
+            return {"ok": True, "action": "trade", "text": f"【交易被拒】\n{line}", "ended": False}
+    except Exception:
+        if v < -20:
+            line = _polish(npc, player, "trade", f"「{npc.name}」冷笑：「与你做买卖？免了。」")
+            return {"ok": True, "action": "trade", "text": f"【交易被拒】\n{line}", "ended": False}
+
+    # —— 问货单 ——
+    if _is_asking_goods(text) or (not item_hint and not stones and any(k in (text or "") for k in ("货", "什么价", "多少钱"))):
+        stock = _shop_stock_preview(npc)
+        if not stock:
+            return {
+                "ok": True,
+                "action": "trade",
+                "text": f"【货架】「{npc.name}」摊手：「我这里没现货，大货请 /坊市 商会。」",
+                "ended": False,
+            }
+        if role == "shop":
+            lines = [f"「{npc.name}」亮出货架："]
+            for n in stock:
+                p = ITEM_CATALOG.get(n, {}).get("price") or 0
+                lines.append(f"  · {n} · {p} 灵石起")
+            lines.append("（可说：买下聚气丹 / 我出N灵石 / 卖你妖兽内丹）")
+        else:
+            lines = [
+                f"「{npc.name}」道：「我不做柜台生意，若有缘法倒可私易。」",
+                "可试：「卖你行囊中的货」或「这货多少钱」；系统货单请开 /坊市。",
+            ]
+        return {"ok": True, "action": "trade", "text": "\n".join(lines), "ended": False}
+
+    qty = _extract_qty(text or "")
     item = item_hint or ""
-    catalog_item = None
-    for name in ITEM_CATALOG:
-        if item and (name == item or item in name or name in item):
-            catalog_item = name
-            break
-    if not catalog_item and item:
-        for name in ITEM_CATALOG:
-            if name in (item_hint or ""):
-                catalog_item = name
-                break
+    catalog_item = _match_catalog(item)
 
-    if catalog_item:
-        base = int(ITEM_CATALOG[catalog_item].get("price") or 0)
-        mult = 0.85 if v >= 30 else (1.0 if v >= 0 else 1.15)
-        price = max(1, int(base * mult))
-        # 玩家出价低于对方要价 → 拒绝，禁止压价白嫖
-        if stones > 0 and stones < price:
+    # —— 玩家卖给 NPC ——
+    if _is_selling(text) or (item and ("卖" in (text or "")) and catalog_item is None):
+        inv_item = _match_inventory(player, item) or _match_catalog(item)
+        if not inv_item:
+            # 行囊模糊再试
+            inv_item = _match_inventory(player, item_hint)
+        if not inv_item:
+            have = "、".join(player.inventory[:8]) or "空空如也"
             return {
                 "ok": False,
-                "error": f"【{catalog_item}】作价 {price} 灵石，你只出 {stones}，【{npc.name}】摇头不卖。",
+                "error": f"要卖什么？行囊现有：{have}。可说「卖你聚气丹」。",
             }
-        if player.spirit_stones < price:
-            return {
-                "ok": False,
-                "error": f"【{catalog_item}】作价 {price} 灵石，你随身仅有 {player.spirit_stones}。",
-            }
-        player.spirit_stones -= price
-        player.inventory.append(catalog_item)
+        qty = max(1, min(qty, player.inventory.count(inv_item) if inv_item in player.inventory else 1))
+        if role == "shop":
+            # 走商会回收价（含恐慌系数）
+            try:
+                from core.market import MarketEngine
+
+                sold_total = 0
+                for _i in range(qty):
+                    res = MarketEngine.sell_to_guild(player, inv_item, 1)
+                    if not res.get("success"):
+                        return {"ok": False, "error": res.get("message", "无法售出。")}
+                    sold_total += int(res.get("gain") or res.get("total") or 0)
+                CharacterRepository.save(player)
+                line = _polish(npc, player, "trade", f"「{npc.name}」验货点灵石：「作价 {sold_total}，两清。」")
+                return {
+                    "ok": True,
+                    "action": "trade",
+                    "text": f"【售出】{inv_item}×{qty}，得灵石 {sold_total}。\n{line}",
+                    "ended": False,
+                }
+            except Exception as e:
+                return {"ok": False, "error": f"柜台结算失败：{e}"}
+        # 私易：回收价更低
         try:
+            cfg = ITEM_CATALOG.get(inv_item) or {"price": 20}
+            from config import MARKET_SELL_BACK_RATE
+            from core.player_echo import market_sell_mult
+
+            base = max(1, int(int(cfg.get("price") or 20) * MARKET_SELL_BACK_RATE * market_sell_mult()))
+            mult = 0.7 if v < 0 else (0.85 if v < 25 else 0.95)
+            price = max(1, int(base * mult))
+            got = 0
+            for _i in range(qty):
+                if inv_item not in player.inventory:
+                    break
+                player.inventory.remove(inv_item)
+                player.spirit_stones += price
+                got += price
             CharacterRepository.save(player)
+            line = _polish(npc, player, "trade", f"「{npc.name}」压价收下：「私易作价 {price} 灵石一件，别声张。」")
+            return {
+                "ok": True,
+                "action": "trade",
+                "text": f"【私易售出】{inv_item}×{qty}，得 {got} 灵石。\n{line}",
+                "ended": False,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"私易失败：{e}"}
+
+    # —— 买货 ——
+    if catalog_item:
+        cfg = ITEM_CATALOG[catalog_item]
+        base = int(cfg.get("price") or 0)
+        try:
+            from core.player_echo import market_buy_mult
+
+            panic_m = market_buy_mult()
         except Exception:
-            pass
+            panic_m = 1.0
+        if role == "shop":
+            mult = 0.90 if v >= 40 else (0.95 if v >= 20 else 1.0)
+            unit = max(1, int(base * mult * panic_m))
+        else:
+            # 非柜台：托人/转手加价
+            mult = 1.25 if v >= 0 else 1.4
+            unit = max(1, int(base * mult * panic_m))
+        total = unit * qty
+        if stones > 0 and stones < unit:
+            return {
+                "ok": False,
+                "error": f"【{catalog_item}】作价 {unit} 灵石/件，你只出 {stones}，【{npc.name}】摇头不卖。",
+            }
+        if player.spirit_stones < total:
+            return {
+                "ok": False,
+                "error": f"【{catalog_item}】×{qty} 需 {total} 灵石，你随身仅有 {player.spirit_stones}。",
+            }
+        # 货源：柜台走货单；非柜台也允许「代购到手」（同一规则发物）
+        player.spirit_stones -= total
+        kind = cfg.get("kind")
+        for _i in range(qty):
+            if kind == "array":
+                if catalog_item not in player.arrays:
+                    player.arrays.append(catalog_item)
+                else:
+                    player.inventory.append(catalog_item)
+            else:
+                player.inventory.append(catalog_item)
+        CharacterRepository.save(player)
         try:
             from core.npc_mind import shift_attitude
 
             shift_attitude(npc, player.id, 3, reason="会话成交")
         except Exception:
             pass
-        line = _polish(npc, player, "trade", f"「{npc.name}」收下灵石，递来【{catalog_item}】：「货讫两清。」")
+        who = "柜台" if role == "shop" else "转手"
+        line = _polish(
+            npc,
+            player,
+            "trade",
+            f"「{npc.name}」收下灵石递来【{catalog_item}×{qty}】：「货讫两清。」",
+        )
         return {
             "ok": True,
             "action": "trade",
-            "text": f"【成交】以 {price} 灵石购得【{catalog_item}】。\n{line}",
+            "text": f"【成交·{who}】{catalog_item}×{qty}，单价 {unit}，共付 {total} 灵石。\n{line}",
             "ended": False,
+            "item_name": catalog_item,
+            "qty": qty,
+            "total": total,
         }
 
     # 无具体货：出灵石换态度/人情
     if stones <= 0:
         return {
             "ok": False,
-            "error": "交易需点明想买的货，或出价「N 灵石」。",
+            "error": (
+                "交易需点明货名（如：买下聚气丹 / 卖你妖兽内丹），"
+                "或说「有什么货」看货架，或出价「N 灵石」作人情。"
+            ),
         }
     if player.spirit_stones < stones:
         return {"ok": False, "error": f"随身仅有 {player.spirit_stones} 灵石。"}
@@ -474,7 +702,7 @@ def execute_chat_action(
     if intent == "gift":
         return do_gift(player, npc, item, stones)
     if intent == "trade":
-        return do_trade(player, npc, item, stones)
+        return do_trade(player, npc, item, stones, text=text)
     if intent == "steal":
         return do_steal(player, npc, rec)
     if intent == "kidnap":

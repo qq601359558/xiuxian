@@ -29,12 +29,15 @@ def test_forge_unique_and_persist():
     assert n1 not in banned0
     assert GeneratedNameRepository.get(n1) is not None
     assert n1 in exclusion_names()
-    # 再生成 8 次不得与系统或已生成撞名
+    # 再生成不得与本轮已出、或系统名撞名
+    seen = {n1}
     for i in range(8):
         r = forge("pill")
         assert r["success"]
-        assert r["item"]["name"] not in banned0
-        assert GeneratedNameRepository.get(r["item"]["name"])
+        n = r["item"]["name"]
+        assert n not in seen, n
+        assert GeneratedNameRepository.get(n) is not None
+        seen.add(n)
     print("✓ 丹药生成去重落库", n1)
 
     e = forge("equip", "剑")

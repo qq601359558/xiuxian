@@ -37,6 +37,8 @@ def exclusion_names() -> Set[str]:
 
 
 def _local_name(kind: str, banned: Set[str]) -> str:
+    import uuid
+
     for _ in range(40):
         if kind == "pill":
             n = random.choice(_PILL_A) + random.choice(_PILL_B) + random.choice(_PILL_C)
@@ -46,7 +48,8 @@ def _local_name(kind: str, banned: Set[str]) -> str:
             n = random.choice(_MON_A) + random.choice(_MON_B) + random.choice(_MON_C)
         if n not in banned:
             return n
-    return f"无名{kind}{random.randint(10,99)}"
+    # 兜底：短哈希后缀，避免库内「无名pillXX」反复撞名
+    return f"无名{kind}{uuid.uuid4().hex[:4]}"
 
 
 def _clamp_pill(data: Dict[str, Any], banned: Set[str]) -> Dict[str, Any]:
