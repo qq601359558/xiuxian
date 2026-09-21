@@ -637,3 +637,94 @@ body.is-offline .offline-bar { display: flex; }
   .person-row { grid-template-columns: 36px minmax(0,1fr); }
   .person-actions { grid-column: 2; }
 }
+
+/* ===== 交谈弹窗（主交互）===== */
+.chat-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 10, 14, 0.72);
+}
+html[data-theme="light"] .chat-modal {
+  background: rgba(30, 28, 20, 0.45);
+}
+.chat-modal.hidden { display: none !important; }
+.chat-modal__panel {
+  width: min(440px, 100%);
+  max-height: min(640px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.chat-modal__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 12px 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+.chat-modal__head h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink);
+  margin: 0;
+}
+.chat-modal__sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.chat-modal__log {
+  flex: 1;
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg);
+}
+.chat-modal__form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+}
+.chat-modal__form input {
+  flex: 1;
+  height: 42px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--bg-inset);
+  font-size: 14px;
+  color: var(--ink);
+}
+.chat-modal__form input:focus-visible { box-shadow: var(--focus); }
+.chat-modal__form .btn {
+  min-width: 72px;
+  height: 42px;
+  font-weight: 600;
+}
+.chat-modal__foot {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 10px;
+  background: var(--bg-elev);
+}
+.chat-modal__log .msg { max-width: 92%; }
+@media (max-width: 480px) {
+  .chat-modal { padding: 0; place-items: end stretch; }
+  .chat-modal__panel {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+}

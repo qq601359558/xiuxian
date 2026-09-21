@@ -200,6 +200,31 @@
     </div>
   </div>
 
+  <!-- 交谈弹窗 -->
+  <div id="chatModal" class="chat-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="chatTitle">
+    <div class="chat-modal__panel">
+      <header class="chat-modal__head">
+        <div>
+          <h2 id="chatTitle">交谈</h2>
+          <p id="chatSub" class="chat-modal__sub">直接说话即可 · 可写买卖/动作，由规则结算</p>
+        </div>
+        <button type="button" class="icon-btn" id="chatClose" aria-label="结束交谈" title="挂断并关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="chat-modal__log" id="chatLog" aria-live="polite"></div>
+      <form id="chatForm" class="chat-modal__form">
+        <input id="chatInput" type="text" maxlength="200" autocomplete="off"
+               placeholder="说点什么…（回车发送）" aria-label="发言" />
+        <button type="submit" class="btn primary" id="chatSend">发送</button>
+      </form>
+      <div class="chat-modal__foot">
+        <button type="button" class="btn sm" data-cmd="/会话">会话记忆</button>
+        <button type="button" class="btn sm danger" id="chatHangup">挂断</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-host" id="toasts" aria-live="polite"></div>
 
   <script src="workbench.js"></script>

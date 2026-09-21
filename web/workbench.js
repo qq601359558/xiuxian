@@ -524,58 +524,172 @@
   function openChat(npcName) {
     state.chat.open = true;
     state.chat.npc = npcName || "";
-    state.chat.lines = state.chat.lines.filter((l) => true);
     $("detailTitle").textContent = "交谈 · " + (npcName || "");
+    const titleEl = $("chatTitle");
+    if (titleEl) titleEl.textContent = "交谈 · " + (npcName || "同道");
     $("composeMode").textContent = "言语";
     $("composeTarget").textContent = "交谈对象：" + (npcName || "");
+    const m = $("chatModal");
+    if (m) {
+      m.classList.remove("hidden");
+      m.setAttribute("aria-hidden", "false");
+    }
     document.body.classList.add("side-open");
+    renderChatModal();
     renderDetail();
     if (state.view === "here") renderView();
+    const inp = $("chatInput");
+    if (inp) {
+      inp.disabled = false;
+      setTimeout(function () { inp.focus(); }, 40);
+    }
   }
 
   function closeChat() {
     state.chat.open = false;
     state.chat.npc = "";
     $("detailTitle").textContent = "详情";
+    const titleEl = $("chatTitle");
+    if (titleEl) titleEl.textContent = "交谈";
     $("composeMode").textContent = "敕令";
     $("composeTarget").textContent = "未锁定交谈";
+    const m = $("chatModal");
+    if (m) {
+      m.classList.add("hidden");
+      m.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("side-open");
     renderDetail();
     if (state.view === "here") renderView();
-    document.body.classList.remove("side-open");
   }
 
   function chatAppend(who, text, cls) {
-    state.chat.lines.push({ who, text, cls: cls || "npc" });
+    state.chat.lines.push({ who: who, text: text, cls: cls || "npc" });
     if (state.chat.lines.length > 80) state.chat.lines = state.chat.lines.slice(-80);
+    renderChatModal(true);
     renderDetail(true);
+  }
+
+  function chatMessagesHtml() {
+    const lines = state.chat.lines;
+    if (!lines.length) return '<div class="msg sys">会话已开 · 在弹窗输入框直接说话</div>';
+    return lines
+      .map(function (l) {
+        if (l.cls === "sys") return '<div class="msg sys">' + esc(l.text) + "</div>";
+        return (
+          '<div class="msg ' +
+          esc(l.cls) +
+          '"><span class="who">' +
+          esc(l.who || "") +
+          "</span>" +
+          esc(l.text) +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderChatModal(scroll) {
+    const log = $("chatLog");
+    if (!log) return;
+    log.innerHTML = chatMessagesHtml();
+    if (scroll) log.scrollTop = log.scrollHeight;
   }
 
   function renderDetail(scroll) {
     const body = $("detailBody");
     if (!body) return;
     if (!state.chat.open) {
-      body.innerHTML = `<div class="detail-empty"><div><strong style="display:block;color:var(--ink-2);margin-bottom:6px">选一位同道</strong>点击同场列表开聊窗；买卖、打听由规则结算。</div></div>`;
+      body.innerHTML =
+        '<div class="detail-empty"><div><strong style="display:block;color:var(--ink-2);margin-bottom:6px">选一位同道</strong>点击同场列表会弹出聊天窗。</div></div>';
       return;
     }
-    const lines = state.chat.lines;
-    const html =
-      (lines.length
-        ? lines
-            .map((l) => {
-              if (l.cls === "sys") return `<div class="msg sys">${esc(l.text)}</div>`;
-              return `<div class="msg ${esc(l.cls)}"><span class="who">${esc(l.who || "")}</span>${esc(l.text)}</div>`;
-            })
-            .join("")
-        : `<div class="msg sys">会话已开 · 直接在下方说话</div>`) +
-      `<div class="chat-log-end"></div>`;
-    body.innerHTML = `<div class="chat-log" id="chatLog">${html}</div>
-      <div class="action-row">
-        <button type="button" class="btn sm" data-cmd="/会话">会话记忆</button>
-        <button type="button" class="btn sm" data-cmd="/挂断">挂断</button>
-      </div>`;
+    body.innerHTML =
+      '<div class="chat-log">' +
+      chatMessagesHtml() +
+      '</div><div class="action-row"><button type="button" class="btn sm" data-cmd="/会话">会话记忆</button><button type="button" class="btn sm" id="btnOpenChatModal">打开聊天窗</button></div>';
     if (scroll) {
-      const log = $("chatLog");
+      const log = body.querySelector(".chat-log");
       if (log) log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  function sendChatModal(text) {
+    const c = (text || "").trim();
+    if (!c || state.busy) return;
+    chatAppend("你", c, "me");
+    if (state.demo) {
+      chatAppend(state.chat.npc || "对方", "（演示）已收到。接服务器后可真实结算。", "npc");
+      return;
+    }
+    busy(true);
+    const sendBtn = $("chatSend");
+    const inp = $("chatInput");
+    if (inp) inp.placeholder = "正在发送…";
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = "…";
+    }
+    api("/chat", { token: state.token, text: c, to: state.chat.npc || undefined })
+      .then(function (data) {
+        handleChatResult(data);
+      })
+      .catch(function (e) {
+        chatAppend("", "发送失败：" + e.message, "sys");
+        toast(e.message, "bad");
+      })
+      .finally(function () {
+        busy(false);
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "发送";
+        }
+        if (inp) {
+          inp.placeholder = "说点什么…（回车发送）";
+          if (state.chat.open) inp.focus();
+        }
+      });
+  }
+
+  function handleChatResult(data) {
+    if (!data) return;
+    if (data.status) applyStatus(data.status);
+    const text = data.text || data.error || "";
+    if (data.ok === false) {
+      chatAppend("", text || "操作未完成", "sys");
+      pushFeed(text, "bad");
+      return;
+    }
+    if (data.chat_open) {
+      if (data.npc && data.npc !== state.chat.npc) {
+        state.chat.npc = data.npc;
+        const titleEl = $("chatTitle");
+        if (titleEl) titleEl.textContent = "交谈 · " + data.npc;
+        $("composeTarget").textContent = "交谈对象：" + data.npc;
+      }
+      if (text) {
+        String(text)
+          .split("\n")
+          .filter(Boolean)
+          .forEach(function (ln) {
+            if (/会话开始|可开口|挂断|作别|【同场】|会话记忆|直接打字|上次交谈/.test(ln)) {
+              chatAppend("", ln, "sys");
+            } else {
+              chatAppend(data.npc || state.chat.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
+            }
+          });
+        pushFeed(text, "npc");
+      }
+      return;
+    }
+    if (data.chat_ended) {
+      chatAppend("", text || "会话已结束。", "sys");
+      pushFeed(text, "sys");
+      return;
+    }
+    if (text) {
+      chatAppend(data.npc || "系统", text, "npc");
+      pushFeed(text);
     }
   }
 
@@ -757,6 +871,7 @@
           });
         pushFeed(text, "npc");
       }
+      renderChatModal(true);
       if (state.view === "here") renderView();
       return;
     }
@@ -849,6 +964,11 @@
         dot.classList.remove("off");
         dot.classList.add("on");
       }
+    }
+    const modal = $("chatModal");
+    if (modal && !state.chat.open) {
+      modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
     }
   }
 
@@ -1006,6 +1126,43 @@
     $("btnRefresh").addEventListener("click", () => refreshAll());
     $("btnCloseSide").addEventListener("click", closeChat);
     $("btnSide").addEventListener("click", () => document.body.classList.toggle("side-open"));
+    if ($("chatClose")) $("chatClose").addEventListener("click", closeChat);
+    if ($("chatHangup")) {
+      $("chatHangup").addEventListener("click", () => {
+        if (!state.demo && state.token) {
+          api("/action", { token: state.token, command: "/挂断" })
+            .then(handleChatResult)
+            .catch(() => {});
+        }
+        closeChat();
+      });
+    }
+    if ($("chatForm")) {
+      $("chatForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const inp = $("chatInput");
+        const v = inp.value;
+        if (!v.trim()) return;
+        inp.value = "";
+        sendChatModal(v);
+      });
+    }
+    if ($("chatClose")) {
+      $("chatClose").addEventListener("click", function () {
+        if (!state.demo && state.token) {
+          api("/action", { token: state.token, command: "/挂断" })
+            .then(handleChatResult)
+            .catch(function () {});
+        }
+        closeChat();
+      });
+    }
+    const chatModal = $("chatModal");
+    if (chatModal) {
+      chatModal.addEventListener("click", function (e) {
+        if (e.target === chatModal) closeChat();
+      });
+    }
     $("btnNav").addEventListener("click", () => document.body.classList.toggle("nav-open"));
     $("btnHelp").addEventListener("click", () => sendRaw("/帮助"));
     $("btnLogout").addEventListener("click", async () => {
@@ -1039,14 +1196,21 @@
     });
 
     $("paneBody").addEventListener("click", (e) => {
+      const openModal = e.target.closest("#btnOpenChatModal");
+      if (openModal) {
+        openChat(state.chat.npc);
+        return;
+      }
       const person = e.target.closest("[data-person]");
       if (person) {
         const name = person.getAttribute("data-person");
+        if (!state.chat.lines.length || state.chat.npc !== name) state.chat.lines = [];
         openChat(name);
+        chatAppend("", "会话已开，请在弹窗输入框发言。", "sys");
         if (!state.demo) {
           pushFeed("» /交谈 " + name, "cmd");
           api("/action", { token: state.token, command: "/交谈 " + name })
-            .then(handleResult)
+            .then(handleChatResult)
             .catch((err) => {
               chatAppend("", "无法交谈：" + err.message, "sys");
             });
@@ -1057,7 +1221,9 @@
       }
       const cmd = e.target.closest("[data-cmd]");
       if (cmd) {
-        sendRaw(cmd.getAttribute("data-cmd"));
+        const c = cmd.getAttribute("data-cmd");
+        if (state.chat.open && !c.startsWith("/")) sendChatModal(c);
+        else sendRaw(c);
         return;
       }
       const act = e.target.closest("[data-empty-act]");
@@ -1070,6 +1236,10 @@
     });
 
     $("detailBody").addEventListener("click", (e) => {
+      if (e.target.closest("#btnOpenChatModal")) {
+        openChat(state.chat.npc);
+        return;
+      }
       const cmd = e.target.closest("[data-cmd]");
       if (cmd) sendRaw(cmd.getAttribute("data-cmd"));
     });
@@ -1079,8 +1249,11 @@
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const v = inp.value;
+      // 交谈弹窗打开时：底栏非斜杠内容走弹窗聊天，避免输入框「消失感」
       if (state.chat.open && !String(v).startsWith("/")) {
-        chatAppend("你", v, "me");
+        sendChatModal(v);
+        inp.value = "";
+        return;
       }
       sendRaw(v);
     });
@@ -1114,13 +1287,23 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         $("suggest").classList.add("hidden");
+        const modal = $("chatModal");
+        if (modal && !modal.classList.contains("hidden")) {
+          closeChat();
+          return;
+        }
         document.body.classList.remove("nav-open", "side-open");
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
-        inp.focus();
-        if (!inp.value) inp.value = "/";
-        renderSuggest();
+        const target = state.chat.open ? $("chatInput") : $("composeInput");
+        if (target) {
+          target.focus();
+          if (target === $("composeInput") && !target.value) {
+            target.value = "/";
+            renderSuggest();
+          }
+        }
       }
     });
 
