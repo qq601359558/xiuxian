@@ -1058,12 +1058,37 @@ class World:
                     ),
                     "season": info,
                 }
+            if action in ("/map", "/宝图", "/看宝图"):
+                from core.treasure_system import TreasureEngine
+                query = parts[1] if len(parts) > 1 else None
+                res = TreasureEngine.read_map(char, query)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+
             if action in ("/dig", "/挖宝"):
-                res = DigEngine.dig(char)
+                from core.treasure_system import TreasureEngine
+                choice = parts[1] if len(parts) > 1 else None
+                res = TreasureEngine.dig(char, choice_id=choice)
                 if res.get("success"):
                     CharacterRepository.save(char)
                     log_event("DECISION", "dig", name=char.name, outcome=res.get("outcome"))
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+
+            if action in ("/do", "/做", "/act"):
+                from core.treasure_system import TreasureEngine
+                from core.items import ItemKind
+                free_text = command.strip().split(None, 1)[1] if len(parts) > 1 else ""
+                maps = char.find_items_by_kind(ItemKind.TREASURE_MAP)
+                if maps:
+                    res = TreasureEngine.resolve_free_action(char, free_text)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                        log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                res = FreeActionEngine.execute(char, free_text)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("narrative", res.get("message", "")), "status": self._status_dict(char)}
+
             if action in ("/equip", "/穿戴"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/穿戴 <装备名>"}

@@ -324,9 +324,21 @@ class AdventureEngine:
         loot_lines = []
         for item in loot:
             name = item["name"]
-            for _ in range(int(item.get("qty") or 1)):
-                c.inventory.append(name)
-            loot_lines.append(name)
+            kind = item.get("kind")
+            qty = int(item.get("qty") or 1)
+            if kind == "map":
+                from core.treasure_system import TreasureEngine
+                for _ in range(qty):
+                    tmap = TreasureEngine.generate_treasure_map(c, tier=max(1, min(4, c.realm.tier)))
+                    c.add_item_entity(tmap)
+                    loot_lines.append(tmap.display_name)
+            else:
+                from core.items import ItemFactory
+                for _ in range(qty):
+                    entity = ItemFactory.from_legacy_name(name)
+                    c.add_item_entity(entity)
+                    loot_lines.append(name)
+
 
         ev_summaries = []
         for ev in events:

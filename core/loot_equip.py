@@ -18,68 +18,17 @@ def _is_equip(name: str) -> bool:
 
 
 class DigEngine:
-    """使用藏宝图挖宝"""
+    """使用藏宝图挖宝（Core-V2 桥接层）"""
 
     @staticmethod
-    def dig(c: Character, now: Optional[float] = None) -> Dict[str, Any]:
-        t = now if now is not None else time.time()
-        if c.status == CharacterStatus.DEAD or c.lifespan.is_dead(t):
-            return {"success": False, "message": "身死道消，无宝可挖。"}
-        if c.status == CharacterStatus.MEDITATING:
-            return {"success": False, "message": "闭关中不可外出挖宝，请先 /出关。"}
-        if "藏宝图" not in c.inventory:
-            return {"success": False, "message": "行囊中并无藏宝图。可外出探险拾取或坊市购入。"}
+    def dig(
+        c: Character,
+        now: Optional[float] = None,
+        choice_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        from core.treasure_system import TreasureEngine
+        return TreasureEngine.dig(c, now=now, choice_id=choice_id)
 
-        c.inventory.remove("藏宝图")
-        # 规则骰
-        r = random.random()
-        if r < 0.45:
-            stones = random.randint(80, 400 + c.realm.tier * 80)
-            exp = random.randint(50, 200 + c.realm.tier * 40)
-            c.spirit_stones += stones
-            c.realm.current_exp = min(c.realm.max_exp, c.realm.current_exp + exp)
-            extra = ""
-            if random.random() < 0.35:
-                from config import DIG_RARE_PILLS
-                # 主要凡品，小概率人/地品
-                r2 = random.random()
-                if r2 < 0.7:
-                    pill = random.choice(ADVENTURE_PILLS)
-                elif r2 < 0.95:
-                    pill = "玄元聚气丹"
-                else:
-                    pill = random.choice(DIG_RARE_PILLS)
-                c.inventory.append(pill)
-                extra = f"，另得【{pill}】"
-            return {
-                "success": True,
-                "outcome": "fortune",
-                "message": (
-                    f"【挖宝功成】循图至幽谷，掘出上古玉匣：灵石 +{stones}，修为 +{exp}{extra}。"
-                ),
-                "stones": stones,
-                "exp": exp,
-            }
-        if r < 0.75:
-            return {
-                "success": True,
-                "outcome": "empty",
-                "message": "【空图】掘地三尺，唯余黄土。藏宝图作废。",
-            }
-        # 杀劫
-        loss_exp = int(c.realm.current_exp * 0.1) + 15
-        burn = round(random.uniform(0.3, 1.2), 2)
-        c.realm.current_exp = max(0, c.realm.current_exp - loss_exp)
-        c.lifespan.burn_lifespan(burn)
-        return {
-            "success": True,
-            "outcome": "trap",
-            "message": (
-                f"【杀劫】图上标注竟是上古杀阵！破阵逃出，修为 -{loss_exp}，燃寿 {burn} 岁。"
-            ),
-            "exp": -loss_exp,
-            "lifespan": -burn,
-        }
 
 
 class EquipEngine:
