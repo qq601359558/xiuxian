@@ -293,6 +293,21 @@ def player_say(player: Character, text: str) -> Dict[str, Any]:
     d[player.id] = rec
     _save_all(d)
 
+    try:
+        from core.tasks import hook_note
+
+        note = hook_note(player, "chat_say")
+        if note:
+            rec = d.get(player.id) or rec
+            rec["task_note"] = note
+            d[player.id] = rec
+            _save_all(d)
+        # 会话两轮 → 日常问安
+        if int(rec.get("turns") or 0) >= 2:
+            hook_note(player, "chat_rounds")
+    except Exception:
+        pass
+
     npc = CharacterRepository.get_by_id(rec.get("npc_id") or "")
     if not npc:
         close_session(player.id, "对方已不在场。", by="system")

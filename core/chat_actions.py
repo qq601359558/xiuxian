@@ -326,12 +326,18 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
 
     # —— 问货单 ——
     if _is_asking_goods(text) or (not item_hint and not stones and any(k in (text or "") for k in ("货", "什么价", "多少钱"))):
+        try:
+            from core.tasks import hook_note
+
+            _tn = hook_note(player, "trade_query")
+        except Exception:
+            _tn = ""
         stock = _shop_stock_preview(npc)
         if not stock:
             return {
                 "ok": True,
                 "action": "trade",
-                "text": f"【货架】「{npc.name}」摊手：「我这里没现货，大货请 /坊市 商会。」",
+                "text": (_tn + "\n" if _tn else "") + f"【货架】「{npc.name}」摊手：「我这里没现货，大货请 /坊市 商会。」",
                 "ended": False,
             }
         if role == "shop":
@@ -345,7 +351,7 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
                 f"「{npc.name}」道：「我不做柜台生意，若有缘法倒可私易。」",
                 "可试：「卖你行囊中的货」或「这货多少钱」；系统货单请开 /坊市。",
             ]
-        return {"ok": True, "action": "trade", "text": "\n".join(lines), "ended": False}
+        return {"ok": True, "action": "trade", "text": ((_tn + "\n") if _tn else "") + "\n".join(lines), "ended": False}
 
     qty = _extract_qty(text or "")
     item = item_hint or ""
@@ -377,10 +383,16 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
                     sold_total += int(res.get("gain") or res.get("total") or 0)
                 CharacterRepository.save(player)
                 line = _polish(npc, player, "trade", f"「{npc.name}」验货点灵石：「作价 {sold_total}，两清。」")
+                try:
+                    from core.tasks import hook_note
+
+                    _tn = hook_note(player, "trade_sell")
+                except Exception:
+                    _tn = ""
                 return {
                     "ok": True,
                     "action": "trade",
-                    "text": f"【售出】{inv_item}×{qty}，得灵石 {sold_total}。\n{line}",
+                    "text": ((_tn + "\n") if _tn else "") + f"【售出】{inv_item}×{qty}，得灵石 {sold_total}。\n{line}",
                     "ended": False,
                 }
             except Exception as e:
@@ -465,10 +477,17 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
             "trade",
             f"「{npc.name}」收下灵石递来【{catalog_item}×{qty}】：「货讫两清。」",
         )
+        try:
+            from core.tasks import hook_note
+
+            _tn = hook_note(player, "trade_buy")
+        except Exception:
+            _tn = ""
         return {
             "ok": True,
             "action": "trade",
-            "text": f"【成交·{who}】{catalog_item}×{qty}，单价 {unit}，共付 {total} 灵石。\n{line}",
+            "text": ((_tn + "\n") if _tn else "")
+            + f"【成交·{who}】{catalog_item}×{qty}，单价 {unit}，共付 {total} 灵石。\n{line}",
             "ended": False,
             "item_name": catalog_item,
             "qty": qty,

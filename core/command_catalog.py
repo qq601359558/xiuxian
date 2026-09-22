@@ -61,6 +61,7 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/告示", "aliases": ["/bountyboard"], "usage": "/告示", "desc": "悬赏告示榜", "category": "world"},
     {"cmd": "/大事记", "aliases": ["/chronicle"], "usage": "/大事记", "desc": "天道总账：近期全界大事", "category": "world"},
     {"cmd": "/近况", "aliases": [], "usage": "/近况", "desc": "世间近况 + 与你何干 + 目标", "category": "world"},
+    {"cmd": "/任务", "aliases": ["/tasks", "/quest"], "usage": "/任务 [接|弃] [id]", "desc": "指引任务：初玩教学与日常委托，有明确赏格", "category": "core"},
     {"cmd": "/目标", "aliases": ["/goals"], "usage": "/目标", "desc": "查看/刷新世间目标（可接可拒）", "category": "world"},
     {"cmd": "/议程", "aliases": ["/agenda"], "usage": "/议程", "desc": "NPC 当前议程一览", "category": "world"},
 

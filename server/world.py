@@ -220,10 +220,16 @@ class World:
                 resumed = True
             newbie_feed = ""
             first_night = None
+            try:
+                from core.tasks import ensure_tasks, format_task_board
+
+                ensure_tasks(char)
+            except Exception:
+                pass
             if is_new_life:
                 newbie_feed = (
-                    "【初入道】三步上手：① 点同场道友说话 ② 问一句「有什么货」或「买下聚气丹」"
-                    " ③ 输入 /天道 看天道动向。新手庇护 72 小时。"
+                    "【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；"
+                    "每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。"
                 )
                 # 第一晚爽点：天道有感 + 同场有人 + 一件小结果
                 try:
@@ -677,7 +683,17 @@ class World:
                 return {"ok": True, "text": self._who()}
             if action in ("/go", "/前往"):
                 dest = parts[1] if len(parts) > 1 else ""
-                return self._go(char, dest)
+                res = self._go(char, dest)
+                if res.get("ok"):
+                    try:
+                        from core.tasks import hook_note
+
+                        n = hook_note(char, "move")
+                        if n:
+                            res["text"] = n + "\n" + (res.get("text") or "")
+                    except Exception:
+                        pass
+                return res
             if action in ("/meditate", "/闭关", "/打坐"):
                 hours = 1.0
                 if len(parts) > 1:
@@ -708,7 +724,15 @@ class World:
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/logout", "/下线"):
                 return self.logout(token)
+            if action in ("/任务", "/tasks", "/quest"):
+                from core.tasks import handle_task_command, hook_note
+
+                hook_note(char, "look_task")
+                return handle_task_command(char, parts)
             if action in ("/goals", "/目标"):
+                from core.tasks import hook_note
+
+                n = hook_note(char, "look_task") or hook_note(char, "look_goals")
                 GoalEngine.sync_progress(char)
                 return {"ok": True, "text": GoalEngine.format_board(char), "goals": GoalEngine.list_for(char)}
             if action in ("/近况", "/briefing"):
@@ -1247,7 +1271,16 @@ class World:
                     return {"ok": res.get("success"), "text": res.get("message", "")}
                 return {"ok": True, "text": SecretRealmEngine.board_text()}
             if action in ("/break", "/突破"):
-                return self._breakthrough(char, session)
+                try:
+                    from core.tasks import hook_note
+
+                    n = hook_note(char, "look_breakthrough")
+                    res = self._breakthrough(char, session)
+                    if n:
+                        res["text"] = n + "\n" + (res.get("text") or "")
+                    return res
+                except Exception:
+                    return self._breakthrough(char, session)
             if action in ("/fight", "/斗法"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/斗法 <道号>"}
@@ -1269,8 +1302,13 @@ class World:
                 return {"ok": True, "text": "\n".join(r.get("text", "") for r in acted), "count": len(acted)}
             if action in ("/天道", "/heaven", "/导演"):
                 from core.world_director import handle_heaven_command
+                from core.tasks import hook_note
 
-                return handle_heaven_command(action, parts)
+                res = handle_heaven_command(action, parts)
+                n = hook_note(char, "look_board")
+                if n:
+                    res["text"] = n + "\n" + (res.get("text") or "")
+                return res
             if action in ("/世界弧", "/arc", "/弧"):
                 from core.world_arc import handle_arc_command
 
@@ -1304,6 +1342,14 @@ class World:
                 simple = len(parts) > 1 and parts[1] in ("简", "simple")
                 r = format_world_schedule(viewer_id=char.id, simple=simple)
                 text = offline_txt + (r.get("text") or "")
+                try:
+                    from core.tasks import hook_note
+
+                    n = hook_note(char, "look_schedule")
+                    if n:
+                        text = n + "\n" + text
+                except Exception:
+                    pass
                 if not simple:
                     try:
                         acted = NpcAgendaEngine.tick_world(max_npcs=2, force=False)
@@ -1459,8 +1505,13 @@ class World:
                 return handle_faction_command(parts, char)
             if action in ("/望气", "/echo", "/天象"):
                 from core.player_echo import handle_echo_command
+                from core.tasks import hook_note
 
-                return handle_echo_command(parts, char)
+                res = handle_echo_command(parts, char)
+                n = hook_note(char, "look_echo")
+                if n:
+                    res["text"] = n + "\n" + (res.get("text") or "")
+                return res
             if action in ("/纪元回流", "/era", "/史笔回流"):
                 from core.era_reentry import handle_era_command
 
@@ -1891,6 +1942,14 @@ class World:
                 res = MarketEngine.use_pill(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
+                    try:
+                        from core.tasks import hook_note
+
+                        n = hook_note(char, "use_pill")
+                        if n:
+                            res["message"] = n + "\n" + (res.get("message") or "")
+                    except Exception:
+                        pass
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/deposit", "/寄存"):
                 if len(parts) < 2 or not parts[1].isdigit():
@@ -2362,7 +2421,7 @@ class World:
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
-            "/ailog(=AI日志) /ai(=AI自检含导演链路) /天道(推演=强制导演一轮) /世界弧|/弧 /世界弧应劫 /望气 /势力 /宗门令 /纪元回流 /世界演变"
+            "/任务 /目标 /天道 /世情 /望气"
         )
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:

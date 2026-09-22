@@ -180,9 +180,22 @@
   // ---------- 视图 ----------
   const VIEWS = {
     here: { title: "同场修士", sub: "点人打开交谈玉简" },
+    tasks: { title: "任务", sub: "初玩教学与日常委托 · 有赏格" },
     world: { title: "世界命盘", sub: "天道 · 弧 · 势力 · 望气 · 史笔" },
     feed: { title: "动态", sub: "敕令与世界消息" },
   };
+
+  function renderTasks() {
+    // 副作用：向服务端拉 /任务 文本进动态；本视图给操作入口
+    sendCmd("/任务");
+    return `<div class="state"><strong>任务</strong><p>指引与赏格。步骤与奖励见动态中的【任务】全文。</p>
+      <div class="actions" style="justify-content:center">
+        <button type="button" class="btn sm primary" data-cmd="/任务">刷新任务</button>
+        <button type="button" class="btn sm" data-cmd="/任务 接 daily_greet">接·问安</button>
+        <button type="button" class="btn sm" data-cmd="/任务 接 daily_scout">接·探风</button>
+        <button type="button" class="btn sm" data-cmd="/目标">世间目标</button>
+      </div></div>`;
+  }
 
   function setView(v) {
     if (!VIEWS[v]) v = "here";
@@ -442,6 +455,7 @@
     const box = $("body");
     if (!box) return;
     if (state.view === "here") box.innerHTML = renderHere();
+    else if (state.view === "tasks") box.innerHTML = renderTasks() || box.innerHTML;
     else if (state.view === "feed") box.innerHTML = renderFeed();
     else box.innerHTML = renderWorld();
   }
@@ -908,30 +922,24 @@
   }
 
   function showFirstNight(fn, name) {
-    // 三分钟爽点引导：点人 → 问货/买丹 → 看天道
     toast("欢迎入世 · " + (name || ""), "ok");
     setTimeout(() => {
-      pushFeed("【第一晚】① 左侧同场，点一位道友，弹窗里直接说话", "sys");
-    }, 400);
+      pushFeed("【初玩教学】已激活：在敕令输入 /任务 看当前步骤（T1 识人 → … → T10 收束）", "sys");
+    }, 300);
     setTimeout(() => {
-      pushFeed("【第一晚】② 可试：「有什么货」「买下聚气丹」「最近可太平？」", "sys");
-    }, 1200);
+      setView("here");
+      renderBody();
+      toast("T1：点同场道友，弹窗里说一句", "");
+    }, 900);
     if (fn && fn.proactive && fn.proactive.text) {
       chatMsg("", "【同场搭话】" + fn.proactive.text, "sys");
     }
     if (fn && fn.director && fn.director.ok) {
-      const d = fn.director;
-      pushFeed(
-        "【天道】" + (d.hint || "有感") + (d.source ? "（" + d.source + "）" : ""),
-        "ai"
-      );
+      pushFeed("【天道】" + (fn.director.hint || "有感"), "ai");
     }
     setTimeout(() => {
-      setView("here");
-      renderBody();
-      toast("同场有人 · 点开聊窗即可说话", "");
-    }, 1800);
-    // 20 分钟内不重复第一晚引导
+      pushFeed("【提示】下一步可输入 /任务；做完一步会提示「已学会」。", "sys");
+    }, 1600);
     localStorage.setItem("wb.tour", "1");
   }
 
