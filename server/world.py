@@ -1327,16 +1327,20 @@ class World:
                 from core import rumors as _rum
 
                 try:
-                    _rum.maybe_ambient_tick(chance=0.10)
+                    _rum.maybe_ambient_tick(chance=0.05)
                 except Exception:
                     pass
                 offline_txt = ""
                 try:
-                    from core.jianghu_sim import JianghuSimulator, format_offline_report
+                    from core.jianghu_sim import format_offline_report, JianghuSimulator
 
-                    off = JianghuSimulator.simulate_offline()
-                    if off.get("waves") or off.get("events"):
-                        offline_txt = format_offline_report(off) + "\n\n"
+                    # 轻量摘要：不在锁内跑重仿真（后台 tick 已负责演化）
+                    try:
+                        brief = JianghuSimulator.simulate_offline()
+                        if brief.get("waves") or brief.get("events"):
+                            offline_txt = format_offline_report(brief) + "\n\n"
+                    except Exception:
+                        offline_txt = ""
                 except Exception:
                     offline_txt = ""
                 simple = len(parts) > 1 and parts[1] in ("简", "simple")
@@ -1350,18 +1354,9 @@ class World:
                         text = n + "\n" + text
                 except Exception:
                     pass
-                if not simple:
-                    try:
-                        acted = NpcAgendaEngine.tick_world(max_npcs=2, force=False)
-                        if acted:
-                            text += "\n\n【刚发生】\n" + "\n".join(
-                                x.get("text", "") for x in acted[:3]
-                            )
-                    except Exception:
-                        pass
                 try:
                     import core.jianghu as _jh
-                    text += "\n\n【江湖因果账】\n" + _jh.format_brief(6)
+                    text += "\n\n【江湖因果账】\n" + _jh.format_brief(4)
                 except Exception:
                     pass
                 return {
