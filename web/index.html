@@ -140,11 +140,13 @@
             <div id="suggest" class="suggest hidden" role="listbox"></div>
             <form id="cmdForm" class="console-row">
               <span class="console-tag" id="cmdTag">敕令</span>
+              <span class="busy-dot" id="busyDot" aria-hidden="true"></span>
               <input id="cmdInput" type="text" maxlength="200"
                      placeholder="/ 搜索指令，或直接说话（交谈中）"
                      aria-label="敕令输入" />
               <button type="submit" class="btn primary" id="cmdGo">行</button>
             </form>
+            <div class="busy-line" id="busyLine" role="status">天道正在裁决</div>
             <div class="console-hint">
               <span><kbd>/</kbd> 模糊指令</span>
               <span><kbd>Ctrl+K</kbd> 聚焦</span>
@@ -171,6 +173,7 @@
       </div>
       <div class="slab-log" id="chatLog" aria-live="polite"></div>
       <form id="chatForm" class="slab-form">
+        <span class="busy-dot" id="chatBusy" aria-hidden="true"></span>
         <input id="chatInput" type="text" maxlength="200" autocomplete="off"
                placeholder="说点什么…（回车发送）" aria-label="发言" />
         <button type="submit" class="btn primary" id="chatSend">发送</button>

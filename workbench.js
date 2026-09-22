@@ -129,14 +129,42 @@
     return res.json();
   }
 
-  function busy(on) {
+  function setBusyLine(msg) {
+    const el = $("busyLine");
+    if (el) el.textContent = msg || "天道正在裁决";
+    document.body.classList.add("is-busy");
+  }
+  function clearBusyLine() {
+    document.body.classList.remove("is-busy");
+    const el = $("busyLine");
+    if (el) el.textContent = "天道正在裁决";
+  }
+
+  function busy(on, label) {
     state.busy = !!on;
     const go = $("cmdGo");
     const send = $("chatSend");
-    if (go) go.disabled = !!on;
-    if (send) send.disabled = !!on;
     const rf = $("btnRefresh");
+    if (go) {
+      go.disabled = !!on;
+      go.textContent = on ? "…" : "行";
+    }
+    if (send) {
+      send.disabled = !!on;
+      send.textContent = on ? "…" : "发送";
+    }
     if (rf) rf.disabled = !!on;
+    const chatInp = $("chatInput");
+    if (chatInp && on) {
+      chatInp.dataset.ph = chatInp.dataset.ph || chatInp.placeholder;
+      chatInp.placeholder = "等待对方回应…";
+    } else if (chatInp && chatInp.dataset.ph) {
+      chatInp.placeholder = chatInp.dataset.ph;
+    }
+    const dot = $("chatBusy");
+    if (dot) dot.style.display = on ? "inline-block" : "none";
+    if (on) setBusyLine(label);
+    else clearBusyLine();
   }
 
   // ---------- 渲染：天道盘 ----------
@@ -607,15 +635,24 @@
       chatMsg(state.chat.npc || "对方", "（演示）已记录。接服务器后可真实结算。", "npc");
       return;
     }
-    busy(true);
+    busy(true, "对方沉思中…");
+    chatMsg("", "（对方沉思中…）", "sys");
     try {
       const data = await api("/chat", {
         token: state.token,
         text: c,
         to: state.chat.npc || undefined,
       });
+      // 移除占位行
+      state.chat.lines = (state.chat.lines || []).filter(
+        (l) => !(l.cls === "sys" && l.text === "（对方沉思中…）")
+      );
       handleChatData(data);
     } catch (e) {
+      state.chat.lines = (state.chat.lines || []).filter(
+        (l) => !(l.cls === "sys" && l.text === "（对方沉思中…）")
+      );
+      renderChat(true);
       chatMsg("", "失败：" + e.message, "sys");
       toast(e.message, "bad");
     } finally {
@@ -638,6 +675,18 @@
     if (state.view !== "feed" && state.view !== "world") renderBody();
   }
 
+  function cmdWaitLabel(c) {
+    const s = String(c || "");
+    if (/世情|世界演变|演变/.test(s)) return "正在观照世间演变（可能需数秒）…";
+    if (/天道\s*推演/.test(s)) return "天道推演中，请稍候…";
+    if (/天道/.test(s)) return "观照天道…";
+    if (/交谈|说 /.test(s)) return "正在交谈…";
+    if (/购买|出售|坊市|成交/.test(s)) return "柜台结账中…";
+    if (/闭关|出关|突破/.test(s)) return "吐纳渡劫中…";
+    if (/here|同场/.test(s)) return "扫描同场…";
+    return "天道正在裁决…";
+  }
+
   async function sendCmd(cmd) {
     const c = (cmd || "").trim();
     if (!c || state.busy) return;
@@ -645,7 +694,7 @@
       sendChat(c);
       return;
     }
-    busy(true);
+    busy(true, cmdWaitLabel(c));
     try {
       if (!c.startsWith("»")) pushFeed("» " + c, "cmd");
       let data;
@@ -768,6 +817,8 @@
     }
     if (!state.token) return;
     loading();
+    setBusyLine("正在同步世界…");
+    document.body.classList.add("is-busy");
     const errs = [];
     let look = null;
     let here = null;
@@ -799,6 +850,8 @@
     if (!state.here.length) {
       pushFeed("【提示】同场暂无道友，可迁跃到「青云坊市客栈」常有人往来。", "sys");
     }
+    clearBusyLine();
+    document.body.classList.remove("is-busy");
     if (errs.length) toast("部分刷新失败：" + errs[0], "bad");
   }
 
