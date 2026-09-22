@@ -96,22 +96,33 @@
     let base = (state.base || "").trim().replace(/\/$/, "");
     if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
     const url = base + path;
-    const opts = body
-      ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-      : { method: "GET" };
+    // 本机局域网服：尽量绕过浏览器/系统代理对 127.0.0.1 的干扰
+    const opts = {
+      method: body ? "POST" : "GET",
+      credentials: "omit",
+      cache: "no-store",
+    };
+    if (body) {
+      opts.headers = { "Content-Type": "application/json" };
+      opts.body = JSON.stringify(body);
+    }
     let res;
     try {
       res = await fetch(url, opts);
     } catch (e) {
       setOffline(true);
-      throw new Error("无法连接 " + base + "（请启动 server.run）");
+      throw new Error("无法连接 " + base + "（请双击 start_server.bat）");
     }
     if (!res.ok) {
       let msg = res.statusText || String(res.status);
+      if (res.status === 502) {
+        msg = "502：多半被本机代理拦截或服务未开。请点「离线演示」或检查代理/启动 start_server.bat";
+      }
       try {
         const j = await res.json();
         msg = j.error || j.message || msg;
       } catch (_) {}
+      if (res.status === 502) setOffline(true);
       throw new Error(msg);
     }
     setOffline(false);
