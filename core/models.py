@@ -237,7 +237,9 @@ class Character(BaseModel):
     combat_lock_until: float = 0.0
     flee_cooldown_until: float = 0.0
     adventure_cd_until: float = 0.0
+    has_found_map: bool = False  # 是否已获取过首张探险宝图（首探必得保底）
     # 目标（六类目标源，可接可拒）
+
     goals: List[Dict[str, Any]] = Field(default_factory=list)
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:

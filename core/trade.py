@@ -29,6 +29,7 @@ from config import (
     NPC_ATTITUDE_HOSTILE,
 )
 from core.models import Character, CharacterStatus
+from core.items import ItemEntity, ItemFactory
 
 
 # ==================== 公共门禁 ====================
@@ -49,12 +50,19 @@ def can_use_market(c: Character, now: Optional[float] = None) -> Tuple[bool, str
 
 
 def _take_item(c: Character, item_name: str, qty: int = 1) -> bool:
-    """从随身 inventory（或阵盘 arrays）扣 qty 件；不足返回 False 且不改动。"""
+    """从随身 inventory / items（或阵盘 arrays）扣 qty 件；不足返回 False 且不改动。"""
     have_inv = c.inventory.count(item_name)
     have_arr = c.arrays.count(item_name)
     if have_inv + have_arr < qty:
         return False
     left = qty
+    # 优先扣除实体道具
+    for _ in range(qty):
+        ent = c.remove_item_entity(item_name)
+        if ent:
+            left -= 1
+        else:
+            break
     while left > 0 and item_name in c.inventory:
         c.inventory.remove(item_name)
         left -= 1
@@ -71,6 +79,9 @@ def _give_item(c: Character, item_name: str, qty: int = 1, kind: str = "material
                 c.arrays.append(item_name)
             else:
                 c.inventory.append(item_name)
+    elif "藏宝图" in item_name:
+        for _ in range(qty):
+            c.add_item_entity(ItemFactory.from_legacy_name(item_name))
     else:
         for _ in range(qty):
             c.inventory.append(item_name)
@@ -109,6 +120,10 @@ class TradeSession(BaseModel):
     b_stones: int = 0
     a_items: List[str] = Field(default_factory=list)
     b_items: List[str] = Field(default_factory=list)
+    a_entities: List[ItemEntity] = Field(default_factory=list)
+    b_entities: List[ItemEntity] = Field(default_factory=list)
+    a_strings: List[str] = Field(default_factory=list)
+    b_strings: List[str] = Field(default_factory=list)
     a_ok: bool = False
     b_ok: bool = False
     location: str = ""
@@ -171,7 +186,9 @@ def _cancel_session(s: TradeSession, reason: str = "已取消") -> Dict[str, Any
     updated: Dict[str, Character] = {}
     if a:
         a.spirit_stones += s.a_stones
-        for it in s.a_items:
+        for ent in s.a_entities:
+            a.add_item_entity(ent)
+        for it in s.a_strings:
             a.inventory.append(it)
         if s.a_stones or s.a_items:
             lines.append(f"{s.a_name} 已退回灵石 {s.a_stones} 与 {len(s.a_items)} 件货物。")
@@ -179,7 +196,9 @@ def _cancel_session(s: TradeSession, reason: str = "已取消") -> Dict[str, Any
         updated[a.id] = a
     if b:
         b.spirit_stones += s.b_stones
-        for it in s.b_items:
+        for ent in s.b_entities:
+            b.add_item_entity(ent)
+        for it in s.b_strings:
             b.inventory.append(it)
         if s.b_stones or s.b_items:
             lines.append(f"{s.b_name} 已退回灵石 {s.b_stones} 与 {len(s.b_items)} 件货物。")
@@ -274,19 +293,30 @@ class TradeEngine:
         for it, n in take_map.items():
             if c.inventory.count(it) < n:
                 return {"success": False, "message": f"随身【{it}】不足 {n} 件，报价未生效。"}
+        locked_entities: List[ItemEntity] = []
+        locked_strings: List[str] = []
         for it, n in take_map.items():
             for _ in range(n):
-                c.inventory.remove(it)
+                ent = c.remove_item_entity(it)
+                if ent:
+                    locked_entities.append(ent)
+                else:
+                    c.inventory.remove(it)
+                    locked_strings.append(it)
 
         c.spirit_stones -= stones
         side = s.side_of(c.id)
         if side == "a":
             s.a_stones = stones
             s.a_items = list(items)
+            s.a_entities = locked_entities
+            s.a_strings = locked_strings
             s.a_ok = False
         else:
             s.b_stones = stones
             s.b_items = list(items)
+            s.b_entities = locked_entities
+            s.b_strings = locked_strings
             s.b_ok = False
         # 改一方报价即清除双方同意
         s.a_ok = False
@@ -298,17 +328,25 @@ class TradeEngine:
         side = s.side_of(c.id)
         if side == "a":
             c.spirit_stones += s.a_stones
-            for it in s.a_items:
+            for ent in s.a_entities:
+                c.add_item_entity(ent)
+            for it in s.a_strings:
                 c.inventory.append(it)
             s.a_stones = 0
             s.a_items = []
+            s.a_entities = []
+            s.a_strings = []
             s.a_ok = False
         elif side == "b":
             c.spirit_stones += s.b_stones
-            for it in s.b_items:
+            for ent in s.b_entities:
+                c.add_item_entity(ent)
+            for it in s.b_strings:
                 c.inventory.append(it)
             s.b_stones = 0
             s.b_items = []
+            s.b_entities = []
+            s.b_strings = []
             s.b_ok = False
 
     @staticmethod
@@ -362,12 +400,26 @@ class TradeEngine:
         a_items, b_items = list(s.a_items), list(s.b_items)
         a.spirit_stones += b_stones
         b.spirit_stones += a_stones
-        for it in b_items:
-            a.inventory.append(it)
-        for it in a_items:
-            b.inventory.append(it)
+        # B 的锁定货物交付给 A
+        for ent in s.b_entities:
+            a.add_item_entity(ent)
+        for it in s.b_strings:
+            if "藏宝图" in it:
+                a.add_item_entity(ItemFactory.from_legacy_name(it))
+            else:
+                a.inventory.append(it)
+        # A 的锁定货物交付给 B
+        for ent in s.a_entities:
+            b.add_item_entity(ent)
+        for it in s.a_strings:
+            if "藏宝图" in it:
+                b.add_item_entity(ItemFactory.from_legacy_name(it))
+            else:
+                b.inventory.append(it)
         s.a_stones, s.b_stones = 0, 0
         s.a_items, s.b_items = [], []
+        s.a_entities, s.b_entities = [], []
+        s.a_strings, s.b_strings = [], []
         s.status = TradeStatus.DONE
         CharacterRepository.save(a)
         CharacterRepository.save(b)
@@ -461,7 +513,7 @@ def npc_shop_kinds(npc: Character) -> List[str]:
     if any(k in t for k in ("阵",)):
         return ["array"]
     if any(k in t for k in ("商", "市", "货", "会长", "执事", "牙人", "镖")):
-        return ["pill", "equip", "material", "map"]
+        return ["pill", "equip", "material"]  # 藏宝图为天地机缘之物，NPC专柜不可售卖
     # 兜底：杂货
     return ["material", "pill"]
 

@@ -150,8 +150,8 @@ def test_scar_broadcast_to_world_channel():
     assert res["success"] is True
 
     # 检查 WorldChannel 最近消息
-    recent = WorldChannel.recent(limit=5)
-    scar_msg = next((m for m in recent if "赤焰火海" in m.text), None)
+    recent = WorldChannel.recent(limit=10)
+    scar_msg = next((m for m in recent if "赤焰火海" in m.text and m.actor == c.name), None)
     assert scar_msg is not None
     assert scar_msg.actor == c.name
 

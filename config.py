@@ -178,7 +178,7 @@ ADVENTURE_LOOT_P = {
     "herb": 0.35,
     "pill": 0.25,
     "equip": 0.18,
-    "map": 0.06,   # 藏宝图很低
+    "map": 0.08,   # 基础掉率（实际在 adventure.py 中按秘境危险度 8%~40% 动态计算）
 }
 ADVENTURE_LOOT_MAX = 2
 ADVENTURE_HERBS = ["百年灵芝", "妖兽内丹"]
@@ -557,7 +557,7 @@ ITEM_CATALOG = {
         "desc": "地品宝珠。战力 +6%。"},
     "斩仙剑": {"kind": "equip", "slot": "weapon", "grade": "天品", "power_bonus": 0.12, "price": 5000,
         "desc": "天品古剑。战力 +12%（极稀有）。"},
-    "藏宝图": {"kind": "map", "price": 300, "desc": "残破藏宝图，标注某处洞天（后续可挖宝）。"},
+    "藏宝图": {"kind": "map", "price": 300, "npc_sell": False, "desc": "残破藏宝图，标注某处洞天（后续可挖宝）。天地造化机缘，商会不可售，仅能历练发掘或玩家间交易。"},
 }
 
 # ==================== 世界事件（机缘/危机）====================
