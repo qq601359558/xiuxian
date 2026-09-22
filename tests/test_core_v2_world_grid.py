@@ -33,11 +33,16 @@ def test_pathfinding_and_distance():
 
 
 def test_world_scar_injection_and_healing():
-    # 初始状态
-    node = WorldGridEngine.get_node("node_heishui_swamp")
+    # 初始状态与测试隔离
+    nodes = WorldGridEngine._load_nodes()
+    node = nodes.get("node_heishui_swamp")
     assert node is not None
+    node.environmental_states = []
+    WorldGridEngine._save_nodes(nodes)
+
     orig_density = node.effective_density
     orig_danger = node.effective_danger
+
 
     # 施加疤痕：引爆地火化为赤焰火海
     now = time.time()

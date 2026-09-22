@@ -45,10 +45,16 @@ def test_full_treasure_gameplay_loop():
     assert wrong_dig["wrong_location"] is True
     assert len(c.find_items_by_kind(ItemKind.TREASURE_MAP)) == 1
 
-    # 5. 按照罗盘指引移动至黑水沼泽
+    # 5. 按照罗盘指引移动至黑水沼泽（通过 WorldServer._go 真实路由）
     path = WorldGridEngine.find_shortest_hops("node_qingyun_market", "node_heishui_swamp")
     assert path is not None
-    c.location = "黑水沼泽"
+    from server.world import World
+    w = World(auto_tick=False)
+    go_res = w._go(c, "黑水沼泽")
+    assert go_res.get("ok") is True
+    assert c.location == "黑水沼泽"
+
+
 
     # 6. 在黑水沼泽启动勘探
     step1 = TreasureEngine.dig(c)

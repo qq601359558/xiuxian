@@ -1075,19 +1075,26 @@ class World:
 
             if action in ("/do", "/做", "/act"):
                 from core.treasure_system import TreasureEngine
+                from core.world_grid import WorldGridEngine
                 from core.items import ItemKind
                 free_text = command.strip().split(None, 1)[1] if len(parts) > 1 else ""
                 maps = char.find_items_by_kind(ItemKind.TREASURE_MAP)
+                # 仅当身上有宝图且玩家确实身处宝图目标节点时，才路由到挖宝 DM 破局
                 if maps:
-                    res = TreasureEngine.resolve_free_action(char, free_text)
-                    if res.get("success"):
-                        CharacterRepository.save(char)
-                        log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
-                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                    target_id = maps[0].custom_metadata.get("target_node_id", "")
+                    target_name = maps[0].custom_metadata.get("target_node_name", "")
+                    curr_node = WorldGridEngine.get_node(char.location)
+                    if curr_node and (curr_node.id == target_id or curr_node.base_name == target_name):
+                        res = TreasureEngine.resolve_free_action(char, free_text)
+                        if res.get("success"):
+                            CharacterRepository.save(char)
+                            log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
+                        return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
                 res = FreeActionEngine.execute(char, free_text)
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("narrative", res.get("message", "")), "status": self._status_dict(char)}
+
 
             if action in ("/equip", "/穿戴"):
                 if len(parts) < 2:
@@ -2552,7 +2559,13 @@ class World:
                 matched = loc
                 break
         if not matched:
+            from core.world_grid import WorldGridEngine
+            node = WorldGridEngine.get_node(dest)
+            if node:
+                matched = node.base_name
+        if not matched:
             return {"ok": False, "error": f"未知地点：{dest}"}
+
         c.location = matched
         CharacterRepository.save(c)
         text = f"御剑化虹，抵达【{matched}】。"

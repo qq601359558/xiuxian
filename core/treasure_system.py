@@ -122,6 +122,9 @@ class TreasureEngine:
                     f"\n【罗盘导引】当前位于【{curr_node.base_name}】，距宝藏地约 {hops} 处路程。"
                     f"请先 /前往 {target_name}。"
                 )
+        elif target_node:
+            distance_info = f"\n【罗盘导引】宝图所示机缘深藏于【{target_name}】。请先 /前往 {target_name}。"
+
 
         return {
             "success": True,
@@ -203,7 +206,19 @@ class TreasureEngine:
                     ),
                 }
 
-            # 消耗宝图
+            if choice_id == "3":
+                return {
+                    "success": False,
+                    "message": "自由破局请直接输入：/做 <你的操作>，宝图未受损耗。",
+                }
+
+            if choice_id not in ("1", "2"):
+                return {
+                    "success": False,
+                    "message": f"无效选项：{choice_id}。请输入 /挖宝 1 或 /挖宝 2，或输入 /做 <自由操作>。宝图未受损耗。",
+                }
+
+            # 仅在合法选项时消耗宝图
             c.remove_item_entity(tmap.uid)
 
             if choice_id == "1":
@@ -241,6 +256,7 @@ class TreasureEngine:
                         f"受反震损耗灵石 {loss_stones}，搜刮残余古卷得修为 +{exp_gain}。"
                     ),
                 }
+
 
         # ==========================================
         # 原型 B：凶地守护与伏击 (Combat Ambush)
@@ -358,6 +374,18 @@ class TreasureEngine:
         if not tmap:
             return {"success": False, "message": "当前未在藏宝秘境中，无法执行破局动作。"}
 
+        # 核心空间校验：玩家必须身处宝图所指的目标节点
+        curr_node = WorldGridEngine.get_node(c.location)
+        target_id = tmap.custom_metadata.get("target_node_id", "")
+        target_node = WorldGridEngine.get_node(target_id)
+        if not curr_node or not target_node or curr_node.id != target_node.id:
+            target_name = target_node.base_name if target_node else "未知"
+            return {
+                "success": False,
+                "not_at_ruin": True,
+                "message": f"当前未在宝藏所在节点【{target_name}】，不可远程破局。请先前往该地执行 /挖宝。",
+            }
+
         # 检查背包物品是否有呼应
         mentioned_items = [it for it in c.items if it.name in free_text]
 
@@ -383,12 +411,12 @@ class TreasureEngine:
                 if isinstance(res, dict) and "narrative" in res:
                     ai_narrative = res.get("narrative", "")
                     success_judgement = bool(res.get("success", False))
-                    is_fail_forward = bool(res.get("fail_forward", False))
         except Exception:
             ai_narrative = ""
 
         # 消耗宝图
         c.remove_item_entity(tmap.uid)
+
 
         # 规则保底判定：如果 AI 没连通，根据字数与物品进行常理判定
         if not ai_narrative:

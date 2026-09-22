@@ -199,8 +199,8 @@ class Character(BaseModel):
 
     def add_item_entity(self, item: ItemEntity) -> None:
         self.items.append(item)
-        if item.name not in self.inventory:
-            self.inventory.append(item.name)
+        self.inventory.append(item.name)
+
 
     def remove_item_entity(self, item_uid_or_name: str) -> Optional[ItemEntity]:
         target_q = item_uid_or_name.strip()

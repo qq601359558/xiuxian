@@ -291,16 +291,20 @@ class WorldGridEngine:
         if broadcast:
             try:
                 from core.world_channel import WorldChannel
-                WorldChannel.broadcast(
+                WorldChannel.post(
                     kind="world_omen",
-                    content=(
+                    text=(
                         f"【天地异象】{target.base_name}地脉突遭剧变，化作【{scar.title}】！"
                         f"{scar.hazard_desc}（始作俑者：{scar.caused_by}）"
                     ),
-                    importance="high",
+                    level="major",
+                    actor=scar.caused_by,
+                    location=target.base_name,
+                    skip_limit=True,
                 )
             except Exception:
                 pass
+
 
         return target
 

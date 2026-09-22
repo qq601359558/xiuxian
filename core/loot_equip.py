@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 from config import ITEM_CATALOG, ADVENTURE_HERBS, ADVENTURE_PILLS
 from core.models import Character, CharacterStatus
 from core.combat import CombatEngine
+from core.items import ItemKind
+
 
 
 def _is_equip(name: str) -> bool:
@@ -46,29 +48,39 @@ class EquipEngine:
                     break
         if name not in c.inventory:
             return {"success": False, "message": f"行囊中无【{item_name}】。"}
+        from core.items import ItemKind
+        entity = c.find_item(name)
         cfg = ITEM_CATALOG.get(name) or {}
-        if cfg.get("kind") != "equip":
+        is_entity_equip = entity is not None and entity.kind == ItemKind.EQUIP
+        if not is_entity_equip and cfg.get("kind") != "equip":
             return {"success": False, "message": f"【{name}】不是可穿戴的装备。"}
         if name in c.equipped:
             return {"success": False, "message": f"【{name}】已在身上。"}
-        slot = cfg.get("slot") or "trinket"
-        grade = cfg.get("grade") or "凡品"
-        bonus = float(cfg.get("power_bonus") or 0.03)
+
+        slot = (entity.slot if entity and entity.slot else None) or cfg.get("slot") or "weapon"
+        grade = (entity.tier_name if entity else None) or cfg.get("grade") or "凡品"
+        bonus = float(cfg.get("power_bonus") or (0.05 * (entity.tier if entity else 1)))
+
         # 同槽替换
         replaced = []
         keep = []
         for eq in c.equipped:
+            eq_entity = c.find_item(eq)
             eq_cfg = ITEM_CATALOG.get(eq) or {}
-            if (eq_cfg.get("slot") or "trinket") == slot:
+            eq_slot = (eq_entity.slot if eq_entity and eq_entity.slot else None) or eq_cfg.get("slot") or "trinket"
+            if eq_slot == slot:
                 replaced.append(eq)
                 c.inventory.append(eq)
             else:
                 keep.append(eq)
         c.equipped = keep
-        c.inventory.remove(name)
+        if name in c.inventory:
+            c.inventory.remove(name)
         c.equipped.append(name)
         slot_cn = EquipEngine.SLOT_CN.get(slot, slot)
         msg = f"【穿戴】{grade}·{name}（{slot_cn}），战力 +{int(bonus*100)}%。"
+        if entity and entity.affixes:
+            msg += f" 激发词缀：{'、'.join(a.name for a in entity.affixes)}。"
         if replaced:
             msg += f" 已替换卸下：{'、'.join(replaced)}。"
         return {"success": True, "message": msg, "slot": slot, "grade": grade}
@@ -84,17 +96,26 @@ class EquipEngine:
         if name not in c.equipped:
             return {"success": False, "message": "身上并无此物。"}
         c.equipped.remove(name)
-        c.inventory.append(name)
+        if name not in c.inventory:
+            c.inventory.append(name)
         return {"success": True, "message": f"【卸下】收起【{name}】。"}
 
     @staticmethod
     def power_bonus(c: Character) -> float:
-        """按品阶累加，上限 +20%"""
+        """按品阶与实体词缀累加，上限 +30%"""
         total = 0.0
         for eq in getattr(c, "equipped", None) or []:
-            cfg = ITEM_CATALOG.get(eq) or {}
-            total += float(cfg.get("power_bonus") or 0.03)
-        return 1.0 + min(0.20, total)
+            entity = c.find_item(eq)
+            if entity and entity.kind == ItemKind.EQUIP:
+                total += 0.05 * entity.tier
+                for aff in entity.affixes:
+                    if aff.stat_key in ("power", "pierce"):
+                        total += aff.value
+            else:
+                cfg = ITEM_CATALOG.get(eq) or {}
+                total += float(cfg.get("power_bonus") or 0.03)
+        return 1.0 + min(0.30, total)
+
 
 
 def art_combat_bonus(c: Character) -> float:
