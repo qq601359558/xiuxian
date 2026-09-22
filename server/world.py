@@ -219,11 +219,41 @@ class World:
             else:
                 resumed = True
             newbie_feed = ""
+            first_night = None
             if is_new_life:
                 newbie_feed = (
-                    "【初入道】三步：① /目标 看道途 ② /探险 野外 或 /go 青云坊市客栈 "
-                    "③ /闭关 1 后 /突破。新手庇护 72 小时。"
+                    "【初入道】三步上手：① 点同场道友说话 ② 问一句「有什么货」或「买下聚气丹」"
+                    " ③ 输入 /天道 看天道动向。新手庇护 72 小时。"
                 )
+                # 第一晚爽点：天道有感 + 同场有人 + 一件小结果
+                try:
+                    from core.world_director import WorldDirector
+                    from core.npc_proactive import NpcProactiveEngine
+
+                    seed_roster()
+                    dres = WorldDirector.run_cycle(trigger="command", force=True)
+                    pro = NpcProactiveEngine.maybe_engage(char, force=True)
+                    pro_item = {}
+                    if isinstance(pro, list) and pro:
+                        pro_item = pro[0] or {}
+                    elif isinstance(pro, dict):
+                        pro_item = pro
+                    first_night = {
+                        "director": {
+                            "ok": bool(dres.get("ok")),
+                            "count": dres.get("count") or 0,
+                            "hint": dres.get("brief_hint") or "",
+                            "source": dres.get("source") or "",
+                            "text": dres.get("brief_hint") or "",
+                        },
+                        "proactive": pro_item,
+                    }
+                    if pro_item.get("text"):
+                        newbie_feed += "\n【同场】" + str(pro_item.get("text"))[:120]
+                    if dres.get("ok") and dres.get("brief_hint"):
+                        newbie_feed += f"\n【天道】{dres.get('brief_hint')}"
+                except Exception as _fn_ex:
+                    first_night = {"error": str(_fn_ex)[:80]}
             token = uuid.uuid4().hex
             self.sessions[token] = Session(token, uid, char.id)
             try:
@@ -242,6 +272,7 @@ class World:
                 "legacy_points": account.points,
                 "lives": account.total_lives,
                 "newbie_feed": newbie_feed,
+                "first_night": first_night,
                 "is_new_life": is_new_life,
                 "resumed": resumed and not is_new_life,
             }

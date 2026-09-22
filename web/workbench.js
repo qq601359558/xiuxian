@@ -765,10 +765,15 @@
     if (look && look.status) applyStatus(look.status);
     else if (look && look.text) parseLook(look.text);
     if (here && Array.isArray(here.here)) state.here = here.here;
+    else if (here && here.ok === false) state.here = state.here || [];
     if (world && world.ok !== false) state.world = world;
     pulseWorld();
     renderPlaces();
     renderBody();
+    // 开局爽点：同场无人时再提示一次
+    if (!state.here.length) {
+      pushFeed("【提示】同场暂无道友，可迁跃到「青云坊市客栈」常有人往来。", "sys");
+    }
     if (errs.length) toast("部分刷新失败：" + errs[0], "bad");
   }
 
@@ -862,7 +867,12 @@
       } catch (e2) {
         pushFeed("刷新不完整：" + e2.message, "bad");
       }
-      if (payload.newbie_feed) pushFeed(payload.newbie_feed, "sys");
+      if (payload.newbie_feed) {
+        String(payload.newbie_feed).split("\n").filter(Boolean).forEach((ln) => pushFeed(ln, "sys"));
+      }
+      if ((payload.is_new_life || payload.first_night) && localStorage.getItem("wb.tour") !== "1") {
+        showFirstNight(payload.first_night || {}, payload.name || state.name);
+      }
     } catch (err) {
       $("gateMsg").textContent = err.message || "无法进入大世界";
       toast($("gateMsg").textContent, "bad");
@@ -895,6 +905,34 @@
       $("gateMsg").textContent =
         "连不上 " + server + "。请运行 .venv\\Scripts\\python.exe -m server.run，或使用离线演示。";
     }
+  }
+
+  function showFirstNight(fn, name) {
+    // 三分钟爽点引导：点人 → 问货/买丹 → 看天道
+    toast("欢迎入世 · " + (name || ""), "ok");
+    setTimeout(() => {
+      pushFeed("【第一晚】① 左侧同场，点一位道友，弹窗里直接说话", "sys");
+    }, 400);
+    setTimeout(() => {
+      pushFeed("【第一晚】② 可试：「有什么货」「买下聚气丹」「最近可太平？」", "sys");
+    }, 1200);
+    if (fn && fn.proactive && fn.proactive.text) {
+      chatMsg("", "【同场搭话】" + fn.proactive.text, "sys");
+    }
+    if (fn && fn.director && fn.director.ok) {
+      const d = fn.director;
+      pushFeed(
+        "【天道】" + (d.hint || "有感") + (d.source ? "（" + d.source + "）" : ""),
+        "ai"
+      );
+    }
+    setTimeout(() => {
+      setView("here");
+      renderBody();
+      toast("同场有人 · 点开聊窗即可说话", "");
+    }, 1800);
+    // 20 分钟内不重复第一晚引导
+    localStorage.setItem("wb.tour", "1");
   }
 
   function loadDemo() {
