@@ -3,201 +3,195 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>天道因果录 · 工作台</title>
-  <meta name="description" content="局域网修仙模拟工作台" />
+  <title>天道因果录 · 灵蕴玄枢</title>
+  <meta name="description" content="水墨翡翠白玉仙侠修仙模拟工作台" />
   <link rel="stylesheet" href="workbench.css" />
 </head>
 <body>
-  <!-- 入世 -->
+  <!-- 入世门庭 -->
   <div id="gate" class="gate">
     <div class="gate-card">
       <div class="gate-hero">
         <div class="gate-seal">道</div>
         <h1>天道因果录</h1>
-        <p>局域网修仙模拟 · 工作台</p>
+        <p>修仙模拟 · 灵蕴玄枢</p>
       </div>
       <div class="gate-body">
         <div class="gate-tabs">
-          <button type="button" class="tab active" data-mode="login">登录</button>
-          <button type="button" class="tab" data-mode="register">注册</button>
+          <button type="button" class="tab active" data-mode="login">登临道界</button>
+          <button type="button" class="tab" data-mode="register">初入仙途</button>
         </div>
         <form id="gateForm" autocomplete="on">
           <div class="field">
-            <label for="fUser">账号</label>
-            <input id="fUser" type="text" autocomplete="username" required maxlength="32" placeholder="例如 demo" />
+            <label for="fUser">仙籍账号</label>
+            <input id="fUser" type="text" autocomplete="username" required maxlength="32" placeholder="输入仙籍账号，例如 散修道友" />
           </div>
           <div class="field hidden" id="fNameWrap">
-            <label for="fName">道号</label>
-            <input id="fName" type="text" maxlength="12" placeholder="入世名号" />
+            <label for="fName">本命道号</label>
+            <input id="fName" type="text" maxlength="12" placeholder="踏入仙途名号" />
           </div>
           <div class="field">
-            <label for="fPass">口令</label>
-            <input id="fPass" type="password" autocomplete="current-password" required maxlength="64" />
+            <label for="fPass">神识密匙</label>
+            <input id="fPass" type="password" autocomplete="current-password" required maxlength="64" placeholder="输入入世密匙" />
           </div>
           <div class="field">
-            <label for="fServer">服务器</label>
+            <label for="fServer">宗门阵枢</label>
             <input id="fServer" type="text" placeholder="http://127.0.0.1:8765" spellcheck="false" />
           </div>
           <div id="gateMsg" class="gate-msg" role="alert"></div>
           <div class="gate-actions">
-            <button type="submit" class="btn primary block" id="gateSubmit">进入大世界</button>
-            <button type="button" class="btn ghost block" id="btnProbe">检测服务器</button>
-            <button type="button" class="btn ghost block" id="btnDemo">离线演示</button>
+            <button type="submit" class="btn primary block" id="gateSubmit">踏入大千世界</button>
+            <button type="button" class="btn secondary block" id="btnProbe">感应阵枢灵脉</button>
+            <button type="button" class="btn ghost block" id="btnDemo">玄黄镜演（离线演示）</button>
           </div>
         </form>
         <div class="gate-foot">
-          开服：`python -m server.run` 后访问<br />
-          <code>http://127.0.0.1:8765/</code>
+          启阵：<code>python -m server.run</code><br />
+          阵枢灵脉：<code>http://127.0.0.1:8765/</code>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 工作台 -->
+  <!-- 仙门工作台主天道视界 -->
   <div id="app" class="app hidden">
-    <nav class="rail" aria-label="主导航">
-      <div class="rail-mark" title="天道因果录">道</div>
-      <button type="button" class="rail-btn" data-view="tasks" title="任务" aria-label="任务">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-      </button>
-      <button type="button" class="rail-btn active" data-view="here" title="同场" aria-label="同场">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 11a4 4 0 10-8 0"/><path d="M4 20a8 8 0 0116 0"/></svg>
-      </button>
-      <button type="button" class="rail-btn" data-view="world" title="世界" aria-label="世界">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
-      </button>
-      <button type="button" class="rail-btn" data-view="feed" title="动态" aria-label="动态">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h12M4 18h8"/></svg>
-      </button>
-      <div class="rail-spacer"></div>
-      <button type="button" class="rail-btn" id="btnNav" title="迁跃" aria-label="迁跃">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
-      </button>
-      <button type="button" class="rail-btn" id="btnTheme" title="主题" aria-label="切换主题">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/></svg>
-      </button>
-      <button type="button" class="rail-btn" id="btnHelp" title="敕令" aria-label="敕令帮助">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.7.5-1.5 1.2-1.5 2.5M12 17v.01"/></svg>
-      </button>
-      <button type="button" class="rail-btn" id="btnLogout" title="暂离" aria-label="暂离">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 6H6a2 2 0 00-2 2v8a2 2 0 002 2h4M14 16l4-4-4-4M18 12H9"/></svg>
-      </button>
-    </nav>
-
-    <div class="workspace">
-      <div class="topbar">
-        <div class="topbar-brand">天道因果录<span>工作台</span></div>
-        <div class="topbar-spacer"></div>
-        <div class="conn" id="connPill">
-          <span class="dot" id="connDot"></span>
-          <span id="connText">未连接</span>
+    <!-- 顶部全局仙门中枢与天道盘 -->
+    <header class="header-bar">
+      <div class="brand-seal">
+        <div class="brand-mark">道</div>
+        <div>
+          <div class="brand-title">天道因果录</div>
+          <div class="brand-sub">灵蕴玄枢</div>
         </div>
       </div>
 
-      <div class="offline" id="offlineBar">
-        <span>网络或服务器不可用 · 可重试或离线演示</span>
-        <button type="button" class="btn sm" id="btnRetry">重试</button>
-      </div>
+      <!-- 四大核心主循环切页导航 -->
+      <nav class="main-nav" aria-label="仙途主境导航">
+        <button type="button" class="nav-tab active" data-view="sanctum">
+          <span class="nav-tab-dot"></span>玄阁洞府
+        </button>
+        <button type="button" class="nav-tab" data-view="wilderness">
+          <span class="nav-tab-dot"></span>十方大荒
+        </button>
+        <button type="button" class="nav-tab" data-view="inventory">
+          <span class="nav-tab-dot"></span>百宝纳戒
+        </button>
+        <button type="button" class="nav-tab" data-view="bazaar">
+          <span class="nav-tab-dot"></span>九霄坊市
+        </button>
+      </nav>
 
-      <div class="dial" id="dial" aria-label="天道盘">
-        <div class="dial-cell"><div class="k">道号</div><div class="v gold" id="dName">—</div><div class="s" id="dSect">散修</div></div>
-        <div class="dial-cell"><div class="k">境界</div><div class="v" id="dRealm">—</div><div class="s" id="dExp">—</div></div>
-        <div class="dial-cell"><div class="k">位置</div><div class="v" id="dLoc" style="font-family:var(--font-ui);font-size:13px">—</div><div class="s" id="dSafe">—</div></div>
-        <div class="dial-cell"><div class="k">寿元</div><div class="v" id="dLife">—</div><div class="s">岁</div></div>
-        <div class="dial-cell"><div class="k">灵石</div><div class="v gold" id="dStones">—</div><div class="s" id="dVault">金库 —</div></div>
-        <div class="dial-cell"><div class="k">业力 / 功德</div><div class="v" id="dKarma">—</div><div class="s" id="dBlood">—</div></div>
-        <div class="dial-cell"><div class="k">世界</div><div class="v" id="dWorld" style="font-family:var(--font-ui);font-size:13px">—</div><div class="s" id="dWorldSub">天道态势</div></div>
-      </div>
-
-      <div class="split">
-        <aside class="sidebar" id="sidebar" aria-label="迁跃">
-          <div class="sidebar-head">
-            <h2>迁跃</h2>
-            <p>点地点前往。安全区受庇护，野外可动手。</p>
-            <div class="search" style="margin-top:10px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
-              <input id="locQ" type="search" placeholder="搜索地点" aria-label="搜索地点" />
-            </div>
-          </div>
-          <div class="sidebar-list" id="locList"></div>
-        </aside>
-
-        <div class="stage-wrap">
-          <main class="stage">
-            <div class="stage-head">
-              <h2 id="viewTitle">同场修士</h2>
-              <span class="sub" id="viewSub">点人打开交谈玉简</span>
-              <div class="search">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
-                <input id="listQ" type="search" placeholder="筛选" aria-label="筛选列表" />
-              </div>
-              <button type="button" class="btn sm" id="btnRefresh">刷新</button>
-            </div>
-            <div class="body-scroll" id="body" aria-live="polite"></div>
-          </main>
-
-          <footer class="console">
-            <div id="suggest" class="suggest hidden" role="listbox"></div>
-            <form id="cmdForm" class="console-row">
-              <span class="console-tag" id="cmdTag">敕令</span>
-              <span class="busy-dot" id="busyDot" aria-hidden="true"></span>
-              <input id="cmdInput" type="text" maxlength="200"
-                     placeholder="/ 搜索指令，或直接说话（交谈中）"
-                     aria-label="敕令输入" />
-              <button type="submit" class="btn primary" id="cmdGo">行</button>
-            </form>
-            <div class="busy-line" id="busyLine" role="status">天道正在裁决</div>
-            <div class="console-hint">
-              <span><kbd>/</kbd> 模糊指令</span>
-              <span><kbd>Ctrl+K</kbd> 聚焦</span>
-              <span><kbd>Esc</kbd> 关闭</span>
-              <span id="cmdTarget">未锁定交谈</span>
-            </div>
-          </footer>
+      <!-- 顶部修士道行与灵资信息盘 -->
+      <div class="user-dial">
+        <div class="dial-item">
+          <span class="k">本命道号</span>
+          <span class="v gold" id="topDaoName">—</span>
         </div>
+        <div class="dial-item">
+          <span class="k">境界阶位</span>
+          <span class="v" id="topDaoRealm">—</span>
+        </div>
+        <div class="dial-item">
+          <span class="k">随身灵石</span>
+          <span class="v gold" id="topStones">—</span>
+        </div>
+        <div class="dial-item">
+          <span class="k">所在天地</span>
+          <span class="v" id="topLocation">—</span>
+        </div>
+
+        <button type="button" class="drawer-trigger-btn" id="btnOpenDrawer" title="同场仙友与十方九地">
+          <span>同场神识</span>
+          <span class="card-tag" id="topHereCount" style="margin-left:4px">0</span>
+        </button>
+
+        <button type="button" class="btn ghost sm" id="btnTheme" title="天象昼夜切换">天象</button>
+        <button type="button" class="btn ghost sm" id="btnLogout" title="暂离大千世界">归隐</button>
       </div>
-    </div>
+    </header>
+
+    <!-- 主视窗工作区（四大主境画卷） -->
+    <main class="main-stage" id="mainStage">
+      <div id="stageContent"></div>
+    </main>
+
+    <!-- 右侧滑入式神识浮匣（同场仙友与十方迁跃） -->
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <aside class="side-drawer" id="sideDrawer" aria-label="同场仙友神识匣">
+      <div class="drawer-head">
+        <div>
+          <h3>神识感应 · 同场仙友</h3>
+          <p id="drawerLocSub" style="font-size:12px;color:var(--ink-500)">周遭同道与十方天地</p>
+        </div>
+        <button type="button" class="btn ghost sm" id="btnCloseDrawer">收束</button>
+      </div>
+      <div class="drawer-tabs">
+        <button type="button" class="tab active" id="tabCultivators">周遭修士</button>
+        <button type="button" class="tab" id="tabTeleport">十方迁跃</button>
+      </div>
+      <div class="drawer-body" id="drawerBody">
+        <!-- 动态渲染：周遭修士 / 十方九地一键迁跃 -->
+      </div>
+    </aside>
+
+    <!-- 底部神识敕令控制台 -->
+    <footer class="console-bar">
+      <span class="console-tag" id="cmdTag">神识敕令</span>
+      <div class="console-input-wrap">
+        <div class="suggest-box hidden" id="suggest" role="listbox"></div>
+        <form id="cmdForm" style="display:flex;width:100%;align-items:center;gap:10px;">
+          <span class="busy-dot" id="busyDot" aria-hidden="true"></span>
+          <input class="console-input" id="cmdInput" type="text" maxlength="200"
+                 placeholder="输入「/」唤起神识敕令，或直接输入言语传音…"
+                 aria-label="神识敕令" autocomplete="off" />
+          <button type="submit" class="btn primary console-submit" id="cmdGo">敕令疾行</button>
+        </form>
+      </div>
+      <div class="console-hint" id="consoleHint">
+        <span>【斜杠】唤起敕令</span>
+        <span>【回车】神识疾行</span>
+        <span>【定神】关闭浮窗</span>
+        <span id="cmdTarget">未锁定同道</span>
+      </div>
+    </footer>
   </div>
 
-  <!-- 交谈玉简 -->
+  <!-- 神识交谈玉简 -->
   <div id="chatModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="chatTitle">
     <div class="slab">
       <div class="slab-head">
         <div style="flex:1;min-width:0">
-          <h2 id="chatTitle">交谈</h2>
-          <p id="chatSub">在下方直接说话；买卖与动作由规则结算</p>
+          <h2 id="chatTitle">神识交谈</h2>
+          <p id="chatSub">直接向对方传音言语；买卖与动作由天道权威裁决结算</p>
         </div>
-        <button type="button" class="icon-btn" id="chatClose" data-close-chat="1" aria-label="关闭">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
+        <button type="button" class="btn ghost sm" id="chatClose" data-close-chat="1" aria-label="收束传音">收束</button>
       </div>
       <div class="slab-log" id="chatLog" aria-live="polite"></div>
       <form id="chatForm" class="slab-form">
         <span class="busy-dot" id="chatBusy" aria-hidden="true"></span>
         <input id="chatInput" type="text" maxlength="200" autocomplete="off"
-               placeholder="说点什么…（回车发送）" aria-label="发言" />
-        <button type="submit" class="btn primary" id="chatSend">发送</button>
+               placeholder="输入神识传音内容…（回车发信）" aria-label="发言" />
+        <button type="submit" class="btn primary" id="chatSend">传音</button>
       </form>
       <div class="slab-foot">
-        <button type="button" class="btn sm" id="btnChatMem">会话记忆</button>
-        <button type="button" class="btn sm" id="btnChatHang" data-close-chat="1">挂断并关闭</button>
-        <button type="button" class="btn sm" data-close-chat="1">关闭</button>
+        <button type="button" class="btn sm secondary" id="btnChatMem">观照因果记忆</button>
+        <button type="button" class="btn sm secondary" id="btnChatHang" data-close-chat="1">断开神识</button>
+        <button type="button" class="btn sm ghost" data-close-chat="1">收束</button>
       </div>
     </div>
   </div>
 
+  <!-- 全局天道提示浮层 -->
   <div class="toasts" id="toasts" aria-live="polite"></div>
+
   <script src="workbench.js"></script>
-  <!-- 弹窗关闭兜底：即使主脚本绑定失败也能关掉 -->
+  <!-- 弹窗关闭兜底：防止任何事件阻断导致的遮罩卡死 -->
   <script>
     (function () {
       function hideChat() {
         var m = document.getElementById("chatModal");
         if (!m) return;
         m.classList.add("hidden");
-        m.style.display = "none";
-        m.style.visibility = "hidden";
-        m.style.pointerEvents = "none";
         m.setAttribute("aria-hidden", "true");
       }
       document.addEventListener("click", function (e) {
