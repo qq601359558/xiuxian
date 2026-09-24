@@ -5,14 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>天道因果录 · 灵蕴玄枢</title>
   <meta name="description" content="水墨翡翠白玉仙侠修仙模拟工作台" />
-  <!-- 古典东方衬线字体与矢量仙门印记 -->
+
+  <!-- Google Fonts: 古典东方衬线与书法艺术字体 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;500;600;700;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet" />
+  <!-- Material Symbols: 仅纯矢量几何符号，严禁字母泄露 -->
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS v3 with Container Queries -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['selector', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Noto Serif SC"', 'STSong', 'SimSun', 'serif'],
+            calligraphy: ['"Ma Shan Zheng"', '"Noto Serif SC"', 'cursive'],
+            seal: ['"ZCOOL XiaoWei"', 'serif']
+          },
+          colors: {
+            jade: {
+              50: '#f2f8f5',
+              100: '#e1f0e9',
+              200: '#c5e2d5',
+              300: '#9bcbb9',
+              400: '#6cae9a',
+              500: '#48927e',
+              600: '#2a7e6c',
+              700: '#146a59',
+              800: '#1a4a40',
+              900: '#10332c',
+              950: '#081d19',
+            },
+            filigree: {
+              100: '#fdf3d6',
+              200: '#fae6ad',
+              300: '#f3d982',
+              400: '#e0b43c',
+              500: '#c59b27',
+              600: '#b38318',
+              700: '#8c6310',
+              800: '#684807'
+            },
+            parchment: {
+              50: '#fdfbf7',
+              100: '#f7f4ec',
+              200: '#eee8d8',
+              300: '#e2d7be',
+              400: '#cbbda0'
+            }
+          },
+          boxShadow: {
+            'jade-glow': '0 0 20px -3px rgba(20, 106, 89, 0.25)',
+            'gold-glow': '0 0 25px -2px rgba(197, 155, 39, 0.35)',
+            'inner-jade': 'inset 0 1px 3px rgba(255, 255, 255, 0.8), inset 0 -1px 2px rgba(20, 106, 89, 0.15)'
+          }
+        }
+      }
+    };
+  </script>
+
   <link rel="stylesheet" href="workbench.css" />
 </head>
-<body>
+<body class="font-serif bg-paper-pattern text-slate-800 antialiased min-h-screen flex flex-col selection:bg-jade-200 selection:text-jade-900">
   <!-- 入世门庭 -->
   <div id="gate" class="gate">
     <div class="gate-card">
@@ -59,129 +116,183 @@
   </div>
 
   <!-- 仙门工作台主天道视界 -->
-  <div id="app" class="app hidden">
-    <!-- 顶部全局仙门中枢与天道盘 -->
-    <header class="header-bar">
-      <div class="brand-seal">
-        <div class="brand-mark">道</div>
-        <div>
-          <div class="brand-title">天道因果录</div>
-          <div class="brand-sub">灵蕴玄枢</div>
-        </div>
-      </div>
-
-      <!-- 四大核心主循环切页导航 -->
-      <nav class="main-nav" aria-label="仙途主境导航">
-        <button type="button" class="nav-tab active" data-view="sanctum">
-          <span class="nav-tab-dot"></span>玄阁洞府
-        </button>
-        <button type="button" class="nav-tab" data-view="wilderness">
-          <span class="nav-tab-dot"></span>十方大荒
-        </button>
-        <button type="button" class="nav-tab" data-view="inventory">
-          <span class="nav-tab-dot"></span>百宝纳戒
-        </button>
-        <button type="button" class="nav-tab" data-view="bazaar">
-          <span class="nav-tab-dot"></span>九霄坊市
-        </button>
-      </nav>
-
-      <!-- 顶部修士道行与灵资信息盘 -->
-      <div class="user-dial">
-        <div class="dial-item">
-          <span class="k">本命道号</span>
-          <span class="v gold" id="topDaoName">—</span>
-        </div>
-        <div class="dial-item">
-          <span class="k">境界阶位</span>
-          <span class="v" id="topDaoRealm">—</span>
-        </div>
-        <div class="dial-item">
-          <span class="k">随身灵石</span>
-          <span class="v gold" id="topStones">—</span>
-        </div>
-        <div class="dial-item">
-          <span class="k">所在天地</span>
-          <span class="v" id="topLocation">—</span>
+  <div id="app" class="app hidden flex-col flex-1 w-full min-h-screen">
+    <!-- 顶部全局仙门中枢与天道盘 (Stitch 原生高保真 Header) -->
+    <header class="sticky top-0 z-50 jade-panel border-b border-jade-200/80 shadow-sm" data-purpose="celestial-navigation">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 h-18 py-2.5 flex items-center justify-between gap-4">
+        <!-- Left: Logo & Breadcrumbs -->
+        <div class="flex items-center gap-4 min-w-max">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-jade-700 via-jade-600 to-jade-500 p-0.5 shadow-md flex items-center justify-center relative group cursor-pointer">
+              <div class="w-full h-full rounded-full border border-filigree-400/60 flex items-center justify-center bg-jade-800">
+                <span class="font-calligraphy text-filigree-300 text-xl font-bold tracking-tighter">道</span>
+              </div>
+            </div>
+            <div>
+              <div class="text-base font-bold text-jade-950 tracking-wide flex items-center gap-1.5">
+                <span>天命修仙</span>
+                <span class="text-xs px-1.5 py-0.5 rounded bg-filigree-500/15 text-filigree-700 border border-filigree-400/30 font-normal">万象主阁</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                <span>万象中枢</span>
+                <span class="text-jade-400">❯</span>
+                <span class="text-jade-700 font-semibold" id="topNavCrumb">玄阁洞府</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <button type="button" class="drawer-trigger-btn" id="btnOpenDrawer" title="同场仙友与十方九地">
-          <span>同场神识</span>
-          <span class="card-tag" id="topHereCount" style="margin-left:4px">0</span>
-        </button>
+        <!-- Center: Jade Navigation Tabs (四大主境) -->
+        <nav class="flex items-center gap-1.5 bg-jade-100/50 p-1.5 rounded-full border border-jade-200 main-nav" aria-label="Primary Navigation">
+          <button type="button" class="nav-tab active px-5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-jade-700 to-jade-600 shadow-sm flex items-center gap-1.5 transition-all" data-view="sanctum">
+            <span>洞府</span>
+            <span class="text-[10px] text-jade-200">仙府总揽</span>
+          </button>
+          <button type="button" class="nav-tab px-5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:text-jade-800 hover:bg-white/60 transition-all flex items-center gap-1.5" data-view="wilderness">
+            <span>大荒</span>
+            <span class="text-[10px] text-slate-400">秘境探险</span>
+          </button>
+          <button type="button" class="nav-tab px-5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:text-jade-800 hover:bg-white/60 transition-all flex items-center gap-1.5" data-view="inventory">
+            <span>百宝</span>
+            <span class="text-[10px] text-slate-400">纳戒乾坤</span>
+          </button>
+          <button type="button" class="nav-tab px-5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:text-jade-800 hover:bg-white/60 transition-all flex items-center gap-1.5" data-view="bazaar">
+            <span>坊市</span>
+            <span class="text-[10px] text-slate-400">诸天寄售</span>
+          </button>
+        </nav>
 
-        <button type="button" class="btn ghost sm" id="btnTheme" title="天象昼夜切换">天象</button>
-        <button type="button" class="btn ghost sm" id="btnLogout" title="暂离大千世界">归隐</button>
+        <!-- Right: Stamina, Expedition Cost & Global Assets -->
+        <div class="flex items-center gap-4">
+          <!-- 神行精力仪表 -->
+          <div class="hidden xl:flex items-center gap-3 bg-white/70 border border-jade-200/90 rounded-lg px-3 py-1.5" title="灵虚神行精力: 每5息自动恢复1点">
+            <div class="relative w-8 h-8 flex items-center justify-center">
+              <svg class="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
+                <path class="text-jade-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+                <path class="text-jade-600 stroke-current" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-dasharray="90, 100" stroke-linecap="round" stroke-width="3.2"></path>
+              </svg>
+              <span class="absolute text-[10px] font-bold text-jade-800">90%</span>
+            </div>
+            <div class="flex flex-col">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500 font-medium">神行精力</span>
+                <span class="font-bold text-jade-700 ml-2">180<span class="text-slate-400 font-normal">/200</span></span>
+              </div>
+              <span class="text-[10px] text-filigree-600">+1点/5息充盈</span>
+            </div>
+          </div>
+
+          <!-- 修士道行概览 -->
+          <div class="flex items-center gap-3 pl-3 border-l border-jade-200">
+            <div class="text-right">
+              <div class="text-xs font-bold text-jade-950 flex items-center justify-end gap-1.5">
+                <span id="topDaoName">太素散人</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-jade-700 text-white font-normal" id="topDaoRealm">筑基初期 · 供奉</span>
+              </div>
+              <div class="text-[11px] text-slate-500 flex items-center justify-end gap-2 mt-0.5">
+                <span title="随身灵石" class="text-filigree-700 font-semibold">💎 <span id="topStones">520</span> 灵石</span>
+                <span class="text-slate-400">|</span>
+                <span id="topLocation" class="text-jade-800">青云坊市客栈</span>
+              </div>
+            </div>
+
+            <!-- 同道神识呼出按钮 -->
+            <button type="button" class="drawer-trigger-btn px-3 py-1.5 rounded-lg border border-jade-300 bg-white/80 hover:bg-jade-50 text-xs text-jade-800 font-medium flex items-center gap-1.5 shadow-2xs" id="btnOpenDrawer" title="同场仙友与十方九地">
+              <span>同场神识</span>
+              <span class="px-1.5 py-0.2 rounded-full bg-jade-100 text-jade-800 text-[10px] font-bold" id="topHereCount">3</span>
+            </button>
+
+            <!-- 切换天象与暂离 -->
+            <button type="button" class="p-1.5 rounded-lg text-slate-500 hover:text-jade-700 hover:bg-white/60 transition" id="btnTheme" title="天象昼夜切换">
+              <span class="material-symbols-outlined text-[18px]">contrast</span>
+            </button>
+            <button type="button" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-700 hover:bg-white/60 transition" id="btnLogout" title="暂离大千世界">
+              <span class="material-symbols-outlined text-[18px]">logout</span>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <!-- 主视窗工作区（四大主境画卷） -->
-    <main class="main-stage" id="mainStage">
-      <div id="stageContent"></div>
+    <!-- 主视窗工作区（四大主境画卷容器） -->
+    <main class="main-stage flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24" id="mainStage">
+      <div id="stageContent" class="w-full"></div>
     </main>
 
     <!-- 右侧滑入式神识浮匣（同场仙友与十方迁跃） -->
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
-    <aside class="side-drawer" id="sideDrawer" aria-label="同场仙友神识匣">
-      <div class="drawer-head">
+    <aside class="side-drawer jade-panel" id="sideDrawer" aria-label="同场仙友神识匣">
+      <div class="drawer-head border-b border-jade-200/80 p-4 flex items-center justify-between">
         <div>
-          <h3>神识感应 · 同场仙友</h3>
-          <p id="drawerLocSub" style="font-size:12px;color:var(--ink-500)">周遭同道与十方天地</p>
+          <h3 class="text-base font-bold text-jade-950">神识感应 · 同场仙友</h3>
+          <p id="drawerLocSub" class="text-xs text-slate-500">周遭同道与十方天地</p>
         </div>
         <button type="button" class="btn ghost sm" id="btnCloseDrawer">收束</button>
       </div>
-      <div class="drawer-tabs">
-        <button type="button" class="tab active" id="tabCultivators">周遭修士</button>
-        <button type="button" class="tab" id="tabTeleport">十方迁跃</button>
+      <div class="drawer-tabs flex bg-jade-100/60 p-1 m-3 rounded-lg border border-jade-200">
+        <button type="button" class="tab active flex-1 py-1.5 text-xs font-semibold text-jade-900 rounded" id="tabCultivators">周遭修士</button>
+        <button type="button" class="tab flex-1 py-1.5 text-xs font-medium text-slate-600 rounded" id="tabTeleport">十方迁跃</button>
       </div>
-      <div class="drawer-body" id="drawerBody">
+      <div class="drawer-body p-4 space-y-2 overflow-y-auto" id="drawerBody">
         <!-- 动态渲染：周遭修士 / 十方九地一键迁跃 -->
       </div>
     </aside>
 
-    <!-- 底部神识敕令控制台 -->
-    <footer class="console-bar">
-      <span class="console-tag" id="cmdTag">神识敕令</span>
-      <div class="console-input-wrap">
-        <div class="suggest-box hidden" id="suggest" role="listbox"></div>
-        <form id="cmdForm" style="display:flex;width:100%;align-items:center;gap:10px;">
-          <span class="busy-dot" id="busyDot" aria-hidden="true"></span>
-          <input class="console-input" id="cmdInput" type="text" maxlength="200"
-                 placeholder="输入「/」唤起神识敕令，或直接输入言语传音…"
-                 aria-label="神识敕令" autocomplete="off" />
-          <button type="submit" class="btn primary console-submit" id="cmdGo">敕令疾行</button>
-        </form>
-      </div>
-      <div class="console-hint" id="consoleHint">
-        <span>【斜杠】唤起敕令</span>
-        <span>【回车】神识疾行</span>
-        <span>【定神】关闭浮窗</span>
-        <span id="cmdTarget">未锁定同道</span>
+    <!-- 底部悬浮式神识敕令控制台 (Stitch 悬浮灵卷风格) -->
+    <footer class="fixed bottom-3 left-1/2 -translate-x-1/2 w-full max-w-[1400px] px-4 z-40">
+      <div class="jade-panel-elevated rounded-2xl p-2.5 shadow-2xl border border-filigree-400/50 flex flex-col sm:flex-row items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 pl-2 min-w-max">
+          <div class="w-7 h-7 rounded-full bg-jade-800 text-filigree-300 flex items-center justify-center font-calligraphy text-sm font-bold shadow-xs">
+            敕
+          </div>
+          <span class="text-xs font-bold text-jade-950 tracking-wider">神识敕令台</span>
+        </div>
+
+        <div class="flex-1 w-full relative">
+          <div class="suggest-box hidden" id="suggest" role="listbox"></div>
+          <form id="cmdForm" class="flex items-center gap-2 w-full">
+            <span class="busy-dot hidden" id="busyDot" aria-hidden="true"></span>
+            <div class="relative flex-1">
+              <input class="w-full bg-white/90 border border-jade-200/90 rounded-xl px-4 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-jade-600 focus:ring-1 focus:ring-jade-500 shadow-inner"
+                     id="cmdInput" type="text" maxlength="200"
+                     placeholder="输入神念指令进行推演（如：神识巡查十里山川 / 占卜吉凶运势 / 启程赴险）..."
+                     aria-label="神识敕令" autocomplete="off" />
+            </div>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-jade-700 to-jade-600 hover:from-jade-600 hover:to-jade-500 text-white text-xs sm:text-sm font-bold shadow-md border border-filigree-400/40 min-w-max transition cursor-pointer" id="cmdGo">
+              敕令疾行
+            </button>
+          </form>
+        </div>
+
+        <div class="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 pr-2 min-w-max">
+          <span class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">【斜杠】唤起</span>
+          <span class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">【回车】疾行</span>
+          <span class="text-jade-700 font-semibold" id="cmdTarget">未锁定同道</span>
+        </div>
       </div>
     </footer>
   </div>
 
   <!-- 神识交谈玉简 -->
   <div id="chatModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="chatTitle">
-    <div class="slab">
-      <div class="slab-head">
+    <div class="slab jade-panel-elevated rounded-2xl">
+      <div class="slab-head border-b border-jade-200/80 pb-3 flex items-center justify-between">
         <div style="flex:1;min-width:0">
-          <h2 id="chatTitle">神识交谈</h2>
-          <p id="chatSub">直接向对方传音言语；买卖与动作由天道权威裁决结算</p>
+          <h2 id="chatTitle" class="text-base font-bold text-jade-950">神识交谈</h2>
+          <p id="chatSub" class="text-xs text-slate-500">直接向对方传音言语；买卖与动作由天道权威裁决结算</p>
         </div>
         <button type="button" class="btn ghost sm" id="chatClose" data-close-chat="1" aria-label="收束传音">收束</button>
       </div>
-      <div class="slab-log" id="chatLog" aria-live="polite"></div>
-      <form id="chatForm" class="slab-form">
-        <span class="busy-dot" id="chatBusy" aria-hidden="true"></span>
-        <input id="chatInput" type="text" maxlength="200" autocomplete="off"
+      <div class="slab-log bg-white/70 p-3 rounded-xl border border-jade-100 my-3 text-xs space-y-2 min-h-[160px] max-h-[300px] overflow-y-auto" id="chatLog" aria-live="polite"></div>
+      <form id="chatForm" class="slab-form flex items-center gap-2">
+        <span class="busy-dot hidden" id="chatBusy" aria-hidden="true"></span>
+        <input id="chatInput" class="flex-1 bg-white border border-jade-200 rounded-lg px-3 py-2 text-xs" type="text" maxlength="200" autocomplete="off"
                placeholder="输入神识传音内容…（回车发信）" aria-label="发言" />
-        <button type="submit" class="btn primary" id="chatSend">传音</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-jade-700 text-white text-xs font-semibold" id="chatSend">传音</button>
       </form>
-      <div class="slab-foot">
+      <div class="slab-foot mt-3 pt-3 border-t border-jade-100 flex items-center justify-end gap-2">
         <button type="button" class="btn sm secondary" id="btnChatMem">观照因果记忆</button>
         <button type="button" class="btn sm secondary" id="btnChatHang" data-close-chat="1">断开神识</button>
-        <button type="button" class="btn sm ghost" data-close-chat="1">收束</button>
       </div>
     </div>
   </div>

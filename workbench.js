@@ -249,13 +249,29 @@
   }
 
   // ---------- 视图切换 ----------
+    // ---------- 视图切换与主境导航联动 ----------
+  const VIEW_CRUMBS = {
+    sanctum: "玄阁洞府",
+    wilderness: "十方大荒",
+    inventory: "百宝纳戒",
+    bazaar: "九霄坊市",
+  };
+
   function setView(v) {
     const valid = ["sanctum", "wilderness", "inventory", "bazaar"];
     if (!valid.includes(v)) v = "sanctum";
     state.view = v;
     document.querySelectorAll(".nav-tab[data-view]").forEach((b) => {
-      b.classList.toggle("active", b.getAttribute("data-view") === v);
+      const isCur = b.getAttribute("data-view") === v;
+      b.classList.toggle("active", isCur);
+      if (isCur) {
+        b.className = "nav-tab active px-5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-jade-700 to-jade-600 shadow-sm flex items-center gap-1.5 transition-all";
+      } else {
+        b.className = "nav-tab px-5 py-1.5 rounded-full text-xs font-medium text-slate-600 hover:text-jade-800 hover:bg-white/60 transition-all flex items-center gap-1.5";
+      }
     });
+    const crumb = $("topNavCrumb");
+    if (crumb) crumb.textContent = VIEW_CRUMBS[v] || "玄阁洞府";
     renderBody();
   }
 
@@ -269,187 +285,390 @@
   }
 
   // ==========================================================================
-  // 主境一：【玄阁洞府】 (Sanctum)
+  // 主境一：【玄阁洞府 · 仙府总揽与乾坤枢机】 (Sanctum) - Stitch 原生 1:1 高保真
   // ==========================================================================
   function renderSanctum() {
     const s = state.status || {
-      name: state.name || "散修道人",
-      realm: "练气期",
-      sect: "散修",
-      rank: "散修",
-      exp: "60/100",
-      rem_years: 92,
-      sin: 0,
-      merit: 20,
-      stones: 100,
-      vault: 0,
-      root: "五行杂灵根",
+      name: "太素仙尊 · 顾青玄",
+      realm: "化神后期（圆满）",
+      sect: "太素仙宗",
+      rank: "太上掌教",
+      stones: 128450,
+      vault: 360000,
+      exp: "1,240,000 / 1.4M",
+      rem_years: 2800,
+      sin: 120,
+      merit: 3650,
+      root: "先天混元灵根",
       blood_marked: false,
-      meditating: false,
+      pill_exp_mult: 1
     };
 
-    const isMed = !!(s.meditating || s.status === "MEDITATING");
-    const expParts = String(s.exp || "0/100").split("/");
-    const expCur = parseFloat(expParts[0]) || 0;
-    const expMax = parseFloat(expParts[1]) || 100;
-    const expPct = Math.min(100, Math.max(0, (expCur / expMax) * 100));
+    let expPct = 88;
+    if (s.exp && s.exp.includes("/")) {
+      const parts = s.exp.replace(/,/g, "").split("/");
+      const cur = parseFloat(parts[0]) || 0;
+      const max = parseFloat(parts[1]) || 1;
+      expPct = Math.min(100, Math.max(0, Math.round((cur / max) * 100)));
+    }
 
-    const feedItems = (state.feed || [])
-      .slice(-6)
-      .reverse()
-      .map((f) => {
-        const d = new Date(f.ts * 1000);
-        const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-        const cls = f.kind === "ai" ? "feed-ai" : f.kind === "bad" ? "feed-bad" : f.kind === "cmd" ? "feed-cmd" : "";
-        return `<div class="feed-item ${cls}">
-          <span class="feed-text">${esc(f.text)}</span>
-          <span class="feed-time">${timeStr}</span>
-        </div>`;
-      })
-      .join("") || `<div style="font-size:12px;color:var(--ink-400);padding:8px">暂无天道因果流转。</div>`;
+    const isMed = s.is_meditating || false;
+    const recentFeeds = state.feed.slice(-4).reverse();
+    const feedItems = recentFeeds.length > 0 ? recentFeeds.map((f) => `
+      <div class="relative pl-5 pb-3 border-l-2 border-jade-300">
+        <span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-jade-600 ring-2 ring-white"></span>
+        <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+          <span class="font-mono text-slate-600">【${esc(f.time || "辰时")}】</span>
+          <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">因果显现</span>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed">${esc(f.text)}</p>
+      </div>
+    `).join("") : `
+      <div class="relative pl-5 pb-2 border-l-2 border-jade-300">
+        <span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-jade-600 ring-2 ring-white"></span>
+        <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+          <span class="font-mono text-slate-600">【辰时三刻】</span>
+          <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">+善缘 +10</span>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed">道友今日于洞天参悟天工密卷，偶有所得，神识通达，道心温润。</p>
+      </div>
+      <div class="relative pl-5 pb-2 border-l-2 border-jade-300">
+        <span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-filigree-500 ring-2 ring-white"></span>
+        <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+          <span class="font-mono text-slate-600">【巳时初候】</span>
+          <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-medium">天地演化</span>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed">西荒黑风绝渊赤焰喷涌，世界疤痕显现，隐有上古凶煞降世！</p>
+      </div>
+    `;
 
     return `
-    <div class="stage-container">
-      <!-- 仙山云海全景画卷 (Vista Panoramic Banner) -->
-      <div class="vista-banner">
-        <div class="vista-content">
-          <div class="vista-title-box">
-            <div class="vista-badge">
-              <span class="material-symbols-outlined" style="font-size:16px;color:#88d5c0">wb_twilight</span>
+    <div class="w-full flex flex-col gap-6">
+      <!-- 顶部仙山云海全景画卷 (纯净自然原画，绝无人物面板文字重影) -->
+      <div class="relative w-full rounded-2xl overflow-hidden shadow-md bg-slate-900 min-h-[220px] flex items-end p-6 border border-filigree-400/40"
+           style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa'); background-size: cover; background-position: center 35%;">
+        <div class="absolute inset-0 bg-gradient-to-t from-jade-950/90 via-jade-950/40 to-transparent"></div>
+        <div class="relative z-10 w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+          <div class="space-y-1.5">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-emerald-200 text-xs font-medium border border-white/20">
+              <span class="material-symbols-outlined text-[14px] text-filigree-300">wb_twilight</span>
               <span>洞天福地 · 太素第七重微界</span>
             </div>
-            <h1>九天碧虚洞府 · 乾坤枢机</h1>
-            <p>日出扶桑，紫气东渐三千里。聚灵法阵周天运转，灵泉温润，道友灵神已与主峰地脉相契。</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-widest drop-shadow-md">
+              九天碧虚洞府 · 乾坤枢机
+            </h1>
+            <p class="text-xs sm:text-sm text-jade-100/90 max-w-xl leading-relaxed">
+              日出扶桑，紫气东渐三千里。聚灵法阵周天运转，灵泉温润，道友灵神已与主峰地脉相契。
+            </p>
           </div>
-          <div class="vista-weather-pill">
-            <div style="display:flex;flex-direction:column;text-align:right">
-              <span class="vista-weather-label">灵气浓度</span>
-              <span class="vista-weather-val">九品上极 · 灵潮充沛</span>
+          <div class="flex items-center gap-3.5 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-md border border-filigree-400/40">
+            <div class="flex flex-col text-right">
+              <span class="text-[11px] text-slate-500 font-medium">灵气浓度 (Qi Density)</span>
+              <span class="text-sm font-bold text-jade-900">九品上极 · 灵潮充沛</span>
             </div>
-            <span class="material-symbols-outlined" style="color:var(--jade-500);font-size:32px">water_lux</span>
+            <div class="w-9 h-9 rounded-full bg-jade-100 flex items-center justify-center text-jade-700">
+              <span class="material-symbols-outlined text-[20px]">water_lux</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 洞府主网格 -->
-      <div class="sanctum-grid">
-        <!-- 左栏：道身真影与根本气机 -->
-        <div class="jade-card gold-rim avatar-card mutton-jade">
-          <div class="avatar-frame">
-            <span>${esc((s.name || "道").slice(0, 1))}</span>
-          </div>
-          <div class="dao-name">${esc(s.name || "道友")}</div>
-          <div class="dao-realm">${esc(s.realm || "练气期")} · ${esc(s.sect || "散修")}${s.rank && s.rank !== "散修" ? " · " + esc(s.rank) : ""}</div>
-          <div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:11px;color:var(--gold-600);margin-bottom:14px">
-            <span class="material-symbols-outlined" style="font-size:14px">cyclone</span>
-            <span>灵根禀赋：${esc(s.root || "五行混元灵根")}</span>
-          </div>
+      <!-- 12 栏主网格：左 4 栏修士本命玉牌，右 8 栏仙府运转万象图 -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        <!-- ================= 左栏：修士本命玉牌与立绘 (4 Cols) ================= -->
+        <div class="xl:col-span-4 flex flex-col gap-5">
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4 relative overflow-hidden">
+            <!-- 头部：本命玉牌名号与道阶角标 -->
+            <div class="flex items-start justify-between relative z-10">
+              <div class="flex items-center gap-2.5">
+                <div class="w-2 h-6 rounded-sm bg-jade-700"></div>
+                <div>
+                  <span class="text-[11px] text-slate-500 uppercase tracking-wider block">修士本命玉牌</span>
+                  <span class="text-base font-bold text-jade-950 tracking-wide">${esc(s.name || "太素仙尊 · 顾青玄")}</span>
+                </div>
+              </div>
+              <div class="flex flex-col items-center justify-center px-2 py-1 rounded-lg bg-jade-50 border border-jade-200 shadow-2xs">
+                <span class="text-[10px] text-filigree-700 font-semibold">道阶</span>
+                <span class="text-xs font-bold text-jade-800">${esc((s.realm || "化神").slice(0, 2))}</span>
+              </div>
+            </div>
 
-          <div class="stat-bar-group">
-            <div class="stat-row">
-              <span>寿元气数</span>
-              <span style="font-weight:600;color:var(--jade-700)">约 ${Number(s.rem_years || 0).toFixed(0)} 岁</span>
+            <!-- 真人仙风立绘 (Stitch 原生原画，彻底告别单字大圆圈) -->
+            <div class="relative w-full h-56 rounded-xl overflow-hidden bg-slate-900 shadow-inner group">
+              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuC92R2mr6xU9UHjsRfuNu3g2Zp1nBIKlcuhjOOX4E208W0CQffLkq5NTks8DeAIDsPOnVZbhDC1Mw62UweMhOUr4Yweo6-Yl-XPj4lwbwZFGJ63SwOYGC-RtjclNtB3dHecCgeTHMMT1eO4GmNfkAky--4kxkAtzNBdmq6UYa2m9spz5HL4uyaacOnjLcntHyq6q-seoNoZkWP2hCKkTbDp6Lu2immHkKZwYuf4NdsMbeQZAamMXQtxcA"
+                   class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                   alt="太素仙尊道身真影" />
+              <div class="absolute inset-0 bg-gradient-to-t from-jade-950/85 via-transparent to-transparent"></div>
+              <div class="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/85 backdrop-blur-md shadow-xs">
+                <span class="text-xs text-jade-950 font-medium">当前境界：${esc(s.realm || "化神后期")}</span>
+                <span class="text-xs text-filigree-700 font-bold">登仙第玖阶</span>
+              </div>
             </div>
-            <div class="stat-row">
-              <span>修为进境</span>
-              <span style="font-weight:600;color:var(--gold-600)">${esc(s.exp || "0/100")}</span>
-            </div>
-            <div class="stat-progress">
-              <div class="stat-progress-fill" style="width:${expPct}%"></div>
-            </div>
-            <div class="stat-row" style="margin-top:6px">
-              <span>因果功过</span>
-              <span>业力 ${s.sin || 0} / 功德 ${s.merit || 0}</span>
-            </div>
-            <div class="stat-row">
-              <span>道身清浊</span>
-              <span style="color:${s.blood_marked ? "var(--blood-500)" : "var(--jade-700)"}">${s.blood_marked ? "血煞缠身" : "正道清虚"}</span>
-            </div>
-          </div>
 
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
-            <button type="button" class="btn primary block" data-cmd="/闭关 1">
-              <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">self_improvement</span>
-              <span>${isMed ? "深层吐纳中" : "入定闭关吐纳"}</span>
-            </button>
-            <button type="button" class="btn secondary block" data-cmd="/突破">
-              <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">bolt</span>
-              <span>引雷渡劫破境</span>
-            </button>
-            <button type="button" class="btn ghost block" data-cmd="/look">
-              <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">visibility</span>
-              <span>观照自身道身</span>
-            </button>
+            <!-- 破境九转金环进度 -->
+            <div class="p-3 bg-white/80 rounded-xl border border-jade-200/80 shadow-2xs flex items-center gap-3.5">
+              <div class="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
+                <svg class="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-jade-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.2"></path>
+                  <path class="text-filigree-500 stroke-current" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-dasharray="${expPct}, 100" stroke-linecap="round" stroke-width="3.2"></path>
+                </svg>
+                <span class="absolute text-[11px] font-bold text-jade-900 font-mono">${expPct}%</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-slate-600 font-medium">冲虚合体期进度</span>
+                  <span class="text-jade-800 font-bold font-mono">${esc(s.exp || "1,240,000 / 1.4M")}</span>
+                </div>
+                <div class="w-full bg-jade-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div class="bg-gradient-to-r from-jade-600 to-filigree-500 h-full rounded-full" style="width: ${expPct}%"></div>
+                </div>
+                <div class="mt-1 flex items-center gap-1 text-[11px] text-filigree-700 truncate">
+                  <span class="material-symbols-outlined text-[13px]">flare</span>
+                  <span>静候天劫：尚余九日降下金液玉雷</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 五行道韵与天元灵根星图 -->
+            <div class="bg-jade-50/70 rounded-xl p-3.5 space-y-2 border border-jade-100">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-jade-900 font-bold flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[15px] text-jade-600">spa</span>
+                  <span>五行道韵与天元灵根</span>
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-jade-200/80 text-jade-800 font-medium">先天混元</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/80 rounded-lg border border-jade-100">
+                  <span class="text-slate-600 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-jade-600"></span>天品水灵根
+                  </span>
+                  <span class="font-bold text-jade-900 font-mono">96%</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/80 rounded-lg border border-jade-100">
+                  <span class="text-slate-600 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>变异九霄雷
+                  </span>
+                  <span class="font-bold text-filigree-700 font-mono">84%</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/80 rounded-lg border border-jade-100">
+                  <span class="text-slate-600 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>青木长生骨
+                  </span>
+                  <span class="font-bold text-jade-900 font-mono">74%</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/80 rounded-lg border border-jade-100">
+                  <span class="text-slate-600 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>玄金锐气
+                  </span>
+                  <span class="font-bold text-slate-700 font-mono">58%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 因果天平 · 道心气象 -->
+            <div class="bg-white/80 rounded-xl p-3 border border-jade-200/80 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-jade-900 flex items-center gap-1">
+                  <span>⚖️ 因果天平 · 道心气象</span>
+                </span>
+                <span class="text-[11px] text-jade-700 font-medium">道心无垢</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-center text-xs">
+                <div class="bg-jade-50 p-2 rounded-lg border border-jade-200">
+                  <div class="text-[10px] text-slate-500">清净功德云霞</div>
+                  <div class="text-sm font-bold text-jade-700 font-mono">+${s.merit || 3650}</div>
+                </div>
+                <div class="bg-rose-50 p-2 rounded-lg border border-rose-200">
+                  <div class="text-[10px] text-slate-500">凡尘业力煞气</div>
+                  <div class="text-sm font-bold text-rose-700 font-mono">-${s.sin || 120}</div>
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5 text-[11px] text-slate-600 pt-1 text-center">
+                <div class="bg-slate-50 py-1 rounded">命禄寿元 <strong class="text-jade-900">${Number(s.rem_years || 145).toFixed(0)}载</strong></div>
+                <div class="bg-slate-50 py-1 rounded">神识感召 <strong class="text-jade-900">4,850步</strong></div>
+                <div class="bg-slate-50 py-1 rounded">宗门道勋 <strong class="text-filigree-700">太上长老</strong></div>
+              </div>
+            </div>
+
+            <!-- 本命温养法宝卡 -->
+            <div class="rounded-xl overflow-hidden border border-filigree-400/40 bg-gradient-to-r from-jade-900 to-slate-900 p-3 text-white relative">
+              <div class="flex items-center justify-between text-xs mb-1.5">
+                <span class="text-filigree-300 font-semibold flex items-center gap-1">
+                  <span>🛡️ 本命温养法宝</span>
+                </span>
+                <span class="px-1.5 py-0.2 rounded bg-filigree-500/20 text-filigree-300 border border-filigree-400/30 text-[10px]">地阶温灵 · 九转</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-bold text-white tracking-wide">九天碧玉太虚剑</h4>
+                  <div class="text-[10px] text-jade-300 mt-0.5">剑灵觉醒：太虚玄青雀</div>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] text-slate-400">锋芒</span>
+                  <div class="text-sm font-bold text-filigree-300 font-mono">9,880</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 核心交互动作组 -->
+            <div class="grid grid-cols-3 gap-2 pt-1">
+              <button type="button" class="py-2.5 px-2 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1 cursor-pointer" data-cmd="/闭关 1">
+                <span>🧘</span>
+                <span>${isMed ? "吐纳中" : "入定闭关"}</span>
+              </button>
+              <button type="button" class="py-2.5 px-2 rounded-lg bg-white/90 hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-semibold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer" data-cmd="/突破">
+                <span>⚡</span>
+                <span>引雷破境</span>
+              </button>
+              <button type="button" class="py-2.5 px-2 rounded-lg bg-white/90 hover:bg-jade-50 text-slate-700 border border-jade-200 text-xs font-semibold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer" data-cmd="/look">
+                <span>👁️</span>
+                <span>观照道身</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- 右栏：洞府静室与因果纪事 -->
-        <div style="display:flex;flex-direction:column;gap:20px">
-          <div class="sanctum-subrooms">
-            <!-- 静室蒲团 -->
-            <div class="room-card mutton-jade">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                <span class="material-symbols-outlined text-secondary" style="font-size:20px;color:var(--jade-600)">airline_seat_recline_extra</span>
-                <h4>静室蒲团</h4>
+        <!-- ================= 右栏：仙府运转万象图 (8 Cols) ================= -->
+        <div class="xl:col-span-8 flex flex-col gap-5">
+          <!-- 仙府运转总览卷轴 -->
+          <div class="jade-panel rounded-2xl p-6 shadow-sm border border-jade-200/90 relative">
+            <div class="flex items-center justify-between pb-3 mb-4 border-b border-jade-200/80">
+              <div>
+                <div class="text-[11px] text-slate-400">卷次 · 洞府营造总览 / 天命甲辰四百二十卷</div>
+                <h2 class="text-lg font-bold text-jade-950 tracking-wide mt-0.5">仙府运转万象图</h2>
               </div>
-              <p>避绝尘世喧嚣，锁门行周天大循环。当前：${isMed ? "闭关入定中" : "神完气足，行止自由"}</p>
-              <div style="display:flex;gap:8px">
-                <button type="button" class="btn sm primary" data-cmd="/闭关 1">闭关一刻</button>
-                <button type="button" class="btn sm secondary" data-cmd="/出关">收功出关</button>
-              </div>
-            </div>
-
-            <!-- 乾坤金库 -->
-            <div class="room-card mutton-jade">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                <span class="material-symbols-outlined" style="font-size:20px;color:var(--gold-500)">savings</span>
-                <h4>乾坤金库</h4>
-              </div>
-              <p>随身备：${s.stones || 0} 灵石 | 金库储：${s.vault || 0} 灵石（大阵庇护不可掠夺）</p>
-              <div style="display:flex;gap:8px">
-                <button type="button" class="btn sm primary" data-cmd="/寄存 100">存入百石</button>
-                <button type="button" class="btn sm secondary" data-cmd="/支取 100">支取百石</button>
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-jade-100 border border-jade-300 text-[11px] text-jade-800 font-medium">
+                <span class="w-2 h-2 rounded-full bg-jade-600 animate-pulse"></span>
+                <span>护山大阵: 太乙两仪生灭阵 · 稳固</span>
               </div>
             </div>
 
-            <!-- 丹房药鼎 -->
-            <div class="room-card mutton-jade">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                <span class="material-symbols-outlined" style="font-size:20px;color:var(--blood-500)">local_fire_department</span>
-                <h4>丹房药鼎</h4>
+            <!-- 三大设施卡：玄冰灵泉、紫菁草园、镇山仙鹤 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- 设施 1：玄冰九曲灵泉 -->
+              <div class="p-3.5 bg-white/80 rounded-xl border border-jade-200 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="w-7 h-7 rounded-lg bg-jade-100 text-jade-700 flex items-center justify-center text-xs">🌊</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">产出倍率 +180%</span>
+                  </div>
+                  <h3 class="text-sm font-bold text-jade-950">玄冰九曲灵泉</h3>
+                  <p class="text-xs text-slate-600 mt-1 line-clamp-2">地下地阴玄水汇聚而成，当前注满【玄冰灵液】7,400升，可助突破心魔。</p>
+                </div>
+                <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <span class="text-[11px] text-slate-500">储液充盈度 <strong class="text-jade-800 font-mono">92%</strong></span>
+                  <button type="button" class="px-2.5 py-1 rounded bg-jade-700 hover:bg-jade-800 text-white text-[11px] font-medium" data-cmd="/修炼">提取灵露</button>
+                </div>
               </div>
-              <p>采集天地灵萃，凝聚九转神丹。药力：${s.pill_exp_mult ? "丹效蕴体" : "炉火纯青"}</p>
-              <div style="display:flex;gap:8px">
-                <button type="button" class="btn sm secondary" data-cmd="/帮助 丹药">研读丹经</button>
-                <button type="button" class="btn sm ghost" data-cmd="/服用 聚气丹">纳气服丹</button>
+
+              <!-- 设施 2：紫菁九叶草园 -->
+              <div class="p-3.5 bg-white/80 rounded-xl border border-jade-200 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs">🌿</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-medium">尚余 2 时辰成熟</span>
+                  </div>
+                  <h3 class="text-sm font-bold text-jade-950">紫菁九叶草园</h3>
+                  <p class="text-xs text-slate-600 mt-1 line-clamp-2">沐浴晨曦朝露，已孕育千年仙品芝草三株，采摘后可炼制【九转还魂丹】。</p>
+                </div>
+                <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <span class="text-[11px] text-slate-500">地脉灵蕴滋养 <strong class="text-filigree-700 font-mono">78%</strong></span>
+                  <button type="button" class="px-2.5 py-1 rounded bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-[11px] font-medium" data-cmd="/帮助 丹药">采摘灵草</button>
+                </div>
+              </div>
+
+              <!-- 设施 3：镇山灵兽 · 青羽仙鹤 -->
+              <div class="p-3.5 bg-white/80 rounded-xl border border-jade-200 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="w-7 h-7 rounded-lg bg-jade-100 text-jade-700 flex items-center justify-center text-xs">🕊️</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">已遣灵巡弋</span>
+                  </div>
+                  <h3 class="text-sm font-bold text-jade-950">镇山灵兽 · 青羽仙鹤</h3>
+                  <p class="text-xs text-slate-600 mt-1 line-clamp-2">今日巡弋南溟归来，神识传音：“东南千里赤霞蒸腾，似有上古洞府秘宝现世。”</p>
+                </div>
+                <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <span class="text-[11px] text-slate-500">警戒度 <strong class="text-jade-800 font-medium">极佳</strong></span>
+                  <button type="button" class="px-2.5 py-1 rounded bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-[11px] font-medium" data-cmd="/秘境">命灵鹤探路</button>
+                </div>
               </div>
             </div>
 
-            <!-- 炼器神台 -->
-            <div class="room-card mutton-jade">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                <span class="material-symbols-outlined" style="font-size:20px;color:var(--jade-600)">handyman</span>
-                <h4>炼器神台</h4>
+            <!-- 天机推演条 -->
+            <div class="mt-4 p-3 bg-gradient-to-r from-jade-50 via-white to-amber-50 rounded-xl border border-jade-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-jade-800 text-filigree-300 flex items-center justify-center font-calligraphy text-base font-bold shadow-2xs">
+                  廿一
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-jade-950 flex items-center gap-2">
+                    <span>天机推演 · 芒种岁星入亢宿</span>
+                    <span class="text-[10px] text-filigree-700">[大吉 · 宜纳气]</span>
+                  </div>
+                  <div class="text-[11px] text-slate-600 mt-0.5">
+                    <span class="text-jade-700 font-semibold">【宜】</span>引雷淬体、双修论道、洗练灵剑 &nbsp;|&nbsp;
+                    <span class="text-rose-700 font-semibold">【忌】</span>强开死关、轻动杀念
+                  </div>
+                </div>
               </div>
-              <p>淬炼法宝灵胚，洗练随机词缀。法宝加持自身战力与天地契合度。</p>
-              <div style="display:flex;gap:8px">
-                <button type="button" class="btn sm primary" data-act="view:inventory">纳戒宝物</button>
-                <button type="button" class="btn sm secondary" data-cmd="/帮助 穿戴">祭炼法门</button>
-              </div>
+              <button type="button" class="text-xs text-jade-700 hover:text-jade-900 font-semibold flex items-center gap-1 min-w-max cursor-pointer" data-cmd="/世情">
+                <span>观星推演全图</span>
+                <span>➔</span>
+              </button>
             </div>
           </div>
 
-          <!-- 仙途行止 · 天道因果日志 -->
-          <div class="jade-card mutton-jade">
-            <div class="card-head">
-              <h3>仙途行止 · 因果纪事</h3>
-              <div style="display:flex;gap:6px">
-                <button type="button" class="btn sm ghost" data-cmd="/任务">修行指引</button>
-                <button type="button" class="btn sm ghost" data-cmd="/世情">观照世情</button>
+          <!-- 洞府内廷：静室蒲团、乾坤金库与仙途因果纪事 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <!-- 乾坤金库与静室操作 -->
+            <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4">
+              <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+                <h3 class="text-sm font-bold text-jade-950 flex items-center gap-1.5">
+                  <span>🏛️ 乾坤金库与洞府行止</span>
+                </h3>
+                <span class="text-xs text-filigree-700 font-medium">大阵庇护 · 不可掠夺</span>
+              </div>
+              <div class="p-3 bg-white/80 rounded-xl border border-jade-100 text-xs space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-slate-500">随身灵石：</span>
+                  <span class="font-bold text-jade-900 font-mono">${s.stones || 520} 灵石</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-slate-500">金库储积：</span>
+                  <span class="font-bold text-filigree-700 font-mono">${s.vault || 1600} 灵石</span>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button type="button" class="flex-1 py-1.5 rounded bg-jade-700 hover:bg-jade-800 text-white text-xs font-medium cursor-pointer" data-cmd="/寄存 100">存入百石</button>
+                  <button type="button" class="flex-1 py-1.5 rounded bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" data-cmd="/支取 100">支取百石</button>
+                </div>
+              </div>
+              <div class="p-3 bg-white/80 rounded-xl border border-jade-100 text-xs space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-jade-900">静室蒲团 · 锁门闭关</span>
+                  <span class="text-slate-500">${isMed ? "闭关入定中" : "神完气足"}</span>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button type="button" class="flex-1 py-1.5 rounded bg-jade-700 hover:bg-jade-800 text-white text-xs font-medium cursor-pointer" data-cmd="/闭关 1">闭关一刻</button>
+                  <button type="button" class="flex-1 py-1.5 rounded bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" data-cmd="/出关">收功出关</button>
+                </div>
               </div>
             </div>
-            <div class="feed-box">
-              ${feedItems}
+
+            <!-- 仙途行止 · 因果纪事 -->
+            <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-3">
+              <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+                <h3 class="text-sm font-bold text-jade-950 flex items-center gap-1.5">
+                  <span>📜 仙途行止 · 因果纪事</span>
+                </h3>
+                <div class="flex gap-1.5">
+                  <button type="button" class="px-2 py-0.5 rounded bg-jade-100 hover:bg-jade-200 text-jade-800 text-[11px] font-medium cursor-pointer" data-cmd="/任务">修行指引</button>
+                  <button type="button" class="px-2 py-0.5 rounded bg-jade-100 hover:bg-jade-200 text-jade-800 text-[11px] font-medium cursor-pointer" data-cmd="/世情">观照世情</button>
+                </div>
+              </div>
+              <div class="space-y-3 pt-1">
+                ${feedItems}
+              </div>
             </div>
           </div>
         </div>
@@ -458,162 +677,389 @@
   }
 
   // ==========================================================================
-  // 主境二：【十方大荒 · 秘境探险图卷】 (Wilderness)
+  // 主境二：【十方大荒 · 秘境探险图卷】 (Wilderness) - Stitch 原生 1:1 高保真
   // ==========================================================================
   function renderWilderness() {
-    const curLoc = (state.status && state.status.location) || "青云坊市客栈";
-    const ev = (state.world && state.world.evolution) || {};
-    const d = ev.director || {};
-    const hasDirectorEvents = (d.active || []).length > 0;
-    const bannerNarrative = hasDirectorEvents
-      ? (d.active[0].narrative || d.active[0].title || "天地煞气浮动")
-      : "世间气机平稳祥和，正逢仙家修士探幽求索之良辰。";
-
-    const realmCards = WILDERNESS_REALMS.map((r) => {
-      const isHere = curLoc === r.location;
-      return `
-      <article class="realm-card mutton-jade">
-        <!-- 秘境高保真原画封绘 -->
-        <div class="realm-thumb">
-          <img src="${r.image}" alt="${esc(r.title)}" loading="lazy" />
-          <div class="realm-thumb-scrim"></div>
-          <div class="realm-thumb-badges">
-            <span class="realm-badge ${r.tagClass}">${r.tierName}</span>
-            ${r.isGuaranteed ? `<span class="realm-badge gold">★ 初探必得保底</span>` : ""}
-          </div>
-          <div class="realm-thumb-foot">
-            <div>
-              <h3>${esc(r.title)}</h3>
-              <div class="realm-sub">${esc(r.location)}</div>
-            </div>
-            <div class="realm-drop">
-              <div class="realm-drop-label">藏宝残图掉落率</div>
-              <div class="realm-drop-val">${esc(r.mapDrop)}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 秘境详情与危险度 -->
-        <div class="realm-body">
-          <div>
-            <div class="realm-danger-row">
-              <span>凶险程度: <strong style="color:var(--jade-700)">${esc(r.dangerText)}</strong></span>
-              <span style="font-weight:700">${esc(r.dangerPercent)}</span>
-            </div>
-            <div class="realm-danger-bar">
-              <div class="realm-danger-fill ${r.tagClass}" style="width:${r.dangerPercent}"></div>
-            </div>
-            <p class="realm-desc" style="margin-top:10px">${esc(r.desc)}</p>
-          </div>
-
-          <!-- 预视产出珍物 -->
-          <div class="realm-rewards">
-            <span class="realm-rewards-label">产出珍物预视:</span>
-            <div class="realm-reward-chips">
-              ${(r.rewards || []).map((rw) => `<span class="realm-reward-chip">${esc(rw)}</span>`).join("")}
-            </div>
-          </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px solid var(--jade-border-soft);font-size:12px">
-            <span style="color:var(--ink-500)">${esc(r.spiritRate)}</span>
-            <span style="color:var(--gold-700);font-weight:700">${esc(r.cost)}</span>
-          </div>
-
-          <!-- 操作按钮 -->
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <button type="button" class="btn sm secondary" data-cmd="/望气" title="观测大荒风水">
-              <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">visibility</span>
-              <span>神识望气</span>
-            </button>
-            ${
-              isHere
-                ? `<button type="button" class="btn sm primary block" data-cmd="/探险 ${esc(r.name)}">
-                    <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">explore</span>
-                    <span>踏入探索</span>
-                  </button>`
-                : `<button type="button" class="btn sm ghost block" data-go="${esc(r.location)}">
-                    <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">flight_takeoff</span>
-                    <span>御剑前往</span>
-                  </button>`
-            }
-          </div>
-        </div>
-      </article>`;
-    }).join("");
+    const curLoc = (state.status && state.status.location) || "落霞山灵泉";
 
     return `
-    <div class="stage-container">
-      <!-- 秘境大荒全景画卷 -->
-      <div class="vista-banner" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCY--FB0d0O_ArqrUgt5_rR75fargeEY20HYAhjry_nFVu8EQO74NGjcLQEaAhWVtDC6ovRtZyt1UImEFRwojZS1CmIGxbsz1R7T7PVXTxhIihgCiPzRw4LHx6g4D2f2_J7I465sAIr8ureWOCp_-IC8tSezKsL_Nn7O9MY_TGcXNJOERph0JCEUXQ4A2KJMHhElbzAkAlGAbJz_ortemxuJD-i3xb4CA-ZGMsrj4e9pUNlTmR3DM3iiw');">
-        <div class="vista-content">
-          <div class="vista-title-box">
-            <div class="vista-badge">
-              <span class="material-symbols-outlined" style="font-size:16px;color:#ffdea5">landscape</span>
-              <span>十方天地 · 幽冥大荒无垠画卷</span>
+    <div class="w-full flex flex-col gap-5">
+      <!-- 顶部界隙天痕异变条 (Top Dynamic Alert Banner) -->
+      <section class="w-full" data-purpose="world-scar-alert">
+        <div class="relative overflow-hidden rounded-xl border border-rose-300/80 bg-gradient-to-r from-rose-50/95 via-amber-50/90 to-jade-50/80 p-3 sm:p-4 shadow-sm">
+          <div class="relative flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
+                </span>
+                <h2 class="text-sm sm:text-base font-bold text-rose-950 flex items-center gap-1.5">
+                  <span>【界隙天痕异变】</span>
+                  <span class="text-rose-700">赤焰火海 · 地脉狂暴涌动</span>
+                </h2>
+              </div>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-rose-600/10 text-rose-700 border border-rose-500/30">
+                极度凶险 · 煞气侵蚀 +45%
+              </span>
+              <div class="text-xs text-slate-600 flex items-center gap-2 bg-white/70 px-2.5 py-1 rounded-md border border-rose-200">
+                <span>周天灵气稀释因子: <strong class="text-rose-700 font-mono">0.62x</strong></span>
+                <span class="text-slate-300">|</span>
+                <span class="text-amber-800">火毒炽盛，水系法宝消耗+20%</span>
+              </div>
             </div>
-            <h1>十方大荒 · 秘境探险图卷</h1>
-            <p>天地不仁，以万物为刍狗。九天罡风与地底阴煞交织，凶险与大造化并存。随身备妥盘缠，神识勘测天机。</p>
-          </div>
-          <div class="vista-weather-pill">
-            <div style="display:flex;flex-direction:column;text-align:right">
-              <span class="vista-weather-label">大荒气机</span>
-              <span class="vista-weather-val">赤焰暗涌 · 危机四伏</span>
+            <div class="flex items-center gap-3 self-end md:self-auto">
+              <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-jade-700 text-white text-xs font-medium hover:bg-jade-800 transition-all shadow-sm border border-filigree-400/40 cursor-pointer" type="button" data-cmd="/佩戴 九天避火佩">
+                <span>🛡️</span>
+                <span>佩戴【九天避火佩】抵御煞气</span>
+              </button>
+              <div class="text-xs text-slate-500 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200 flex items-center gap-1.5">
+                <span>距地脉灵潮逆转: <span class="font-mono font-semibold text-rose-800">02时48分</span></span>
+              </div>
             </div>
-            <span class="material-symbols-outlined" style="color:var(--blood-500);font-size:32px">local_fire_department</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 天地异象横幅：世界疤痕 -->
-      <div class="world-scar-banner">
-        <div class="scar-left">
-          <span class="scar-badge">
-            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">warning</span> 异象示现
-          </span>
-          <span class="scar-text">【天地疤痕 · 煞气警示】${esc(bannerNarrative)}</span>
-        </div>
-        <button type="button" class="btn sm ghost" data-cmd="/天道">天道导演</button>
-      </div>
-
-      <!-- 大荒探险契印与保底金印 -->
-      <div class="guarantee-box mutton-jade">
-        <div class="guarantee-left">
-          <div class="guarantee-seal">保</div>
-          <div>
-            <div class="guarantee-title">天道探险气运金印 · 必得造化</div>
-            <div style="font-size:12px;color:var(--ink-500)">外出历练随身备足 20 灵石作为盘缠，初探秘境必得天道气运保底，可获法宝或奇珍灵物。</div>
+      <!-- 12 栏主结构：左 8 栏 2x2 秘境大卡，右 4 栏大荒实纪探险行纪 -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- 左侧 8 栏：秘境目录与 2x2 探索卡片 -->
+        <section class="lg:col-span-8 flex flex-col gap-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-jade-200/80">
+            <div class="flex items-center gap-3">
+              <div class="w-1.5 h-6 rounded-full bg-gradient-to-b from-filigree-400 to-jade-700"></div>
+              <h1 class="text-xl font-bold text-jade-950 flex items-center gap-2">
+                <span>十方灵墟 · 秘境图卷探幽</span>
+                <span class="text-xs font-normal text-slate-500 hidden sm:inline">（探索上古封印与洞天福地）</span>
+              </h1>
+            </div>
+            <div class="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0">
+              <button class="px-3 py-1 rounded-full bg-jade-700 text-white font-medium shadow-sm cursor-pointer whitespace-nowrap">全部秘境</button>
+              <button class="px-3 py-1 rounded-full bg-white/80 hover:bg-jade-100 text-slate-600 border border-jade-200 font-medium transition cursor-pointer whitespace-nowrap">初阶机缘</button>
+              <button class="px-3 py-1 rounded-full bg-white/80 hover:bg-jade-100 text-slate-600 border border-jade-200 font-medium transition cursor-pointer whitespace-nowrap">天道险关</button>
+              <button class="px-3 py-1 rounded-full bg-white/80 hover:bg-jade-100 text-slate-600 border border-jade-200 font-medium transition cursor-pointer whitespace-nowrap">已开辟地图 (12/36)</button>
+            </div>
           </div>
-        </div>
-        <button type="button" class="btn sm gold" data-cmd="/探险">
-          <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">verified</span>
-          <span>备足盘缠 · 探秘</span>
-        </button>
-      </div>
 
-      <!-- 四大秘境图卷网格 -->
-      <div class="realms-grid">
-        ${realmCards}
-      </div>
+          <!-- 2x2 秘境卡片网格 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <!-- 卡片 1: 野外山原 -->
+            <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
+              <div class="relative h-44 w-full overflow-hidden bg-slate-900">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
+                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="野外山原" />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/30"></div>
+                <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-jade-900/80 text-jade-100 border border-jade-500/40 backdrop-blur-sm">凡阶九品 · 入门历练</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-filigree-500/90 text-amber-950 border border-filigree-300 shadow-sm">★ 初探必得保底</span>
+                </div>
+                <div class="absolute bottom-2.5 left-3 right-3 flex items-end justify-between text-white">
+                  <div>
+                    <h3 class="text-lg font-bold tracking-wide">野外山原</h3>
+                    <p class="text-xs text-jade-200">落霞灵脉外围</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[11px] text-slate-300">藏宝残图掉落率</span>
+                    <div class="text-sm font-bold text-filigree-300 font-mono">9%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 flex-1 flex flex-col justify-between gap-3">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="text-slate-500 flex items-center gap-1">
+                      <span>凶险程度</span>
+                      <span class="font-bold text-jade-700">微波无害</span>
+                    </span>
+                    <span class="font-mono font-semibold text-jade-800">22%</span>
+                  </div>
+                  <div class="w-full h-1.5 bg-jade-100 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-jade-500 to-jade-600 h-full rounded-full" style="width: 22%"></div>
+                  </div>
+                  <p class="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    适合温养初生道心，群山连绵云雾轻绕，采撷野生朱果与凡阶凝气草绝佳之地。
+                  </p>
+                </div>
+                <div class="bg-jade-50/70 p-2.5 rounded-lg border border-jade-100">
+                  <span class="text-[11px] text-slate-500 block mb-1.5 font-medium">产出珍物预视:</span>
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">凝气丹 x5</span>
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">九叶野芝</span>
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-filigree-700 font-medium">青木残卷</span>
+                  </div>
+                </div>
+                <button class="w-full py-2.5 px-4 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm border border-filigree-400/30 cursor-pointer" type="button" data-cmd="/探险 野外山原">
+                  <span>启程赴险</span>
+                  <span class="text-[11px] font-normal text-jade-200">(耗神行 15)</span>
+                </button>
+              </div>
+            </article>
 
-      <!-- 历练指引与因果 -->
-      <div class="jade-card mutton-jade">
-        <div class="card-head">
-          <h3>大荒行止 · 探索实录</h3>
-          <button type="button" class="btn sm ghost" data-cmd="/秘境">秘境天机榜</button>
-        </div>
-        <div style="font-size:13px;color:var(--ink-700);line-height:1.6">
-          大千大荒，无奇不有。秘境之中暗藏五行杀劫与古修遗府；若身怀实体藏宝图，更可依循干支卦象定点挖掘。<br />
-          当前位置：<strong>【${esc(curLoc)}】</strong>。若遇凶险，可随时引动神识敕令使用遁符避祸。
-        </div>
+            <!-- 卡片 2: 落霞古洞 -->
+            <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
+              <div class="relative h-44 w-full overflow-hidden bg-slate-900">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                     class="w-full h-full object-cover object-left transition-transform duration-700 group-hover:scale-105" alt="落霞古洞" />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/30"></div>
+                <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-900/85 text-emerald-100 border border-emerald-400/40 backdrop-blur-sm">玄阶上品 · 仙家古迹</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-jade-700/85 text-white border border-jade-400/40">★ 灵泉充裕</span>
+                </div>
+                <div class="absolute bottom-2.5 left-3 right-3 flex items-end justify-between text-white">
+                  <div>
+                    <h3 class="text-lg font-bold tracking-wide">落霞古洞</h3>
+                    <p class="text-xs text-amber-200">落霞荒泽深处</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[11px] text-slate-300">藏宝残图掉落率</span>
+                    <div class="text-sm font-bold text-filigree-300 font-mono">18%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 flex-1 flex flex-col justify-between gap-3">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="text-slate-500 flex items-center gap-1">
+                      <span>凶险程度</span>
+                      <span class="font-bold text-amber-700">暗藏禁制</span>
+                    </span>
+                    <span class="font-mono font-semibold text-amber-700">35%</span>
+                  </div>
+                  <div class="w-full h-1.5 bg-jade-100 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-jade-600 via-amber-500 to-amber-600 h-full rounded-full" style="width: 35%"></div>
+                  </div>
+                  <p class="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    洞藏【千年落霞玉泉】，可淬炼肉身骨骼，洞深处有守洞玄猿栖息，暗合玄奥奇阵。
+                  </p>
+                </div>
+                <div class="bg-jade-50/70 p-2.5 rounded-lg border border-jade-100">
+                  <span class="text-[11px] text-slate-500 block mb-1.5 font-medium">产出珍物预视:</span>
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">落霞玉露</span>
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">破境清心丹</span>
+                    <span class="px-2 py-1 bg-white rounded border border-filigree-300 text-xs text-filigree-800 font-semibold">古修真经残页</span>
+                  </div>
+                </div>
+                <button class="w-full py-2.5 px-4 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm border border-filigree-400/30 cursor-pointer" type="button" data-cmd="/探险 落霞古洞">
+                  <span>启程赴险</span>
+                  <span class="text-[11px] font-normal text-jade-200">(耗神行 25)</span>
+                </button>
+              </div>
+            </article>
+
+            <!-- 卡片 3: 黑风绝渊裂隙 -->
+            <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
+              <div class="relative h-44 w-full overflow-hidden bg-slate-900">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBrs5mCoUskHEbq1GlHOnBx7XWlud9-v5oIgbGeyYxe2ZzY4l3wRW1M1CTwwi8pFnX89v6X9ntxxBARx9Cb4Ql__nMwtBuQAYh-jEEtkSUo33eUdV59LGotu4vUq2__xsR-HnpMSLLev1Z7qwBpPGQmHxq04_AmEZpElihjyukTLNy9R-_Ypl69spuWXf7KoGj03iHgd1b8L-HVibTt72FDChjhuGY75UCephhoygFbX595WE_AWkDjio-wxN2z5AtO-zQuSGpJ-nk"
+                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="黑风绝渊裂隙" />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
+                <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-stone-900/85 text-amber-200 border border-amber-500/40 backdrop-blur-sm">地阶中品 · 罡风天堑</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-900/80 text-rose-200 border border-rose-400/40">道阶: 筑基二重+</span>
+                </div>
+                <div class="absolute bottom-2.5 left-3 right-3 flex items-end justify-between text-white">
+                  <div>
+                    <h3 class="text-lg font-bold tracking-wide">黑风绝渊裂隙</h3>
+                    <p class="text-xs text-stone-300">西荒绝壁之渊</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[11px] text-slate-300">藏宝残图掉落率</span>
+                    <div class="text-sm font-bold text-filigree-300 font-mono">30%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 flex-1 flex flex-col justify-between gap-3">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="text-slate-500 flex items-center gap-1">
+                      <span>凶险程度</span>
+                      <span class="font-bold text-amber-800">罡风裂魂</span>
+                    </span>
+                    <span class="font-mono font-semibold text-amber-800">55%</span>
+                  </div>
+                  <div class="w-full h-1.5 bg-jade-100 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-amber-500 to-amber-700 h-full rounded-full" style="width: 55%"></div>
+                  </div>
+                  <p class="mt-2.5 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    九天罡风呼啸凛冽，出产极寒玄冥阴玉。凡躯难抗，埋葬前朝万剑冢与嗜血妖兽。
+                  </p>
+                </div>
+                <div class="bg-jade-50/70 p-2.5 rounded-lg border border-jade-100">
+                  <span class="text-[11px] text-slate-500 block mb-1.5 font-medium">产出珍物预视:</span>
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">玄冥风晶</span>
+                    <span class="px-2 py-1 bg-white rounded border border-jade-200 text-xs text-jade-900 font-medium">地阶洗髓液</span>
+                    <span class="px-2 py-1 bg-white rounded border border-filigree-300 text-xs text-filigree-800 font-semibold">幽冥秘藏舆图</span>
+                  </div>
+                </div>
+                <button class="w-full py-2.5 px-4 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm border border-filigree-400/30 cursor-pointer" type="button" data-cmd="/探险 黑风绝渊">
+                  <span>启程赴险</span>
+                  <span class="text-[11px] font-normal text-jade-200">(耗神行 35)</span>
+                </button>
+              </div>
+            </article>
+
+            <!-- 卡片 4: 万星遗迹残址 -->
+            <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border-2 border-filigree-400/60 shadow-md relative group bg-gradient-to-b from-white/90 via-jade-50/30 to-amber-50/20">
+              <div class="absolute top-0 right-0 z-20 overflow-hidden w-28 h-28 pointer-events-none">
+                <div class="bg-gradient-to-r from-filigree-600 to-amber-400 text-white font-bold text-[9px] py-1 text-center rotate-45 transform translate-x-8 translate-y-4 shadow-sm tracking-widest">
+                  绝境天阶
+                </div>
+              </div>
+              <div class="relative h-44 w-full overflow-hidden bg-slate-950">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbPOc8iM9b6MSMEI4lwWSqB16hzd1Hi4uor0XBPRt27QwOU-ZbBNZrbDjllObF13h_ontpANtf5BFwy8f9oM8gwa8BHesL_031HYxJRLDdD3Sh4He0-KflozAkqRWqa4mrCxGo5pKYOPuE2aypwkSNXu3iXGzdBTuCFwNFQRH0I8lfC3bsilMTemAfzWBWmQG6qrIBL3Vpp3rFksluu8Do6I10_Rl8dy4iDGXe699GlKoa0Uz7TO_Dg5TQ177c8CjpZvSyM-YuZSQ-"
+                     class="w-full h-full object-cover object-right transition-transform duration-700 group-hover:scale-105" alt="万星遗迹残址" />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/20 to-black/30"></div>
+                <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-950/90 text-filigree-300 border border-filigree-400/60 backdrop-blur-sm">天阶绝境 · 上古仙阙</span>
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-900/90 text-rose-200 border border-rose-400/40">⚡ 伴生九霄紫雷</span>
+                </div>
+                <div class="absolute bottom-2.5 left-3 right-3 flex items-end justify-between text-white z-10">
+                  <div>
+                    <h3 class="text-lg font-bold tracking-wide text-filigree-200">万星遗迹残址</h3>
+                    <p class="text-xs text-indigo-200">东海遗存残界</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[11px] text-filigree-200">藏宝残图掉落率</span>
+                    <div class="text-sm font-bold text-filigree-300 font-mono">40% (极高)</div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-4 flex-1 flex flex-col justify-between gap-3">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1.5">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-slate-500">凶险程度</span>
+                      <span class="font-bold text-rose-700">十死一生</span>
+                      <span class="text-[10px] px-1 bg-rose-100 text-rose-800 rounded">化神初期以上</span>
+                    </div>
+                    <span class="font-mono font-bold text-rose-700">70%</span>
+                  </div>
+                  <div class="w-full h-1.5 bg-jade-100 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-amber-500 via-rose-600 to-rose-700 h-full rounded-full" style="width: 70%"></div>
+                  </div>
+                  <p class="mt-2.5 text-xs text-slate-700 line-clamp-2 leading-relaxed">
+                    星辰陨落之所，阵眼遗存混沌星核，传闻更有天道至宝剑胎镇守，煞气与仙光激荡！
+                  </p>
+                </div>
+                <div class="bg-filigree-50/70 p-2.5 rounded-lg border border-filigree-200">
+                  <span class="text-[11px] text-amber-800 block mb-1.5 font-medium">产出珍物预视:</span>
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-1 bg-white rounded border border-filigree-300 text-xs text-amber-950 font-bold">混沌星核</span>
+                    <span class="px-2 py-1 bg-white rounded border border-filigree-300 text-xs text-amber-950 font-bold">万星天命剑胎</span>
+                    <span class="px-2 py-1 bg-gradient-to-r from-filigree-100 to-amber-200 rounded border border-filigree-400 text-xs text-filigree-900 font-bold">天道藏宝全图</span>
+                  </div>
+                </div>
+                <button class="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-filigree-600 via-jade-700 to-jade-800 hover:from-filigree-500 hover:to-jade-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md border border-filigree-300 cursor-pointer" type="button" data-cmd="/探险 万星古岛">
+                  <span>⚡ 破界出征</span>
+                  <span class="text-[11px] font-normal text-filigree-200">(耗神行 50)</span>
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 右侧 4 栏：大荒实纪 · 探险行纪 (Stitch 原生竹简风卷轴) -->
+        <aside class="lg:col-span-4 flex flex-col">
+          <div class="relative bg-parchment-50 border-2 border-filigree-400/50 rounded-2xl p-5 shadow-lg flex flex-col h-full min-h-[640px] overflow-hidden">
+            <!-- 卷轴顶端轴心 -->
+            <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-stone-700 via-amber-800 to-stone-700 border-b border-filigree-500 flex items-center justify-between px-6">
+              <div class="w-4 h-1.5 bg-filigree-400 rounded-sm"></div>
+              <div class="w-4 h-1.5 bg-filigree-400 rounded-sm"></div>
+            </div>
+
+            <!-- 行纪头部 -->
+            <div class="pt-3 pb-3 border-b border-parchment-300 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">📜</span>
+                <div>
+                  <h2 class="text-base font-bold text-stone-900 tracking-wide">大荒实纪 · 探险行纪</h2>
+                  <p class="text-[11px] text-stone-500">Live Expedition Chronicle</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-jade-100 border border-jade-300 text-[11px] text-jade-800 font-medium">
+                <span class="w-2 h-2 rounded-full bg-jade-600 animate-ping"></span>
+                <span>神识同频中</span>
+              </div>
+            </div>
+
+            <!-- 当前探险状态盒 -->
+            <div class="mt-3.5 p-3 bg-white/80 rounded-xl border border-parchment-300 text-xs shadow-2xs">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-slate-500">正在探查: <strong class="text-jade-900">${esc(curLoc)}</strong></span>
+                <span class="text-[11px] font-mono text-filigree-700 font-bold">历时 01时24分</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-slate-600">
+                <span class="text-jade-600">🕊️</span>
+                <span>灵宠【青羽仙鹤】随行护道 · 警戒度良好</span>
+              </div>
+            </div>
+
+            <!-- 时间线故事流 -->
+            <div class="mt-4 flex-1 overflow-y-auto pr-1 space-y-4 text-xs">
+              <div class="relative pl-5 pb-2 border-l-2 border-jade-300">
+                <span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-jade-600 ring-2 ring-white"></span>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+                  <span class="font-mono text-slate-600">【辰时三刻】</span>
+                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">+善缘 +10</span>
+                </div>
+                <p class="text-slate-700 leading-relaxed">
+                  偶遇散修行商，花费50灵石换得一株三百年黄精，道心微润，气机运转畅达。
+                </p>
+              </div>
+
+              <div class="relative pl-5 pb-2 border-l-2 border-jade-300">
+                <span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-filigree-500 ring-2 ring-white"></span>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+                  <span class="font-mono text-slate-600">【巳时初候】</span>
+                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-medium">神识 +15</span>
+                </div>
+                <p class="text-slate-700 leading-relaxed">
+                  踏入古洞前厅，触发上古避尘符阵，仙鹤啼鸣示警，规避禁制陷阱！
+                </p>
+              </div>
+
+              <div class="relative pl-5 pb-2 border-l-2 border-filigree-400">
+                <span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-amber-600 ring-2 ring-white"></span>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+                  <span class="font-mono text-slate-600">【午时一刻】</span>
+                  <span class="px-1.5 py-0.2 rounded bg-filigree-200 text-filigree-900 font-bold">掉落奇珍</span>
+                </div>
+                <p class="text-slate-800 font-medium leading-relaxed">
+                  斩杀三阶盘丝洞蛛，缴获<span class="text-jade-800 font-semibold">【碧玉丝囊】x2</span>，偶得<span class="text-filigree-700 font-bold underline">【藏宝残图·丙】一角</span>！
+                </p>
+              </div>
+
+              <div class="relative pl-5 pb-2 border-l-2 border-rose-300">
+                <span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-white"></span>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-0.5">
+                  <span class="font-mono text-slate-600">【未时将至】</span>
+                  <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-medium">煞气侵袭</span>
+                </div>
+                <p class="text-slate-700 leading-relaxed">
+                  遭遇地脉煞气涌动（赤焰天痕影响），真元护盾消耗12%，正服用【避火丹】稳固元神。
+                </p>
+              </div>
+            </div>
+
+            <!-- 底部行纪控制 -->
+            <div class="pt-3 mt-2 border-t border-parchment-300 flex items-center justify-between text-xs">
+              <span class="text-slate-500">神识投影视真: <strong class="text-jade-900">无损耗</strong></span>
+              <button type="button" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium shadow-2xs cursor-pointer" data-cmd="/返回">
+                召回化身 (提前归返)
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>`;
   }
 
   // ==========================================================================
-  // 主境三：【百宝纳戒 · 灵物宝匣与天机藏图】 (Inventory)
+  // 主境三：【百宝纳戒 · 灵物宝匣与天机藏图】 (Inventory) - 纯正仙侠 · 绝无西文
   // ==========================================================================
   function ensureDefaultInventory() {
-    if (state.inventory && state.inventory.length > 0) return;
+    if (state.inventory && state.inventory.length >= 10) return;
     state.inventory = [
       {
         uid: "item_sword_01",
@@ -623,6 +1069,7 @@
         slotCn: "法宝器灵",
         tier: 3,
         tierName: "地品",
+        iconGlyph: "剑",
         stats: { "攻伐威能": 160, "破甲穿透": 45 },
         affixes: [
           { name: "破煞", desc: "对附带煞气之邪修及妖兽伤害提升 35%" },
@@ -630,7 +1077,6 @@
         ],
         durability: "92 / 100",
         lore: "前代剑修于黑风绝渊斩杀骨魔后以心头血淬炼，剑身隐现幽青流芒。",
-        icon: "swords",
       },
       {
         uid: "item_robe_01",
@@ -640,13 +1086,13 @@
         slotCn: "防身宝衣",
         tier: 2,
         tierName: "人品",
+        iconGlyph: "袍",
         stats: { "护身甲御": 90, "避火抗性": 50 },
         affixes: [
           { name: "固元", desc: "周天元气稳固，受击气血折损减免 20%" },
         ],
         durability: "100 / 100",
         lore: "以北海灵鲛之丝织就，水火不侵，纤尘不染。",
-        icon: "shield",
       },
       {
         uid: "item_jade_01",
@@ -656,13 +1102,13 @@
         slotCn: "本命灵佩",
         tier: 4,
         tierName: "天品",
+        iconGlyph: "玉",
         stats: { "神识念力": 120, "回气速度": 25 },
         affixes: [
           { name: "凝神", desc: "神识感应范围扩张一倍，打坐吐纳效率提升 30%" },
         ],
         durability: "88 / 100",
         lore: "蕴含太虚星象天演之术，佩于腰间常闻灵泉叮咚之仙音。",
-        icon: "diamond",
       },
       {
         uid: "item_map_01",
@@ -671,12 +1117,12 @@
         slotCn: "天机秘宝图卷",
         tier: 3,
         tierName: "地品",
+        iconGlyph: "图",
         targetNodeName: "落霞山灵泉",
         archetypeCn: "坎水五行破阵",
         coords: "甲子方位 · 震木宫 东南二十里 地脉三丈",
         riddle: "五行倒悬，阴阳同炉。阵眼匿于【落霞山灵泉】灵穴最深处，非晓坎水生克之道者不可启。",
         lore: "此图自落霞风水脉络截取而出，纸帛泛黄，微透赤金水墨，记载前朝真仙遗府所在。",
-        icon: "explore",
       },
       {
         uid: "item_pill_01",
@@ -685,12 +1131,12 @@
         slotCn: "救命神丹",
         tier: 2,
         tierName: "人品",
+        iconGlyph: "丹",
         stats: { "延寿增气": 3 },
         affixes: [
           { name: "生肌", desc: "生死肉白骨，濒危坐化时可凭空添续寿元三年。" },
         ],
         lore: "采七七四十九味地脉灵芝，于八卦炉中文火慢煨百日方成。",
-        icon: "medication",
       },
       {
         uid: "item_mat_01",
@@ -699,9 +1145,79 @@
         slotCn: "炼器神材",
         tier: 1,
         tierName: "凡品",
+        iconGlyph: "金",
         stats: { "重铸精纯": 15 },
         lore: "深埋地脉万载的精金矿胚，重铸法宝洗练破煞词缀之必备神材。",
-        icon: "gem",
+      },
+      {
+        uid: "item_dew_01",
+        name: "百年落霞玉露",
+        kind: "pill",
+        slotCn: "淬骨灵液",
+        tier: 3,
+        tierName: "地品",
+        iconGlyph: "露",
+        stats: { "肉身根骨": 20 },
+        lore: "自落霞古洞灵钟乳尖滴落汇集而成，三百年仅得一小盅。",
+      },
+      {
+        uid: "item_wind_01",
+        name: "玄冥风晶灵胚",
+        kind: "material",
+        slotCn: "罡风神材",
+        tier: 3,
+        tierName: "地品",
+        iconGlyph: "风",
+        stats: { "破甲附魔": 30 },
+        lore: "采自黑风绝渊裂隙最深处，遇风自鸣，锐利无当。",
+      },
+      {
+        uid: "item_pill_02",
+        name: "辟毒清元灵丹",
+        kind: "pill",
+        slotCn: "驱邪灵丹",
+        tier: 2,
+        tierName: "人品",
+        iconGlyph: "清",
+        stats: { "避毒护体": 40 },
+        lore: "克制南瞻部洲大荒瘴气与火毒，服下后通体清凉。",
+      },
+      {
+        uid: "item_scroll_01",
+        name: "万星残卷星图",
+        kind: "treasure_map",
+        slotCn: "上古秘卷",
+        tier: 4,
+        tierName: "天品",
+        iconGlyph: "星",
+        targetNodeName: "万星古岛",
+        archetypeCn: "上古星斗大阵",
+        coords: "天罡北斗 · 摇光星位 东海尽头 虚空裂谷",
+        riddle: "诸天列宿，浩浩星芒。欲开万星仙阙，须聚齐三宿星钥方得其门而入。",
+        lore: "传闻自天外陨星遗迹拓印而来，抚之微有紫雷震颤。",
+      },
+      {
+        uid: "item_array_01",
+        name: "紫金离火阵盘",
+        kind: "equip",
+        slot: "weapon",
+        slotCn: "护道阵盘",
+        tier: 3,
+        tierName: "地品",
+        iconGlyph: "阵",
+        stats: { "真火威能": 135, "阵法封锁": 50 },
+        lore: "以纯阳赤金熔铸，布阵之时离火腾空，凡妖避易。",
+      },
+      {
+        uid: "item_talisman_01",
+        name: "太虚青木神符",
+        kind: "material",
+        slotCn: "御风灵符",
+        tier: 1,
+        tierName: "凡品",
+        iconGlyph: "符",
+        stats: { "神行遁速": 80 },
+        lore: "引青木灵气绘制的千里飞遁符，遇险燃之可瞬息避退数十里。",
       },
     ];
   }
@@ -709,7 +1225,7 @@
   function renderInventory() {
     ensureDefaultInventory();
     const inv = state.inventory;
-    const filter = state.bagFilter;
+    const filter = state.bagFilter || "all";
 
     const filtered = inv.filter((it) => {
       if (filter === "all") return true;
@@ -720,387 +1236,524 @@
       return true;
     });
 
-    const activeIndex = Math.min(state.selectedItemIndex, Math.max(0, filtered.length - 1));
+    const activeIndex = Math.min(state.selectedItemIndex || 0, Math.max(0, filtered.length - 1));
     const sel = filtered[activeIndex] || filtered[0] || inv[0];
 
-    // 三大本命佩戴槽
     const weaponEquip = inv.find((x) => x.slot === "weapon") || { name: "空置法宝", tierName: "凡品", affixes: [] };
-    const armorEquip = inv.find((x) => x.slot === "armor") || { name: "空置法衣", tierName: "凡品", affixes: [] };
+    const armorEquip = inv.find((x) => x.slot === "armor") || { name: "空置道袍", tierName: "凡品", affixes: [] };
     const trinketEquip = inv.find((x) => x.slot === "trinket") || { name: "空置灵佩", tierName: "凡品", affixes: [] };
 
     const bagCells = filtered.map((it, idx) => {
       const isSel = it === sel;
       const tName = it.tierName ? it.tierName.slice(0, 1) : "凡";
-      const iconSymbol = it.icon || "inventory_2";
+      const glyph = it.iconGlyph || it.name.slice(0, 1);
+      const isGold = it.tier >= 3;
       return `
-      <div class="bag-cell clip-octagon mutton-jade ${isSel ? "mutton-jade-active active-selected-pulse" : ""}" data-bag-idx="${idx}" title="${esc(it.name)}">
-        <span class="cell-badge">${tName}</span>
-        <span class="material-symbols-outlined" style="font-size:28px;color:${isSel ? "var(--gold-500)" : "var(--jade-600)"};margin-bottom:2px">${iconSymbol}</span>
-        <div class="cell-name">${esc(it.name)}</div>
+      <div class="p-3 rounded-xl border ${isSel ? "border-filigree-400 bg-white shadow-md ring-2 ring-filigree-400/40" : "border-jade-200 bg-white/70 hover:bg-white hover:border-jade-400"} transition-all cursor-pointer flex flex-col items-center justify-between text-center relative group min-h-[96px]"
+           data-bag-idx="${idx}" title="${esc(it.name)}">
+        <span class="absolute top-1.5 left-1.5 text-[10px] px-1 rounded font-bold ${isGold ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-jade-100 text-jade-800"}">
+          ${tName}
+        </span>
+        <div class="w-10 h-10 rounded-full ${isSel ? "bg-filigree-400/20 text-filigree-800" : "bg-jade-100/60 text-jade-800"} flex items-center justify-center font-calligraphy text-xl font-bold mt-1 shadow-2xs">
+          ${glyph}
+        </div>
+        <div class="text-xs font-semibold text-slate-800 truncate w-full mt-2">${esc(it.name)}</div>
       </div>`;
     }).join("");
 
-    // 右侧万象灵宝鉴真录
     let inspectorHtml = "";
     if (sel && sel.kind === "treasure_map") {
       inspectorHtml = `
-      <div class="inspector-seal-title" style="display:flex;align-items:center;gap:6px">
-        <span class="material-symbols-outlined" style="color:var(--gold-500);font-size:24px">explore</span>
-        <span>${esc(sel.name)}</span>
-      </div>
-      <div class="inspector-tier">${esc(sel.tierName || "地品")} · ${esc(sel.slotCn || "天机藏宝图卷")}</div>
-      
-      <div class="map-parchment">
-        <h5>天机谶语</h5>
-        <p>${esc(sel.riddle || "天机幽微，机缘隐现于世间。")}</p>
-        <div style="margin-top:10px;font-size:11px;color:#7a2020;line-height:1.6">
-          <div><strong>地脉节点：</strong>${esc(sel.targetNodeName || "未定凶地")}</div>
-          <div><strong>风水卦象：</strong>${esc(sel.coords || "甲子方位 · 地脉三丈")}</div>
-          <div><strong>生克阵眼：</strong>${esc(sel.archetypeCn || "五行生克")}</div>
+      <div class="space-y-4">
+        <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-sm">
+          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+               class="w-full h-full object-cover" alt="藏宝图卷" />
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
+          <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-filigree-500/90 text-amber-950 font-bold text-[11px] shadow-sm">
+            ${esc(sel.tierName)} · ${esc(sel.slotCn)}
+          </div>
+          <div class="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+            <h4 class="text-base font-bold">${esc(sel.name)}</h4>
+            <div class="text-[11px] text-filigree-200 font-mono">定位灵穴：${esc(sel.targetNodeName || "落霞荒泽")}</div>
+          </div>
         </div>
-      </div>
 
-      <div style="font-size:12px;color:var(--ink-500);margin-bottom:16px">
-        古籍考据：${esc(sel.lore || "此图残破，年代久远。")}
-      </div>
+        <div class="bg-amber-50/70 p-3.5 rounded-xl border border-filigree-300/80 space-y-2 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-amber-950">🧭 干支风水定盘方位</span>
+            <span class="text-filigree-700 font-semibold">[${esc(sel.archetypeCn || "坎水五行破阵")}]</span>
+          </div>
+          <div class="bg-white/80 p-2.5 rounded-lg border border-amber-200 font-mono text-slate-700 leading-relaxed">
+            ${esc(sel.coords || "甲子方位 · 震木宫 东南二十里 地脉三丈")}
+          </div>
+          <p class="text-[11px] text-amber-900/80 leading-relaxed italic">
+            “${esc(sel.riddle || "五行倒悬，阴阳同炉。非晓坎水生克之道者不可轻启。")}”
+          </p>
+        </div>
 
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button type="button" class="btn primary block gold" data-cmd="/挖宝">
-          <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">travel_explore</span>
-          <span>循图挖宝 · 开启机缘</span>
-        </button>
-        <button type="button" class="btn secondary block" data-cmd="/宝图 ${esc(sel.name)}">
-          <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">auto_stories</span>
-          <span>研读推演天机</span>
+        <div class="text-xs text-slate-600 bg-white/80 p-3 rounded-xl border border-jade-100 leading-relaxed">
+          ${esc(sel.lore)}
+        </div>
+
+        <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-filigree-600 to-amber-600 hover:from-filigree-500 hover:to-amber-500 text-white text-xs font-bold shadow-md border border-filigree-300 transition cursor-pointer" type="button" data-cmd="/挖宝 ${esc(sel.name)}">
+          依图寻宝探秘 (御风启程)
         </button>
       </div>`;
     } else if (sel) {
-      const statsRows = Object.entries(sel.stats || {}).map(([k, v]) => `
-        <div class="affix-row">
-          <span class="affix-name">${esc(k)}</span>
-          <span class="affix-val">+${v}</span>
+      const statsList = Object.entries(sel.stats || {}).map(([k, v]) => `
+        <div class="flex justify-between items-center py-1 border-b border-slate-100 text-xs">
+          <span class="text-slate-500">${esc(k)}</span>
+          <span class="font-bold text-jade-900 font-mono">+${v}</span>
         </div>
       `).join("");
 
-      const affixesRows = (sel.affixes || []).map((a) => `
-        <div class="affix-row">
-          <span class="affix-name">【${esc(a.name)}】</span>
-          <span class="affix-val">${esc(a.desc)}</span>
+      const affixesList = (sel.affixes || []).map((af) => `
+        <div class="bg-jade-50/80 p-2 rounded-lg border border-jade-100 text-xs">
+          <span class="text-jade-900 font-bold">【${esc(af.name)}】</span>
+          <span class="text-slate-600">${esc(af.desc)}</span>
         </div>
       `).join("");
 
       inspectorHtml = `
-      <div class="inspector-seal-title" style="display:flex;align-items:center;gap:6px">
-        <span class="material-symbols-outlined" style="color:var(--gold-500);font-size:24px">${sel.icon || "inventory_2"}</span>
-        <span>${esc(sel.name)}</span>
-      </div>
-      <div class="inspector-tier">${esc(sel.tierName || "凡品")} · ${esc(sel.slotCn || "仙道灵宝")}</div>
+      <div class="space-y-4">
+        <div class="flex items-center gap-3 pb-3 border-b border-jade-200">
+          <div class="w-12 h-12 rounded-xl bg-jade-800 text-filigree-300 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">
+            ${sel.iconGlyph || sel.name.slice(0, 1)}
+          </div>
+          <div>
+            <h4 class="text-base font-bold text-jade-950">${esc(sel.name)}</h4>
+            <div class="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
+              <span class="px-1.5 py-0.2 rounded bg-filigree-100 text-filigree-800 font-medium">${esc(sel.tierName)}</span>
+              <span>${esc(sel.slotCn || "法宝物华")}</span>
+            </div>
+          </div>
+        </div>
 
-      ${statsRows ? `<div class="inspector-affixes">${statsRows}</div>` : ""}
-      ${affixesRows ? `<div class="inspector-affixes">${affixesRows}</div>` : ""}
+        ${statsList ? `<div class="bg-white/90 p-3 rounded-xl border border-jade-100 space-y-1">${statsList}</div>` : ""}
+        ${affixesList ? `<div class="space-y-2">${affixesList}</div>` : ""}
 
-      ${sel.durability ? `<div style="font-size:12px;color:var(--ink-500);margin-bottom:12px">耐久威能：${sel.durability}</div>` : ""}
-      ${sel.lore ? `<div style="font-size:12px;color:var(--ink-500);margin-bottom:16px">古籍载：${esc(sel.lore)}</div>` : ""}
+        <div class="text-xs text-slate-600 bg-white/80 p-3 rounded-xl border border-jade-100 leading-relaxed">
+          ${esc(sel.lore || "天地造化所钟之奇珍。")}
+        </div>
 
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${sel.kind === "equip" ? `<button type="button" class="btn primary block" data-cmd="/穿戴 ${esc(sel.name)}"><span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">check_circle</span><span>佩戴入体</span></button>` : ""}
-        ${sel.kind === "pill" ? `<button type="button" class="btn primary block" data-cmd="/服用 ${esc(sel.name)}"><span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">local_pharmacy</span><span>纳气服丹</span></button>` : ""}
-        <button type="button" class="btn secondary block" data-act="sell:${esc(sel.name)}">
-          <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">storefront</span>
-          <span>挂牌寄售到坊市</span>
-        </button>
-        <button type="button" class="btn ghost block" data-cmd="/出售 ${esc(sel.name)} 1">
-          <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">sell</span>
-          <span>回售仙盟商会</span>
-        </button>
+        <div class="flex flex-col gap-2 pt-1">
+          <button class="w-full py-2 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/装备 ${esc(sel.name)}">
+            佩戴入体 (运转周天)
+          </button>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-act="sell:${esc(sel.name)}">
+              挂牌寄售坊市
+            </button>
+            <button class="py-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-600 border border-slate-200 text-xs font-medium cursor-pointer" type="button" data-cmd="/卖 ${esc(sel.name)}">
+              回售仙盟商会
+            </button>
+          </div>
+        </div>
       </div>`;
-    } else {
-      inspectorHtml = `<div style="padding:24px 0;text-align:center;color:var(--ink-400)">纳戒空空如也。</div>`;
     }
 
     return `
-    <div class="stage-container">
-      <!-- 纳戒循迹引导与容积玉盘 -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:4px 0">
-        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-500)">
-          <span>万象中枢</span>
-          <span style="color:var(--jade-300)">❯</span>
-          <span style="color:var(--jade-700);font-weight:600">百宝纳戒</span>
-          <span style="color:var(--jade-300)">❯</span>
-          <span style="color:var(--gold-600)">灵物宝匣与天机藏图</span>
+    <div class="w-full flex flex-col gap-5">
+      <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+        <div class="flex items-center gap-3">
+          <div class="w-1.5 h-6 rounded-full bg-gradient-to-b from-filigree-400 to-jade-700"></div>
+          <h1 class="text-xl font-bold text-jade-950 flex items-center gap-2">
+            <span>百宝纳戒 · 灵物宝匣与天机藏图</span>
+            <span class="text-xs font-normal text-slate-500 hidden sm:inline">（乾坤芥子储物空间）</span>
+          </h1>
         </div>
-        <div class="mutton-jade" style="padding:6px 14px;border-radius:20px;display:flex;align-items:center;gap:10px">
-          <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--jade-700)">
-            <span class="material-symbols-outlined" style="font-size:16px;color:var(--jade-600)">inventory_2</span>
-            <span>纳戒容积：</span>
-            <strong>${filtered.length}</strong>
-            <span style="color:var(--ink-400)">/ 陆拾肆 格位</span>
-          </div>
-          <div style="width:80px;height:6px;background:rgba(46,125,107,0.12);border-radius:3px;overflow:hidden">
-            <div style="width:${Math.min(100, (filtered.length / 64) * 100)}%;height:100%;background:var(--jade-500);border-radius:3px"></div>
-          </div>
+        <div class="text-xs text-slate-600 flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-jade-200">
+          <span>纳戒容积: <strong class="text-jade-900 font-mono">${filtered.length}</strong> / 陆拾肆 格位</span>
         </div>
       </div>
 
-      <div class="inventory-layout">
-        <!-- 左栏：本命佩戴三槽 -->
-        <div class="jade-card mutton-jade">
-          <div class="card-head">
-            <h3>本命三槽</h3>
-            <span class="card-tag">道体佩戴</span>
-          </div>
-          <div class="relic-slots">
-            <div class="relic-slot mutton-jade">
-              <div class="slot-oct-box clip-octagon">
-                <span class="material-symbols-outlined" style="font-size:24px;color:var(--gold-600)">swords</span>
-              </div>
-              <div class="slot-meta" style="flex:1">
-                <h4>${esc(weaponEquip.name)}</h4>
-                <div class="affix-pill">${esc((weaponEquip.affixes && weaponEquip.affixes[0] && weaponEquip.affixes[0].name) || "主战法宝")}</div>
-              </div>
-              ${weaponEquip.name !== "空置法宝" ? `<button type="button" class="btn sm ghost" data-cmd="/卸下 ${esc(weaponEquip.name)}">卸下</button>` : ""}
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- 左侧 3 栏：本命佩戴三槽 -->
+        <div class="lg:col-span-3 flex flex-col gap-4">
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+              <h3 class="text-sm font-bold text-jade-950">本命三槽</h3>
+              <span class="text-[11px] text-jade-700 font-medium">道体佩戴</span>
             </div>
 
-            <div class="relic-slot mutton-jade">
-              <div class="slot-oct-box clip-octagon">
-                <span class="material-symbols-outlined" style="font-size:24px;color:var(--jade-600)">shield</span>
+            <!-- 法宝槽 -->
+            <div class="p-3 bg-white/90 rounded-xl border border-jade-200 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-lg bg-jade-800 text-filigree-300 flex items-center justify-center font-calligraphy text-lg font-bold shadow-2xs">
+                  剑
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-jade-950">${esc(weaponEquip.name)}</h4>
+                  <div class="text-[10px] text-filigree-700 font-medium">法宝器灵 · 破煞</div>
+                </div>
               </div>
-              <div class="slot-meta" style="flex:1">
-                <h4>${esc(armorEquip.name)}</h4>
-                <div class="affix-pill">${esc((armorEquip.affixes && armorEquip.affixes[0] && armorEquip.affixes[0].name) || "防身宝衣")}</div>
-              </div>
-              ${armorEquip.name !== "空置法衣" ? `<button type="button" class="btn sm ghost" data-cmd="/卸下 ${esc(armorEquip.name)}">卸下</button>` : ""}
+              ${weaponEquip.name !== "空置法宝" ? `<button type="button" class="text-xs text-slate-400 hover:text-rose-600 cursor-pointer" data-cmd="/卸下 ${esc(weaponEquip.name)}">卸下</button>` : ""}
             </div>
 
-            <div class="relic-slot mutton-jade">
-              <div class="slot-oct-box clip-octagon">
-                <span class="material-symbols-outlined" style="font-size:24px;color:var(--gold-500)">diamond</span>
+            <!-- 防具槽 -->
+            <div class="p-3 bg-white/90 rounded-xl border border-jade-200 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-lg bg-jade-700 text-white flex items-center justify-center font-calligraphy text-lg font-bold shadow-2xs">
+                  袍
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-jade-950">${esc(armorEquip.name)}</h4>
+                  <div class="text-[10px] text-jade-700 font-medium">防身宝衣 · 固元</div>
+                </div>
               </div>
-              <div class="slot-meta" style="flex:1">
-                <h4>${esc(trinketEquip.name)}</h4>
-                <div class="affix-pill">${esc((trinketEquip.affixes && trinketEquip.affixes[0] && trinketEquip.affixes[0].name) || "本命灵佩")}</div>
+              ${armorEquip.name !== "空置道袍" ? `<button type="button" class="text-xs text-slate-400 hover:text-rose-600 cursor-pointer" data-cmd="/卸下 ${esc(armorEquip.name)}">卸下</button>` : ""}
+            </div>
+
+            <!-- 饰品槽 -->
+            <div class="p-3 bg-white/90 rounded-xl border border-jade-200 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-lg bg-amber-600 text-white flex items-center justify-center font-calligraphy text-lg font-bold shadow-2xs">
+                  玉
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-jade-950">${esc(trinketEquip.name)}</h4>
+                  <div class="text-[10px] text-filigree-700 font-medium">本命灵佩 · 凝神</div>
+                </div>
               </div>
-              ${trinketEquip.name !== "空置灵佩" ? `<button type="button" class="btn sm ghost" data-cmd="/卸下 ${esc(trinketEquip.name)}">卸下</button>` : ""}
+              ${trinketEquip.name !== "空置灵佩" ? `<button type="button" class="text-xs text-slate-400 hover:text-rose-600 cursor-pointer" data-cmd="/卸下 ${esc(trinketEquip.name)}">卸下</button>` : ""}
             </div>
           </div>
         </div>
 
-        <!-- 中栏：芥子空间百宝格 -->
-        <div class="jade-card bag-grid-wrap mutton-jade">
-          <div class="bag-filter-bar">
-            <div class="bag-tabs">
-              <button type="button" class="btn sm ${filter === "all" ? "primary" : "ghost"}" data-bag-filter="all">全部</button>
-              <button type="button" class="btn sm ${filter === "equip" ? "primary" : "ghost"}" data-bag-filter="equip">法宝</button>
-              <button type="button" class="btn sm ${filter === "pill" ? "primary" : "ghost"}" data-bag-filter="pill">丹药</button>
-              <button type="button" class="btn sm ${filter === "material" ? "primary" : "ghost"}" data-bag-filter="material">灵材</button>
-              <button type="button" class="btn sm ${filter === "treasure_map" ? "primary" : "ghost"}" data-bag-filter="treasure_map">藏宝天机</button>
+        <!-- 中间 5 栏：芥子空间百宝格 (4x3 饱满大格) -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-jade-200/80">
+              <div class="flex items-center gap-1 text-xs">
+                <button type="button" class="px-2.5 py-1 rounded-full ${filter === "all" ? "bg-jade-700 text-white" : "bg-white text-slate-600 border border-jade-200"} font-medium cursor-pointer" data-bag-filter="all">全部</button>
+                <button type="button" class="px-2.5 py-1 rounded-full ${filter === "equip" ? "bg-jade-700 text-white" : "bg-white text-slate-600 border border-jade-200"} font-medium cursor-pointer" data-bag-filter="equip">法宝</button>
+                <button type="button" class="px-2.5 py-1 rounded-full ${filter === "pill" ? "bg-jade-700 text-white" : "bg-white text-slate-600 border border-jade-200"} font-medium cursor-pointer" data-bag-filter="pill">丹药</button>
+                <button type="button" class="px-2.5 py-1 rounded-full ${filter === "material" ? "bg-jade-700 text-white" : "bg-white text-slate-600 border border-jade-200"} font-medium cursor-pointer" data-bag-filter="material">灵材</button>
+                <button type="button" class="px-2.5 py-1 rounded-full ${filter === "treasure_map" ? "bg-jade-700 text-white" : "bg-white text-slate-600 border border-jade-200"} font-medium cursor-pointer" data-bag-filter="treasure_map">藏宝天机</button>
+              </div>
+              <span class="text-[11px] text-slate-400">选中灵物验真</span>
             </div>
-            <span style="font-size:12px;color:var(--ink-400)">容纳：${filtered.length} 件</span>
-          </div>
 
-          <div class="bag-grid">
-            ${bagCells}
+            <!-- 百宝网格：饱满 4 列排列 -->
+            <div class="grid grid-cols-4 gap-2.5">
+              ${bagCells}
+            </div>
           </div>
         </div>
 
-        <!-- 右栏：万象灵宝鉴真录 -->
-        <div class="jade-card gold-rim inspector-card mutton-jade">
-          <div class="card-head">
-            <h3>鉴真台</h3>
-            <span class="card-tag">天道玄鉴</span>
+        <!-- 右侧 4 栏：万象灵宝鉴真神台 -->
+        <div class="lg:col-span-4 flex flex-col gap-4">
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+              <h3 class="text-sm font-bold text-jade-950">鉴真台</h3>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-filigree-100 text-filigree-800 border border-filigree-300 font-medium">天道玄鉴</span>
+            </div>
+            ${inspectorHtml}
           </div>
-          ${inspectorHtml}
         </div>
       </div>
     </div>`;
   }
 
   // ==========================================================================
-  // 主境四：【九霄坊市 · 乾坤寄售与百家摊集】 (Bazaar)
+  // 主境四：【九霄坊市 · 诸天通宝与乾坤寄售】 (Bazaar) - Stitch 原生 1:1 高保真
   // ==========================================================================
   function ensureDefaultMarket() {
     if (state.marketListings && state.marketListings.length > 0) return;
     state.marketListings = [
-      { id: 1, name: "赤血断岳刀", tier: "地品", affixes: "嗜血·破甲", seller: "万毒老祖", price: 680, tax: 34 },
-      { id: 2, name: "紫霄定雷玉符", tier: "天品", affixes: "避雷·辟邪", seller: "青云真人", price: 1200, tax: 60 },
-      { id: 3, name: "九转回春聚气丹", tier: "人品", affixes: "培元", seller: "百草散人", price: 150, tax: 8 },
-      { id: 4, name: "天工玄木残卷", tier: "凡品", affixes: "铸纹", seller: "墨家传人", price: 80, tax: 4 },
+      { id: 1, name: "地阶上品 · 黑水沼泽天机残图", tier: "地品", affixes: "古修密卷 · 独一无二", seller: "青阳散人", price: 800, tax: 40, kind: "map" },
+      { id: 2, name: "地阶绝品 · 断魂幽煞剑", tier: "天品", affixes: "破煞甲级 · 嗜血乙级", seller: "紫虚真人", price: 1500, tax: 75, kind: "sword" },
+      { id: 3, name: "玄阶极品 · 辟毒清元丹 (拾丸)", tier: "人品", affixes: "克制黑水沼泽赤焰瘴气", seller: "百草仙姑", price: 300, tax: 15, kind: "pill" },
+      { id: 4, name: "天阶残卷 · 落霞古洞太虚玉简", tier: "天品", affixes: "领悟太虚通法概率升至四成", seller: "玄溟剑尊", price: 5000, tax: 250, kind: "scroll" },
     ];
   }
 
   function renderBazaar() {
     ensureDefaultMarket();
     const listings = state.marketListings;
-    const s = state.status || { stones: 100, vault: 0 };
-
-    const rows = listings.map((it, idx) => `
-      <tr>
-        <td style="font-weight:600;color:var(--jade-700)">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span class="material-symbols-outlined" style="font-size:18px;color:var(--jade-600)">storefront</span>
-            <span>${esc(it.name)}</span>
-          </div>
-        </td>
-        <td><span class="card-tag">${esc(it.tier)}</span></td>
-        <td style="color:var(--gold-600);font-size:12px">${esc(it.affixes)}</td>
-        <td>${esc(it.seller)}</td>
-        <td style="font-weight:600;color:var(--gold-600)">${it.price} 灵石</td>
-        <td style="color:var(--ink-400);font-size:11px">${it.tax} 石</td>
-        <td>
-          <button type="button" class="btn sm primary" data-cmd="/买寄售 ${it.id || idx + 1}">
-            <span class="material-symbols-outlined" style="font-size:14px;margin-right:2px">shopping_cart</span>
-            <span>买下</span>
-          </button>
-        </td>
-      </tr>
-    `).join("");
 
     return `
-    <div class="stage-container">
-      <!-- 九霄坊市全景画卷 (Stitch 原生浮空仙岛) -->
-      <div class="vista-banner" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa');">
-        <div class="vista-content">
-          <div class="vista-title-box">
-            <div class="vista-badge">
-              <span class="material-symbols-outlined" style="font-size:16px;color:#ffdea5">storefront</span>
-              <span>九霄通衢 · 仙凡百宝交割总集</span>
+    <div class="w-full flex flex-col gap-5">
+      <!-- 顶部九霄天街深绿大气 Banner (Stitch 原生) -->
+      <section class="w-full">
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-jade-950 via-jade-900 to-slate-900 p-5 sm:p-6 shadow-md border border-filigree-400/40 text-white">
+          <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-8 h-8 rounded-full bg-filigree-500/20 text-filigree-300 flex items-center justify-center font-calligraphy text-base border border-filigree-400/40">坊</span>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-wide">九霄天街 · 灵霄仙阁诸界总坊</h1>
+                <span class="px-2 py-0.5 rounded bg-filigree-500/20 text-filigree-300 text-[10px] border border-filigree-400/30">诸天万修汇聚</span>
+              </div>
+              <p class="text-xs sm:text-sm text-jade-200/90 leading-relaxed max-w-xl">
+                天道商律：寄售契税半成，灵物挂牌七昼夜无人竞购自动退返纳戒。当值掌柜【白鹤道人】坐镇鉴宝护法。
+              </p>
             </div>
-            <h1>九霄坊市 · 诸天通宝与乾坤寄售</h1>
-            <p>四海修仙同道物华天宝汇聚于此。商盟契约明定：诸天流转，物尽其用，童叟无欺，各凭道缘。</p>
-          </div>
-          <div class="vista-weather-pill">
-            <div style="display:flex;flex-direction:column;text-align:right">
-              <span class="vista-weather-label">坊市流通</span>
-              <span class="vista-weather-val">商贸鼎盛 · 契税5%</span>
-            </div>
-            <span class="material-symbols-outlined" style="color:var(--gold-500);font-size:32px">currency_exchange</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 坊市商律告示横幅 -->
-      <div class="bazaar-header-tip mutton-jade">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="material-symbols-outlined" style="color:var(--gold-500);font-size:22px">gavel</span>
-          <div>
-            <strong>【天道商盟敕律】</strong> 凡诸天修士寄售交易，一律抽取 5% 契税充实仙盟府库，童叟无欺，因果自担。
-          </div>
-        </div>
-        <button type="button" class="btn sm ghost" data-cmd="/坊市">刷新货单</button>
-      </div>
-
-      <div class="bazaar-grid">
-        <!-- 左侧：诸天寄售行卷 -->
-        <div class="jade-card mutton-jade">
-          <div class="card-head">
-            <h3>诸天寄售行卷</h3>
-            <span class="card-tag">全界流转</span>
-          </div>
-          <table class="listing-table">
-            <thead>
-              <tr>
-                <th>灵宝法物</th>
-                <th>品阶</th>
-                <th>词缀精粹</th>
-                <th>物主道号</th>
-                <th>标价</th>
-                <th>契税(5%)</th>
-                <th>商行买卖</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 右侧：个人摆摊灵坛与金库储蓄 -->
-        <div style="display:flex;flex-direction:column;gap:20px">
-          <!-- 坊市特展：镇店灵宝 (Stitch 原生法宝卡) -->
-          <div class="jade-card mutton-jade" style="padding:0;overflow:hidden">
-            <div style="position:relative;height:120px;overflow:hidden;background:#0d2822">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCx1XqrWPxxMxX6vj8cc0t2-lw0vt9mfYOOqjpvX1JTdC1ugKMv7vOXGA-HripYmSiS2WbcY5OjHkQw-qmqOxIIk9KUMNtf2zAxziEOvEt_8f30nBA3vRVzbGjkpuX5pYByGIdKl-KxEYWLCjYBDVr2_AB5VXOPTEKosjl5opGAoT9nI4vjYWjG9X_w5E2XBMS1w4_P3YOn_t4mEjn2Aik2GExcvbIXI-lGKArsbltVhasVtU59HOAcooesb6GDoLRkC6Eqlh6I5qtb"
-                   alt="玄天青玉剑" style="width:100%;height:100%;object-fit:cover" />
-              <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(8,26,22,0.85) 0%, transparent 60%)"></div>
-              <div style="position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:4px;background:rgba(197,155,39,0.9);color:#261900;font-size:11px;font-weight:700">★ 镇市极品</div>
-              <div style="position:absolute;bottom:8px;left:12px;color:#ffffff">
-                <div style="font-weight:700;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,0.8)">【玄天青玉剑】</div>
-                <div style="font-size:11px;color:#a4f2db">地阶上乘 · 破煞五品</div>
+            <div class="flex items-center gap-3">
+              <div class="px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-center">
+                <div class="text-[10px] text-jade-200">在售天机奇珍</div>
+                <div class="text-base font-bold text-filigree-300 font-mono">壹仟贰佰件</div>
+              </div>
+              <div class="px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-center">
+                <div class="text-[10px] text-jade-200">今日总成交灵石</div>
+                <div class="text-base font-bold text-white font-mono">捌拾肆万枚</div>
               </div>
             </div>
-            <div style="padding:14px;font-size:12px;color:var(--ink-700);line-height:1.6">
-              千年极温青玉所凝，古仙佩剑，剑鸣动九霄。可由天道神识参与竞夺。
-            </div>
-          </div>
-
-          <!-- 个人货摊 -->
-          <div class="stall-box mutton-jade">
-            <div class="card-head">
-              <h3>个人摆摊灵坛</h3>
-              <span class="card-tag">我的货摊</span>
-            </div>
-            <p style="font-size:12px;color:var(--ink-500);margin-bottom:14px">
-              闲置法宝丹药可直接挂牌寄售，售出后灵石将自动划入金库。
-            </p>
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <button type="button" class="btn primary block" data-act="focus-cmd:/寄售 ">
-                <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">add_business</span>
-                <span>挂牌寄售法物</span>
-              </button>
-              <button type="button" class="btn secondary block" data-cmd="/撤单 1">
-                <span class="material-symbols-outlined" style="font-size:18px;margin-right:4px">remove_shopping_cart</span>
-                <span>撤回货位摊位</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 坊市金库柜台 -->
-          <div class="jade-card mutton-jade">
-            <div class="card-head">
-              <h3>金库兑换柜台</h3>
-              <span class="card-tag">安全储蓄</span>
-            </div>
-            <div style="font-size:13px;color:var(--ink-700);margin-bottom:12px;line-height:1.7">
-              <div>随身携带：<strong>${s.stones || 0}</strong> 灵石（可用于交易、历练盘缠）</div>
-              <div>金库储蓄：<strong>${s.vault || 0}</strong> 灵石（大阵庇护，斗法不可被掠）</div>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="btn sm primary block" data-cmd="/寄存 100">
-                <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">archive</span>
-                <span>存入百石</span>
-              </button>
-              <button type="button" class="btn sm secondary block" data-cmd="/支取 100">
-                <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">unarchive</span>
-                <span>支取百石</span>
-              </button>
-            </div>
           </div>
         </div>
+      </section>
+
+      <!-- 12 栏结构：左 8 栏寄售行卷图文流，右 4 栏万象鉴真神台与我的货摊 -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- 左侧 8 栏：寄售行卷 -->
+        <section class="lg:col-span-8 flex flex-col gap-4">
+          <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+            <div class="flex items-center gap-1.5 overflow-x-auto text-xs">
+              <button class="px-3 py-1 rounded-full bg-jade-700 text-white font-medium shadow-sm cursor-pointer whitespace-nowrap">全部寄售 (肆)</button>
+              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">神兵法宝</button>
+              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">灵丹妙药</button>
+              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">天机藏图</button>
+              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">天材地宝</button>
+            </div>
+            <span class="text-[11px] text-slate-400 hidden sm:inline">行情刷新时序: 每炷香一更</span>
+          </div>
+
+          <!-- 货品图文卡片流 (Stitch 原生高保真行卷) -->
+          <div class="space-y-4">
+            <!-- 货品 1：黑水沼泽天机残图 -->
+            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
+              <div class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded bg-jade-100 text-jade-800 font-semibold border border-jade-300">
+                当前鉴真聚焦
+              </div>
+              <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="黑水沼泽天机图" />
+                <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">黑水沼泽 · 遗迹祭坛</div>
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-bold text-jade-950 truncate">地阶上品 · 黑水沼泽天机残图</h3>
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px]">
+                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">古修密卷</span>
+                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">独一无二</span>
+                  <span class="text-slate-400">| 寄售散修: 青阳散人</span>
+                </div>
+                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  天干地支勘测点：子位十二·坎位负四。此残图以深海灵鲛皮揉制，内蕴太虚神识印记，破阵要求需调动五行坎水真元。
+                </p>
+                <div class="flex items-center justify-between pt-1">
+                  <div class="text-xs text-slate-500">
+                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 捌佰枚</strong>
+                  </div>
+                  <div class="flex gap-2">
+                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 1">
+                      神念验宝
+                    </button>
+                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 1">
+                      立即交割
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- 货品 2：断魂幽煞剑 -->
+            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
+              <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner">
+                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
+                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="断魂幽煞剑" />
+                <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">九天碧玉太虚兵戈</div>
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-bold text-jade-950 truncate">地阶绝品 · 断魂幽煞剑</h3>
+                  <span class="text-[10px] text-slate-400">| 寄售散修: 紫虚真人</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px]">
+                  <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-900 border border-rose-300 font-medium">破煞 (甲级)</span>
+                  <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-900 border border-rose-300 font-medium">嗜血 (乙级)</span>
+                  <span class="text-slate-500">攻伐增益 +160</span>
+                </div>
+                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  以万载玄冥寒玉淬火七七四十九日铸成，剑尖游离煞气，出鞘有白鹤哀鸣之音，专破幽冥护体罡气。
+                </p>
+                <div class="flex items-center justify-between pt-1">
+                  <div class="text-xs text-slate-500">
+                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 壹仟伍佰枚</strong>
+                  </div>
+                  <div class="flex gap-2">
+                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 2">
+                      神念验宝
+                    </button>
+                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 2">
+                      立即交割
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <!-- 货品 3：辟毒清元丹 -->
+            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
+              <div class="w-36 h-28 rounded-lg bg-jade-50 border border-jade-200 flex flex-col items-center justify-center flex-shrink-0">
+                <span class="w-12 h-12 rounded-full bg-jade-200 text-jade-800 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">丹</span>
+                <span class="text-[10px] text-slate-400 mt-1">共拾丸</span>
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-base font-bold text-jade-950">玄阶极品 · 辟毒清元丹 (拾丸)</h3>
+                  <span class="text-[10px] text-slate-400">寄售散修: 百草仙姑</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px]">
+                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">克制黑水沼泽赤焰瘴气</span>
+                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">温养灵脉三载</span>
+                </div>
+                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  采集千年玄冰雪莲与甘露熬炼而成，入腹化作九道清凉真气，辟除万毒，固护元神。
+                </p>
+                <div class="flex items-center justify-between pt-1">
+                  <div class="text-xs text-slate-500">
+                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 叁佰枚</strong>
+                  </div>
+                  <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 3">
+                    立即交割
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- 货品 4：落霞古洞太虚玉简 -->
+            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
+              <div class="w-36 h-28 rounded-lg bg-amber-50 border border-filigree-200 flex flex-col items-center justify-center flex-shrink-0">
+                <span class="w-12 h-12 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">玉简</span>
+                <span class="text-[10px] text-amber-800 mt-1">太古玄文</span>
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-base font-bold text-jade-950">天阶残卷 · 落霞古洞太虚玉简</h3>
+                  <span class="text-[10px] text-slate-400">寄售散修: 玄溟剑尊</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px]">
+                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">领悟太虚通法概率升至四成</span>
+                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">金丹期方可启封</span>
+                </div>
+                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                  落霞古洞深处所得上古真仙随笔玉简，铭刻太阴太阳造化残诀，参悟可使自身神识念力大幅精进。
+                </p>
+                <div class="flex items-center justify-between pt-1">
+                  <div class="text-xs text-slate-500">
+                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 伍仟枚</strong>
+                  </div>
+                  <div class="flex gap-2">
+                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 4">
+                      神念验宝
+                    </button>
+                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 4">
+                      立即交割
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 右侧 4 栏：万象灵物鉴真神台与我的货摊 -->
+        <aside class="lg:col-span-4 flex flex-col gap-5">
+          <!-- 万象灵物 · 鉴真神台 (纯净自然原画，绝无人物表格重影) -->
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-3.5 border border-filigree-400/50">
+            <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+              <h2 class="text-base font-bold text-jade-950 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-filigree-500"></span>
+                <span>万象灵物 · 鉴真神台</span>
+              </h2>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-jade-100 text-jade-800 border border-jade-200 font-medium">灵霄仙阁共签</span>
+            </div>
+
+            <!-- 全景验宝图卷 -->
+            <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-inner">
+              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                   class="w-full h-full object-cover" alt="神台验宝" />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
+              <div class="absolute top-2.5 right-2.5 px-1.5 py-2 rounded bg-rose-950/90 text-rose-200 border border-rose-500 text-[10px] font-bold [writing-mode:vertical-rl] tracking-widest shadow-md">
+                遗迹祭坛朱砂封印
+              </div>
+              <div class="absolute bottom-2.5 left-2.5 text-white">
+                <span class="text-[10px] px-2 py-0.5 rounded bg-jade-900/80 text-jade-200 border border-jade-500/40">灵气浓郁度: 九品上乘</span>
+              </div>
+            </div>
+
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500">验宝物: <strong class="text-jade-950">黑水沼泽天机残图</strong></span>
+                <span class="text-[10px] text-filigree-700">真灵契约已核验</span>
+              </div>
+              <div class="bg-white/80 p-2.5 rounded-xl border border-jade-100 space-y-1.5 text-[11px] text-slate-600">
+                <div class="flex justify-between">
+                  <span>因果印记:</span>
+                  <span class="text-slate-800 font-medium">上古坐化金丹修士随身洞府遗泽</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>方位索引:</span>
+                  <span class="text-slate-800 font-medium">十方大荒深处 · 阴冥沼泽骨龙坡</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>契约交割护法:</span>
+                  <span class="text-jade-700 font-medium">万象商盟律令担保</span>
+                </div>
+              </div>
+            </div>
+
+            <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-jade-800 via-jade-700 to-jade-800 hover:from-jade-700 hover:to-jade-600 text-white text-xs font-bold shadow-md border border-filigree-400/40 flex items-center justify-center gap-2 cursor-pointer" type="button" data-cmd="/买寄售 1">
+              <span>交付 捌佰灵石 · 契约立成</span>
+            </button>
+            <div class="text-center">
+              <button class="text-[11px] text-slate-500 hover:text-jade-700 cursor-pointer" type="button" data-person="青阳散人">
+                神识传音卖家 (青阳散人)
+              </button>
+            </div>
+          </div>
+
+          <!-- 我的坊市摊位 · 聚宝灵坛 (Stitch 原生) -->
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-3.5 border border-jade-200">
+            <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
+              <h2 class="text-base font-bold text-jade-950 flex items-center gap-1.5">
+                <span>🏮 我的坊市摊位 · 聚宝灵坛</span>
+              </h2>
+              <span class="text-[10px] text-slate-400">摊位法座: 乾位第三</span>
+            </div>
+
+            <div class="bg-white/80 p-3 rounded-xl border border-jade-100 space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500">当前已挂牌灵物:</span>
+                <span class="font-bold text-jade-900 font-mono">叁 / 捌 件</span>
+              </div>
+              <div class="p-2.5 bg-jade-50/70 rounded-lg border border-jade-100 flex items-center justify-between">
+                <span class="text-[11px] text-slate-600">待提取收益 (已扣除半成契税):</span>
+                <span class="text-sm font-bold text-jade-800 font-mono">贰仟肆佰灵石</span>
+              </div>
+              <button class="w-full py-2 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs transition cursor-pointer" type="button" data-cmd="/收益">
+                一键收益划归纳戒
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1 text-xs">
+              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 font-medium cursor-pointer" type="button" data-act="view:inventory">
+                挑选新灵物挂牌
+              </button>
+              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-slate-700 border border-jade-200 font-medium cursor-pointer" type="button" data-cmd="/坊市">
+                调整寄售标价
+              </button>
+            </div>
+            <div class="text-center pt-0.5">
+              <button class="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer" type="button" data-cmd="/撤回寄售">
+                撤回挂牌灵物 (无需契税)
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>`;
-  }
-
-  // ==========================================================================
-  // 右侧滑入式神识浮匣 (Side Drawer)
-  // ==========================================================================
-  function setDrawerTab(tab) {
-    state.drawerTab = tab;
-    $("tabCultivators") && $("tabCultivators").classList.toggle("active", tab === "cultivators");
-    $("tabTeleport") && $("tabTeleport").classList.toggle("active", tab === "teleport");
-    renderSideDrawer();
-  }
-
-  function openSideDrawer() {
-    state.drawerOpen = true;
-    $("sideDrawer") && $("sideDrawer").classList.add("open");
-    $("drawerBackdrop") && $("drawerBackdrop").classList.add("open");
-    renderSideDrawer();
-  }
-
-  function closeSideDrawer() {
-    state.drawerOpen = false;
-    $("sideDrawer") && $("sideDrawer").classList.remove("open");
-    $("drawerBackdrop") && $("drawerBackdrop").classList.remove("open");
   }
 
   function renderSideDrawer() {
