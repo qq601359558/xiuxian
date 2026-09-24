@@ -52,8 +52,8 @@
   --jade-shadow-elevated: 0 16px 40px -4px rgba(26, 74, 64, 0.15);
 
   /* 字体排版 */
-  --font-display: "Noto Serif SC", "Source Han Serif SC", STSong, "Songti SC", SimSun, serif;
-  --font-ui: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Noto Serif SC", STSong, "Songti SC", "Source Han Serif SC", SimSun, serif;
+  --font-ui: "Noto Serif SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-calligraphy: "Kaiti SC", "STKaiti", "KaiTi", "Noto Serif SC", serif;
 
   /* 边角微倒角与圆角 */
@@ -66,6 +66,145 @@
   /* 滚动条 */
   --scroll-thumb: rgba(46, 125, 107, 0.45);
   --scroll-track: rgba(46, 125, 107, 0.05);
+}
+
+/* ==========================================================================
+   Stitch 原生高保真类与材质效果
+   ========================================================================== */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
+
+.clip-octagon {
+  clip-path: polygon(15% 0%, 85% 0%, 100% 15%, 100% 85%, 85% 100%, 15% 100%, 0% 85%, 0% 15%);
+}
+.clip-tablet {
+  clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
+}
+.mutton-jade {
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(46, 125, 107, 0.20);
+  box-shadow: 0 4px 20px -2px rgba(26, 74, 64, 0.06);
+}
+.mutton-jade-active {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(212, 175, 55, 0.65);
+  box-shadow: 0 0 20px rgba(197, 160, 89, 0.3), 0 8px 24px -4px rgba(26, 74, 64, 0.08);
+}
+.active-selected-pulse {
+  animation: pulseAura 3s infinite ease-in-out;
+}
+@keyframes pulseAura {
+  0%, 100% { box-shadow: 0 0 12px rgba(212, 175, 55, 0.35); }
+  50% { box-shadow: 0 0 24px rgba(212, 175, 55, 0.70); }
+}
+
+/* 顶部仙山云海全景画卷 (Vista Panoramic Banner) */
+.vista-banner {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCY--FB0d0O_ArqrUgt5_rR75fargeEY20HYAhjry_nFVu8EQO74NGjcLQEaAhWVtDC6ovRtZyt1UImEFRwojZS1CmIGxbsz1R7T7PVXTxhIihgCiPzRw4LHx6g4D2f2_J7I465sAIr8ureWOCp_-IC8tSezKsL_Nn7O9MY_TGcXNJOERph0JCEUXQ4A2KJMHhElbzAkAlGAbJz_ortemxuJD-i3xb4CA-ZGMsrj4e9pUNlTmR3DM3iiw');
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 12px 32px -4px rgba(26, 74, 64, 0.16);
+  display: flex;
+  align-items: flex-end;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(197, 160, 89, 0.35);
+}
+.vista-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 51, 42, 0.92) 0%, rgba(26, 74, 64, 0.45) 50%, rgba(0, 51, 42, 0.12) 100%);
+  pointer-events: none;
+}
+.vista-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.vista-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.20);
+  backdrop-filter: blur(10px);
+  color: #bbeddf;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid rgba(187, 237, 223, 0.3);
+}
+.vista-title-box h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.10em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  margin: 8px 0 6px;
+}
+.vista-title-box p {
+  font-size: 13px;
+  color: rgba(220, 245, 235, 0.92);
+  max-width: 620px;
+  line-height: 1.6;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.vista-weather-pill {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  border-radius: var(--r-md);
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.vista-weather-label {
+  font-size: 11px;
+  color: var(--ink-400);
+}
+.vista-weather-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--jade-700);
+}
+.stage-container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 /* 深色模式：幽冥水墨翡翠 (Ethereal Night Jade) */
