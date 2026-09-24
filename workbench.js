@@ -19,47 +19,71 @@
     { name: "九幽天魔宗坛", tip: "九幽煞泉 · 魔道凶穴", region: "幽冥地府", isSafe: false },
   ];
 
-  // 十方大荒四大秘境画卷
+  // 十方大荒四大秘境画卷 (Stitch 原生高保真图鉴)
   const WILDERNESS_REALMS = [
     {
       name: "落霞山灵泉",
-      title: "落霞灵泉 · 凡阶秘境",
-      tierName: "凡阶 · 适宜练气与筑基",
+      title: "落霞灵泉",
+      tierName: "凡阶九品 · 入门历练",
       tagClass: "low",
-      desc: "水雾氤氲，生有百年水灵芝与地底阴火凝晶，乃初踏仙途探索之上佳宝地。",
-      spiritRate: "灵气充裕 · 凶险度低",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuA1AZ4waRujsx2R_ef9JUIGTcbPUMZ9ruLgErD47XYCtd78vC9qtCodfmJu04rMmzD58drdyOHMZtGx_Y3TMK-pMnUzhAeK2KWS57g3wlGiR83NLGZGh9moboS3ncIz5oV0NhoJonHqFXTrhAayoCF1MGzI7dKOpZJcLlIiPE7VXdQ8TDIQqtPUdNEeBTZkcHf3rLuD4zeAAvLi9JoYBZ8RTY8h9elPAjq-m3NSFW0fNaw3e24PJk2mDpVwwV7YF-sUm1NNbiLjoV20",
+      mapDrop: "9%",
+      dangerPercent: "22%",
+      dangerText: "微波无害",
+      desc: "群山连绵云雾轻绕，生有百年水灵芝与凡阶凝气草，乃初踏仙途温养道心绝佳宝地。",
+      spiritRate: "灵泉温润 · 煞气极低",
       cost: "探险盘缠 20 灵石",
       location: "落霞山灵泉",
+      rewards: ["凝气丹 x5", "九叶野芝", "青木残卷"],
+      isGuaranteed: true,
     },
     {
       name: "黑风绝渊",
-      title: "黑风绝渊 · 险阶秘境",
-      tierName: "险阶 · 适宜结丹与元婴",
+      title: "落霞古洞",
+      tierName: "玄阶上品 · 仙家古迹",
       tagClass: "mid",
-      desc: "九天罡风割体，深渊下埋葬前朝万剑冢与嗜血妖兽，常生破煞玄金。",
-      spiritRate: "煞气弥漫 · 凶险度中",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx",
+      mapDrop: "18%",
+      dangerPercent: "35%",
+      dangerText: "暗藏禁制",
+      desc: "洞藏千年落霞玉泉，可淬炼道骨肉身。深处有守洞玄猿栖息，暗合玄奥奇门杀阵。",
+      spiritRate: "灵气充裕 · 凶险度中",
       cost: "探险盘缠 50 灵石",
       location: "黑风绝渊",
+      rewards: ["落霞玉露", "破境清心丹", "真经残页"],
+      isGuaranteed: false,
+    },
+    {
+      name: "黑风绝渊裂隙",
+      title: "黑风绝渊",
+      tierName: "地阶中品 · 罡风天堑",
+      tagClass: "danger",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDBrs5mCoUskHEbq1GlHOnBx7XWlud9-v5oIgbGeyYxe2ZzY4l3wRW1M1CTwwi8pFnX89v6X9ntxxBARx9Cb4Ql__nMwtBuQAYh-jEEtkSUo33eUdV59LGotu4vUq2__xsR-HnpMSLLev1Z7qwBpPGQmHxq04_AmEZpElihjyukTLNy9R-_Ypl69spuWXf7KoGj03iHgd1b8L-HVibTt72FDChjhuGY75UCephhoygFbX595WE_AWkDjio-wxN2z5AtO-zQuSGpJ-nk",
+      mapDrop: "30%",
+      dangerPercent: "55%",
+      dangerText: "罡风裂魂",
+      desc: "九天罡风呼啸凛冽，出产极寒玄冥阴玉。凡躯难抗，埋葬前朝万剑冢与嗜血妖兽。",
+      spiritRate: "煞气弥漫 · 凶险度高",
+      cost: "探险盘缠 100 灵石",
+      location: "黑风绝渊",
+      rewards: ["玄冥风晶", "地阶洗髓液", "幽冥舆图"],
+      isGuaranteed: false,
     },
     {
       name: "万星古岛",
-      title: "万星古岛 · 地阶秘境",
-      tierName: "地阶 · 适宜化神与炼虚",
+      title: "万星遗迹",
+      tierName: "天阶绝境 · 上古仙阙",
       tagClass: "danger",
-      desc: "上古星辰崩碎垂落之残岛，密布诸星杀阵与天工残卷，藏有五行天机。",
-      spiritRate: "星辰灵流 · 凶险度高",
-      cost: "探险盘缠 100 灵石",
-      location: "万星古岛",
-    },
-    {
-      name: "九幽天魔宗坛",
-      title: "幽冥天渊 · 天阶秘境",
-      tierName: "天阶 · 适宜合体与大乘",
-      tagClass: "danger",
-      desc: "九幽煞泉倒灌，魔道上古巨擘封禁之所。因果纠缠，非大神通者涉足即陨。",
-      spiritRate: "幽冥玄煞 · 极度凶险",
+      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBbPOc8iM9b6MSMEI4lwWSqB16hzd1Hi4uor0XBPRt27QwOU-ZbBNZrbDjllObF13h_ontpANtf5BFwy8f9oM8gwa8BHesL_031HYxJRLDdD3Sh4He0-KflozAkqRWqa4mrCxGo5pKYOPuE2aypwkSNXu3iXGzdBTuCFwNFQRH0I8lfC3bsilMTemAfzWBWmQG6qrIBL3Vpp3rFksluu8Do6I10_Rl8dy4iDGXe699GlKoa0Uz7TO_Dg5TQ177c8CjpZvSyM-YuZSQ-",
+      mapDrop: "40%",
+      dangerPercent: "70%",
+      dangerText: "十死一生",
+      desc: "星辰陨落之所，阵眼遗存混沌星核，传闻更有天道至宝剑胎镇守，煞气与仙光激荡！",
+      spiritRate: "紫雷狂暴 · 极度凶险",
       cost: "探险盘缠 200 灵石",
-      location: "九幽天魔宗坛",
+      location: "万星古岛",
+      rewards: ["混沌星核", "紫雷真金", "天工秘录"],
+      isGuaranteed: false,
     },
   ];
 
@@ -71,7 +95,7 @@
     user: localStorage.getItem("wb.user") || "",
     name: localStorage.getItem("wb.name") || "",
     uid: localStorage.getItem("wb.uid") || "",
-    theme: localStorage.getItem("wb.theme") || "dark",
+    theme: localStorage.getItem("wb.theme") === "dark" ? "dark" : "light",
     mode: "login",
     view: "sanctum", // 'sanctum', 'wilderness', 'inventory', 'bazaar'
     status: null,
@@ -447,24 +471,57 @@
 
     const realmCards = WILDERNESS_REALMS.map((r) => {
       const isHere = curLoc === r.location;
-      const iconName = r.name.includes("灵泉") ? "water_drop" : r.name.includes("绝渊") ? "air" : r.name.includes("古岛") ? "stars" : "dark_mode";
       return `
-      <div class="realm-card mutton-jade">
-        <span class="realm-tag ${r.tagClass}">${r.tierName}</span>
-        <div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-            <span class="material-symbols-outlined" style="color:var(--jade-600);font-size:22px">${iconName}</span>
-            <div class="realm-title" style="margin-bottom:0">${esc(r.title)}</div>
+      <article class="realm-card mutton-jade">
+        <!-- 秘境高保真原画封绘 -->
+        <div class="realm-thumb">
+          <img src="${r.image}" alt="${esc(r.title)}" loading="lazy" />
+          <div class="realm-thumb-scrim"></div>
+          <div class="realm-thumb-badges">
+            <span class="realm-badge ${r.tagClass}">${r.tierName}</span>
+            ${r.isGuaranteed ? `<span class="realm-badge gold">★ 初探必得保底</span>` : ""}
           </div>
-          <div class="realm-desc">${esc(r.desc)}</div>
+          <div class="realm-thumb-foot">
+            <div>
+              <h3>${esc(r.title)}</h3>
+              <div class="realm-sub">${esc(r.location)}</div>
+            </div>
+            <div class="realm-drop">
+              <div class="realm-drop-label">藏宝残图掉落率</div>
+              <div class="realm-drop-val">${esc(r.mapDrop)}</div>
+            </div>
+          </div>
         </div>
-        <div>
-          <div class="realm-stats">
-            <span>${esc(r.spiritRate)}</span>
-            <span style="color:var(--gold-600);font-weight:600">${esc(r.cost)}</span>
+
+        <!-- 秘境详情与危险度 -->
+        <div class="realm-body">
+          <div>
+            <div class="realm-danger-row">
+              <span>凶险程度: <strong style="color:var(--jade-700)">${esc(r.dangerText)}</strong></span>
+              <span style="font-weight:700">${esc(r.dangerPercent)}</span>
+            </div>
+            <div class="realm-danger-bar">
+              <div class="realm-danger-fill ${r.tagClass}" style="width:${r.dangerPercent}"></div>
+            </div>
+            <p class="realm-desc" style="margin-top:10px">${esc(r.desc)}</p>
           </div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button type="button" class="btn sm secondary" data-cmd="/望气">
+
+          <!-- 预视产出珍物 -->
+          <div class="realm-rewards">
+            <span class="realm-rewards-label">产出珍物预视:</span>
+            <div class="realm-reward-chips">
+              ${(r.rewards || []).map((rw) => `<span class="realm-reward-chip">${esc(rw)}</span>`).join("")}
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px solid var(--jade-border-soft);font-size:12px">
+            <span style="color:var(--ink-500)">${esc(r.spiritRate)}</span>
+            <span style="color:var(--gold-700);font-weight:700">${esc(r.cost)}</span>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button type="button" class="btn sm secondary" data-cmd="/望气" title="观测大荒风水">
               <span class="material-symbols-outlined" style="font-size:16px;margin-right:2px">visibility</span>
               <span>神识望气</span>
             </button>
@@ -481,7 +538,7 @@
             }
           </div>
         </div>
-      </div>`;
+      </article>`;
     }).join("");
 
     return `
@@ -900,6 +957,27 @@
 
     return `
     <div class="stage-container">
+      <!-- 九霄坊市全景画卷 (Stitch 原生浮空仙岛) -->
+      <div class="vista-banner" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa');">
+        <div class="vista-content">
+          <div class="vista-title-box">
+            <div class="vista-badge">
+              <span class="material-symbols-outlined" style="font-size:16px;color:#ffdea5">storefront</span>
+              <span>九霄通衢 · 仙凡百宝交割总集</span>
+            </div>
+            <h1>九霄坊市 · 诸天通宝与乾坤寄售</h1>
+            <p>四海修仙同道物华天宝汇聚于此。商盟契约明定：诸天流转，物尽其用，童叟无欺，各凭道缘。</p>
+          </div>
+          <div class="vista-weather-pill">
+            <div style="display:flex;flex-direction:column;text-align:right">
+              <span class="vista-weather-label">坊市流通</span>
+              <span class="vista-weather-val">商贸鼎盛 · 契税5%</span>
+            </div>
+            <span class="material-symbols-outlined" style="color:var(--gold-500);font-size:32px">currency_exchange</span>
+          </div>
+        </div>
+      </div>
+
       <!-- 坊市商律告示横幅 -->
       <div class="bazaar-header-tip mutton-jade">
         <div style="display:flex;align-items:center;gap:8px">
@@ -938,6 +1016,23 @@
 
         <!-- 右侧：个人摆摊灵坛与金库储蓄 -->
         <div style="display:flex;flex-direction:column;gap:20px">
+          <!-- 坊市特展：镇店灵宝 (Stitch 原生法宝卡) -->
+          <div class="jade-card mutton-jade" style="padding:0;overflow:hidden">
+            <div style="position:relative;height:120px;overflow:hidden;background:#0d2822">
+              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCx1XqrWPxxMxX6vj8cc0t2-lw0vt9mfYOOqjpvX1JTdC1ugKMv7vOXGA-HripYmSiS2WbcY5OjHkQw-qmqOxIIk9KUMNtf2zAxziEOvEt_8f30nBA3vRVzbGjkpuX5pYByGIdKl-KxEYWLCjYBDVr2_AB5VXOPTEKosjl5opGAoT9nI4vjYWjG9X_w5E2XBMS1w4_P3YOn_t4mEjn2Aik2GExcvbIXI-lGKArsbltVhasVtU59HOAcooesb6GDoLRkC6Eqlh6I5qtb"
+                   alt="玄天青玉剑" style="width:100%;height:100%;object-fit:cover" />
+              <div style="position:absolute;inset:0;background:linear-gradient(to top, rgba(8,26,22,0.85) 0%, transparent 60%)"></div>
+              <div style="position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:4px;background:rgba(197,155,39,0.9);color:#261900;font-size:11px;font-weight:700">★ 镇市极品</div>
+              <div style="position:absolute;bottom:8px;left:12px;color:#ffffff">
+                <div style="font-weight:700;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,0.8)">【玄天青玉剑】</div>
+                <div style="font-size:11px;color:#a4f2db">地阶上乘 · 破煞五品</div>
+              </div>
+            </div>
+            <div style="padding:14px;font-size:12px;color:var(--ink-700);line-height:1.6">
+              千年极温青玉所凝，古仙佩剑，剑鸣动九霄。可由天道神识参与竞夺。
+            </div>
+          </div>
+
           <!-- 个人货摊 -->
           <div class="stall-box mutton-jade">
             <div class="card-head">

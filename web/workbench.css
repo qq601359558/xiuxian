@@ -6,33 +6,36 @@
 :root {
   color-scheme: light;
   
-  /* 翡翠与天青色系 (Jade & Celadon) */
+  /* 翡翠与天青色系 (Jade & Celadon) - 取自 Stitch 原生 Token */
+  --jade-950: #081d19;
   --jade-900: #0a1f1a;
-  --jade-800: #10332b;
-  --jade-700: #1a4a40; /* 核心主色：深矿翡翠 Deep Jade Mineral */
-  --jade-600: #235f52;
+  --jade-800: #10332c;
+  --jade-700: #146a59; /* 核心主色：深矿翡翠 Deep Jade Mineral */
+  --jade-600: #1e715f;
   --jade-500: #2e7d6b; /* 交互强调：天青流云 Imperial Celadon */
-  --jade-400: #429f8a;
-  --jade-300: #71c2af;
-  --jade-200: #a0d0c3;
+  --jade-400: #48927e;
+  --jade-300: #88d5c0;
+  --jade-200: #a4f2db;
   --jade-100: #bbeddf;
-  --jade-50: #f2fcf4;  /* 宣纸绢帛底色 Rice Paper Base */
+  --jade-50: #f4faf6;  /* 宣纸绢帛底色 Rice Paper Base */
 
   /* 古金帝王丝系 (Imperial Gold) */
-  --gold-600: #8c6e30;
-  --gold-500: #c5a059; /* 灵光金纹 Ethereal Pale Gold */
+  --gold-700: #8c6310;
+  --gold-600: #b38318;
+  --gold-500: #c59b27; /* 灵光金纹 Ethereal Pale Gold */
   --gold-400: #d4af37;
   --gold-300: #e9c176;
   --gold-100: #ffdea5;
-  --gold-glow: 0 0 24px rgba(197, 160, 89, 0.28);
-  --gold-dim: rgba(197, 160, 89, 0.12);
+  --gold-glow: 0 0 24px rgba(197, 155, 39, 0.32);
+  --gold-dim: rgba(197, 155, 39, 0.12);
 
-  /* 松烟水墨字色系 (Pine Ink) */
-  --ink-900: #151d19; /* 正文浓墨 */
-  --ink-700: #2a322e; /* 次级深墨 */
-  --ink-500: #404846; /* 辅文字墨 */
-  --ink-400: #707976; /* 浅淡墨纹 */
-  --ink-200: #c0c8c4;
+  /* 松烟水墨字色系 (超强对比度，确保字字如刀刻，绝不模糊发虚) */
+  --ink-950: #081d19;
+  --ink-900: #101c18; /* 正文浓墨 (极深，保证最强可读性) */
+  --ink-700: #1e3128; /* 次级深墨 */
+  --ink-500: #33483f; /* 辅文字墨 */
+  --ink-400: #546a60; /* 浅淡墨纹 (高对比度清晰) */
+  --ink-200: #b5c2ba;
 
   /* 异象与煞气劫色系 (Scar & Blood) */
   --blood-600: #8e1010;
@@ -41,15 +44,15 @@
   --blood-dim: rgba(186, 26, 26, 0.12);
 
   /* 羊脂白玉微透浮层 (Mutton-Fat White Jade Glassmorphism) */
-  --jade-surface: rgba(255, 255, 255, 0.82);
-  --jade-surface-elevated: rgba(255, 255, 255, 0.94);
-  --jade-surface-tint: rgba(242, 252, 244, 0.88);
+  --jade-surface: rgba(255, 255, 255, 0.88);
+  --jade-surface-elevated: rgba(255, 255, 255, 0.96);
+  --jade-surface-tint: rgba(242, 252, 244, 0.92);
   --jade-backdrop: blur(16px);
-  --jade-border: 1px solid rgba(46, 125, 107, 0.22);
-  --jade-border-gold: 1px solid rgba(197, 160, 89, 0.38);
-  --jade-border-soft: 1px solid rgba(46, 125, 107, 0.12);
-  --jade-shadow: 0 6px 24px -2px rgba(26, 74, 64, 0.08);
-  --jade-shadow-elevated: 0 16px 40px -4px rgba(26, 74, 64, 0.15);
+  --jade-border: 1px solid rgba(20, 106, 89, 0.18);
+  --jade-border-gold: 1px solid rgba(197, 155, 39, 0.40);
+  --jade-border-soft: 1px solid rgba(20, 106, 89, 0.10);
+  --jade-shadow: 0 4px 20px -2px rgba(20, 106, 89, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+  --jade-shadow-elevated: 0 12px 36px -6px rgba(20, 106, 89, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.95);
 
   /* 字体排版 */
   --font-display: "Noto Serif SC", STSong, "Songti SC", "Source Han Serif SC", SimSun, serif;
@@ -64,8 +67,8 @@
   --chamfer-slot: polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px);
 
   /* 滚动条 */
-  --scroll-thumb: rgba(46, 125, 107, 0.45);
-  --scroll-track: rgba(46, 125, 107, 0.05);
+  --scroll-thumb: rgba(20, 106, 89, 0.40);
+  --scroll-track: rgba(20, 106, 89, 0.06);
 }
 
 /* ==========================================================================
@@ -94,49 +97,51 @@
   clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
 }
 .mutton-jade {
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(46, 125, 107, 0.20);
-  box-shadow: 0 4px 20px -2px rgba(26, 74, 64, 0.06);
+  border: 1px solid rgba(20, 106, 89, 0.18);
+  box-shadow: 0 4px 20px -2px rgba(20, 106, 89, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.85);
+  color: var(--ink-900);
 }
 .mutton-jade-active {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid rgba(212, 175, 55, 0.65);
-  box-shadow: 0 0 20px rgba(197, 160, 89, 0.3), 0 8px 24px -4px rgba(26, 74, 64, 0.08);
+  border: 1.5px solid rgba(197, 155, 39, 0.75);
+  box-shadow: 0 0 20px rgba(197, 155, 39, 0.35), 0 8px 26px -4px rgba(20, 106, 89, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.95);
+  color: var(--ink-900);
 }
 .active-selected-pulse {
   animation: pulseAura 3s infinite ease-in-out;
 }
 @keyframes pulseAura {
-  0%, 100% { box-shadow: 0 0 12px rgba(212, 175, 55, 0.35); }
-  50% { box-shadow: 0 0 24px rgba(212, 175, 55, 0.70); }
+  0%, 100% { box-shadow: 0 0 12px rgba(197, 155, 39, 0.35); }
+  50% { box-shadow: 0 0 24px rgba(197, 155, 39, 0.75); }
 }
 
-/* 顶部仙山云海全景画卷 (Vista Panoramic Banner) */
+/* 顶部仙山云海全景画卷 (Vista Panoramic Banner) - 鲜活明亮，通透如仙境 */
 .vista-banner {
   position: relative;
   width: 100%;
   min-height: 220px;
   border-radius: var(--r-lg);
   overflow: hidden;
-  background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCY--FB0d0O_ArqrUgt5_rR75fargeEY20HYAhjry_nFVu8EQO74NGjcLQEaAhWVtDC6ovRtZyt1UImEFRwojZS1CmIGxbsz1R7T7PVXTxhIihgCiPzRw4LHx6g4D2f2_J7I465sAIr8ureWOCp_-IC8tSezKsL_Nn7O9MY_TGcXNJOERph0JCEUXQ4A2KJMHhElbzAkAlGAbJz_ortemxuJD-i3xb4CA-ZGMsrj4e9pUNlTmR3DM3iiw');
   background-size: cover;
-  background-position: center;
-  box-shadow: 0 12px 32px -4px rgba(26, 74, 64, 0.16);
+  background-position: center 30%;
+  box-shadow: 0 12px 32px -4px rgba(20, 106, 89, 0.12);
   display: flex;
   align-items: flex-end;
   padding: 24px 28px;
   margin-bottom: 24px;
-  border: 1px solid rgba(197, 160, 89, 0.35);
+  border: 1px solid rgba(197, 155, 39, 0.40);
 }
 .vista-banner::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0, 51, 42, 0.92) 0%, rgba(26, 74, 64, 0.45) 50%, rgba(0, 51, 42, 0.12) 100%);
+  /* 极轻透通光蒙层：底部微衬文字，顶部保留仙山晨曦与原画本色 */
+  background: linear-gradient(to top, rgba(8, 29, 24, 0.70) 0%, rgba(12, 42, 35, 0.18) 42%, rgba(255, 255, 255, 0.0) 100%);
   pointer-events: none;
 }
 .vista-content {
@@ -153,14 +158,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.20);
+  background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(10px);
-  color: #bbeddf;
+  color: #d1fae5;
   font-size: 12px;
-  font-weight: 500;
-  border: 1px solid rgba(187, 237, 223, 0.3);
+  font-weight: 600;
+  border: 1px solid rgba(209, 250, 229, 0.4);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .vista-title-box h1 {
   font-family: var(--font-display);
@@ -168,35 +174,38 @@
   font-weight: 700;
   color: #ffffff;
   letter-spacing: 0.10em;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
   margin: 8px 0 6px;
 }
 .vista-title-box p {
   font-size: 13px;
-  color: rgba(220, 245, 235, 0.92);
-  max-width: 620px;
+  font-weight: 500;
+  color: #e6f6ee;
+  max-width: 640px;
   line-height: 1.6;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 .vista-weather-pill {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(197, 160, 89, 0.4);
-  border-radius: var(--r-md);
-  padding: 10px 18px;
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(197, 155, 39, 0.50);
+  border-radius: 24px;
+  padding: 8px 18px;
   display: flex;
   align-items: center;
   gap: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(20, 106, 89, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.9);
 }
 .vista-weather-label {
   font-size: 11px;
-  color: var(--ink-400);
+  font-weight: 600;
+  color: var(--ink-500);
 }
 .vista-weather-val {
   font-size: 14px;
   font-weight: 700;
-  color: var(--jade-700);
+  color: var(--jade-800);
 }
 .stage-container {
   width: 100%;
@@ -207,23 +216,32 @@
   gap: 20px;
 }
 
-/* 深色模式：幽冥水墨翡翠 (Ethereal Night Jade) */
+/* 深色模式兜底 (高对比度，确保文字清晰) */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --jade-50: #0a1310;
+  --jade-50: #0a1713;
   --ink-900: #eaf3ec;
   --ink-700: #d0ded4;
-  --ink-500: #9eb1a6;
-  --ink-400: #687e74;
-  --jade-surface: rgba(18, 36, 31, 0.85);
-  --jade-surface-elevated: rgba(22, 45, 38, 0.95);
+  --ink-500: #a3b8ad;
+  --ink-400: #71887e;
+  --jade-surface: rgba(18, 38, 32, 0.92);
+  --jade-surface-elevated: rgba(24, 48, 41, 0.96);
   --jade-surface-tint: rgba(15, 30, 26, 0.90);
-  --jade-border: 1px solid rgba(66, 159, 138, 0.28);
-  --jade-border-gold: 1px solid rgba(212, 175, 55, 0.45);
-  --jade-border-soft: 1px solid rgba(66, 159, 138, 0.16);
+  --jade-border: 1px solid rgba(66, 159, 138, 0.35);
+  --jade-border-gold: 1px solid rgba(212, 175, 55, 0.50);
+  --jade-border-soft: 1px solid rgba(66, 159, 138, 0.20);
   --jade-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   --jade-shadow-elevated: 0 18px 48px rgba(0, 0, 0, 0.65);
   --scroll-thumb: rgba(66, 159, 138, 0.4);
+}
+html[data-theme="dark"] .mutton-jade {
+  background: rgba(22, 45, 38, 0.92);
+  color: #eaf3ec;
+  border-color: rgba(66, 159, 138, 0.35);
+}
+html[data-theme="dark"] .mutton-jade-active {
+  background: rgba(28, 56, 48, 0.96);
+  color: #ffffff;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -236,11 +254,9 @@ body {
   color: var(--ink-900);
   background-color: var(--jade-50);
   background-image: 
-    radial-gradient(circle at 10% 10%, rgba(46, 125, 107, 0.08), transparent 45%),
-    radial-gradient(circle at 90% 90%, rgba(197, 160, 89, 0.08), transparent 50%),
-    linear-gradient(180deg, rgba(242, 252, 244, 0.6) 0%, var(--jade-50) 100%);
-  background-attachment: fixed;
-  -webkit-font-smoothing: antialiased;
+    radial-gradient(circle at 10% 20%, rgba(20, 106, 89, 0.04) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(208, 170, 98, 0.05) 0%, transparent 45%),
+    linear-gradient(180deg, #f8fcf9 0%, #edf6f1 100%);
 }
 
 /* 全局滚动条样式 */
@@ -632,38 +648,119 @@ button { cursor: pointer; border: none; background: none; transition: all 180ms 
 }
 
 .realms-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px;
   margin-bottom: 24px;
 }
 .realm-card {
-  background: var(--jade-surface-elevated);
+  background: var(--jade-surface);
   border: var(--jade-border); border-radius: var(--r-lg);
-  box-shadow: var(--jade-shadow); padding: 20px;
-  display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: var(--jade-shadow);
+  display: flex; flex-direction: column;
   position: relative; overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .realm-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--jade-400);
-  box-shadow: var(--jade-shadow-elevated);
+  transform: translateY(-4px);
+  border-color: rgba(197, 155, 39, 0.50);
+  box-shadow: 0 16px 36px -6px rgba(20, 106, 89, 0.16);
 }
-.realm-tag {
-  position: absolute; top: 14px; right: 14px;
-  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+.realm-thumb {
+  position: relative; height: 168px; width: 100%;
+  overflow: hidden; background-color: #0d2822;
 }
-.realm-tag.low { background: rgba(46, 125, 107, 0.15); color: var(--jade-600); }
-.realm-tag.mid { background: rgba(197, 160, 89, 0.2); color: var(--gold-600); }
-.realm-tag.danger { background: rgba(186, 26, 26, 0.15); color: var(--blood-500); }
+.realm-thumb img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.8s ease;
+}
+.realm-card:hover .realm-thumb img {
+  transform: scale(1.06);
+}
+.realm-thumb-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(8, 26, 22, 0.90) 0%, rgba(8, 26, 22, 0.18) 55%, rgba(0, 0, 0, 0.15) 100%);
+  pointer-events: none;
+}
+.realm-thumb-badges {
+  position: absolute; top: 10px; left: 10px;
+  display: flex; flex-wrap: wrap; gap: 6px; z-index: 2;
+}
+.realm-badge {
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+.realm-badge.low { background: rgba(10, 40, 32, 0.85); color: #a4f2db; border: 1px solid rgba(164, 242, 219, 0.4); }
+.realm-badge.mid { background: rgba(45, 30, 5, 0.88); color: #f3d982; border: 1px solid rgba(243, 217, 130, 0.5); }
+.realm-badge.danger { background: rgba(50, 10, 10, 0.88); color: #ffdad6; border: 1px solid rgba(255, 180, 171, 0.5); }
+.realm-badge.gold { background: rgba(197, 155, 39, 0.92); color: #261900; font-weight: 700; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
 
-.realm-title {
-  font-family: var(--font-display); font-size: 18px; font-weight: 600;
-  color: var(--jade-700); margin-bottom: 6px;
+.realm-thumb-foot {
+  position: absolute; bottom: 10px; left: 12px; right: 12px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  z-index: 2; color: #ffffff;
 }
-.realm-desc { font-size: 13px; color: var(--ink-500); margin-bottom: 14px; }
-.realm-stats {
+.realm-thumb-foot h3 {
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  color: #ffffff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  margin-bottom: 2px;
+}
+.realm-thumb-foot .realm-sub {
+  font-size: 11px; color: #bbeddf;
+}
+.realm-thumb-foot .realm-drop {
+  text-align: right;
+}
+.realm-thumb-foot .realm-drop-label {
+  font-size: 10px; color: rgba(255, 255, 255, 0.80);
+}
+.realm-thumb-foot .realm-drop-val {
+  font-size: 14px; font-weight: 700; color: #f3d982;
+}
+
+.realm-body {
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  flex: 1; justify-content: space-between;
+}
+.realm-danger-row {
   display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px; color: var(--ink-700); border-top: 1px solid var(--jade-border-soft);
-  padding-top: 10px; margin-bottom: 14px;
+  font-size: 12px; color: var(--ink-700); font-weight: 500;
+}
+.realm-danger-bar {
+  width: 100%; height: 6px; background: var(--jade-100);
+  border-radius: 999px; overflow: hidden; margin-top: 4px;
+}
+.realm-danger-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(to right, var(--jade-500), var(--gold-500));
+}
+.realm-danger-fill.mid {
+  background: linear-gradient(to right, var(--jade-600), var(--gold-500), #e07a22);
+}
+.realm-danger-fill.danger {
+  background: linear-gradient(to right, #e07a22, var(--blood-500));
+}
+
+.realm-desc {
+  font-size: 13px; color: var(--ink-700); line-height: 1.6;
+  font-weight: 500;
+}
+.realm-rewards {
+  background: rgba(242, 252, 244, 0.75); border: 1px solid var(--jade-200);
+  border-radius: var(--r-sm); padding: 8px 10px;
+}
+.realm-rewards-label {
+  font-size: 11px; font-weight: 600; color: var(--ink-500); margin-bottom: 6px;
+  display: block;
+}
+.realm-reward-chips {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.realm-reward-chip {
+  background: #ffffff; border: 1px solid var(--jade-200);
+  border-radius: 4px; padding: 2px 7px;
+  font-size: 11px; font-weight: 600; color: var(--ink-900);
+}
+.realm-reward-chip.gold {
+  border-color: rgba(197, 155, 39, 0.45); color: var(--gold-700);
 }
 
 /* --------------------------------------------------------------------------
