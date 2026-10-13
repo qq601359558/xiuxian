@@ -195,6 +195,7 @@ class Character(BaseModel):
     death_settled: bool = False  # 本世是否已做过道统结算（防重复发点）
     vault_stones: int = 0        # 坊市寄存灵石（不可被夺、不可被查抄）
     stall_earnings: int = 0      # 坊市地摊售卖待提取收益
+    version: int = 1             # 状态版本号（并发防旧覆新单调自增）
     inventory: List[str] = Field(default_factory=list)  # 随身未绑定杂物名（阵盘仍用 arrays）
     items: List[ItemEntity] = Field(default_factory=list) # Core-V2 实体道具行囊
     crane_pending_item: Optional[Dict[str, Any]] = None # 纳戒满时仙鹤暂存于云巢灵囊的机缘物品

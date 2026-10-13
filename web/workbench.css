@@ -428,4 +428,15 @@ button {
   100% { transform: translateX(100%) rotate(30deg); }
 }
 
+/* 天道神念推演中：写操作互斥与微光反馈 */
+body.is-acting-busy button[data-wild-act],
+body.is-acting-busy button[data-sanctum-act],
+body.is-acting-busy button[data-bazaar-act],
+body.is-acting-busy button[data-bag-act],
+body.is-acting-busy button[data-equip-act] {
+  opacity: 0.75;
+  transition: opacity 0.25s ease;
+}
+
+
 

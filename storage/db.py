@@ -393,6 +393,7 @@ class CharacterRepository:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         now = time.time()
+        character.version = getattr(character, "version", 0) + 1
         data_json = character.model_dump_json()
 
         cursor.execute("""
