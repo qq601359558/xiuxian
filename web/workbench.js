@@ -140,6 +140,9 @@
       craneDest: "",
       meditateMinutes: 0,
     },
+    // 并发请求代际版本锁（单调递增，杜绝慢速 AI 响应乱序覆盖）
+    lastEpoch: 0,
+    appliedEpoch: 0,
   };
 
   function esc(s) {
@@ -208,8 +211,17 @@
     return res.json();
   }
 
+  function checkActionLock(label) {
+    if (state.busy) {
+      toast(label || "天道神念推演中，诸法暂滞，请稍候再降法旨…", "gold");
+      return true;
+    }
+    return false;
+  }
+
   function busy(on, label) {
     state.busy = !!on;
+    document.body.classList.toggle("is-acting-busy", !!on);
     const go = $("cmdGo");
     const send = $("chatSend");
     if (go) {
@@ -227,9 +239,22 @@
     if (on && label) toast(label, "gold");
   }
 
-  // ---------- 状态同步 ----------
-  function applyStatus(st) {
+  // ---------- 状态同步 (支持请求代际单调锁与服务端版本号核验) ----------
+  function applyStatus(st, reqEpoch) {
     if (!st) return;
+    // 1. 请求代际单调性校验：若响应代际落后于已生效代际，坚决拒绝覆盖最新状态
+    if (reqEpoch != null) {
+      if (reqEpoch < (state.appliedEpoch || 0)) {
+        return;
+      }
+      state.appliedEpoch = Math.max(state.appliedEpoch || 0, reqEpoch);
+    }
+    // 2. 服务端状态版本号单调校验：若携带版本低于本地已落账版本，丢弃陈旧快照
+    if (st.version != null && state.status && state.status.version != null) {
+      if (st.version < state.status.version) {
+        return;
+      }
+    }
     state.status = Object.assign({}, state.status || {}, st);
     const s = state.status;
 
@@ -515,9 +540,10 @@
 
   function handleCraneReturned(dest) {
     if (!state.demo) {
+      const reqEpoch = ++state.lastEpoch;
       api("/action", { token: state.token, command: `/灵鹤 ${dest}` })
         .then((res) => {
-          if (res.status) applyStatus(res.status);
+          if (res.status) applyStatus(res.status, reqEpoch);
           if (res.text) pushFeed(res.text, res.ok ? "ai" : "bad");
           ensureDefaultInventory();
           const isOverflow = !!(res.overflow || (res.status && res.status.crane_pending_item));
@@ -687,6 +713,7 @@
   // 洞府核心行为统一调度器
   // --------------------------------------------------------------------------
   function handleSanctumAction(act, el) {
+    if (checkActionLock("天道神念推演中，洞府诸阵暂滞，请稍候再降法旨…")) return;
     const s = state.status || {};
     const sc = state.sanctum || (state.sanctum = {
       springCharge: 92,
@@ -782,18 +809,22 @@
           const rushBtn = overlay.querySelector("#btnHerbRush");
           if (rushBtn) {
             rushBtn.addEventListener("click", () => {
+              if (checkActionLock("天道神念推演中，灵草温育暂滞，请稍候…")) return;
               if ((s.stones || 0) < 50) {
                 toast("随身灵石不足 50，无法催熟仙草", "bad");
                 return;
               }
-              s.stones = (s.stones || 0) - 50;
-              sc.herbsGrowth = 100;
-              sc.herbsRemainHours = 0;
-              toast("灵石催熟功成：芝草瞬息成熟！", "gold");
-              pushFeed("【紫菁草园 · 催熟】你注入 50 灵石引动地脉真火，仙品芝草瞬息吞吐紫气，成熟待采！", "ai");
-              if (!state.demo) sendCmd("/草园 催熟");
               closeJadeDialog();
-              renderBody();
+              if (state.demo) {
+                s.stones = (s.stones || 0) - 50;
+                sc.herbsGrowth = 100;
+                sc.herbsRemainHours = 0;
+                toast("灵石催熟功成：芝草瞬息成熟！", "gold");
+                pushFeed("【紫菁草园 · 催熟】你注入 50 灵石引动地脉真火，仙品芝草瞬息吞吐紫气，成熟待采！", "ai");
+                renderBody();
+              } else {
+                sendCmd("/草园 催熟");
+              }
             });
           }
           const harvestBtn = overlay.querySelector("#btnHerbHarvest");
@@ -1247,33 +1278,43 @@
 
     if (act === "vault_deposit") {
       // 6. 存入百石
+      if (checkActionLock("天道神念推演中，金库大阵运转中，请稍候…")) return;
       if ((s.stones || 0) < 100) {
         toast("随身灵石不足百块，无法存入金库", "bad");
         return;
       }
-      s.stones = (s.stones || 0) - 100;
-      s.vault = (s.vault || 0) + 95;
-      spawnFloatBadge("-100 灵石", el, true);
-      toast("百石寄存大阵金库（免遭大荒掠夺）！", "gold");
-      pushFeed("【乾坤金库】存入 100 灵石，扣除五石护阵契税，金库蓄积增加 95 灵石。");
-      if (!state.demo) sendCmd("/寄存 100");
-      renderBody();
+      if (state.demo) {
+        s.stones = (s.stones || 0) - 100;
+        s.vault = (s.vault || 0) + 95;
+        spawnFloatBadge("-100 灵石", el, true);
+        toast("百石寄存大阵金库（免遭大荒掠夺）！", "gold");
+        pushFeed("【乾坤金库】存入 100 灵石，扣除五石护阵契税，金库蓄积增加 95 灵石。");
+        renderBody();
+      } else {
+        spawnFloatBadge("-100 灵石", el, true);
+        sendCmd("/寄存 100");
+      }
       return;
     }
 
     if (act === "vault_withdraw") {
       // 7. 支取百石
+      if (checkActionLock("天道神念推演中，金库大阵运转中，请稍候…")) return;
       if ((s.vault || 0) < 100) {
         toast("大阵金库储积不足百块灵石", "bad");
         return;
       }
-      s.vault = (s.vault || 0) - 100;
-      s.stones = (s.stones || 0) + 100;
-      spawnFloatBadge("+100 灵石", el, true);
-      toast("已从金库支取百石收入随身行囊！", "gold");
-      pushFeed("【乾坤金库】从大阵金库支取 100 灵石入纳戒。");
-      if (!state.demo) sendCmd("/支取 100");
-      renderBody();
+      if (state.demo) {
+        s.vault = (s.vault || 0) - 100;
+        s.stones = (s.stones || 0) + 100;
+        spawnFloatBadge("+100 灵石", el, true);
+        toast("已从金库支取百石收入随身行囊！", "gold");
+        pushFeed("【乾坤金库】从大阵金库支取 100 灵石入纳戒。");
+        renderBody();
+      } else {
+        spawnFloatBadge("+100 灵石", el, true);
+        sendCmd("/支取 100");
+      }
       return;
     }
 
@@ -1874,6 +1915,7 @@
   }
 
   function handleWildernessAction(act, targetName, el) {
+    if (checkActionLock("天道神念推演中，大荒诸象暂滞，请稍候再降法旨…")) return;
     const s = state.status || {};
     const isMed = s.is_meditating || s.meditating || false;
 
@@ -1893,10 +1935,14 @@
 
     const target = resolveWildernessTarget(targetName);
     const rInfo = parseRealmInfo(s.realm);
+    const reqEpoch = ++state.lastEpoch;
+    busy(true, "御风破云寻幽中…");
 
-    // 扣除盘缠 20 灵石
-    s.stones = Math.max(0, (s.stones || 0) - 20);
-    renderBody();
+    // Demo 离线模式下本地先扣除盘缠；联机在线模式由权威服务端事务扣除并原子落账
+    if (state.demo) {
+      s.stones = Math.max(0, (s.stones || 0) - 20);
+      renderBody();
+    }
 
     openJadeDialog({
       title: "十方灵墟 · 秘境探险图卷",
@@ -1970,7 +2016,10 @@
 
         // 阶段二：天道裁决与战利品结算 (历时 2000ms)
         setTimeout(async () => {
-          if (!document.body.contains(overlay)) return;
+          if (!document.body.contains(overlay)) {
+            busy(false);
+            return;
+          }
 
           let isWin = false;
           let expGain = 0;
@@ -1982,7 +2031,7 @@
             // 联机模式：向服务端调用 /探险
             try {
               const res = await api("/action", { token: state.token, command: `/探险 ${target.name}` });
-              if (res.status) applyStatus(res.status);
+              if (res.status) applyStatus(res.status, reqEpoch);
               if (res.adventure) {
                 isWin = !!res.adventure.combat_success;
                 expGain = res.adventure.exp_delta || 0;
@@ -1996,8 +2045,11 @@
             } catch (err) {
               isWin = false;
               narrative = "神识传音受阻：" + err.message;
+            } finally {
+              busy(false);
             }
           } else {
+            busy(false);
             // Demo 离线模式：规则权威裁决
             const p = Math.max(0.2, Math.min(0.92, 1.0 - (target.dangerPct / 100) + (rInfo.majorIndex * 0.08)));
             isWin = Math.random() < p;
@@ -2724,6 +2776,7 @@
   // 本命三槽法宝穿戴与同槽替换控制器
   // ==========================================================================
   function handleEquipAction(act, itemName, el) {
+    if (checkActionLock("天道神念推演中，法宝祭炼暂滞，请稍候再降法旨…")) return;
     if (!state.equipped) state.equipped = [];
     const name = String(itemName || "").trim();
     if (!name) return;
@@ -2771,9 +2824,10 @@
       pushFeed(`【本命佩戴】道体法阵轰鸣，你祭起【${item.name}】（${slotCn}）纳归丹田，威能激荡！${replacedItem ? `原装备【${replacedItem.name}】已卸下归还纳戒。` : ''}`, "ok");
 
       if (!state.demo) {
+        const reqEpoch = ++state.lastEpoch;
         api("/action", { token: state.token, command: `/穿戴 ${item.name}` })
           .then(res => {
-            if (res.status) applyStatus(res.status);
+            if (res.status) applyStatus(res.status, reqEpoch);
             if (res.text) pushFeed(res.text, res.ok ? "ok" : "bad");
           })
           .catch(err => toast("穿戴法宝神识受阻：" + err.message, "bad"));
@@ -2796,9 +2850,10 @@
       pushFeed(`【法宝归戒】你收功敛气，将【${removed.name}】从道身卸下，收入乾坤纳戒妥善温养。`, "ok");
 
       if (!state.demo) {
+        const reqEpoch = ++state.lastEpoch;
         api("/action", { token: state.token, command: `/卸下 ${removed.name}` })
           .then(res => {
-            if (res.status) applyStatus(res.status);
+            if (res.status) applyStatus(res.status, reqEpoch);
             if (res.text) pushFeed(res.text, res.ok ? "ok" : "bad");
           })
           .catch(err => toast("卸下法宝神识受阻：" + err.message, "bad"));
@@ -2812,6 +2867,7 @@
   // 天机秘宝 · 风水定盘五行破阵大典控制器
   // ==========================================================================
   function handleTreasureAction(act, mapName, el) {
+    if (checkActionLock("天道神念推演中，破阵探宝暂滞，请稍候再降法旨…")) return;
     ensureDefaultInventory();
     const s = state.status || {};
     const isMed = s.is_meditating || s.meditating || false;
@@ -2972,8 +3028,14 @@
               `;
             }
 
+            const reqEpoch = ++state.lastEpoch;
+            busy(true, "五行破阵寻幽中…");
+
             setTimeout(async () => {
-              if (!document.body.contains(overlay)) return;
+              if (!document.body.contains(overlay)) {
+                busy(false);
+                return;
+              }
 
               let excavatedEquip = null;
               let dropPill = null;
@@ -2983,11 +3045,15 @@
                 // 联机模式：向服务端调用 /挖宝
                 try {
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${tmap.name}` });
-                  if (res.status) applyStatus(res.status);
+                  if (res.status) applyStatus(res.status, reqEpoch);
                   pushFeed(res.text, res.ok ? "ok" : "bad");
                 } catch (err) {
                   toast("挖宝神识受阻：" + err.message, "bad");
+                } finally {
+                  busy(false);
                 }
+              } else {
+                busy(false);
               }
 
               // Demo 模式或前端权威落账：从纳戒消耗宝图
@@ -3716,6 +3782,10 @@
       return;
     }
 
+    if (["claim", "cancel", "buy", "gamble", "solicit", "list"].includes(act)) {
+      if (checkActionLock("天道神念推演中，坊市交割暂滞，请稍候再降法旨…")) return;
+    }
+
     if (act === "claim") {
       if ((bz.stallEarnings || 0) <= 0) {
         toast("聚宝法座当前暂无待提取之灵石收益。", "gold");
@@ -4039,7 +4109,9 @@
 
   async function sendChat(text) {
     const c = (text || "").trim();
-    if (!c || state.busy) return;
+    if (!c) return;
+    if (checkActionLock("对方神识沉吟中，请稍候再传音…")) return;
+    const reqEpoch = ++state.lastEpoch;
     chatMsg("你", c, "me");
 
     if (state.demo) {
@@ -4058,7 +4130,7 @@
         to: state.chat.npc || undefined,
       });
       state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
-      handleChatData(data);
+      handleChatData(data, reqEpoch);
     } catch (e) {
       state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
       renderChat(true);
@@ -4071,9 +4143,9 @@
     }
   }
 
-  function handleChatData(data) {
+  function handleChatData(data, reqEpoch) {
     if (!data) return;
-    if (data.status) applyStatus(data.status);
+    if (data.status) applyStatus(data.status, reqEpoch);
     const text = data.text || data.error || "";
     if (data.ok === false) {
       chatMsg("", text || "传音未送达", "sys");
@@ -4100,7 +4172,8 @@
   // ==========================================================================
   async function sendCmd(cmd) {
     const c = (cmd || "").trim();
-    if (!c || state.busy) return;
+    if (!c) return;
+    if (checkActionLock("天道神念推演中，诸法暂滞，请稍候再降法旨…")) return;
 
     if (state.chat.open && !c.startsWith("/")) {
       sendChat(c);
@@ -4135,6 +4208,7 @@
       return;
     }
 
+    const reqEpoch = ++state.lastEpoch;
     busy(true, "天道裁决中…");
     try {
       pushFeed("» " + c, "cmd");
@@ -4145,9 +4219,9 @@
         data = await api("/action", { token: state.token, command: c });
       }
 
-      if (data.status) applyStatus(data.status);
+      if (data.status) applyStatus(data.status, reqEpoch);
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
-      if (data.chat_open || data.chat_ended) handleChatData(data);
+      if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
       if (c.startsWith("/突破") || c.startsWith("/break")) {
         const isSucc = data.ok && (data.success !== false && !(data.tribulation && data.tribulation.fatal));

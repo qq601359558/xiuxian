@@ -1166,9 +1166,16 @@ class World:
                     target = command.strip().split(None, 1)[1].strip()
                 if not target:
                     return {"ok": True, "text": AdventureEngine.board_text(char)}
-                res = AdventureEngine.explore(char, target)
+                before_stones = char.spirit_stones
+                try:
+                    res = AdventureEngine.explore(char, target)
+                except Exception as _adv_err:
+                    if char.spirit_stones < before_stones:
+                        char.spirit_stones = before_stones
+                    CharacterRepository.save(char)
+                    return {"ok": False, "error": f"大荒天机紊乱：{_adv_err}", "status": self._status_dict(char)}
                 if not res.get("success"):
-                    return {"ok": False, "error": res.get("message", "探险失败")}
+                    return {"ok": False, "error": res.get("message", "探险失败"), "status": self._status_dict(char)}
                 CharacterRepository.save(char)
                 log_event(
                     "DECISION",
@@ -2788,6 +2795,7 @@ class World:
             prot_left = max(0.0, c.newbie_protect_until() - _t.time())
         return {
             "name": c.name,
+            "version": getattr(c, "version", 1),
             "realm": c.realm.name,
             "location": c.location,
             "stones": c.spirit_stones,

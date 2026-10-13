@@ -272,6 +272,13 @@ class AdventureEngine:
             travel_note = f"先至【{target['location']}】。"
 
         c.spirit_stones -= ADVENTURE_FEE
+        # 前置盘缠原子落盘，防止长耗时 AI 响应期间产生陈旧快照或并发竞争
+        try:
+            from storage.db import CharacterRepository
+            CharacterRepository.save(c)
+        except Exception:
+            pass
+
         p = _success_prob(c, target)
         # 规则骰（权威）
         roll = random.random()
