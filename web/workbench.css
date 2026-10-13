@@ -432,7 +432,8 @@ button {
 body.is-acting-busy button[data-wild-act],
 body.is-acting-busy button[data-sanctum-act],
 body.is-acting-busy button[data-bazaar-act],
-body.is-acting-busy button[data-bag-act] {
+body.is-acting-busy button[data-bag-act],
+body.is-acting-busy button[data-equip-act] {
   opacity: 0.75;
   transition: opacity 0.25s ease;
 }

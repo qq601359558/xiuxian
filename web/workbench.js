@@ -629,6 +629,7 @@
   }
 
   function claimCranePendingItem() {
+    if (checkActionLock("天道神念推演中，机缘提取暂滞，请稍候…")) return;
     const sc = state.sanctum;
     const pendingItem = (sc && sc.cranePendingItem) || (state.status && state.status.crane_pending_item);
     if (!pendingItem) {
@@ -636,9 +637,10 @@
       return;
     }
     if (!state.demo) {
+      const reqEpoch = ++state.lastEpoch;
       api("/action", { token: state.token, command: "/灵鹤 领取" })
         .then((res) => {
-          if (res.status) applyStatus(res.status);
+          if (res.status) applyStatus(res.status, reqEpoch);
           if (res.text) pushFeed(res.text, res.ok ? "ai" : "bad");
           if (res.ok) {
             if (sc) sc.cranePendingItem = null;
