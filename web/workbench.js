@@ -117,8 +117,19 @@
     selectedItemIndex: 0,
     inventory: [],
     equipped: [],
-    // 坊市货单
+    // 坊市货单与地摊
     marketListings: [],
+    bazaar: {
+      filter: "all",
+      selectedListingId: 1,
+      stallEarnings: 0,
+      stallItems: [],
+      marketIndex: [
+        { name: "天阶神兵行市", val: "128.4%", trend: "up", desc: "受黑水遗迹破禁潮影响持续攀升" },
+        { name: "高阶灵丹均价", val: "94.2%", trend: "down", desc: "百草谷灵药丰收行情微跌" },
+        { name: "太虚残卷秘策", val: "162.0%", trend: "up", desc: "大荒古洞异动，参悟类秘宝紧俏" },
+      ],
+    },
     // 洞府运转专属动态设施
     sanctum: {
       springCharge: 92,
@@ -223,16 +234,33 @@
     const s = state.status;
 
     // 纳戒数据同步（服务端真实 item_entities 同步到 state.inventory）
-    if (Array.isArray(st.items) && st.items.length > 0) {
+    if (Array.isArray(st.items)) {
       ensureDefaultInventory();
-      for (const it of st.items) {
-        const existIdx = state.inventory.findIndex(x => x.uid === it.uid || x.name === it.name);
-        if (existIdx >= 0) {
-          state.inventory[existIdx] = Object.assign({}, state.inventory[existIdx], it);
-        } else {
-          state.inventory.unshift(it);
+      if (!state.demo) {
+        state.inventory = st.items.slice();
+      } else if (st.items.length > 0) {
+        for (const it of st.items) {
+          const existIdx = state.inventory.findIndex(x => x.uid === it.uid || x.name === it.name);
+          if (existIdx >= 0) {
+            state.inventory[existIdx] = Object.assign({}, state.inventory[existIdx], it);
+          } else {
+            state.inventory.unshift(it);
+          }
         }
       }
+    }
+
+    // 坊市数据同步
+    if (st.stall_earnings != null) {
+      if (!state.bazaar) state.bazaar = { filter: "all", selectedListingId: 1, stallEarnings: 0, stallItems: [] };
+      state.bazaar.stallEarnings = st.stall_earnings;
+    }
+    if (Array.isArray(st.stall_items)) {
+      if (!state.bazaar) state.bazaar = { filter: "all", selectedListingId: 1, stallEarnings: 0, stallItems: [] };
+      state.bazaar.stallItems = st.stall_items;
+    }
+    if (Array.isArray(st.market_listings) && st.market_listings.length > 0) {
+      state.marketListings = st.market_listings;
     }
 
     // 顶部天道盘
@@ -3355,22 +3383,55 @@
   // 主境四：【九霄坊市 · 诸天通宝与乾坤寄售】 (Bazaar) - Stitch 原生 1:1 高保真
   // ==========================================================================
   function ensureDefaultMarket() {
+    if (!state.bazaar) {
+      state.bazaar = {
+        filter: "all",
+        selectedListingId: 1,
+        stallEarnings: 0,
+        stallItems: [],
+        marketIndex: [
+          { name: "天阶神兵行市", val: "128.4%", trend: "up", desc: "受黑水遗迹破禁潮影响持续攀升" },
+          { name: "高阶灵丹均价", val: "94.2%", trend: "down", desc: "百草谷灵药丰收行情微跌" },
+          { name: "太虚残卷秘策", val: "162.0%", trend: "up", desc: "大荒古洞异动，参悟类秘宝紧俏" },
+        ],
+      };
+    }
     if (state.marketListings && state.marketListings.length > 0) return;
     state.marketListings = [
-      { id: 1, name: "地阶上品 · 黑水沼泽天机残图", tier: "地品", affixes: "古修密卷 · 独一无二", seller: "青阳散人", price: 800, tax: 40, kind: "map" },
-      { id: 2, name: "地阶绝品 · 断魂幽煞剑", tier: "天品", affixes: "破煞甲级 · 嗜血乙级", seller: "紫虚真人", price: 1500, tax: 75, kind: "sword" },
-      { id: 3, name: "玄阶极品 · 辟毒清元丹 (拾丸)", tier: "人品", affixes: "克制黑水沼泽赤焰瘴气", seller: "百草仙姑", price: 300, tax: 15, kind: "pill" },
-      { id: 4, name: "天阶残卷 · 落霞古洞太虚玉简", tier: "天品", affixes: "领悟太虚通法概率升至四成", seller: "玄溟剑尊", price: 5000, tax: 250, kind: "scroll" },
+      { id: 1, name: "地阶上品 · 黑水沼泽天机残图", tier: "地品", affixes: "古修密卷 · 独一无二", seller: "青阳散人", price: 800, tax: 40, kind: "map", description: "天干地支勘测点：子位十二·坎位负四。此残图以深海灵鲛皮揉制，内蕴太虚神识印记，破阵要求需调动五行坎水真元。" },
+      { id: 2, name: "地阶绝品 · 断魂幽煞剑", tier: "天品", affixes: "破煞甲级 · 嗜血乙级", seller: "紫虚真人", price: 1500, tax: 75, kind: "weapon", description: "以万载玄冥寒玉淬火七七四十九日铸成，剑尖游离煞气，出鞘有白鹤哀鸣之音，专破幽冥护体罡气。" },
+      { id: 3, name: "玄阶极品 · 辟毒清元丹 (拾丸)", tier: "人品", affixes: "克制黑水瘴气 · 温养灵脉", seller: "百草仙姑", price: 300, tax: 15, kind: "pill", description: "采集千年玄冰雪莲与甘露熬炼而成，入腹化作九道清凉真气，辟除万毒，固护元神。" },
+      { id: 4, name: "天阶残卷 · 落霞古洞太虚玉简", tier: "天品", affixes: "领悟太虚通法概率升至四成", seller: "玄溟剑尊", price: 5000, tax: 250, kind: "map", description: "落霞古洞深处所得上古真仙随笔玉简，铭刻太阴太阳造化残诀，参悟可使自身神识念力大幅精进。" },
     ];
   }
 
   function renderBazaar() {
     ensureDefaultMarket();
-    const listings = state.marketListings;
+    const bz = state.bazaar;
+    const listings = state.marketListings || [];
+    const curFilter = bz.filter || "all";
+
+    const filteredListings = listings.filter((it) => {
+      if (curFilter === "all") return true;
+      const k = String(it.kind || "").toLowerCase();
+      const n = String(it.name || "");
+      if (curFilter === "weapon") return k === "weapon" || k === "sword" || k === "blade" || k === "equip" || n.includes("剑") || n.includes("枪") || n.includes("兵");
+      if (curFilter === "pill") return k === "pill" || k === "consumable" || n.includes("丹") || n.includes("露");
+      if (curFilter === "map") return k === "map" || k === "treasure_map" || k === "scroll" || n.includes("图") || n.includes("简");
+      if (curFilter === "material") return k === "material" || n.includes("草") || n.includes("石") || n.includes("晶") || n.includes("木");
+      return true;
+    });
+
+    const selected = listings.find((x) => String(x.id) === String(bz.selectedListingId)) || listings[0] || {
+      id: 1, name: "地阶上品 · 黑水沼泽天机残图", price: 800, seller: "青阳散人", tier: "地品", description: "暂无更多神念鉴定批注。"
+    };
+
+    const stallItems = bz.stallItems || [];
+    const stallEarnings = bz.stallEarnings || 0;
 
     return `
     <div class="w-full flex flex-col gap-5">
-      <!-- 顶部九霄天街深绿大气 Banner (Stitch 原生) -->
+      <!-- 顶部九霄天街深绿大气 Banner (Stitch 原生 + 天道行市指数) -->
       <section class="w-full">
         <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-jade-950 via-jade-900 to-slate-900 p-5 sm:p-6 shadow-md border border-filigree-400/40 text-white">
           <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -3381,13 +3442,13 @@
                 <span class="px-2 py-0.5 rounded bg-filigree-500/20 text-filigree-300 text-[10px] border border-filigree-400/30">诸天万修汇聚</span>
               </div>
               <p class="text-xs sm:text-sm text-jade-200/90 leading-relaxed max-w-xl">
-                天道商律：寄售契税半成，灵物挂牌七昼夜无人竞购自动退返纳戒。当值掌柜【白鹤道人】坐镇鉴宝护法。
+                天道商律：寄售契税半成（5%），灵物挂牌七昼夜无人竞购自动退返纳戒。当值掌柜【白鹤道人】坐镇鉴宝护法。
               </p>
             </div>
             <div class="flex items-center gap-3">
               <div class="px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-center">
                 <div class="text-[10px] text-jade-200">在售天机奇珍</div>
-                <div class="text-base font-bold text-filigree-300 font-mono">壹仟贰佰件</div>
+                <div class="text-base font-bold text-filigree-300 font-mono">${listings.length} 件</div>
               </div>
               <div class="px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-center">
                 <div class="text-[10px] text-jade-200">今日总成交灵石</div>
@@ -3395,168 +3456,134 @@
               </div>
             </div>
           </div>
+
+          <!-- 天道行市指数条 -->
+          <div class="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-1.5 text-filigree-300 font-bold">
+              <span>📊 天道行市指数:</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              ${(bz.marketIndex || []).map((idx) => `
+                <div class="px-2.5 py-1 rounded-lg bg-black/30 border border-white/10 flex items-center gap-1.5 text-[11px]" title="${esc(idx.desc || '')}">
+                  <span class="text-jade-200">${esc(idx.name)}</span>
+                  <span class="font-mono font-bold ${idx.trend === 'up' ? 'text-amber-300' : 'text-emerald-300'}">${esc(idx.val)} ${idx.trend === 'up' ? '↑' : '↓'}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- 12 栏结构：左 8 栏寄售行卷图文流，右 4 栏万象鉴真神台与我的货摊 -->
+      <!-- 12 栏结构：左 8 栏寄售行卷图文流与残宝盲匣，右 4 栏万象鉴真神台与我的地摊 -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <!-- 左侧 8 栏：寄售行卷 -->
         <section class="lg:col-span-8 flex flex-col gap-4">
+          <!-- 仙阁秘藏 · 古修残宝捡漏盲匣 (水墨残宝盲匣解石卡片) -->
+          <article class="relative overflow-hidden rounded-xl p-4 border border-amber-400/70 bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/90 text-amber-100 shadow-md stall-shimmer flex flex-col sm:flex-row items-center gap-4">
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-3xl font-calligraphy flex-shrink-0 text-amber-300 shadow-inner">
+              匣
+            </div>
+            <div class="flex-1 min-w-0 space-y-1 text-center sm:text-left">
+              <div class="flex items-center justify-center sm:justify-start gap-2">
+                <h3 class="text-sm sm:text-base font-bold text-amber-200">仙阁秘藏 · 古修残宝捡漏盲匣</h3>
+                <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] border border-amber-400/40">天道机缘</span>
+              </div>
+              <p class="text-xs text-amber-100/80 leading-relaxed">
+                八十枚下品灵石搏一缕上古造化，仙师当场神火解石剖玉！有概率开出地品残兵、天品残卷或上古灵丹。
+              </p>
+            </div>
+            <button class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-amber-950 font-bold text-xs shadow-md transition whitespace-nowrap cursor-pointer flex-shrink-0" type="button" data-bazaar-act="gamble">
+              花费 捌拾灵石 · 鉴真解石捡漏
+            </button>
+          </article>
+
+          <!-- 分类筛选器 -->
           <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
             <div class="flex items-center gap-1.5 overflow-x-auto text-xs">
-              <button class="px-3 py-1 rounded-full bg-jade-700 text-white font-medium shadow-sm cursor-pointer whitespace-nowrap">全部寄售 (肆)</button>
-              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">神兵法宝</button>
-              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">灵丹妙药</button>
-              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">天机藏图</button>
-              <button class="px-3 py-1 rounded-full bg-white text-slate-600 border border-jade-200 font-medium hover:bg-jade-50 cursor-pointer whitespace-nowrap">天材地宝</button>
+              <button class="px-3 py-1 rounded-full ${curFilter === 'all' ? 'bg-jade-700 text-white' : 'bg-white text-slate-600 border border-jade-200 hover:bg-jade-50'} font-medium shadow-sm cursor-pointer whitespace-nowrap" type="button" data-bazaar-act="filter" data-bazaar-val="all">全部寄售 (${listings.length})</button>
+              <button class="px-3 py-1 rounded-full ${curFilter === 'weapon' ? 'bg-jade-700 text-white' : 'bg-white text-slate-600 border border-jade-200 hover:bg-jade-50'} font-medium cursor-pointer whitespace-nowrap" type="button" data-bazaar-act="filter" data-bazaar-val="weapon">神兵法宝</button>
+              <button class="px-3 py-1 rounded-full ${curFilter === 'pill' ? 'bg-jade-700 text-white' : 'bg-white text-slate-600 border border-jade-200 hover:bg-jade-50'} font-medium cursor-pointer whitespace-nowrap" type="button" data-bazaar-act="filter" data-bazaar-val="pill">灵丹妙药</button>
+              <button class="px-3 py-1 rounded-full ${curFilter === 'map' ? 'bg-jade-700 text-white' : 'bg-white text-slate-600 border border-jade-200 hover:bg-jade-50'} font-medium cursor-pointer whitespace-nowrap" type="button" data-bazaar-act="filter" data-bazaar-val="map">天机藏图</button>
+              <button class="px-3 py-1 rounded-full ${curFilter === 'material' ? 'bg-jade-700 text-white' : 'bg-white text-slate-600 border border-jade-200 hover:bg-jade-50'} font-medium cursor-pointer whitespace-nowrap" type="button" data-bazaar-act="filter" data-bazaar-val="material">天材地宝</button>
             </div>
             <span class="text-[11px] text-slate-400 hidden sm:inline">行情刷新时序: 每炷香一更</span>
           </div>
 
-          <!-- 货品图文卡片流 (Stitch 原生高保真行卷) -->
+          <!-- 货品图文卡片流 -->
           <div class="space-y-4">
-            <!-- 货品 1：黑水沼泽天机残图 -->
-            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
-              <div class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded bg-jade-100 text-jade-800 font-semibold border border-jade-300">
-                当前鉴真聚焦
+            ${filteredListings.length === 0 ? `
+              <div class="p-8 text-center text-xs text-slate-400 jade-panel rounded-xl border border-dashed border-jade-200">
+                当前品类暂无挂牌寄售灵物。
               </div>
-              <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
-                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="黑水沼泽天机图" />
-                <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">黑水沼泽 · 遗迹祭坛</div>
-              </div>
-              <div class="flex-1 min-w-0 space-y-1.5">
-                <div class="flex items-center gap-2">
-                  <h3 class="text-base font-bold text-jade-950 truncate">地阶上品 · 黑水沼泽天机残图</h3>
-                </div>
-                <div class="flex items-center gap-1.5 text-[10px]">
-                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">古修密卷</span>
-                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">独一无二</span>
-                  <span class="text-slate-400">| 寄售散修: 青阳散人</span>
-                </div>
-                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                  天干地支勘测点：子位十二·坎位负四。此残图以深海灵鲛皮揉制，内蕴太虚神识印记，破阵要求需调动五行坎水真元。
-                </p>
-                <div class="flex items-center justify-between pt-1">
-                  <div class="text-xs text-slate-500">
-                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 捌佰枚</strong>
-                  </div>
-                  <div class="flex gap-2">
-                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 1">
-                      神念验宝
-                    </button>
-                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 1">
-                      立即交割
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </article>
+            ` : filteredListings.map((it) => {
+              const isSelected = String(it.id) === String(bz.selectedListingId);
+              const isWeapon = it.kind === "weapon" || it.kind === "sword" || it.kind === "blade" || it.kind === "equip" || (it.name && (it.name.includes("剑") || it.name.includes("枪") || it.name.includes("兵")));
+              const isPill = it.kind === "pill" || it.kind === "consumable" || (it.name && (it.name.includes("丹") || it.name.includes("露")));
+              const isMap = it.kind === "map" || it.kind === "treasure_map" || it.kind === "scroll" || (it.name && (it.name.includes("图") || it.name.includes("简")));
 
-            <!-- 货品 2：断魂幽煞剑 -->
-            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
-              <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
-                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="断魂幽煞剑" />
-                <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">九天碧玉太虚兵戈</div>
-              </div>
-              <div class="flex-1 min-w-0 space-y-1.5">
-                <div class="flex items-center gap-2">
-                  <h3 class="text-base font-bold text-jade-950 truncate">地阶绝品 · 断魂幽煞剑</h3>
-                  <span class="text-[10px] text-slate-400">| 寄售散修: 紫虚真人</span>
-                </div>
-                <div class="flex items-center gap-1.5 text-[10px]">
-                  <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-900 border border-rose-300 font-medium">破煞 (甲级)</span>
-                  <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-900 border border-rose-300 font-medium">嗜血 (乙级)</span>
-                  <span class="text-slate-500">攻伐增益 +160</span>
-                </div>
-                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                  以万载玄冥寒玉淬火七七四十九日铸成，剑尖游离煞气，出鞘有白鹤哀鸣之音，专破幽冥护体罡气。
-                </p>
-                <div class="flex items-center justify-between pt-1">
-                  <div class="text-xs text-slate-500">
-                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 壹仟伍佰枚</strong>
+              return `
+              <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border ${isSelected ? 'border-filigree-500 ring-2 ring-filigree-400/40' : 'border-jade-200'} flex flex-col sm:flex-row items-center gap-4 relative group transition">
+                ${isSelected ? `
+                  <div class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded bg-jade-100 text-jade-800 font-semibold border border-jade-300">
+                    当前鉴真聚焦
                   </div>
-                  <div class="flex gap-2">
-                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 2">
-                      神念验宝
-                    </button>
-                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 2">
-                      立即交割
-                    </button>
+                ` : ''}
+                <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner flex items-center justify-center">
+                  ${isWeapon ? `
+                    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
+                         class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="${esc(it.name)}" />
+                    <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">九天神兵</div>
+                  ` : isMap ? `
+                    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                         class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="${esc(it.name)}" />
+                    <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">太虚图录</div>
+                  ` : isPill ? `
+                    <div class="w-full h-full bg-jade-50 border border-jade-200 flex flex-col items-center justify-center">
+                      <span class="w-12 h-12 rounded-full bg-jade-200 text-jade-800 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">丹</span>
+                      <span class="text-[10px] text-slate-400 mt-1">灵丹妙药</span>
+                    </div>
+                  ` : `
+                    <div class="w-full h-full bg-amber-50 border border-amber-200 flex flex-col items-center justify-center">
+                      <span class="w-12 h-12 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">宝</span>
+                      <span class="text-[10px] text-amber-800 mt-1">天材地宝</span>
+                    </div>
+                  `}
+                </div>
+                <div class="flex-1 min-w-0 space-y-1.5">
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-base font-bold text-jade-950 truncate">${esc(it.name)}</h3>
                   </div>
-                </div>
-              </div>
-            </article>
-
-            <!-- 货品 3：辟毒清元丹 -->
-            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
-              <div class="w-36 h-28 rounded-lg bg-jade-50 border border-jade-200 flex flex-col items-center justify-center flex-shrink-0">
-                <span class="w-12 h-12 rounded-full bg-jade-200 text-jade-800 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">丹</span>
-                <span class="text-[10px] text-slate-400 mt-1">共拾丸</span>
-              </div>
-              <div class="flex-1 min-w-0 space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-base font-bold text-jade-950">玄阶极品 · 辟毒清元丹 (拾丸)</h3>
-                  <span class="text-[10px] text-slate-400">寄售散修: 百草仙姑</span>
-                </div>
-                <div class="flex items-center gap-1.5 text-[10px]">
-                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">克制黑水沼泽赤焰瘴气</span>
-                  <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">温养灵脉三载</span>
-                </div>
-                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                  采集千年玄冰雪莲与甘露熬炼而成，入腹化作九道清凉真气，辟除万毒，固护元神。
-                </p>
-                <div class="flex items-center justify-between pt-1">
-                  <div class="text-xs text-slate-500">
-                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 叁佰枚</strong>
+                  <div class="flex items-center gap-1.5 text-[10px]">
+                    <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">${esc(it.tier || '地品')}</span>
+                    <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 border border-jade-300 font-medium">${esc(it.affixes || '真仙遗泽')}</span>
+                    <span class="text-slate-400">| 寄售散修: ${esc(it.seller || '青阳散人')}</span>
                   </div>
-                  <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 3">
-                    立即交割
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- 货品 4：落霞古洞太虚玉简 -->
-            <article class="jade-panel jade-panel-hover rounded-xl p-4 shadow-sm border border-jade-200 flex flex-col sm:flex-row items-center gap-4 relative group">
-              <div class="w-36 h-28 rounded-lg bg-amber-50 border border-filigree-200 flex flex-col items-center justify-center flex-shrink-0">
-                <span class="w-12 h-12 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">玉简</span>
-                <span class="text-[10px] text-amber-800 mt-1">太古玄文</span>
-              </div>
-              <div class="flex-1 min-w-0 space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-base font-bold text-jade-950">天阶残卷 · 落霞古洞太虚玉简</h3>
-                  <span class="text-[10px] text-slate-400">寄售散修: 玄溟剑尊</span>
-                </div>
-                <div class="flex items-center gap-1.5 text-[10px]">
-                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">领悟太虚通法概率升至四成</span>
-                  <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 font-medium">金丹期方可启封</span>
-                </div>
-                <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                  落霞古洞深处所得上古真仙随笔玉简，铭刻太阴太阳造化残诀，参悟可使自身神识念力大幅精进。
-                </p>
-                <div class="flex items-center justify-between pt-1">
-                  <div class="text-xs text-slate-500">
-                    寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 伍仟枚</strong>
-                  </div>
-                  <div class="flex gap-2">
-                    <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-cmd="/鉴宝 4">
-                      神念验宝
-                    </button>
-                    <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-cmd="/买寄售 4">
-                      立即交割
-                    </button>
+                  <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                    ${esc(it.description || "九霄坊市灵霄仙阁契约担保之正品仙物。")}
+                  </p>
+                  <div class="flex items-center justify-between pt-1">
+                    <div class="text-xs text-slate-500">
+                      寄售标价: <strong class="text-base font-bold text-filigree-700 font-mono">下品灵石 ${it.price} 枚</strong>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="px-3 py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" type="button" data-bazaar-act="inspect" data-bazaar-val="${esc(it.id)}">
+                        神念验宝
+                      </button>
+                      <button class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs cursor-pointer" type="button" data-bazaar-act="buy" data-bazaar-val="${esc(it.id)}">
+                        立即交割
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
+              </article>
+              `;
+            }).join('')}
           </div>
         </section>
 
-        <!-- 右侧 4 栏：万象灵物鉴真神台与我的货摊 -->
-        <aside class="lg:col-span-4 flex flex-col gap-5">
-          <!-- 万象灵物 · 鉴真神台 (纯净自然原画，绝无人物表格重影) -->
+        <!-- 右侧 4 栏：万象灵物鉴真神台与我的地摊 -->
+        <aside class="lg:col-span-4 flex flex-col gap-5" id="bazaarInspectPanel">
+          <!-- 万象灵物 · 鉴真神台 -->
           <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-3.5 border border-filigree-400/50">
             <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
               <h2 class="text-base font-bold text-jade-950 flex items-center gap-1.5">
@@ -3575,42 +3602,45 @@
                 遗迹祭坛朱砂封印
               </div>
               <div class="absolute bottom-2.5 left-2.5 text-white">
-                <span class="text-[10px] px-2 py-0.5 rounded bg-jade-900/80 text-jade-200 border border-jade-500/40">灵气浓郁度: 九品上乘</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-jade-900/80 text-jade-200 border border-jade-500/40">品阶: ${esc(selected.tier || '地品')}</span>
               </div>
             </div>
 
             <div class="space-y-2 text-xs">
               <div class="flex items-center justify-between">
-                <span class="text-slate-500">验宝物: <strong class="text-jade-950">黑水沼泽天机残图</strong></span>
+                <span class="text-slate-500">验宝物: <strong class="text-jade-950">${esc(selected.name)}</strong></span>
                 <span class="text-[10px] text-filigree-700">真灵契约已核验</span>
               </div>
               <div class="bg-white/80 p-2.5 rounded-xl border border-jade-100 space-y-1.5 text-[11px] text-slate-600">
                 <div class="flex justify-between">
-                  <span>因果印记:</span>
-                  <span class="text-slate-800 font-medium">上古坐化金丹修士随身洞府遗泽</span>
+                  <span>寄售散修:</span>
+                  <span class="text-slate-800 font-medium">${esc(selected.seller || '青阳散人')}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span>方位索引:</span>
-                  <span class="text-slate-800 font-medium">十方大荒深处 · 阴冥沼泽骨龙坡</span>
+                  <span>契约标价:</span>
+                  <span class="text-slate-800 font-medium font-mono">${selected.price} 灵石 (税 ${Math.floor(selected.price * 0.05)} 灵石)</span>
                 </div>
                 <div class="flex justify-between">
-                  <span>契约交割护法:</span>
+                  <span>交割担保:</span>
                   <span class="text-jade-700 font-medium">万象商盟律令担保</span>
                 </div>
+                <p class="text-[10px] text-slate-500 pt-1 border-t border-slate-100 leading-relaxed">
+                  ${esc(selected.description || "九霄坊市灵霄仙阁契约担保之正品仙物。")}
+                </p>
               </div>
             </div>
 
-            <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-jade-800 via-jade-700 to-jade-800 hover:from-jade-700 hover:to-jade-600 text-white text-xs font-bold shadow-md border border-filigree-400/40 flex items-center justify-center gap-2 cursor-pointer" type="button" data-cmd="/买寄售 1">
-              <span>交付 捌佰灵石 · 契约立成</span>
+            <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-jade-800 via-jade-700 to-jade-800 hover:from-jade-700 hover:to-jade-600 text-white text-xs font-bold shadow-md border border-filigree-400/40 flex items-center justify-center gap-2 cursor-pointer" type="button" data-bazaar-act="buy" data-bazaar-val="${esc(selected.id)}">
+              <span>交付 ${selected.price} 灵石 · 契约立成</span>
             </button>
             <div class="text-center">
-              <button class="text-[11px] text-slate-500 hover:text-jade-700 cursor-pointer" type="button" data-person="青阳散人">
-                神识传音卖家 (青阳散人)
+              <button class="text-[11px] text-slate-500 hover:text-jade-700 cursor-pointer" type="button" data-person="${esc(selected.seller || '青阳散人')}">
+                神识传音卖家 (${esc(selected.seller || '青阳散人')})
               </button>
             </div>
           </div>
 
-          <!-- 我的坊市摊位 · 聚宝灵坛 (Stitch 原生) -->
+          <!-- 我的坊市摊位 · 聚宝灵坛 -->
           <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-3.5 border border-jade-200">
             <div class="flex items-center justify-between pb-2 border-b border-jade-200/80">
               <h2 class="text-base font-bold text-jade-950 flex items-center gap-1.5">
@@ -3622,34 +3652,270 @@
             <div class="bg-white/80 p-3 rounded-xl border border-jade-100 space-y-2 text-xs">
               <div class="flex items-center justify-between">
                 <span class="text-slate-500">当前已挂牌灵物:</span>
-                <span class="font-bold text-jade-900 font-mono">叁 / 捌 件</span>
+                <span class="font-bold text-jade-900 font-mono">${stallItems.length} / 8 件</span>
               </div>
               <div class="p-2.5 bg-jade-50/70 rounded-lg border border-jade-100 flex items-center justify-between">
-                <span class="text-[11px] text-slate-600">待提取收益 (已扣除半成契税):</span>
-                <span class="text-sm font-bold text-jade-800 font-mono">贰仟肆佰灵石</span>
+                <span class="text-[11px] text-slate-600">待提取收益 (已扣半成契税):</span>
+                <span class="text-sm font-bold text-jade-800 font-mono">${stallEarnings} 灵石</span>
               </div>
-              <button class="w-full py-2 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold shadow-2xs transition cursor-pointer" type="button" data-cmd="/收益">
+              <button class="w-full py-2 rounded-lg ${stallEarnings > 0 ? 'bg-jade-700 hover:bg-jade-800 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'} text-xs font-semibold shadow-2xs transition cursor-pointer" type="button" data-bazaar-act="claim">
                 一键收益划归纳戒
               </button>
             </div>
 
+            <!-- 摊位在售列表 -->
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+              ${stallItems.length === 0 ? `
+                <div class="p-3 text-center text-xs text-slate-400 bg-jade-50/50 rounded-xl border border-dashed border-jade-200">
+                  摊位空空如也，可挑选纳戒奇珍挂牌开张。
+                </div>
+              ` : stallItems.map((it) => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-white border border-jade-100 text-xs">
+                  <div class="truncate mr-2">
+                    <span class="font-bold text-jade-950">${esc(it.name)}</span>
+                    <span class="text-slate-400 font-mono text-[11px] ml-1">[${it.price} 灵石]</span>
+                  </div>
+                  <button class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-medium whitespace-nowrap cursor-pointer" type="button" data-bazaar-act="cancel" data-bazaar-val="${esc(it.id)}">
+                    撤回
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+
             <div class="grid grid-cols-2 gap-2 pt-1 text-xs">
-              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 font-medium cursor-pointer" type="button" data-act="view:inventory">
+              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 font-medium cursor-pointer" type="button" data-bazaar-act="list_dialog">
                 挑选新灵物挂牌
               </button>
-              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-slate-700 border border-jade-200 font-medium cursor-pointer" type="button" data-cmd="/坊市">
-                调整寄售标价
-              </button>
-            </div>
-            <div class="text-center pt-0.5">
-              <button class="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer" type="button" data-cmd="/撤回寄售">
-                撤回挂牌灵物 (无需契税)
+              <button class="py-2 rounded-lg bg-white hover:bg-jade-50 text-amber-800 border border-amber-300 font-medium cursor-pointer" type="button" data-bazaar-act="solicit">
+                招徕过往修士
               </button>
             </div>
           </div>
         </aside>
       </div>
     </div>`;
+  }
+
+  // 坊市核心行为调度器
+  async function handleBazaarAction(act, extra, el) {
+    if (!state.bazaar) ensureDefaultMarket();
+    const s = state.status || {};
+    const bz = state.bazaar;
+
+    if (act === "filter") {
+      bz.filter = extra || "all";
+      renderBody();
+      return;
+    }
+
+    if (act === "inspect") {
+      bz.selectedListingId = Number(extra) || 1;
+      renderBody();
+      const st = $("bazaarInspectPanel");
+      if (st) st.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+
+    if (act === "claim") {
+      if ((bz.stallEarnings || 0) <= 0) {
+        toast("聚宝法座当前暂无待提取之灵石收益。", "gold");
+        return;
+      }
+      await sendCmd("/收益");
+      return;
+    }
+
+    if (act === "cancel") {
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        toast("百宝纳戒乾坤已满（64/64），请先整理空间后再撤回灵物！", "bad");
+        return;
+      }
+      await sendCmd("/撤回 " + extra);
+      return;
+    }
+
+    if (act === "buy") {
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        toast("百宝纳戒乾坤已满（64/64），请先腾出纳戒空位再交割！", "bad");
+        return;
+      }
+      const listing = (state.marketListings || []).find((x) => String(x.id) === String(extra));
+      if (listing && (s.stones || 0) < listing.price) {
+        toast(`随身灵石不足 ${listing.price} 枚，无法交割！`, "bad");
+        return;
+      }
+      await sendCmd("/买寄售 " + extra);
+      return;
+    }
+
+    if (act === "gamble") {
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        toast("百宝纳戒乾坤已满（64/64），无法容纳解石所得灵物！", "bad");
+        return;
+      }
+      if ((s.stones || 0) < 80) {
+        toast("随身灵石不足 80 枚，无法购下古修残宝盲匣！", "bad");
+        return;
+      }
+      const res = await sendCmd("/捡漏");
+      if (res && res.ok && res.loot) {
+        openJadeDialog({
+          title: "天街捡漏 · 鉴真解石大捷",
+          icon: "💎",
+          cardClass: "max-w-md",
+          bodyHtml: `
+            <div class="text-center space-y-4 py-3">
+              <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-200 text-amber-950 flex items-center justify-center text-4xl mx-auto shadow-md unseal-glow">
+                ✨
+              </div>
+              <div>
+                <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold">解石破茧 · 异宝现世</span>
+                <h4 class="text-lg font-bold text-jade-950 mt-2">${esc(res.loot)}</h4>
+              </div>
+              <p class="text-xs text-slate-700 leading-relaxed bg-amber-50/80 p-3 rounded-xl border border-amber-200/80">
+                仙师以地心神火切开锈蚀残匣，霞光冲霄！此宝已妥善收纳至道友百宝纳戒首格。
+              </p>
+            </div>
+          `,
+          footerHtml: `
+            <button type="button" class="px-6 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeJadeDialog()">
+              收入百宝纳戒
+            </button>
+          `,
+        });
+      }
+      return;
+    }
+
+    if (act === "solicit") {
+      if (!bz.stallItems || bz.stallItems.length === 0) {
+        toast("摊位尚未摆放任何灵物，请先挑选灵物挂牌后再招徕修士！", "bad");
+        return;
+      }
+      const res = await sendCmd("/招徕");
+      if (res && res.haggle && res.listing_id) {
+        openJadeDialog({
+          title: "坊市招徕 · 散修还价求购",
+          icon: "🏮",
+          cardClass: "max-w-md",
+          bodyHtml: `
+            <div class="space-y-4 py-2">
+              <div class="p-3.5 bg-jade-50 rounded-xl border border-jade-200 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-slate-500">来访道友：<strong class="text-jade-950">${esc(res.npc || "过路散修")}</strong></span>
+                  <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-semibold border border-amber-300">诚心商榷</span>
+                </div>
+                <div class="p-2.5 bg-white/90 rounded-lg text-xs text-slate-700 italic border border-jade-100">
+                  “道友，此物在下诚心相求，奈何灵石拮据，不知可否作价 <strong class="text-amber-700 font-bold font-mono">${res.offer_price}</strong> 灵石让予在下？”
+                </div>
+              </div>
+
+              <div class="bg-white p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+                <div class="flex justify-between">
+                  <span class="text-slate-500">求购灵物：</span>
+                  <strong class="text-slate-900">${esc(res.item_name)}</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">摊位标价：</span>
+                  <span class="text-slate-600 line-through font-mono">${res.original_price} 灵石</span>
+                </div>
+                <div class="flex justify-between text-amber-800 font-bold">
+                  <span>散修出价：</span>
+                  <span class="font-mono text-sm">${res.offer_price} 灵石</span>
+                </div>
+              </div>
+            </div>
+          `,
+          footerHtml: `
+            <div class="flex items-center justify-end gap-2.5 w-full">
+              <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer" onclick="workbench.closeJadeDialog(); workbench.sendCmd('/还价 拒绝 ${esc(res.listing_id)}');">
+                谢绝还价
+              </button>
+              <button type="button" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold shadow-sm cursor-pointer" onclick="workbench.closeJadeDialog(); workbench.sendCmd('/还价 成交 ${esc(res.listing_id)} ${res.offer_price}');">
+                成交割爱 (${res.offer_price} 灵石)
+              </button>
+            </div>
+          `,
+        });
+      }
+      return;
+    }
+
+    if (act === "list_dialog") {
+      ensureDefaultInventory();
+      if ((bz.stallItems || []).length >= 8) {
+        toast("聚宝灵坛法座已满（8/8 件），请先撤回或待售出后再挂牌！", "bad");
+        return;
+      }
+      const candidates = state.inventory.filter((x) => !state.equipped.some((eq) => eq.name === x.name));
+      if (!candidates.length) {
+        toast("百宝纳戒中暂无多余灵物可供挂牌，可先探险获取！", "bad");
+        return;
+      }
+
+      openJadeDialog({
+        title: "聚宝法座 · 挑选纳戒灵物挂牌",
+        icon: "📜",
+        cardClass: "max-w-lg",
+        bodyHtml: `
+          <div class="space-y-4">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              从百宝纳戒中挑选欲寄售之仙物，法阵将护持灵物并在九霄天街设摊展示。成交扣减半成（5%）契税。
+            </p>
+            <div class="space-y-2 max-h-56 overflow-y-auto pr-1" id="stallCandidateList">
+              ${candidates.map((it, idx) => `
+                <label class="flex items-center justify-between p-2.5 rounded-xl border border-jade-200 hover:bg-jade-50/60 cursor-pointer transition ${idx === 0 ? 'bg-jade-50/80 border-jade-400' : ''}">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="stallItemSelect" value="${esc(it.name)}" ${idx === 0 ? 'checked' : ''} class="text-jade-700" />
+                    <div>
+                      <div class="text-xs font-bold text-jade-950">${esc(it.name)}</div>
+                      <div class="text-[10px] text-slate-500">${esc(it.slotCn || it.tierName || '奇珍')} · ${esc(it.desc || it.lore || '')}</div>
+                    </div>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-700">寄售标价 (下品灵石):</label>
+              <div class="flex items-center gap-2">
+                <input type="number" id="stallPriceInput" value="100" min="1" max="999999" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold focus:border-jade-500 outline-none" />
+                <span class="text-xs text-slate-500">枚灵石</span>
+              </div>
+              <div class="text-[10px] text-slate-400">仙盟公允建议：凡阶 50~150，人阶 200~800，地阶 1000~5000。</div>
+            </div>
+          </div>
+        `,
+        footerHtml: `
+          <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer" onclick="workbench.closeJadeDialog()">取消</button>
+          <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-bold shadow-sm cursor-pointer" id="stallConfirmBtn">确认挂牌入坛</button>
+        `,
+        onMount: (overlay) => {
+          const btn = overlay.querySelector("#stallConfirmBtn");
+          if (!btn) return;
+          btn.addEventListener("click", () => {
+            const checked = overlay.querySelector("input[name='stallItemSelect']:checked");
+            const priceInp = overlay.querySelector("#stallPriceInput");
+            if (!checked) {
+              toast("请先选择欲挂牌之灵物！", "bad");
+              return;
+            }
+            const name = checked.value;
+            const price = parseInt(priceInp.value, 10) || 100;
+            if (price <= 0) {
+              toast("寄售标价需大于 0 灵石！", "bad");
+              return;
+            }
+            closeJadeDialog();
+            sendCmd(`/摆摊 ${name} ${price}`);
+          });
+        },
+      });
+      return;
+    }
   }
 
   function renderSideDrawer() {
@@ -3935,9 +4201,11 @@
       }
 
       renderBody();
+      return data;
     } catch (e) {
       pushFeed("敕令失败：" + e.message, "bad");
       toast(e.message, "bad");
+      return { ok: false, error: e.message };
     } finally {
       busy(false);
       const inp = $("cmdInput");
@@ -4102,6 +4370,203 @@
       s.stones = (s.stones || 0) - cost;
       handleCraneReturned(dest);
       return { ok: true, text: `【镇山仙鹤 · 探路巡弋】消耗 ${cost} 灵石。青羽仙鹤翱翔于【${dest}】上空，破开云雾，神识传音报捷！`, status: s };
+    }
+    if (c.startsWith("/摆摊") || c.startsWith("/stall")) {
+      const parts = c.trim().split(/\s+/);
+      const name = parts[1];
+      const price = parseInt(parts[2], 10) || 100;
+      ensureDefaultInventory();
+      if (!name) {
+        return { ok: false, text: "用法：/摆摊 <物品名> <灵石价格>", status: s };
+      }
+      const idx = state.inventory.findIndex(x => x.name === name || x.name.includes(name));
+      if (idx < 0) {
+        return { ok: false, text: `百宝纳戒中未寻得【${name}】！`, status: s };
+      }
+      if (!state.bazaar) ensureDefaultMarket();
+      if ((state.bazaar.stallItems || []).length >= 8) {
+        return { ok: false, text: "聚宝灵坛法座已满（8/8 件），请先撤回或待售出后再挂牌！", status: s };
+      }
+      const item = state.inventory.splice(idx, 1)[0];
+      const stallItem = {
+        id: "stall_" + Date.now(),
+        name: item.name,
+        price: price,
+        kind: item.kind,
+        tier: item.tier,
+      };
+      state.bazaar.stallItems.push(stallItem);
+      return {
+        ok: true,
+        text: `【聚宝法座 · 挂牌入坛】已将【${item.name}】摆入坊市摊位，标价 ${price} 灵石！神念已广播九霄天街。`,
+        status: s,
+      };
+    }
+    if (c.startsWith("/撤回")) {
+      const parts = c.trim().split(/\s+/);
+      const target = parts[1];
+      if (!state.bazaar) ensureDefaultMarket();
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        return { ok: false, text: "百宝纳戒已满（64/64），请先整理空间后再撤回灵物！", status: s };
+      }
+      const items = state.bazaar.stallItems || [];
+      const idx = items.findIndex(x => String(x.id) === target || x.name === target || x.name.includes(target));
+      if (idx < 0) {
+        return { ok: false, text: `摊位中未寻得在售货物【${target}】！`, status: s };
+      }
+      const item = items.splice(idx, 1)[0];
+      state.inventory.unshift({
+        name: item.name,
+        kind: item.kind || "material",
+        tier: item.tier || 2,
+        desc: "自坊市摊位撤回之珍品。",
+      });
+      return {
+        ok: true,
+        text: `【聚宝法座 · 撤回灵物】已将【${item.name}】自摊位撤回，归入百宝纳戒！`,
+        status: s,
+      };
+    }
+    if (c.startsWith("/收益")) {
+      if (!state.bazaar) ensureDefaultMarket();
+      const gain = state.bazaar.stallEarnings || 0;
+      if (gain <= 0) {
+        return { ok: false, text: "当前暂无待提取之坊市灵石收益。", status: s };
+      }
+      s.stones = (s.stones || 0) + gain;
+      state.bazaar.stallEarnings = 0;
+      return {
+        ok: true,
+        text: `【坊市收益 · 纳石归戒】成功提取 ${gain} 灵石划归随身纳戒！`,
+        status: s,
+      };
+    }
+    if (c.startsWith("/买寄售")) {
+      const parts = c.trim().split(/\s+/);
+      const id = parts[1];
+      ensureDefaultMarket();
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        return { ok: false, text: "百宝纳戒已满（64/64），请先腾出纳戒空位再交割！", status: s };
+      }
+      const idx = state.marketListings.findIndex(x => String(x.id) === String(id));
+      if (idx < 0) {
+        return { ok: false, text: `寄售行卷中未寻得编号【${id}】之仙物！`, status: s };
+      }
+      const listing = state.marketListings[idx];
+      if ((s.stones || 0) < listing.price) {
+        return { ok: false, text: `随身灵石不足 ${listing.price} 枚，无法交割！`, status: s };
+      }
+      s.stones -= listing.price;
+      state.marketListings.splice(idx, 1);
+      state.inventory.unshift({
+        name: listing.name,
+        kind: listing.kind,
+        tierName: listing.tier,
+        desc: listing.description || "九霄坊市交割所得珍品。",
+      });
+      return {
+        ok: true,
+        text: `【天街交割 · 契约立成】支付 ${listing.price} 灵石，成功购得【${listing.name}】，已妥善收入百宝纳戒！`,
+        status: s,
+      };
+    }
+    if (c.startsWith("/捡漏")) {
+      ensureDefaultInventory();
+      if (state.inventory.length >= 64) {
+        return { ok: false, text: "百宝纳戒已满（64/64），无法容纳解石所得灵物！", status: s };
+      }
+      if ((s.stones || 0) < 80) {
+        return { ok: false, text: "随身灵石不足 80 枚，无法购下古修残宝盲匣！", status: s };
+      }
+      s.stones -= 80;
+      const lootPool = [
+        { name: "地阶残刃 · 碧落寒霜剑", kind: "weapon", tierName: "地品", desc: "上古剑修遗留佩剑，剑身残留凌厉破煞剑气！" },
+        { name: "天阶残页 · 鸿蒙造化篇", kind: "map", tierName: "天品", desc: "自古仙洞府掘出的鸿蒙经卷残篇，道韵深邃！" },
+        { name: "玄阶极品 · 千年雪魄定颜丹", kind: "pill", tierName: "人品", desc: "封存在玄冰灵盒中的上古灵丹，药香四溢！" },
+        { name: "上古真仙残缺铭文甲", kind: "armor", tierName: "地品", desc: "铭刻避雷古篆的真仙甲胄残片！" },
+      ];
+      const picked = lootPool[Math.floor(Math.random() * lootPool.length)];
+      state.inventory.unshift(picked);
+      return {
+        ok: true,
+        text: `【古修残宝 · 当场解石】消耗 80 灵石切开锈蚀盲匣！神光大盛，获【${picked.name}】（${picked.tierName}）！已收入百宝纳戒首格。`,
+        loot: picked.name,
+        status: s,
+      };
+    }
+    if (c.startsWith("/招徕")) {
+      if (!state.bazaar) ensureDefaultMarket();
+      const items = state.bazaar.stallItems || [];
+      if (!items.length) {
+        return { ok: false, text: "摊位尚未摆放任何灵物，请先挑选灵物挂牌后再招徕修士！", status: s };
+      }
+      const target = items[Math.floor(Math.random() * items.length)];
+      const npcs = ["青阳散人", "百花仙子", "紫虚真人", "万宝楼执事", "赤火老怪"];
+      const npc = npcs[Math.floor(Math.random() * npcs.length)];
+      const roll = Math.random();
+      if (roll < 0.4) {
+        const idx = items.indexOf(target);
+        if (idx >= 0) items.splice(idx, 1);
+        const gain = Math.floor(target.price * 0.95);
+        state.bazaar.stallEarnings = (state.bazaar.stallEarnings || 0) + gain;
+        return {
+          ok: true,
+          text: `【仙商买办 · 豪爽全款】过路修士【${npc}】看中了你的【${target.name}】，赞叹不已，当场支付 ${target.price} 灵石全款买下！净收益 ${gain} 灵石已存入地摊收益。`,
+          trade: "sold",
+          status: s,
+        };
+      } else if (roll < 0.8) {
+        const discount = Math.round((0.7 + Math.random() * 0.2) * 100);
+        const offer = Math.max(1, Math.floor(target.price * discount / 100));
+        return {
+          ok: true,
+          text: `【散修议价 · 诚心讨价】散修【${npc}】对【${target.name}】颇为心动，还价道：“道友，此物可否作价 ${offer} 灵石让予在下？”`,
+          haggle: true,
+          npc: npc,
+          listing_id: target.id,
+          item_name: target.name,
+          original_price: target.price,
+          offer_price: offer,
+          status: s,
+        };
+      } else {
+        return {
+          ok: true,
+          text: `【修士过路 · 驻足品评】路过修士【${npc}】在摊位前挑拣了一番，摇头赞道：“道友这摊位藏品极佳，可惜老夫手头紧俏，改日再来罢。”`,
+          trade: "pass",
+          status: s,
+        };
+      }
+    }
+    if (c.startsWith("/还价")) {
+      const parts = c.trim().split(/\s+/);
+      const dec = parts[1];
+      const targetId = parts[2];
+      if (!state.bazaar) ensureDefaultMarket();
+      const items = state.bazaar.stallItems || [];
+      const idx = items.findIndex(x => String(x.id) === targetId || x.name === targetId);
+      if (dec === "成交" || dec === "同意") {
+        if (idx < 0) {
+          return { ok: false, text: "未找到摊位在售货物。", status: s };
+        }
+        const item = items.splice(idx, 1)[0];
+        const offer = parseInt(parts[3], 10) || item.price;
+        const gain = Math.floor(offer * 0.95);
+        state.bazaar.stallEarnings = (state.bazaar.stallEarnings || 0) + gain;
+        return {
+          ok: true,
+          text: `【还价成交 · 割爱交割】你应允了散修还价，以 ${offer} 灵石将【${item.name}】成交！净收益 ${gain} 灵石存入收益。`,
+          status: s,
+        };
+      } else {
+        return {
+          ok: true,
+          text: "【谢绝还价】你婉言谢绝了散修还价，灵物仍留于摊位待沽。",
+          status: s,
+        };
+      }
     }
     if (c.startsWith("/look")) {
       return { ok: true, text: `【观照道身】道号：${s.name} · 境界：${s.realm} · 随身灵石：${s.stones} · 金库储积：${s.vault}`, status: s };
@@ -4583,6 +5048,15 @@
         return;
       }
 
+      // 坊市专属动作 data-bazaar-act
+      const bazaarEl = e.target.closest("[data-bazaar-act]");
+      if (bazaarEl) {
+        const act = bazaarEl.getAttribute("data-bazaar-act");
+        const val = bazaarEl.getAttribute("data-bazaar-val") || "";
+        handleBazaarAction(act, val, bazaarEl);
+        return;
+      }
+
       // 2. 指令执行 data-cmd
       const cmdEl = e.target.closest("[data-cmd]");
       if (cmdEl) {
@@ -4669,6 +5143,7 @@
   window.workbench = {
     state,
     renderBody,
+    sendCmd,
     closeJadeDialog,
     openJadeDialog,
     handleSanctumAction,
@@ -4677,6 +5152,7 @@
     ensureDefaultInventory,
     handleEquipAction,
     handleTreasureAction,
+    handleBazaarAction,
     claimCranePendingItem,
   };
 })();

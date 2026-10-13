@@ -349,6 +349,8 @@ class MarketEngine:
             return {"success": False, "message": "非本人挂单，不可撤回。"}
         if listing.status != ListingStatus.OPEN:
             return {"success": False, "message": f"此单状态为 {listing.status.value}，无法撤回。"}
+        if hasattr(seller, "is_bag_full") and seller.is_bag_full():
+            return {"success": False, "message": f"百宝纳戒乾坤已满（{getattr(seller, 'MAX_BAG_SLOTS', 64)}/{getattr(seller, 'MAX_BAG_SLOTS', 64)}），请先腾挪纳戒空间再行撤回！"}
 
         listing.status = ListingStatus.CANCELLED
         # 退回货物（实体优先）
@@ -372,6 +374,8 @@ class MarketEngine:
             return {"success": False, "message": "此单已不在售。"}
         if listing.seller_id == buyer.id:
             return {"success": False, "message": "不可买回自己的挂单。"}
+        if hasattr(buyer, "is_bag_full") and buyer.is_bag_full():
+            return {"success": False, "message": f"百宝纳戒乾坤已满（{getattr(buyer, 'MAX_BAG_SLOTS', 64)}/{getattr(buyer, 'MAX_BAG_SLOTS', 64)}），无法容纳新仙物，请先清理纳戒！"}
         if buyer.spirit_stones < listing.price:
             return {
                 "success": False,
@@ -402,12 +406,19 @@ class MarketEngine:
         }
 
     @staticmethod
-    def complete_sale_payment(listing: MarketListing, seller: Optional[Character]) -> Optional[int]:
+    def complete_sale_payment(
+        listing: MarketListing,
+        seller: Optional[Character],
+        to_stall_earnings: bool = False,
+    ) -> Optional[int]:
         """把货款付给卖家（卖家可能已不在场，调用方处理）"""
         if listing.status != ListingStatus.SOLD:
             return None
         if seller is not None:
-            seller.spirit_stones += listing.price
+            if to_stall_earnings:
+                seller.stall_earnings = getattr(seller, "stall_earnings", 0) + listing.price
+            else:
+                seller.spirit_stones += listing.price
         return listing.price
 
     @staticmethod

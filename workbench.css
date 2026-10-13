@@ -398,4 +398,34 @@ button {
   50% { box-shadow: 0 0 25px rgba(217, 119, 6, 0.75); }
 }
 
+/* 坊市解石与盲匣光效 */
+.unseal-glow {
+  animation: unsealGlow 1.5s ease-in-out infinite;
+}
+@keyframes unsealGlow {
+  0%, 100% { box-shadow: 0 0 15px rgba(217, 119, 6, 0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.9); transform: scale(1.02); }
+}
+
+/* 地摊招徕灵光 */
+.stall-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.stall-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent, rgba(255,255,255,0.25), transparent);
+  transform: rotate(30deg);
+  animation: stallShimmer 3s infinite linear;
+}
+@keyframes stallShimmer {
+  0% { transform: translateX(-100%) rotate(30deg); }
+  100% { transform: translateX(100%) rotate(30deg); }
+}
+
 

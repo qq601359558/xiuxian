@@ -36,15 +36,15 @@
 - 跨服务器 WebSocket 实时玩家点对点拍卖会网络长连接（维持本地世界与权威服务状态机）。
 
 ## 4. 可独立验收的任务列表 (Tasks & Acceptance Criteria)
-- [ ] **Task 1: 后端数据契约与坊市引擎拓展 (`core/market.py`, `server/world.py`)**
+- [x] **Task 1: 后端数据契约与坊市引擎拓展 (`core/market.py`, `server/world.py`)**
   - **验收标准**：支持 `/摆摊 [物品名] [灵石价格]`、`/撤回 [物品名]`、`/收益`、`/买寄售 [序号/UID]`；服务端维护 `stall_items` 与 `market_listings`；纳戒满格拦截与灵石扣除。
-- [ ] **Task 2: 前端坊市地摊挂牌与撤回交互 (`web/workbench.js`)**
+- [x] **Task 2: 前端坊市地摊挂牌与撤回交互 (`web/workbench.js`)**
   - **验收标准**：地摊列表动态绑定道友挂牌物品，支持纳戒中一键跳转挂牌、自主定价；支持撤回退回纳戒、提取收益灵石。
-- [ ] **Task 3: 前端市井 NPC 光顾、砍价互动与还价弹窗 (`web/workbench.js`)**
+- [x] **Task 3: 前端市井 NPC 光顾、砍价互动与还价弹窗 (`web/workbench.js`)**
   - **验收标准**：点击【招徕修士】或定时器触发 NPC 来访，弹出水墨议价弹窗，道友可点击【成交割爱】（灵石入收益）或【谢绝还价】。
-- [ ] **Task 4: 诸天寄售行卷交割与残宝盲匣解石捡漏 (`web/workbench.js`)**
+- [x] **Task 4: 诸天寄售行卷交割与残宝盲匣解石捡漏 (`web/workbench.js`)**
   - **验收标准**：商品行卷点击交割扣减灵石并入纳戒；盲匣购买后播放解石动效并爆出随机仙物。
-- [ ] **Task 5: 后端单元回归测试 (`tests/test_trade_hub.py`, `tests/test_bazaar_interactive.py`)**
+- [x] **Task 5: 后端单元回归测试 (`tests/test_trade_hub.py`, `tests/test_bazaar_interactive.py`)**
   - **验收标准**：所有测试通过，覆盖摆摊、买入、撤回、满格拦截。
-- [ ] **Task 6: Playwright 端到端真机验收 (`scratch/verify_bazaar_interactive.py`)**
+- [x] **Task 6: Playwright 端到端真机验收 (`scratch/verify_bazaar_interactive.py`)**
   - **验收标准**：完成摆摊挂牌、NPC 砍价成交、寄售购买、盲匣捡漏全链路，输出真机截图。
