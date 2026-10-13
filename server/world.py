@@ -1072,7 +1072,13 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                     log_event("DECISION", "dig", name=char.name, outcome=res.get("outcome"))
-                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                return {
+                    "ok": res.get("success"),
+                    "text": res.get("message", ""),
+                    "status": self._status_dict(char),
+                    "equipment": res.get("equipment"),
+                    "pill": res.get("pill"),
+                }
 
             if action in ("/do", "/做", "/act"):
                 from core.treasure_system import TreasureEngine
@@ -1984,7 +1990,7 @@ class World:
                             res["message"] = n + "\n" + (res.get("message") or "")
                     except Exception:
                         pass
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/deposit", "/寄存"):
                 if len(parts) < 2 or not parts[1].isdigit():
                     return {"ok": False, "error": "用法：/寄存 <数量>"}
@@ -2793,6 +2799,44 @@ class World:
         prot_left = 0.0
         if prot:
             prot_left = max(0.0, c.newbie_protect_until() - _t.time())
+        # 统计已穿戴法宝信息
+        equipped_names = list(getattr(c, "equipped", []) or [])
+        equipped_counts: Dict[str, int] = {}
+        for eq in equipped_names:
+            equipped_counts[eq] = equipped_counts.get(eq, 0) + 1
+
+        equipped_list = []
+        for idx, eq_name in enumerate(equipped_names):
+            it = c.find_item(eq_name)
+            tier_val = getattr(it, "tier", 2) if it else 2
+            tier_name = getattr(it, "tier_name", "人品") if it else "人品"
+            slot_val = getattr(it, "slot", None) or ("weapon" if any(w in eq_name for w in ("剑", "戈", "刃", "枪")) else ("armor" if any(w in eq_name for w in ("甲", "袍", "衣")) else "trinket"))
+            slot_cn = "绝世法宝" if slot_val == "weapon" else ("防身道袍" if slot_val == "armor" else "道心灵佩")
+            equipped_list.append({
+                "uid": getattr(it, "uid", f"eq_{idx}_{eq_name}"),
+                "name": it.name if it else eq_name,
+                "kind": "equip",
+                "tier": tier_val,
+                "tierName": tier_name,
+                "slot": slot_val,
+                "slotCn": slot_cn,
+                "stats": getattr(it, "stats", {}) if it else {"power": 25.0},
+                "affixes": [
+                    {"name": a.name, "desc": a.desc} for a in getattr(it, "affixes", [])
+                ] if it else [],
+                "lore": (getattr(it, "lineage_lore", "") or getattr(it, "description", "")) if it else "随身佩戴之本命护道法宝。",
+                "desc": (getattr(it, "description", "") or getattr(it, "lineage_lore", "")) if it else "随身佩戴之本命护道法宝。",
+            })
+
+        # 过滤未佩戴的纳戒物品实体（避免纳戒与已穿戴重复显示）
+        eq_remain = dict(equipped_counts)
+        unworn_entities = []
+        for it in (getattr(c, "items", []) or getattr(c, "item_entities", [])):
+            if eq_remain.get(it.name, 0) > 0:
+                eq_remain[it.name] -= 1
+            else:
+                unworn_entities.append(it)
+
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
@@ -2823,6 +2867,7 @@ class World:
             "crane_pending_item": getattr(c, "crane_pending_item", None),
             "max_bag_slots": getattr(c, "MAX_BAG_SLOTS", 64),
             "is_bag_full": c.is_bag_full() if hasattr(c, "is_bag_full") else (len(getattr(c, "items", [])) >= 64),
+            "equipped": equipped_list,
             "items": [
                 {
                     "uid": getattr(it, "uid", getattr(it, "id", f"it_{idx}")),
@@ -2844,7 +2889,7 @@ class World:
                     ],
                     "qty": 1,
                 }
-                for idx, it in enumerate(getattr(c, "items", []) or getattr(c, "item_entities", []))
+                for idx, it in enumerate(unworn_entities)
             ] + [
                 {
                     "uid": f"legacy_{i}",
@@ -2858,7 +2903,7 @@ class World:
                     "qty": 1,
                 }
                 for i, s_name in enumerate(getattr(c, "inventory", []))
-                if isinstance(s_name, str) and s_name not in {it.name for it in (getattr(c, "items", []) or getattr(c, "item_entities", []))}
+                if isinstance(s_name, str) and s_name not in {it.name for it in (getattr(c, "items", []) or getattr(c, "item_entities", []))} and s_name not in equipped_counts
             ],
             "stall_earnings": getattr(c, "stall_earnings", 0),
             "stall_items": [

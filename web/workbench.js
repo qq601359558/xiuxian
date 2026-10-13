@@ -275,6 +275,11 @@
       }
     }
 
+    // 已佩戴三槽法宝数据同步（与服务端权威对齐）
+    if (Array.isArray(st.equipped)) {
+      state.equipped = st.equipped.slice();
+    }
+
     // 坊市数据同步
     if (st.stall_earnings != null) {
       if (!state.bazaar) state.bazaar = { filter: "all", selectedListingId: 1, stallEarnings: 0, stallItems: [] };
@@ -3043,11 +3048,16 @@
               let dropPill = null;
               let stoneGain = 0;
 
+              const digChoiceArg = (choice === "force" ? "2" : "1");
+
               if (!state.demo) {
-                // 联机模式：向服务端调用 /挖宝
+                // 联机模式：向服务端调用 /挖宝 1 或 /挖宝 2
                 try {
-                  const res = await api("/action", { token: state.token, command: `/挖宝 ${tmap.name}` });
+                  const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
+                  if (res.equipment) excavatedEquip = res.equipment;
+                  if (res.pill) dropPill = res.pill;
+                  if (res.stone_gain) stoneGain = res.stone_gain;
                   pushFeed(res.text, res.ok ? "ok" : "bad");
                 } catch (err) {
                   toast("挖宝神识受阻：" + err.message, "bad");
@@ -3058,56 +3068,63 @@
                 busy(false);
               }
 
-              // Demo 模式或前端权威落账：从纳戒消耗宝图
-              const curMapIdx = state.inventory.findIndex(x => x.uid === tmap.uid || x.name === tmap.name);
-              if (curMapIdx >= 0) {
-                state.inventory.splice(curMapIdx, 1);
-              }
-
-              // 掘出高阶神兵与灵药
+              // 若服务端未返回具体装备或处于 Demo 模式，则本地推断展示
               const equipTier = Math.max(2, tmap.tier || 3);
               const tName = ["凡品", "人品", "地品", "天品", "仙品"][equipTier - 1] || "地品";
               const weaponNames = ["斩龙古剑", "太乙玄天戈", "七星诛魔剑", "赤霄惊神刃"];
               const pickName = weaponNames[Math.floor(Math.random() * weaponNames.length)];
 
-              excavatedEquip = {
-                uid: "excavated_" + Date.now(),
-                name: pickName,
-                kind: "equip",
-                slot: "weapon",
-                slotCn: "绝世法宝",
-                tier: equipTier,
-                tierName: tName,
-                iconGlyph: "剑",
-                stats: {
-                  "攻伐威能": equipTier >= 3 ? 180 : 90,
-                  "真元贯通": equipTier >= 3 ? 120 : 60,
-                },
-                affixes: [
-                  { name: "破煞", desc: "破除大荒妖兽护体罡气，造成 25% 真实伤害。" },
-                  { name: "斩龙", desc: "对龙蛇鳞甲类凶兽额外造成 35% 威慑压制。" },
-                ],
-                lore: `自【${targetNode}】上古洞府密室石棺中发掘而出的古仙佩剑，锋芒毕露，隐隐有龙吟破空之声。`,
-                qty: 1,
-              };
+              if (!excavatedEquip) {
+                excavatedEquip = {
+                  uid: "excavated_" + Date.now(),
+                  name: pickName,
+                  kind: "equip",
+                  slot: "weapon",
+                  slotCn: "绝世法宝",
+                  tier: equipTier,
+                  tierName: tName,
+                  iconGlyph: "剑",
+                  stats: {
+                    "攻伐威能": equipTier >= 3 ? 180 : 90,
+                    "真元贯通": equipTier >= 3 ? 120 : 60,
+                  },
+                  affixes: [
+                    { name: "破煞", desc: "破除大荒妖兽护体罡气，造成 25% 真实伤害。" },
+                    { name: "斩龙", desc: "对龙蛇鳞甲类凶兽额外造成 35% 威慑压制。" },
+                  ],
+                  lore: `自【${targetNode}】上古洞府密室石棺中发掘而出的古仙佩剑，锋芒毕露，隐隐有龙吟破空之声。`,
+                  qty: 1,
+                };
+              }
 
-              dropPill = {
-                uid: "pill_" + Date.now(),
-                name: "九转还魂真丹",
-                kind: "pill",
-                tier: 3,
-                tierName: "地品",
-                iconGlyph: "丹",
-                desc: "上古秘藏中保存完好的绝品仙丹，服用可大补元气并辟除心魔火煞。",
-                qty: 2,
-              };
+              if (!dropPill) {
+                dropPill = {
+                  uid: "pill_" + Date.now(),
+                  name: "九转还魂真丹",
+                  kind: "pill",
+                  tier: 3,
+                  tierName: "地品",
+                  iconGlyph: "丹",
+                  desc: "上古秘藏中保存完好的绝品仙丹，服用可大补元气并辟除心魔火煞。",
+                  qty: 1,
+                };
+              }
 
-              stoneGain = Math.floor(Math.random() * 80) + 120;
-              s.stones = (s.stones || 0) + stoneGain;
+              if (stoneGain === 0) {
+                stoneGain = Math.floor(Math.random() * 80) + 120;
+              }
 
-              state.inventory.unshift(dropPill);
-              state.inventory.unshift(excavatedEquip);
-              state.selectedItemIndex = 0;
+              if (state.demo) {
+                // Demo 模式本地从纳戒消耗宝图并落账战利品
+                const curMapIdx = state.inventory.findIndex(x => x.uid === tmap.uid || x.name === tmap.name);
+                if (curMapIdx >= 0) {
+                  state.inventory.splice(curMapIdx, 1);
+                }
+                s.stones = (s.stones || 0) + stoneGain;
+                state.inventory.unshift(dropPill);
+                state.inventory.unshift(excavatedEquip);
+                state.selectedItemIndex = 0;
+              }
 
               // 渲染开箱大捷结算面板
               if (boxEl) {

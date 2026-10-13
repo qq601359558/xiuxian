@@ -171,40 +171,120 @@ class MarketEngine:
 
     @staticmethod
     def use_pill(user: Character, item_name: str) -> Dict[str, Any]:
-        cfg = ITEM_CATALOG.get(item_name)
-        if not cfg or cfg["kind"] != "pill":
-            return {"success": False, "message": f"【{item_name}】不是可服用的丹药。"}
-        if item_name not in user.inventory:
-            return {"success": False, "message": f"囊中并无【{item_name}】。"}
-        if item_name in user.used_pills:
-            return {"success": False, "message": f"【{item_name}】本世已服过，再服无益（天道有常）。"}
+        raw_name = (item_name or "").strip()
+        if not raw_name:
+            return {"success": False, "message": "用法：/服用 <丹药名>"}
 
-        user.inventory.remove(item_name)
-        user.used_pills.append(item_name)
+        from core.items import ItemKind
 
-        if item_name == "筑基丹":
+        # 1. 检索道具实体（Core-V2 一等公民）
+        entity = user.find_item(raw_name)
+        target_name = entity.name if entity else raw_name
+
+        # 2. 若实体未找到，在 legacy inventory 中做模糊匹配
+        if not entity:
+            if target_name not in user.inventory:
+                for x in user.inventory:
+                    if target_name in x or x in target_name:
+                        target_name = x
+                        entity = user.find_item(target_name)
+                        break
+
+        # 3. 校验囊中是否持有
+        if not entity and target_name not in user.inventory:
+            return {"success": False, "message": f"囊中并无【{raw_name}】。"}
+
+        cfg = ITEM_CATALOG.get(target_name) or {}
+        is_entity_pill = entity is not None and entity.kind in (ItemKind.PILL, ItemKind.CONSUMABLE)
+        is_cfg_pill = cfg.get("kind") == "pill"
+        is_name_pill = any(w in target_name for w in ("丹", "露", "丸", "液", "散", "膏", "琼浆", "灵酿"))
+
+        if not is_entity_pill and not is_cfg_pill and not is_name_pill:
+            return {"success": False, "message": f"【{target_name}】不是可服用的丹药或灵露。"}
+
+        # 4. 特殊进阶大丹限服规则（如聚气丹、玄元聚气丹、九转凝灵丹防重复嗑药）
+        one_time_pills = {"聚气丹", "玄元聚气丹", "九转凝灵丹"}
+        if target_name in one_time_pills and target_name in user.used_pills:
+            return {"success": False, "message": f"【{target_name}】本世已服过，再服无益（天道有常）。"}
+
+        # 5. 原子扣减道具实体与行囊记录
+        if entity:
+            user.remove_item_entity(entity.uid)
+        else:
+            if target_name in user.inventory:
+                user.inventory.remove(target_name)
+        user.used_pills.append(target_name)
+
+        tier = entity.tier if entity else (cfg.get("tier") or 1)
+        grade = (entity.tier_name if entity else None) or cfg.get("grade") or (
+            ["凡品", "人品", "地品", "天品", "仙品"][min(4, max(0, tier - 1))]
+        )
+
+        # 6. 特殊丹药药效专精
+        if target_name == "筑基丹":
             user.skills.append("筑基丹药力(待渡劫)")
             return {
                 "success": True,
                 "message": "服下【筑基丹】，药力沉入丹田，下次筑基天劫成功率提升（由突破引擎结算）。",
             }
-        # 读货单品阶与倍率；无表则按名称回退
-        grade = cfg.get("grade") or "凡品"
+
+        # 玄冰玉露：直增真元 + 温养道心 + 闭关加成
+        if "玄冰玉露" in target_name:
+            exp_gain = 250 + tier * 50
+            user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + exp_gain)
+            user.karma.dao_heart = min(100, user.karma.dao_heart + 5)
+            mult = max(user.pill_exp_mult, 0.20)
+            user.pill_exp_mult = mult
+            user.pill_exp_note = f"{target_name}·{grade}"
+            return {
+                "success": True,
+                "message": (
+                    f"服下【{grade}·{target_name}】，清寒玉露涤荡周身经脉！\n"
+                    f"直增真元 +{exp_gain}，道心澄澈 +5，下次闭关修为 +{int(mult * 100)}%。"
+                ),
+            }
+
+        # 九转还魂真丹：大补寿元 + 极品真元 + 护持道心
+        if "九转还魂真丹" in target_name:
+            exp_gain = 350 + tier * 50
+            user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + exp_gain)
+            user.lifespan.add_lifespan(3.0)
+            user.karma.dao_heart = min(100, user.karma.dao_heart + 10)
+            mult = max(user.pill_exp_mult, 0.35)
+            user.pill_exp_mult = mult
+            user.pill_exp_note = f"{target_name}·{grade}"
+            return {
+                "success": True,
+                "message": (
+                    f"【金丹入腹 · 逆转天数】服下【{grade}·{target_name}】，纯阳仙力直冲华盖！\n"
+                    f"寿元温养 +3 岁，真元充盈 +{exp_gain}，道心固化 +10，下次闭关修为 +{int(mult * 100)}%。"
+                ),
+            }
+
+        # 7. 通用丹药与灵液药力化纳
         mult = cfg.get("pill_exp_mult")
         if mult is None:
-            mult = 0.15 if item_name == "聚气丹" else 0.08
+            mult = 0.10 * tier if entity else (0.15 if target_name == "聚气丹" else 0.08)
         mult = max(0.0, min(1.0, float(mult)))
         user.pill_exp_mult = max(user.pill_exp_mult, mult)
-        user.pill_exp_note = f"{item_name}·{grade}"
+        user.pill_exp_note = f"{target_name}·{grade}"
+
         heal = float(cfg.get("heal_lifespan") or 0.0)
+        if heal <= 0 and tier >= 4:
+            heal = 1.0 * (tier - 3)
         heal_msg = ""
         if heal > 0:
             user.lifespan.add_lifespan(heal)
             heal_msg = f"\n寿元 +{heal:.0f} 岁。"
+
+        direct_exp = int(cfg.get("direct_exp") or (40 * tier if entity else 0))
+        if direct_exp > 0:
+            user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + direct_exp)
+
         return {
             "success": True,
             "message": (
-                f"服下【{grade}·{item_name}】，药力沉入丹田。"
+                f"服下【{grade}·{target_name}】，药力沉入丹田。"
                 f"{heal_msg}\n下次闭关修为 +{int(mult * 100)}%，出关后药力耗尽。"
             ),
         }
