@@ -259,7 +259,7 @@
       if (!state.bazaar) state.bazaar = { filter: "all", selectedListingId: 1, stallEarnings: 0, stallItems: [] };
       state.bazaar.stallItems = st.stall_items;
     }
-    if (Array.isArray(st.market_listings) && st.market_listings.length > 0) {
+    if (Array.isArray(st.market_listings)) {
       state.marketListings = st.market_listings;
     }
 
@@ -4373,8 +4373,8 @@
     }
     if (c.startsWith("/摆摊") || c.startsWith("/stall")) {
       const parts = c.trim().split(/\s+/);
-      const name = parts[1];
-      const price = parseInt(parts[2], 10) || 100;
+      const name = parts.length > 2 ? parts.slice(1, -1).join(" ") : (parts[1] || "");
+      const price = parts.length > 2 ? (parseInt(parts[parts.length - 1], 10) || 100) : (parseInt(parts[2], 10) || 100);
       ensureDefaultInventory();
       if (!name) {
         return { ok: false, text: "用法：/摆摊 <物品名> <灵石价格>", status: s };
