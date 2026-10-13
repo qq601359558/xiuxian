@@ -78,7 +78,8 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/功法", "aliases": ["/arts"], "usage": "/功法", "desc": "查看已学功法", "category": "cultivate"},
     {"cmd": "/穿戴", "aliases": ["/equip"], "usage": "/穿戴 <装备>", "desc": "穿戴装备，获得战力加成", "category": "cultivate"},
     {"cmd": "/卸下", "aliases": ["/unequip"], "usage": "/卸下 <装备>", "desc": "卸下指定装备", "category": "cultivate"},
-    {"cmd": "/挖宝", "aliases": ["/dig"], "usage": "/挖宝", "desc": "使用藏宝图挖掘机缘/杀劫", "category": "cultivate"},
+    {"cmd": "/挖宝", "aliases": ["/dig"], "usage": "/挖宝 [选项]", "desc": "使用藏宝图挖掘机缘/破阵/杀劫", "category": "cultivate"},
+    {"cmd": "/宝图", "aliases": ["/map", "/看宝图"], "usage": "/宝图 [图名/编号]", "desc": "研读手中实体藏宝图，推演地脉谶语与方位", "category": "cultivate"},
 
     # 社交
     {"cmd": "/交谈", "aliases": ["/talk"], "usage": "/交谈 <道号> [话]", "desc": "与 NPC/玩家交谈（会话）", "category": "social"},

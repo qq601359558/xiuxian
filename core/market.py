@@ -17,6 +17,7 @@ from config import (
     MARKET_MAX_LISTINGS,
 )
 from core.models import Character, CharacterStatus
+from core.items import ItemEntity, ItemFactory
 
 
 class ListingStatus(str, Enum):
@@ -35,6 +36,7 @@ class MarketListing(BaseModel):
     price: int
     status: ListingStatus = ListingStatus.OPEN
     created_at: float = 0.0
+    item_entity: Optional[ItemEntity] = None  # Core-V2 实体道具（保留词缀与宝图专属元数据）
 
     def is_open(self) -> bool:
         return self.status == ListingStatus.OPEN
@@ -48,6 +50,8 @@ class MarketEngine:
     def catalog() -> List[Dict[str, Any]]:
         out = []
         for name, cfg in ITEM_CATALOG.items():
+            if cfg.get("kind") == "map" or cfg.get("npc_sell") is False:
+                continue  # 天地机缘之物，商会无从兜售
             out.append({
                 "name": name,
                 "kind": cfg["kind"],
@@ -63,6 +67,8 @@ class MarketEngine:
         cfg = ITEM_CATALOG.get(item_name)
         if not cfg:
             return {"success": False, "message": f"商会并无【{item_name}】此货。输入 /坊市 查看货单。"}
+        if cfg.get("kind") == "map" or cfg.get("npc_sell") is False:
+            return {"success": False, "message": "此乃天地造化机缘之物，商会无从兜售，需亲自探险发掘或于玩家处求购。"}
         if qty < 1:
             return {"success": False, "message": "购买数量至少为 1。"}
 
@@ -283,9 +289,14 @@ class MarketEngine:
         cfg = ITEM_CATALOG.get(item_name)
         kind = cfg["kind"] if cfg else (kind_hint or "material")
 
-        # 从随身扣除（优先 inventory，阵盘也可挂）
+        # 从随身扣除（优先从实体道具库移除，再扣 inventory / arrays）
         removed = False
-        if item_name in seller.inventory:
+        entity = seller.remove_item_entity(item_name)
+        if entity:
+            removed = True
+            if getattr(entity, "kind", None) and getattr(entity.kind, "value", "") == "treasure_map":
+                kind = "map"
+        elif item_name in seller.inventory:
             seller.inventory.remove(item_name)
             removed = True
         elif item_name in seller.arrays:
@@ -298,7 +309,9 @@ class MarketEngine:
         fee = max(1, int(price * MARKET_LISTING_FEE_RATE))
         if seller.spirit_stones < fee:
             # 退回物品
-            if kind == "array":
+            if entity:
+                seller.add_item_entity(entity)
+            elif kind == "array":
                 seller.arrays.append(item_name)
             else:
                 seller.inventory.append(item_name)
@@ -316,6 +329,7 @@ class MarketEngine:
             price=price,
             status=ListingStatus.OPEN,
             created_at=time.time(),
+            item_entity=entity,
         )
         return listing, {
             "success": True,
@@ -335,13 +349,20 @@ class MarketEngine:
             return {"success": False, "message": "非本人挂单，不可撤回。"}
         if listing.status != ListingStatus.OPEN:
             return {"success": False, "message": f"此单状态为 {listing.status.value}，无法撤回。"}
+        if hasattr(seller, "is_bag_full") and seller.is_bag_full():
+            return {"success": False, "message": f"百宝纳戒乾坤已满（{getattr(seller, 'MAX_BAG_SLOTS', 64)}/{getattr(seller, 'MAX_BAG_SLOTS', 64)}），请先腾挪纳戒空间再行撤回！"}
 
         listing.status = ListingStatus.CANCELLED
-        # 退回货物
-        if listing.kind == "array":
+        # 退回货物（实体优先）
+        if listing.item_entity:
+            seller.add_item_entity(listing.item_entity)
+        elif listing.kind == "array":
             seller.arrays.append(listing.item_name)
         else:
-            seller.inventory.append(listing.item_name)
+            if "藏宝图" in listing.item_name:
+                seller.add_item_entity(ItemFactory.from_legacy_name(listing.item_name))
+            else:
+                seller.inventory.append(listing.item_name)
         return {
             "success": True,
             "message": f"【撤单】收回寄售【{listing.item_name}】。",
@@ -353,6 +374,8 @@ class MarketEngine:
             return {"success": False, "message": "此单已不在售。"}
         if listing.seller_id == buyer.id:
             return {"success": False, "message": "不可买回自己的挂单。"}
+        if hasattr(buyer, "is_bag_full") and buyer.is_bag_full():
+            return {"success": False, "message": f"百宝纳戒乾坤已满（{getattr(buyer, 'MAX_BAG_SLOTS', 64)}/{getattr(buyer, 'MAX_BAG_SLOTS', 64)}），无法容纳新仙物，请先清理纳戒！"}
         if buyer.spirit_stones < listing.price:
             return {
                 "success": False,
@@ -362,7 +385,11 @@ class MarketEngine:
         buyer.spirit_stones -= listing.price
         listing.status = ListingStatus.SOLD
 
-        if listing.kind == "array":
+        if listing.item_entity:
+            buyer.add_item_entity(listing.item_entity)
+        elif "藏宝图" in listing.item_name:
+            buyer.add_item_entity(ItemFactory.from_legacy_name(listing.item_name))
+        elif listing.kind == "array":
             buyer.arrays.append(listing.item_name)
         else:
             buyer.inventory.append(listing.item_name)
@@ -379,12 +406,19 @@ class MarketEngine:
         }
 
     @staticmethod
-    def complete_sale_payment(listing: MarketListing, seller: Optional[Character]) -> Optional[int]:
+    def complete_sale_payment(
+        listing: MarketListing,
+        seller: Optional[Character],
+        to_stall_earnings: bool = False,
+    ) -> Optional[int]:
         """把货款付给卖家（卖家可能已不在场，调用方处理）"""
         if listing.status != ListingStatus.SOLD:
             return None
         if seller is not None:
-            seller.spirit_stones += listing.price
+            if to_stall_earnings:
+                seller.stall_earnings = getattr(seller, "stall_earnings", 0) + listing.price
+            else:
+                seller.spirit_stones += listing.price
         return listing.price
 
     @staticmethod

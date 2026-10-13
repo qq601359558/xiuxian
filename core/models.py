@@ -4,7 +4,7 @@
 import uuid
 import time
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, ClassVar
 from pydantic import BaseModel, Field
 
 from config import (
@@ -13,6 +13,8 @@ from config import (
     REALM_EXP_REQUIRED,
     SECONDS_PER_GAME_YEAR
 )
+from core.items import ItemEntity, ItemKind, ItemFactory
+
 
 
 class RootType(str, Enum):
@@ -192,7 +194,47 @@ class Character(BaseModel):
     death_cause: Optional[str] = None  # 死因（寿尽/渡劫/斗法等），转世结算用
     death_settled: bool = False  # 本世是否已做过道统结算（防重复发点）
     vault_stones: int = 0        # 坊市寄存灵石（不可被夺、不可被查抄）
+    stall_earnings: int = 0      # 坊市地摊售卖待提取收益
     inventory: List[str] = Field(default_factory=list)  # 随身未绑定杂物名（阵盘仍用 arrays）
+    items: List[ItemEntity] = Field(default_factory=list) # Core-V2 实体道具行囊
+    crane_pending_item: Optional[Dict[str, Any]] = None # 纳戒满时仙鹤暂存于云巢灵囊的机缘物品
+
+    MAX_BAG_SLOTS: ClassVar[int] = 64
+
+    @property
+    def item_entities(self) -> List[ItemEntity]:
+        return self.items
+
+    def is_bag_full(self) -> bool:
+        return len(self.items) >= self.MAX_BAG_SLOTS
+
+    def add_item_entity(self, item: ItemEntity) -> None:
+        self.items.append(item)
+        self.inventory.append(item.name)
+
+
+    def remove_item_entity(self, item_uid_or_name: str) -> Optional[ItemEntity]:
+        target_q = item_uid_or_name.strip()
+        for idx, it in enumerate(self.items):
+            if it.uid == target_q or it.name == target_q:
+                removed = self.items.pop(idx)
+                if removed.name in self.inventory:
+                    self.inventory.remove(removed.name)
+                return removed
+        return None
+
+    def find_items_by_kind(self, kind: ItemKind) -> List[ItemEntity]:
+        return [it for it in self.items if it.kind == kind]
+
+    def find_item(self, query: str) -> Optional[ItemEntity]:
+        q = (query or "").strip()
+        if not q:
+            return None
+        for it in self.items:
+            if it.uid == q or it.name == q or q in it.name:
+                return it
+        return None
+
     captor_id: Optional[str] = None  # 被擒时擒拿者 id
     used_pills: List[str] = Field(default_factory=list)  # 本世已服用过的丹药名（防重复嗑）
     # 丹药闭关加成：服聚气丹后下次闭关修为 ×(1+mult)，结算后清零
@@ -206,7 +248,9 @@ class Character(BaseModel):
     combat_lock_until: float = 0.0
     flee_cooldown_until: float = 0.0
     adventure_cd_until: float = 0.0
+    has_found_map: bool = False  # 是否已获取过首张探险宝图（首探必得保底）
     # 目标（六类目标源，可接可拒）
+
     goals: List[Dict[str, Any]] = Field(default_factory=list)
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:

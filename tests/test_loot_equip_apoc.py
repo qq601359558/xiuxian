@@ -40,15 +40,20 @@ def _mk(name="测", tier=2):
 
 
 def test_dig():
+    from core.items import ItemKind
     c = _mk("挖宝人")
     r = DigEngine.dig(c)
     assert r["success"] is False
     c.inventory.append("藏宝图")
     r = DigEngine.dig(c)
-    assert r["success"] is True
-    assert "藏宝图" not in c.inventory
-    assert r["outcome"] in ("fortune", "empty", "trap")
-    print("✓ 挖宝", r["outcome"])
+    assert r["wrong_location"] is True
+    # 移动至目标地点
+    tmap = c.find_items_by_kind(ItemKind.TREASURE_MAP)[0]
+    c.location = tmap.custom_metadata["target_node_name"]
+    r2 = DigEngine.dig(c, choice_id="1")
+    assert r2["success"] is True
+    print("✓ 挖宝 V2 成功", r2.get("outcome"))
+
 
 
 def test_equip_power():

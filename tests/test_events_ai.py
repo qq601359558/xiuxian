@@ -64,6 +64,9 @@ def test_crisis_can_burn_lifespan_or_stones():
     changed = (
         c.spirit_stones != stones0
         or abs(c.lifespan.get_remaining_years() - life0) > 1e-6
+        or c.karma.dao_heart != 100
+        or c.karma.sin_value != 0
+        or c.realm.current_exp != 0
         or ev["effects"] == {}
     )
     assert changed

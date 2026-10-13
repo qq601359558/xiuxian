@@ -23,3 +23,5 @@ _ai_direct.py
 web/_proto_check.js
 web/_extract.js
 *.log
+*.png
+scratch/

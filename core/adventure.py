@@ -126,16 +126,63 @@ def _stones_cap(c: Character, target: Dict[str, Any]) -> int:
     return int(ADVENTURE_STONES_BASE * (1.0 + c.realm.tier * 0.5) * danger)
 
 
-def _roll_loot(success: bool, rng: random.Random) -> List[Dict[str, Any]]:
-    """规则掉落；藏宝图概率很低；至多 ADVENTURE_LOOT_MAX 件"""
+def calculate_map_drop_rate(c: Optional[Character] = None, target: Optional[Dict[str, Any]] = None) -> float:
+    """计算藏宝图掉落概率：新秀首探保底100%，常规按秘境危险度梯度 8%~40%"""
+    if c is not None and not getattr(c, "has_found_map", False):
+        return 1.0
+    danger = float((target or {}).get("danger") or 0.22)
+    # 梯度线性插值：danger 0.20 -> 8%, 0.70 -> 40%
+    rate = 0.08 + (danger - 0.20) * 0.64
+    return max(0.08, min(0.40, rate))
+
+
+def _roll_loot(
+    c_or_success: Any = None,
+    target_or_rng: Any = None,
+    success: bool = True,
+    rng: Optional[random.Random] = None,
+) -> List[Dict[str, Any]]:
+    """规则掉落；藏宝图按危险度梯度 8%~40%（首探成功 100% 必掉）；至多 ADVENTURE_LOOT_MAX 件"""
+    c: Optional[Character] = None
+    target: Optional[Dict[str, Any]] = None
+    if isinstance(c_or_success, bool):
+        success = c_or_success
+        rng = target_or_rng if isinstance(target_or_rng, random.Random) else random.Random()
+        c = None
+        target = None
+    else:
+        c = c_or_success
+        target = target_or_rng
+        if rng is None:
+            rng = random.Random()
+
     if not success:
         return []
+
     loot: List[Dict[str, Any]] = []
     kinds = []
+
+    # 藏宝图梯度与新手首探保底
+    map_p = calculate_map_drop_rate(c, target)
+    first_guarantee = (c is not None and not getattr(c, "has_found_map", False))
+    if first_guarantee or rng.random() < map_p:
+        kinds.append("map")
+        if c is not None and not getattr(c, "has_found_map", False):
+            c.has_found_map = True
+
     for kind, p in ADVENTURE_LOOT_P.items():
+        if kind == "map":
+            continue
         if rng.random() < p:
             kinds.append(kind)
+
     rng.shuffle(kinds)
+
+    # 确保藏宝图（尤其是首探保底）排在前面，不被 ADVENTURE_LOOT_MAX 截断
+    if "map" in kinds:
+        kinds.remove("map")
+        kinds.insert(0, "map")
+
     for kind in kinds[:ADVENTURE_LOOT_MAX]:
         if kind == "herb":
             loot.append({"kind": "herb", "name": rng.choice(ADVENTURE_HERBS), "qty": 1})
@@ -174,15 +221,20 @@ class AdventureEngine:
     """外出探险裁决"""
 
     @staticmethod
+    def calculate_map_drop_rate(c: Optional[Character] = None, target: Optional[Dict[str, Any]] = None) -> float:
+        return calculate_map_drop_rate(c, target)
+
+    @staticmethod
     def board_text(c: Optional[Character] = None) -> str:
         lines = ["【外出探险】可：/探险 野外 · /探险 <秘境名>（先 /前往 亦可）"]
         for t in list_targets():
             need = f"需境界{t['min_tier']}+" if c and c.realm.tier < t["min_tier"] else ""
             loc = t.get("location") or "任意"
+            p_map = calculate_map_drop_rate(c, t)
             lines.append(
-                f"· {t['name']} @ {loc} 危险{int(t['danger']*100)}% {need}\n  {t['desc']}"
+                f"· {t['name']} @ {loc} 危险{int(t['danger']*100)}% 宝图掉率约{int(p_map*100)}% {need}\n  {t['desc']}"
             )
-        lines.append(f"盘缠 {ADVENTURE_FEE} 灵石/次 · 藏宝图掉率约 {int(ADVENTURE_LOOT_P['map']*100)}%")
+        lines.append(f"盘缠 {ADVENTURE_FEE} 灵石/次 · 初次探险必获藏宝图（后续掉率依秘境凶险度8%~40%递增）")
         return "\n".join(lines)
 
     @staticmethod
@@ -307,8 +359,8 @@ class AdventureEngine:
         if not success and lifespan_years > 0:
             lifespan_years = min(0.0, lifespan_years)
 
-        # 规则掉落
-        loot = _roll_loot(success, random.Random())
+        # 规则掉落（传入 c 与 target 计算危险度梯度与首探保底）
+        loot = _roll_loot(c, target, success, random.Random())
         # 若 AI 瞎给 loot 我们已忽略
 
         # 落账
@@ -324,9 +376,22 @@ class AdventureEngine:
         loot_lines = []
         for item in loot:
             name = item["name"]
-            for _ in range(int(item.get("qty") or 1)):
-                c.inventory.append(name)
-            loot_lines.append(name)
+            kind = item.get("kind")
+            qty = int(item.get("qty") or 1)
+            if kind == "map":
+                from core.treasure_system import TreasureEngine
+                for _ in range(qty):
+                    tmap = TreasureEngine.generate_treasure_map(c, tier=max(1, min(4, c.realm.tier)))
+                    c.add_item_entity(tmap)
+                    c.has_found_map = True
+                    loot_lines.append(tmap.display_name)
+            else:
+                from core.items import ItemFactory
+                for _ in range(qty):
+                    entity = ItemFactory.from_legacy_name(name)
+                    c.add_item_entity(entity)
+                    loot_lines.append(name)
+
 
         ev_summaries = []
         for ev in events:

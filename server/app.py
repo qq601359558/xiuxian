@@ -48,7 +48,11 @@ class GameHandler(BaseHTTPRequestHandler):
         elif path.startswith("/web/"):
             rel = "web/" + unquote(path[len("/web/"):])
         elif path in ("/workbench.css", "/workbench.js", "/app.css", "/app.js", "/style.css"):
-            rel = unquote(path.lstrip("/"))
+            fname = unquote(path.lstrip("/"))
+            if (BASE_DIR / "web" / fname).is_file():
+                rel = "web/" + fname
+            else:
+                rel = fname
         else:
             return False
         # 防路径穿越
