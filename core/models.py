@@ -4,7 +4,7 @@
 import uuid
 import time
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, ClassVar
 from pydantic import BaseModel, Field
 
 from config import (
@@ -196,6 +196,16 @@ class Character(BaseModel):
     vault_stones: int = 0        # 坊市寄存灵石（不可被夺、不可被查抄）
     inventory: List[str] = Field(default_factory=list)  # 随身未绑定杂物名（阵盘仍用 arrays）
     items: List[ItemEntity] = Field(default_factory=list) # Core-V2 实体道具行囊
+    crane_pending_item: Optional[Dict[str, Any]] = None # 纳戒满时仙鹤暂存于云巢灵囊的机缘物品
+
+    MAX_BAG_SLOTS: ClassVar[int] = 64
+
+    @property
+    def item_entities(self) -> List[ItemEntity]:
+        return self.items
+
+    def is_bag_full(self) -> bool:
+        return len(self.items) >= self.MAX_BAG_SLOTS
 
     def add_item_entity(self, item: ItemEntity) -> None:
         self.items.append(item)

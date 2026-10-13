@@ -300,3 +300,102 @@ button {
   color: #146a59;
   font-weight: 600;
 }
+
+/* ==========================================================================
+   九天碧虚洞府专用动效与水墨白玉通微弹窗
+   ========================================================================== */
+.jade-dialog-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 29, 25, 0.55);
+  backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 80; padding: 16px;
+  animation: jadeFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.jade-dialog-card {
+  width: 100%; max-width: 580px;
+  background: #fbfdfa;
+  border: 1px solid rgba(20, 106, 89, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 20px 48px rgba(8, 29, 25, 0.35), 0 0 0 1px rgba(197, 155, 39, 0.25);
+  overflow: hidden;
+  animation: jadeScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+@keyframes jadeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes jadeScaleUp {
+  from { opacity: 0; transform: scale(0.94) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 聚灵吐纳光环 */
+.meditating-glow {
+  position: relative;
+}
+.meditating-glow::after {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 14px;
+  border: 2px solid rgba(20, 106, 89, 0.6);
+  box-shadow: 0 0 24px rgba(20, 106, 89, 0.45);
+  pointer-events: none;
+  animation: meditatePulse 2.8s infinite ease-in-out;
+}
+@keyframes meditatePulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); box-shadow: 0 0 32px rgba(197, 155, 39, 0.6); }
+}
+
+/* 雷劫天威震颤 */
+.tribulation-shake {
+  animation: thunderShake 0.45s infinite ease-in-out;
+}
+@keyframes thunderShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  40% { transform: translate(3px, -2px) rotate(0.5deg); }
+  60% { transform: translate(-2px, -2px) rotate(0.3deg); }
+  80% { transform: translate(2px, 2px) rotate(-0.3deg); }
+}
+
+/* 飘字真元升华 */
+.spirit-float-badge {
+  position: absolute;
+  pointer-events: none;
+  font-family: inherit;
+  font-weight: 700;
+  color: #146a59;
+  animation: floatUpFade 1.6s forwards ease-out;
+  z-index: 40;
+}
+@keyframes floatUpFade {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  25% { opacity: 1; transform: translateY(-16px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-48px) scale(1); }
+}
+
+/* 大荒秘境斗法碰撞动效 */
+.combat-clash {
+  animation: combatClash 0.6s ease-in-out infinite;
+}
+@keyframes combatClash {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.05) rotate(-2deg); filter: drop-shadow(0 0 8px rgba(225, 29, 72, 0.6)); }
+  50% { transform: scale(0.96) rotate(2deg); filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.8)); }
+  75% { transform: scale(1.03) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* 胜战机缘辉芒 */
+.victory-glow {
+  animation: victoryGlow 2s infinite ease-in-out;
+}
+@keyframes victoryGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(217, 119, 6, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(217, 119, 6, 0.75); }
+}
+
+

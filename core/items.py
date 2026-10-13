@@ -19,6 +19,7 @@ class ItemKind(str, enum.Enum):
     MATERIAL = "material"          # 铸造/阵法材料
     RELIC = "relic"                # 上古残片/机缘异宝
     MANUAL = "manual"              # 功法玉简
+    CONSUMABLE = "consumable"      # 灵露/消耗仙品
 
 
 TIER_NAMES = {
@@ -52,6 +53,33 @@ class ItemEntity(BaseModel):
     lineage_lore: str = ""         # 前世传承背景或批注
     creator_id: Optional[str] = None
     custom_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def id(self) -> str:
+        return self.uid
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        kind: ItemKind = ItemKind.MATERIAL,
+        tier: int = 1,
+        quality: Optional[int] = None,
+        description: str = "",
+        stats: Optional[Dict[str, float]] = None,
+        slot: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "ItemEntity":
+        actual_tier = quality if quality is not None else tier
+        return cls(
+            name=name,
+            kind=kind,
+            tier=actual_tier,
+            slot=slot,
+            stats=stats or {},
+            lineage_lore=description,
+            custom_metadata=kwargs,
+        )
 
     @property
     def tier_name(self) -> str:

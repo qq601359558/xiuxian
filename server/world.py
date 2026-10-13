@@ -1103,7 +1103,7 @@ class World:
                 res = EquipEngine.equip(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/unequip", "/卸下"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/卸下 <装备名>"}
@@ -1111,7 +1111,7 @@ class World:
                 res = EquipEngine.unequip(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
                 if not board:
@@ -1983,14 +1983,171 @@ class World:
                     return {"ok": False, "error": "用法：/寄存 <数量>"}
                 res = MarketEngine.deposit_stones(char, int(parts[1]))
                 CharacterRepository.save(char)
-                return {"ok": res["success"], "text": res["message"]}
+                return {"ok": res["success"], "text": res["message"], "status": self._status_dict(char)}
             if action in ("/withdraw", "/支取"):
                 if len(parts) < 2 or not parts[1].isdigit():
                     return {"ok": False, "error": "用法：/支取 <灵石数量>"}
                 res = MarketEngine.withdraw_stones(char, int(parts[1]))
                 if res["success"]:
                     CharacterRepository.save(char)
-                return {"ok": res["success"], "text": res["message"]}
+                return {"ok": res["success"], "text": res["message"], "status": self._status_dict(char)}
+            if action in ("/灵泉", "/spring", "/汲取"):
+                exp_add = 200
+                char.realm.current_exp = min(char.realm.max_exp, char.realm.current_exp + exp_add)
+                try:
+                    from core.items import ItemEntity, ItemKind
+                    dew = ItemEntity.create(
+                        name="玄冰玉露",
+                        kind=ItemKind.PILL,
+                        quality=3,
+                        description="洞府玄冰九曲灵泉孕育的灵露，饮之清心涤滤，修为倍增。"
+                    )
+                    char.add_item_entity(dew)
+                except Exception:
+                    char.inventory.append("玄冰玉露")
+                CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": f"【洞府灵泉 · 汲取】你引地阴玄水入体，炼化玄冰灵露，周天真元+{exp_add}！得获【玄冰玉露】一份入纳戒。",
+                    "status": self._status_dict(char)
+                }
+            if action in ("/草园", "/herbs", "/采药", "/灵草"):
+                is_rush = len(parts) > 1 and ("催熟" in parts[1] or "加速" in parts[1])
+                cost = 50 if is_rush else 0
+                if is_rush and char.spirit_stones < cost:
+                    return {"ok": False, "error": f"催熟灵草需注入地脉 50 灵石，当前随身灵石不足（仅余 {char.spirit_stones}）。"}
+                if is_rush:
+                    char.spirit_stones -= cost
+                herb_name = "千年紫菁芝草" if is_rush else "紫菁芝草"
+                try:
+                    from core.items import ItemEntity, ItemKind
+                    herb = ItemEntity.create(
+                        name=herb_name,
+                        kind=ItemKind.MATERIAL,
+                        quality=4 if is_rush else 2,
+                        description="紫菁九叶草园培育出的珍稀芝草，炼制九转还魂丹之主材。"
+                    )
+                    char.add_item_entity(herb)
+                except Exception:
+                    char.inventory.append(herb_name)
+                CharacterRepository.save(char)
+                msg = f"【紫菁草园 · 催熟采收】消耗 {cost} 灵石灌注地脉灵泉，芝草瞬息成熟！采得【{herb_name}】入纳戒。" if is_rush else f"【紫菁草园 · 采摘】你小心翼翼采摘成熟芝草，得获【{herb_name}】入纳戒。"
+                return {
+                    "ok": True,
+                    "text": msg,
+                    "status": self._status_dict(char)
+                }
+            if action in ("/灵鹤", "/crane", "/探路"):
+                # 1. 领取云巢暂存机缘
+                if len(parts) > 1 and parts[1] in ("领取", "收纳", "取回", "claim"):
+                    if not char.crane_pending_item:
+                        return {
+                            "ok": False,
+                            "error": "青羽仙鹤云巢灵囊中并无可领取的机缘仙物。",
+                            "status": self._status_dict(char),
+                        }
+                    if char.is_bag_full():
+                        return {
+                            "ok": False,
+                            "error": f"百宝纳戒乾坤已满（{len(char.items)}/{char.MAX_BAG_SLOTS}），请先前往纳戒移出、佩戴或出售旧物，腾出空位后再来领取！",
+                            "status": self._status_dict(char),
+                        }
+                    from core.items import ItemEntity
+                    p_data = dict(char.crane_pending_item)
+                    try:
+                        p_item = ItemEntity.model_validate(p_data)
+                    except Exception:
+                        p_item = ItemEntity.create(
+                            name=p_data.get("name", "仙鹤机缘"),
+                            kind=p_data.get("kind", "material"),
+                            quality=p_data.get("tier", 3),
+                            description=p_data.get("lore", "青羽仙鹤暂留于云巢的仙物。")
+                        )
+                    char.add_item_entity(p_item)
+                    claimed_name = p_item.name
+                    char.crane_pending_item = None
+                    CharacterRepository.save(char)
+                    return {
+                        "ok": True,
+                        "text": f"【仙鹤云巢 · 取回机缘】你自青羽仙鹤灵囊中取下【{claimed_name}】，已妥善收入百宝纳戒！仙鹤振翅轻啼，重回栖息待命态。",
+                        "status": self._status_dict(char),
+                    }
+
+                # 2. 检查仙鹤身上是否有未领仙物（不可携宝再飞）
+                if char.crane_pending_item:
+                    p_name = char.crane_pending_item.get("name", "机缘仙物")
+                    return {
+                        "ok": False,
+                        "error": f"青羽仙鹤云巢中尚有衔回的【{p_name}】未取！请先输入 /灵鹤 领取 或在洞府灵兽台领取后再敕令启程！",
+                        "status": self._status_dict(char),
+                    }
+
+                dest = parts[1] if len(parts) > 1 else "落霞密林"
+                cost_map = {"落霞密林": 10, "黑风绝渊赤焰": 30, "南海碧波古墟": 50, "落霞山": 10}
+                cost = cost_map.get(dest, 10)
+                if (char.spirit_stones or 0) < cost:
+                    return {
+                        "ok": False,
+                        "error": f"随身灵石不足 {cost}，无法派遣仙鹤！",
+                        "status": self._status_dict(char),
+                    }
+                char.spirit_stones = max(0, (char.spirit_stones or 0) - cost)
+
+                try:
+                    import random
+                    from core.treasure_system import TreasureEngine
+                    from core.items import ItemEntity, ItemKind
+                    roll = random.random()
+                    if roll < 0.45:
+                        loot_item = TreasureEngine.generate_treasure_map(char, tier=2, preferred_target=dest)
+                    elif roll < 0.75:
+                        loot_item = ItemEntity.create(
+                            name="千年离火晶石",
+                            kind=ItemKind.MATERIAL,
+                            quality=3,
+                            description="青羽仙鹤深入地脉火海，以纯阳神念衔出的地火精华，温热纯澈！",
+                        )
+                    else:
+                        loot_item = ItemEntity.create(
+                            name="青鸾灵羽",
+                            kind=ItemKind.MATERIAL,
+                            quality=3,
+                            description="青羽仙鹤巡弋途中偶遇异鸟拾得的神禽遗羽，蕴含风雷道韵。",
+                        )
+                except Exception as err:
+                    loot_item = ItemEntity.create(
+                        name="仙鹤衔回的机缘玉符",
+                        kind=ItemKind.MATERIAL,
+                        quality=2,
+                        description="青羽仙鹤探路衔回的机缘玉符。",
+                    )
+
+                # 3. 满格暂存分流判定
+                if char.is_bag_full():
+                    item_dict = loot_item.model_dump() if hasattr(loot_item, "model_dump") else (loot_item.__dict__ if hasattr(loot_item, "__dict__") else {"name": loot_item.name})
+                    # 补齐关键展示字段
+                    item_dict["name"] = loot_item.name
+                    item_dict["tier"] = getattr(loot_item, "tier", 3)
+                    item_dict["tierName"] = ["凡品", "人品", "地品", "天品", "仙品"][min(4, max(0, getattr(loot_item, "tier", 3) - 1))]
+                    item_dict["slotCn"] = "天机秘宝图卷" if "图" in loot_item.name else "灵宝异物"
+                    item_dict["lore"] = getattr(loot_item, "lineage_lore", "") or getattr(loot_item, "description", "")
+                    char.crane_pending_item = item_dict
+                    CharacterRepository.save(char)
+                    return {
+                        "ok": True,
+                        "text": f"【镇山仙鹤 · 探路归巢】消耗 {cost} 灵石。仙鹤巡弋【{dest}】衔回【{loot_item.name}】，因百宝纳戒乾坤已满（{len(char.items)}/{char.MAX_BAG_SLOTS}），仙物已稳妥暂留于云巢灵囊中！腾出空间后输入 /灵鹤 领取。",
+                        "status": self._status_dict(char),
+                        "overflow": True,
+                    }
+
+                char.add_item_entity(loot_item)
+                CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": f"【镇山仙鹤 · 探路巡弋】消耗 {cost} 灵石。青羽仙鹤翱翔于【{dest}】上空，破开云雾，神识传音报捷，带回【{loot_item.name}】已存入纳戒！",
+                    "status": self._status_dict(char),
+                    "overflow": False,
+                }
             if action in ("/scan", "/探查"):
                 results = CombatEngine.scan_surroundings(
                     char, CharacterRepository.list_all_alive()
@@ -2475,6 +2632,7 @@ class World:
             "dao_heart": c.karma.dao_heart,
             "skills": list(c.skills[:8]),
             "meditating": c.status == CharacterStatus.MEDITATING,
+            "is_meditating": c.status == CharacterStatus.MEDITATING,
             "sect": c.sect or "",
             "rank": c.sect_rank or "",
             "newbie_protected": prot,
@@ -2482,6 +2640,46 @@ class World:
             "protect": ProtectionEngine.status_text(c),
             "conflict_zone": is_conflict_zone(c.location),
             "qi_mult": round(qi_mod.global_qi_multiplier(), 3),
+            "crane_pending_item": getattr(c, "crane_pending_item", None),
+            "max_bag_slots": getattr(c, "MAX_BAG_SLOTS", 64),
+            "is_bag_full": c.is_bag_full() if hasattr(c, "is_bag_full") else (len(getattr(c, "items", [])) >= 64),
+            "items": [
+                {
+                    "uid": getattr(it, "uid", getattr(it, "id", f"it_{idx}")),
+                    "name": it.name,
+                    "kind": it.kind.value if hasattr(it.kind, "value") else str(it.kind),
+                    "tier": it.tier,
+                    "tierName": ["凡品", "人品", "地品", "天品", "仙品"][min(4, max(0, it.tier - 1))],
+                    "slot": getattr(it, "slot", None),
+                    "slotCn": "天机秘宝图卷" if "图" in it.name else ("神材" if getattr(it.kind, "value", str(it.kind)) == "material" else ("绝世法宝" if getattr(it.kind, "value", str(it.kind)) == "equip" else "灵物")),
+                    "lore": getattr(it, "lineage_lore", "") or getattr(it, "description", "") or "天地造化所钟之奇珍。",
+                    "desc": getattr(it, "description", "") or getattr(it, "lineage_lore", "") or "天地造化所钟之奇珍。",
+                    "targetNodeName": getattr(it, "treasure_target_node_name", "") or (it.custom_metadata.get("target_node_name", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "落霞古洞灵穴",
+                    "archetypeCn": getattr(it, "treasure_archetype_cn", "") or (it.custom_metadata.get("archetype", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "离火九宫破阵",
+                    "coords": getattr(it, "treasure_coords_desc", "") or (it.custom_metadata.get("coords", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "丙午方位 · 离火宫 南行三十里",
+                    "riddle": getattr(it, "treasure_riddle_cn", "") or (it.custom_metadata.get("riddle", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "天道浩渺，机缘自显。",
+                    "stats": getattr(it, "stats", {}),
+                    "affixes": [
+                        {"name": a.name, "desc": a.desc} for a in getattr(it, "affixes", [])
+                    ],
+                    "qty": 1,
+                }
+                for idx, it in enumerate(getattr(c, "items", []) or getattr(c, "item_entities", []))
+            ] + [
+                {
+                    "uid": f"legacy_{i}",
+                    "name": s_name,
+                    "kind": "treasure_map" if "图" in s_name else ("pill" if ("丹" in s_name or "露" in s_name) else "material"),
+                    "tier": 2,
+                    "tierName": "人品",
+                    "slotCn": "天机秘宝图卷" if "图" in s_name else ("灵丹" if ("丹" in s_name or "露" in s_name) else "灵物"),
+                    "lore": f"行囊中妥善收藏之【{s_name}】。",
+                    "desc": f"行囊中妥善收藏之【{s_name}】。",
+                    "qty": 1,
+                }
+                for i, s_name in enumerate(getattr(c, "inventory", []))
+                if isinstance(s_name, str) and s_name not in {it.name for it in (getattr(c, "items", []) or getattr(c, "item_entities", []))}
+            ],
         }
 
     def _look(self, c: Character) -> str:
@@ -2629,15 +2827,15 @@ class World:
         res = WorldClock.start_meditation(c, hours, 0)
         if res["success"]:
             CharacterRepository.save(c)
-        return {"ok": res["success"], "text": res["message"]}
+        return {"ok": res["success"], "text": res["message"], "status": self._status_dict(c)}
 
     def _emerge(self, c: Character) -> Dict[str, Any]:
         if c.status != CharacterStatus.MEDITATING:
-            return {"ok": False, "text": "未在闭关。"}
+            return {"ok": False, "text": "未在闭关。", "status": self._status_dict(c)}
         res = WorldClock.settle_meditation(c, force_interrupt=True)
         CharacterRepository.save(c)
         lines = [
-            f"出关：闭关 {res.get('actual_real_hours',0):.1f}h，"
+            f"出关：闭关 {res.get('actual_real_hours',0):.1f} 小时，"
             f"修为+{res.get('exp_gained',0)}，寿元余 {res.get('after_years',0):.1f}"
         ]
         dead = False

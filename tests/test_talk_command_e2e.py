@@ -44,7 +44,9 @@ def test_talk_command_end_to_end():
     assert "同场" in r4.get("error", "") or "查无此人" in r4.get("error", "")
 
     # 闭关中交谈被拒
-    WorldClock.start_meditation(char, 1.0)
+    char.spirit_stones = max(char.spirit_stones, 50)
+    med_res = WorldClock.start_meditation(char, 1.0)
+    assert med_res.get("success"), f"闭关启动失败: {med_res}"
     CharacterRepository.save(char)
     r5 = w.handle(tok, f"/交谈 {name} 你好")
     assert r5.get("ok") is False
