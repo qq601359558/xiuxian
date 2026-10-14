@@ -293,6 +293,17 @@
       state.marketListings = st.market_listings;
     }
 
+    // 识海传音未读信箱处理
+    if (Array.isArray(st.unread_messages) && st.unread_messages.length > 0) {
+      st.unread_messages.forEach((m) => {
+        toast(`【神识传音】来自【${m.from_name}】：“${m.text}”`, "ok");
+        pushFeed(`【神识传音】同道【${m.from_name}】向你传音：“${m.text}”`, "npc");
+        if (state.chat && state.chat.open && state.chat.npc === m.from_name) {
+          chatMsg(m.from_name, m.text, "npc");
+        }
+      });
+    }
+
     // 顶部天道盘
     setText("topDaoName", s.name || state.name || "—");
     setText("topDaoRealm", (s.realm || "—") + (s.rank && s.rank !== "散修" ? " · " + s.rank : ""));
@@ -333,13 +344,14 @@
     // ---------- 视图切换与主境导航联动 ----------
   const VIEW_CRUMBS = {
     sanctum: "玄阁洞府",
+    sect: "宗门大殿",
     wilderness: "十方大荒",
     inventory: "百宝纳戒",
     bazaar: "九霄坊市",
   };
 
   function setView(v) {
-    const valid = ["sanctum", "wilderness", "inventory", "bazaar"];
+    const valid = ["sanctum", "sect", "wilderness", "inventory", "bazaar"];
     if (!valid.includes(v)) v = "sanctum";
     state.view = v;
     document.querySelectorAll(".nav-tab[data-view]").forEach((b) => {
@@ -366,6 +378,7 @@
     if ($("topDaoRealm")) setText("topDaoRealm", (s.realm || "—") + (s.rank && s.rank !== "散修" ? " · " + s.rank : ""));
 
     if (state.view === "sanctum") host.innerHTML = renderSanctum();
+    else if (state.view === "sect") host.innerHTML = renderSect();
     else if (state.view === "wilderness") host.innerHTML = renderWilderness();
     else if (state.view === "inventory") host.innerHTML = renderInventory();
     else if (state.view === "bazaar") host.innerHTML = renderBazaar();
@@ -2229,6 +2242,537 @@
   }
 
   // ==========================================================================
+  // 主境：【宗门大殿 · 仙门百家总揽】 (Sect) - 水墨仙风 1:1 高保真
+  // ==========================================================================
+  function renderSect() {
+    const s = state.status || {};
+    const sectName = s.sect || "";
+    const isSectMember = !!sectName;
+    const sectRank = s.rank || (isSectMember ? "外门弟子" : "散修");
+    const contribution = s.sect_contribution != null ? s.sect_contribution : 0;
+    const streak = s.sect_streak != null ? s.sect_streak : 0;
+    const salaryStones = s.salary != null ? s.salary : 25;
+    const salaryClaimable = !!s.salary_claimable;
+    const salaryCdSec = s.salary_cd_sec || 0;
+    const canPromote = !!s.can_promote;
+    const nextRank = s.next_rank || "";
+    const promoteReqTier = s.promote_req_tier || 0;
+    const curLoc = s.location || "";
+
+    const sectsCatalog = Array.isArray(s.sects_catalog) && s.sects_catalog.length > 0 ? s.sects_catalog : [
+      {
+        name: "青云宗",
+        alignment: "正道名门",
+        desc: "道法自然，清静修身，门规森严，禁止同道相残。坐拥东荒三阶灵脉。",
+        headquarters: "青云宗外门山门",
+        cave_location: "宗门玄元洞府",
+        req_dao_heart: 60,
+        max_sin: 30,
+        monthly_salary: 25,
+        starter_array: "一阶青木迷踪阵",
+        rules_tip: "道心需≥60，业力需<30且无血煞，同门相残将遭执法堂追杀！"
+      },
+      {
+        name: "万剑仙门",
+        alignment: "杀伐中立",
+        desc: "以剑入道，宁折不弯。门人皆擅杀伐御剑，攻守兼备，以战养战。",
+        headquarters: "万剑仙门峰",
+        cave_location: "洗剑池洞天",
+        req_dao_heart: 70,
+        max_sin: 100,
+        monthly_salary: 30,
+        starter_array: "一阶庚金剑煞阵",
+        rules_tip: "道心需≥70或身具金/雷灵根，入门战力攻伐提升20%！"
+      },
+      {
+        name: "九幽天魔宗",
+        alignment: "魔道巨擘",
+        desc: "弱肉强食，胜者为尊。盘踞极煞绝渊，允许同门夺宝，唯力是从。",
+        headquarters: "九幽天魔宗坛",
+        cave_location: "黑风绝渊",
+        req_dao_heart: 0,
+        min_sin: 40,
+        monthly_salary: 35,
+        starter_array: "一阶白骨戮仙阵",
+        rules_tip: "业力需≥40（双手沾血），杀人不损道心，但天劫威力增加20%！"
+      },
+      {
+        name: "四海散修商会",
+        alignment: "散修同盟",
+        desc: "无拘无束的散修中立商会，一切以灵石说话，自由自在，不沾因果。",
+        headquarters: "青云坊市客栈",
+        cave_location: "青云坊市客栈",
+        req_dao_heart: 0,
+        monthly_salary: 0,
+        starter_array: null,
+        rules_tip: "无任何门槛，无月俸，自食其力，四海为家。"
+      }
+    ];
+
+    const ring = s.sect_ring || {};
+    const rawThemes = ring.themes || [];
+    const themes = rawThemes.length > 0 ? rawThemes : [
+      { id: "hunt", label: "缉拿凶修", lore: "除凶赏善，维护一方安宁，替天行道", need_item: "" },
+      { id: "herb", label: "采集灵草", lore: "为宗门丹房上交一阶紫叶灵草", need_item: "紫叶草" },
+      { id: "ore", label: "勘探玄铁", lore: "为炼器堂进贡百炼玄铁矿石", need_item: "百炼玄铁" },
+    ];
+    const acceptedTheme = themes.find(t => t.id === ring.accepted);
+
+    return `
+    <div class="w-full flex flex-col gap-6">
+      <!-- 顶部宗门大殿山门全景横幅 -->
+      <div class="relative w-full rounded-2xl overflow-hidden shadow-md bg-slate-900 min-h-[200px] flex items-end p-6 border border-filigree-400/40"
+           style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa'); background-size: cover; background-position: center 25%;">
+        <div class="absolute inset-0 bg-gradient-to-t from-jade-950/90 via-jade-950/40 to-transparent"></div>
+        <div class="relative z-10 w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+          <div class="space-y-1.5">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-amber-200 text-xs font-medium border border-white/20">
+              <span class="text-xs">🏛️</span>
+              <span>${isSectMember ? `仙门正朔 · 【${esc(sectName)}】执事总堂` : "天下名山 · 四海仙门聚英"}</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-widest drop-shadow-md">
+              宗门大殿 · 仙门百家总揽
+            </h1>
+            <p class="text-xs sm:text-sm text-jade-100/90 max-w-xl leading-relaxed">
+              ${isSectMember
+                ? `道法自然，仙门福地。本命宗籍：【${esc(sectName)} · ${esc(sectRank)}】，享护山大阵庇佑与月俸道勋。`
+                : "四海闲云散修，游历天下名山大川。道友可亲赴仙门山门，叩关参加入门考核，择善门而栖。"}
+            </p>
+          </div>
+          <div class="flex items-center gap-3.5 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-md border border-filigree-400/40">
+            <div class="flex flex-col text-right">
+              <span class="text-[11px] text-slate-500 font-medium">宗籍地位</span>
+              <span class="text-sm font-bold text-jade-900">${isSectMember ? `${esc(sectName)} · ${esc(sectRank)}` : "四海散修"}</span>
+            </div>
+            <div class="w-9 h-9 rounded-full bg-jade-100 flex items-center justify-center text-jade-700 text-base">
+              <span>🎴</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主网格：左 4 栏宗籍玉牒与俸禄晋升，右 8 栏日环功业、宝阁与四大仙门 -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        <!-- ================= 左栏：宗籍玉牒与地位俸禄 (4 Cols) ================= -->
+        <div class="xl:col-span-4 flex flex-col gap-5">
+          <!-- 宗籍名牌玉牌 -->
+          <div class="jade-panel rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-5 rounded-sm bg-jade-700"></div>
+                <h3 class="text-sm font-bold text-jade-950">宗籍名牌玉牒</h3>
+              </div>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isSectMember ? 'bg-jade-100 text-jade-800 border border-jade-300' : 'bg-slate-100 text-slate-600 border border-slate-200'}">
+                ${isSectMember ? "名门在籍" : "闲云野鹤"}
+              </span>
+            </div>
+
+            <div class="bg-white/80 rounded-xl p-4 border border-jade-100 space-y-3">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500">归属仙门：</span>
+                <span class="font-bold text-jade-950">${isSectMember ? esc(sectName) : "四海散修（无宗无派）"}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500">门中地位：</span>
+                <span class="font-bold text-filigree-700 font-mono">${esc(sectRank)}</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500">宗门贡献：</span>
+                <span class="font-bold text-jade-800 font-mono">${contribution} 贡献点</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500">日环连环：</span>
+                <span class="font-bold text-amber-700 font-mono">${streak} 日连环</span>
+              </div>
+            </div>
+
+            <!-- 门派专属道韵特权 -->
+            <div class="p-3 bg-jade-50/70 rounded-xl border border-jade-200/80 text-xs space-y-1">
+              <span class="font-bold text-jade-900 flex items-center gap-1">
+                <span>🛡️</span>
+                <span>宗门护道特权</span>
+              </span>
+              <p class="text-[11px] text-slate-600 leading-relaxed pt-0.5">
+                ${sectName === "青云宗"
+                  ? "享有三阶灵脉【宗门玄元洞府】免费闭关修行之权；门规森严，同门守望。"
+                  : (sectName === "万剑仙门"
+                      ? "以剑入道，杀伐攻势凌厉！入门即获本门杀伐剑煞增益，战力+20%。"
+                      : (sectName === "九幽天魔宗"
+                          ? "胜者为尊，杀人不损道心！但天劫威力增加20%，以力证道。"
+                          : "散修同盟，自食其力。游走十方，因果无拘。"))
+                }
+              </p>
+            </div>
+
+            <!-- 月俸领取阁 -->
+            <div class="bg-white/90 rounded-xl p-4 border border-jade-200 shadow-2xs space-y-3">
+              <div class="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
+                <span class="font-bold text-jade-950 flex items-center gap-1">
+                  <span>💰</span>
+                  <span>常务月俸禄</span>
+                </span>
+                <span class="font-bold text-filigree-700 font-mono">${isSectMember ? `${salaryStones} 灵石 / 月` : "散修无俸"}</span>
+              </div>
+              ${isSectMember
+                ? (salaryClaimable
+                    ? `<button type="button" class="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold shadow-md animate-pulse cursor-pointer" data-sect-act="salary">领取本月月俸（${salaryStones} 灵石）</button>`
+                    : `<button disabled class="w-full py-2.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-medium border border-slate-200 cursor-not-allowed">月俸发放尚需约 ${Math.ceil(salaryCdSec / 60)} 刻钟</button>`
+                  )
+                : `<div class="p-2.5 bg-slate-50 text-slate-500 text-[11px] rounded-lg border border-slate-200 text-center">散修无门派常务月俸。拜入门派后每两时辰可领取一次。</div>`
+              }
+            </div>
+
+            <!-- 宗阶考核晋升 -->
+            <div class="bg-white/90 rounded-xl p-4 border border-jade-200 shadow-2xs space-y-3">
+              <div class="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
+                <span class="font-bold text-jade-950 flex items-center gap-1">
+                  <span>📈</span>
+                  <span>宗阶考核晋升</span>
+                </span>
+                <span class="text-[11px] text-slate-500">${nextRank ? `下阶：【${esc(nextRank)}】` : "已极高阶"}</span>
+              </div>
+              ${isSectMember
+                ? (nextRank
+                    ? (canPromote
+                        ? `<button type="button" class="w-full py-2.5 rounded-lg bg-gradient-to-r from-jade-700 to-jade-600 hover:from-jade-600 hover:to-jade-500 text-white text-xs font-bold shadow-sm cursor-pointer" data-sect-act="promote">通过考核 · 晋阶【${esc(nextRank)}】</button>`
+                        : `<button disabled class="w-full py-2.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-medium border border-slate-200 cursor-not-allowed">晋阶【${esc(nextRank)}】需境界达 ${promoteReqTier} 阶</button>`
+                      )
+                    : `<div class="p-2.5 bg-amber-50 text-amber-800 text-xs font-bold rounded-lg border border-amber-200 text-center">已登临本门长老泰斗之位</div>`
+                  )
+                : `<div class="p-2.5 bg-slate-50 text-slate-500 text-[11px] rounded-lg border border-slate-200 text-center">散修无阶可晋。</div>`
+              }
+            </div>
+
+            <!-- 谨慎操作：叛出门墙 -->
+            ${isSectMember ? `
+              <div class="pt-1 text-center">
+                <button type="button" class="text-xs text-rose-600 hover:text-rose-800 underline cursor-pointer" data-sect-act="leave">
+                  脱离门墙 · 叛出门派（道心受挫 -5）
+                </button>
+              </div>
+            ` : ""}
+          </div>
+        </div>
+
+        <!-- ================= 右栏：日环功业、宝阁与四大仙门 (8 Cols) ================= -->
+        <div class="xl:col-span-8 flex flex-col gap-5">
+          <!-- 板块 1：宗门日常功业（宗门日环） -->
+          <div class="jade-panel rounded-2xl p-6 shadow-sm border border-jade-200/90 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+              <div>
+                <div class="text-[11px] text-slate-400">宗门执事堂 · 日环悬赏</div>
+                <h2 class="text-base font-bold text-jade-950 tracking-wide mt-0.5">宗门日常功业日环</h2>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-jade-100 text-jade-800 text-[11px] font-medium border border-jade-200">
+                连环积功：${streak} 日
+              </span>
+            </div>
+
+            ${isSectMember ? (
+              ring.done
+                ? `<div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
+                     <div class="flex items-center gap-3">
+                       <span class="text-2xl">✨</span>
+                       <div>
+                         <h4 class="text-sm font-bold text-emerald-950">今日宗门日环功业已毕</h4>
+                         <p class="text-xs text-emerald-700 mt-0.5">功德昭彰，道勋与灵石已发放。明日辰时执事堂将重置悬赏。</p>
+                       </div>
+                     </div>
+                     <span class="px-2.5 py-1 rounded bg-emerald-200 text-emerald-900 text-xs font-bold">完满交差</span>
+                   </div>`
+                : (ring.accepted
+                    ? `<div class="p-4 bg-white/90 rounded-xl border border-jade-200 shadow-2xs space-y-3">
+                         <div class="flex items-center justify-between border-b border-jade-100 pb-2">
+                           <span class="text-xs font-bold text-jade-950 flex items-center gap-1.5">
+                             <span>📜</span>
+                             <span>进行中功业：【${esc(acceptedTheme ? acceptedTheme.label : ring.accepted)}】</span>
+                           </span>
+                           <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">履职中</span>
+                         </div>
+                         <p class="text-xs text-slate-600 leading-relaxed">${esc(acceptedTheme ? acceptedTheme.lore : '依律行止，功成返山门执事堂记赏。')}</p>
+                         <div class="flex items-center justify-between pt-1">
+                           <span class="text-xs text-filigree-700 font-semibold">奖励：宗门贡献 +8 · 灵石 +50</span>
+                           <button type="button" class="px-4 py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-bold shadow-xs cursor-pointer" data-sect-act="donate" data-item="${esc(acceptedTheme && acceptedTheme.need_item ? acceptedTheme.need_item : '紫叶草')}">
+                             上交贡品 · 记功交差
+                           </button>
+                         </div>
+                       </div>`
+                    : `<div class="space-y-3">
+                         <div class="text-xs text-slate-600">执事堂每日推出三道悬赏，道友可择一接取，完成后回堂交差记功：</div>
+                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                           ${themes.map((th, i) => `
+                             <div class="p-3.5 bg-white/80 rounded-xl border border-jade-200 shadow-2xs flex flex-col justify-between space-y-2.5">
+                               <div>
+                                 <div class="flex items-center justify-between">
+                                   <span class="text-xs font-bold text-jade-950">【${esc(th.label)}】</span>
+                                   <span class="text-[10px] px-1.5 py-0.2 rounded bg-jade-50 text-jade-700 border border-jade-200">环 ${i+1}</span>
+                                 </div>
+                                 <p class="text-[11px] text-slate-600 mt-1 line-clamp-2">${esc(th.lore || '完成宗门悬赏，扬我宗威。')}</p>
+                               </div>
+                               <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                 <span class="text-[10px] text-filigree-700 font-semibold">+8贡献 / +50石</span>
+                                 <button type="button" class="px-2.5 py-1 rounded bg-jade-700 hover:bg-jade-800 text-white text-[11px] font-bold cursor-pointer" data-sect-act="accept_ring" data-idx="${i+1}">接取</button>
+                               </div>
+                             </div>
+                           `).join("")}
+                         </div>
+                       </div>`
+                  )
+            ) : `
+              <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-2">
+                <div class="text-2xl">📜</div>
+                <h4 class="text-xs font-bold text-slate-700">宗门日环悬赏功业</h4>
+                <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  宗门日环悬赏功业仅对仙门在册弟子开放。散修请先叩关拜入名门，每日便可接取三选一悬赏，积攒宗门道勋与丰厚灵石俸禄。
+                </p>
+              </div>
+            `}
+          </div>
+
+          <!-- 板块 2：宗门宝阁（道勋兑换） -->
+          <div class="jade-panel rounded-2xl p-6 shadow-sm border border-jade-200/90 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+              <div>
+                <div class="text-[11px] text-slate-400">宗门宝阁 · 道勋换宝</div>
+                <h2 class="text-base font-bold text-jade-950 tracking-wide mt-0.5">宗门奇珍宝阁</h2>
+              </div>
+              <span class="text-xs text-jade-800">
+                拥有贡献：<strong class="text-filigree-700 font-mono">${contribution}</strong>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              ${[
+                { name: "一阶青木迷踪阵", cost: 30, desc: "护山灵阵，洞府闭关防侵扰" },
+                { name: "一阶庚金剑煞阵", cost: 50, desc: "杀伐剑煞阵法，攻伐锐气倍增" },
+                { name: "一阶白骨戮仙阵", cost: 60, desc: "极煞魔阵，攻防一体以战养战" },
+                { name: "九转还魂真丹", cost: 80, desc: "延寿温元九转至宝仙丹" },
+              ].map(it => `
+                <div class="p-3 bg-white/80 rounded-xl border border-jade-200 shadow-2xs flex flex-col justify-between space-y-2">
+                  <div>
+                    <h4 class="text-xs font-bold text-jade-950">${esc(it.name)}</h4>
+                    <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">${esc(it.desc)}</p>
+                  </div>
+                  <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span class="text-[11px] text-filigree-700 font-bold font-mono">${it.cost} 贡献</span>
+                    <button type="button" class="px-2 py-1 rounded ${contribution >= it.cost && isSectMember ? 'bg-jade-700 hover:bg-jade-800 text-white cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'} text-[11px] font-medium" data-sect-act="exchange" data-item="${esc(it.name)}">
+                      兑换
+                    </button>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- 板块 3：天下四大仙门大典（拜入叩关 / 名门对比） -->
+          <div class="jade-panel rounded-2xl p-6 shadow-sm border border-jade-200/90 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+              <div>
+                <div class="text-[11px] text-slate-400">大千道界 · 仙门正朔</div>
+                <h2 class="text-base font-bold text-jade-950 tracking-wide mt-0.5">天下四大仙门大典</h2>
+              </div>
+              <span class="text-xs text-slate-500">
+                当前所在：<strong class="text-jade-800">${esc(curLoc || "青云坊市客栈")}</strong>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${sectsCatalog.map(sect => {
+                const isCurrentSect = isSectMember && sectName === sect.name;
+                const isAtHq = curLoc === sect.headquarters;
+                return `
+                <div class="p-4 bg-white/85 rounded-xl border ${isCurrentSect ? 'border-jade-500 ring-2 ring-jade-200 shadow-sm' : 'border-jade-200'} shadow-2xs flex flex-col justify-between space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-jade-950">${esc(sect.name)}</span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                          sect.alignment === "正道名门"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : (sect.alignment === "魔道巨擘"
+                                ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                : "bg-amber-100 text-amber-800 border border-amber-200")
+                        }">${esc(sect.alignment)}</span>
+                      </div>
+                      ${isCurrentSect ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-jade-700 text-white font-bold">本命宗籍</span>` : ""}
+                    </div>
+                    <p class="text-xs text-slate-600 mt-2 leading-relaxed">${esc(sect.desc)}</p>
+                    <div class="mt-2.5 pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
+                      <div>总坛山门：<strong class="text-jade-900">${esc(sect.headquarters)}</strong></div>
+                      <div>灵脉洞府：<strong class="text-jade-900">${esc(sect.cave_location)}</strong></div>
+                      <div>入门俸禄：<strong class="text-filigree-700">${sect.monthly_salary ? sect.monthly_salary + " 灵石/月" : "无常务俸禄"}</strong></div>
+                      <div class="text-[10px] text-slate-400 pt-0.5">门规：${esc(sect.rules_tip)}</div>
+                    </div>
+                  </div>
+
+                  <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    ${isCurrentSect
+                      ? `<span class="text-xs text-jade-700 font-bold">已在此仙门修行</span>`
+                      : (isSectMember
+                          ? `<span class="text-xs text-slate-400">不可三心二意</span>`
+                          : (isAtHq
+                              ? `<button type="button" class="w-full py-1.5 rounded-lg bg-jade-700 hover:bg-jade-800 text-white text-xs font-bold shadow-xs cursor-pointer" data-sect-act="join" data-sect="${esc(sect.name)}">叩关拜入【${esc(sect.name)}】</button>`
+                              : `<button type="button" class="w-full py-1.5 rounded-lg bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" data-go="${esc(sect.headquarters)}">亲赴【${esc(sect.headquarters)}】叩关</button>`
+                            )
+                        )
+                    }
+                  </div>
+                </div>`;
+              }).join("")}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ==========================================================================
+  // 宗门专属交互逻辑控制器 (Sect Action Controller)
+  // ==========================================================================
+  function handleSectAction(act, el) {
+    if (checkActionLock("宗门阵枢推演中，请稍候再降法旨…")) return;
+    if (state.status) {
+      state.status.sect_ring = state.status.sect_ring || { themes: [] };
+    }
+
+    if (act === "salary") {
+      if (state.demo) {
+        toast("【领取月俸】执事堂已发放本月月俸：25 块灵石！", "gold");
+        pushFeed("【宗门俸禄发放】执事堂核验无误，为本门弟子发放本月月俸：25 块灵石！", "ok");
+        if (state.status) {
+          state.status.stones = (state.status.stones || 0) + 25;
+          state.status.salary_claimable = false;
+          state.status.salary_cd_sec = 7200;
+        }
+        renderBody();
+      } else {
+        sendCmd("/领俸禄");
+      }
+      return;
+    }
+
+    if (act === "promote") {
+      if (state.demo) {
+        toast("【考核晋阶】通过执事堂试炼，晋升为本门执事！", "gold");
+        pushFeed("【宗门考核晋阶】道法通达，考核试炼圆满，晋升为本门执事！", "ok");
+        if (state.status) {
+          state.status.rank = state.status.next_rank || "内门弟子";
+          state.status.can_promote = false;
+        }
+        renderBody();
+      } else {
+        sendCmd("/晋升");
+      }
+      return;
+    }
+
+    if (act === "leave") {
+      openJadeDialog({
+        title: "脱离宗门 · 叛出门派",
+        badge: "谨慎决断",
+        lore: "叛出门墙将自毁宗籍，清空所有宗门贡献，道心受损 -5，重归散修之身。山高水长，道友可真意已决？",
+        choices: [
+          {
+            label: "执意叛出 · 重归散修",
+            cls: "bg-rose-700 hover:bg-rose-800 text-white",
+            onClick: () => {
+              closeJadeDialog();
+              if (state.demo) {
+                toast("已脱离宗门，重归散修之身！", "bad");
+                pushFeed("【叛出门墙】脱离宗门门墙，道心 -5。山高水长，好自为之。", "bad");
+                if (state.status) {
+                  state.status.sect = "";
+                  state.status.rank = "散修";
+                  state.status.sect_contribution = 0;
+                }
+                renderBody();
+              } else {
+                sendCmd("/叛门");
+              }
+            }
+          },
+          {
+            label: "回心转意 · 谨守门规",
+            cls: "bg-slate-200 hover:bg-slate-300 text-slate-700",
+            onClick: () => closeJadeDialog()
+          }
+        ]
+      });
+      return;
+    }
+
+    if (act === "join") {
+      const sectName = el.getAttribute("data-sect");
+      if (!sectName) return;
+      if (state.demo) {
+        toast(`【山门洞开】拜入【${sectName}】· 外门弟子！`, "gold");
+        pushFeed(`【山门洞开】通过入门考核，拜入【${sectName}】· 外门弟子！`, "ok");
+        if (state.status) {
+          state.status.sect = sectName;
+          state.status.rank = "外门弟子";
+        }
+        renderBody();
+      } else {
+        sendCmd("/拜入 " + sectName);
+      }
+      return;
+    }
+
+    if (act === "accept_ring") {
+      const idx = el.getAttribute("data-idx") || "1";
+      if (state.demo) {
+        toast(`已接取宗门功业主题（第${idx}环）！`, "gold");
+        pushFeed(`【宗门日环】接取今日宗门功业，完成后自动记功！`, "ok");
+        if (state.status && state.status.sect_ring) {
+          state.status.sect_ring.accepted = idx === "1" ? "hunt" : (idx === "2" ? "herb" : "ore");
+        }
+        renderBody();
+      } else {
+        sendCmd("/接宗门环 " + idx);
+      }
+      return;
+    }
+
+    if (act === "donate") {
+      const item = el.getAttribute("data-item") || "";
+      if (!item) {
+        toast("请先于纳戒备好对应宗门所需贡品再行上交", "bad");
+        return;
+      }
+      if (state.demo) {
+        toast(`上交【${item}】，贡献 +8，灵石 +50！`, "gold");
+        pushFeed(`【宗门日环】完成功业，贡献 +8、灵石 +50！`, "ok");
+        if (state.status) {
+          state.status.sect_contribution = (state.status.sect_contribution || 0) + 8;
+          state.status.stones = (state.status.stones || 0) + 50;
+          if (state.status.sect_ring) state.status.sect_ring.done = true;
+        }
+        renderBody();
+      } else {
+        sendCmd("/上交 " + item);
+      }
+      return;
+    }
+
+    if (act === "exchange") {
+      const item = el.getAttribute("data-item") || "";
+      if (!item) return;
+      if (state.demo) {
+        toast(`消耗宗门贡献兑换得【${item}】！`, "gold");
+        pushFeed(`【宗门宝阁】消耗宗门贡献兑换得【${item}】一件！`, "ok");
+        if (state.status) {
+          state.status.sect_contribution = Math.max(0, (state.status.sect_contribution || 0) - 30);
+          state.inventory.unshift({ name: item, kind: "material", tier: 3, tierName: "地品", desc: "宗门宝阁兑换所得至宝。" });
+        }
+        renderBody();
+      } else {
+        sendCmd("/兑换 " + item);
+      }
+      return;
+    }
+  }
+
+  // ==========================================================================
   // 主境二：【十方大荒 · 秘境探险图卷】 (Wilderness) - Stitch 原生 1:1 高保真
   // ==========================================================================
   function renderWilderness() {
@@ -4059,7 +4603,9 @@
 
     box.innerHTML = rows.map((r) => {
       const isBlood = !!r.blood_marked;
-      const att = r.attitude_cn || (r.is_npc ? "中立" : "道友");
+      const isPlayer = !r.is_npc;
+      const att = isBlood ? "血煞通缉" : (isPlayer ? "同道仙友" : (r.attitude_cn || "中立"));
+      const tagCls = isBlood ? "danger" : (isPlayer ? "bg-jade-700 text-white font-bold" : "");
       return `
       <div class="cultivator-item ${isBlood ? "danger-red" : ""}">
         <div class="cultivator-row">
@@ -4067,13 +4613,13 @@
             <span class="cultivator-name">${esc(r.name)}</span>
             <span style="font-size:12px;color:var(--ink-500);margin-left:6px">${esc(r.realm || "")}</span>
           </div>
-          <span class="card-tag ${isBlood ? "danger" : ""}">${isBlood ? "血煞通缉" : att}</span>
+          <span class="card-tag ${tagCls}">${att}</span>
         </div>
         <div style="font-size:11px;color:var(--ink-500)">
-          ${esc(r.sect || "散修")}${r.rank ? " · " + esc(r.rank) : ""} · 秉性：${esc(r.personality || "行止难测")}
+          ${esc(r.sect || "散修")}${r.rank ? " · " + esc(r.rank) : ""} · ${isPlayer ? '道气清圆 · 真人修士' : '秉性：' + esc(r.personality || '行止难测')}
         </div>
         <div class="cultivator-actions">
-          <button type="button" class="btn sm primary" data-person="${esc(r.name)}">神识传音</button>
+          <button type="button" class="btn sm primary" data-person="${esc(r.name)}" data-is-player="${isPlayer ? '1' : '0'}">神识传音</button>
           <button type="button" class="btn sm secondary" data-cmd="/交易 ${esc(r.name)}">互市交易</button>
           <button type="button" class="btn sm ghost" data-cmd="/斗法 ${esc(r.name)}">当面切磋</button>
         </div>
@@ -4084,13 +4630,26 @@
   // ==========================================================================
   // 神识交谈玉简 (Chat Jade Modal)
   // ==========================================================================
-  function openChat(name) {
+  function openChat(name, isPlayer) {
     state.chat.open = true;
     if (name) state.chat.npc = name;
     const who = state.chat.npc || "同道";
-    setText("chatTitle", "神识交谈 · " + who);
+
+    if (isPlayer === undefined) {
+      const targetRow = (state.here || []).find(x => x.name === who);
+      if (targetRow) isPlayer = !targetRow.is_npc;
+    }
+    state.chat.isPlayer = !!isPlayer;
+
+    if (state.chat.isPlayer) {
+      setText("chatTitle", "神识传音 · " + who + "（真人同道）");
+      setText("chatSub", "心念相通，直接神识传音；无需天道 AI 推演，即时送达");
+    } else {
+      setText("chatTitle", "神识交谈 · " + who);
+      setText("chatSub", "直接向对方传音言语；买卖与动作由天道权威裁决结算");
+    }
     setText("cmdTarget", "交谈对象：" + who);
-    setText("cmdTag", "言语传音");
+    setText("cmdTag", state.chat.isPlayer ? "同道传音" : "言语传音");
 
     const modal = $("chatModal");
     if (modal) {
@@ -4098,7 +4657,7 @@
       modal.setAttribute("aria-hidden", "false");
     }
     if (!state.chat.lines.length) {
-      state.chat.lines = [{ cls: "sys", text: `已与【${who}】连通神识，在下方直接开口传音。` }];
+      state.chat.lines = [{ cls: "sys", text: state.chat.isPlayer ? `已与同道【${who}】连通神识，传音直达识海，在下方直接发信。` : `已与【${who}】连通神识，在下方直接开口传音。` }];
     }
     renderChat(true);
     const inp = $("chatInput");
@@ -4111,6 +4670,7 @@
   function closeChat(hangup) {
     state.chat.open = false;
     state.chat.npc = "";
+    state.chat.isPlayer = false;
     setText("cmdTarget", "未锁定同道");
     setText("cmdTag", "神识敕令");
 
@@ -4147,34 +4707,45 @@
   async function sendChat(text) {
     const c = (text || "").trim();
     if (!c) return;
-    if (checkActionLock("对方神识沉吟中，请稍候再传音…")) return;
+    const isPlayer = !!state.chat.isPlayer;
+    if (!isPlayer && checkActionLock("对方神识沉吟中，请稍候再传音…")) return;
     const reqEpoch = ++state.lastEpoch;
     chatMsg("你", c, "me");
 
     if (state.demo) {
       setTimeout(() => {
-        chatMsg(state.chat.npc || "同道", "（玄黄镜演）道友所言甚合吾意，接通大世界后可真实结算因果。", "npc");
-      }, 500);
+        if (isPlayer) {
+          chatMsg(state.chat.npc || "同道", "（玄黄镜演）同道传音已送达识海！大千世界中真人修士即刻收信。", "npc");
+        } else {
+          chatMsg(state.chat.npc || "同道", "（玄黄镜演）道友所言甚合吾意，接通大世界后可真实结算因果。", "npc");
+        }
+      }, 300);
       return;
     }
 
-    busy(true, "对方神识思量中…");
-    chatMsg("", "（对方神识沉吟中…）", "sys");
+    if (!isPlayer) {
+      busy(true, "对方神识思量中…");
+      chatMsg("", "（对方神识沉吟中…）", "sys");
+    }
     try {
       const data = await api("/chat", {
         token: state.token,
         text: c,
         to: state.chat.npc || undefined,
       });
-      state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
+      if (!isPlayer) {
+        state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
+      }
       handleChatData(data, reqEpoch);
     } catch (e) {
-      state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
+      if (!isPlayer) {
+        state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
+      }
       renderChat(true);
       chatMsg("", "传音受阻：" + e.message, "sys");
       toast(e.message, "bad");
     } finally {
-      busy(false);
+      if (!isPlayer) busy(false);
       const inp = $("chatInput");
       if (inp && state.chat.open) inp.focus();
     }
@@ -4189,8 +4760,22 @@
       pushFeed(text, "bad");
       return;
     }
+    if (data.is_player) {
+      if (data.chat_open) {
+        if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, true);
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          data.messages.forEach((m) => {
+            const isMe = m.who === (state.status?.name || "你");
+            chatMsg(isMe ? "你" : m.who, m.text, isMe ? "me" : "npc");
+          });
+        }
+      }
+      // 真人玩家传音：零 AI 伪造，确认传音送达
+      pushFeed(text, "cmd");
+      return;
+    }
     if (data.chat_open) {
-      if (data.npc && data.npc !== state.chat.npc) openChat(data.npc);
+      if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, false);
       String(text).split("\n").filter(Boolean).forEach((ln) => {
         if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字/.test(ln)) chatMsg("", ln, "sys");
         else chatMsg(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
@@ -4931,6 +5516,23 @@
       root: "金水双灵根",
       blood_marked: false,
       meditating: false,
+      sect_contribution: 480,
+      sect_streak: 3,
+      salary: 120,
+      salary_claimable: true,
+      salary_cd_sec: 0,
+      can_promote: false,
+      next_rank: "客卿长老",
+      promote_req_tier: 3,
+      sect_ring: {
+        accepted: null,
+        done_today: false,
+        themes: [
+          { key: "gather", name: "采撷灵草", desc: "前往黑风绝渊采撷百年凝血草两株上交宗门。", reward_contrib: 30, reward_stones: 50 },
+          { key: "hunt", name: "清剿妖兽", desc: "前往落霞山斩杀赤目妖狼，带回狼妖内丹。", reward_contrib: 50, reward_stones: 80 },
+          { key: "patrol", name: "巡查山门", desc: "巡视总坛周遭十里界碑，防范魔道细作潜入。", reward_contrib: 40, reward_stones: 60 },
+        ]
+      },
     };
     state.here = [
       { name: "柳三娘", realm: "筑基中期", sect: "四海散修盟", rank: "掌柜", is_npc: true, personality: "和气生财", attitude_cn: "友善" },
@@ -5114,7 +5716,8 @@
       const personEl = e.target.closest("[data-person]");
       if (personEl) {
         const name = personEl.getAttribute("data-person");
-        openChat(name);
+        const isPlayer = personEl.getAttribute("data-is-player") === "1";
+        openChat(name, isPlayer);
         closeSideDrawer();
         if (!state.demo) {
           pushFeed("» /交谈 " + name, "cmd");
@@ -5122,6 +5725,13 @@
             .then(handleChatData)
             .catch((err) => chatMsg("", "无法连通神识：" + err.message, "sys"));
         }
+        return;
+      }
+
+      // 宗门专属动作 data-sect-act
+      const sectEl = e.target.closest("[data-sect-act]");
+      if (sectEl) {
+        handleSectAction(sectEl.getAttribute("data-sect-act"), sectEl);
         return;
       }
 
