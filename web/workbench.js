@@ -3052,17 +3052,35 @@
 
               if (!state.demo) {
                 // 联机模式：向服务端调用 /挖宝 1 或 /挖宝 2
+                let digSuccess = false;
                 try {
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
-                  if (res.equipment) excavatedEquip = res.equipment;
-                  if (res.pill) dropPill = res.pill;
-                  if (res.stone_gain) stoneGain = res.stone_gain;
+                  if (res.ok) {
+                    digSuccess = true;
+                    if (res.equipment) excavatedEquip = res.equipment;
+                    if (res.pill) dropPill = res.pill;
+                    if (res.stone_gain) stoneGain = res.stone_gain;
+                  }
                   pushFeed(res.text, res.ok ? "ok" : "bad");
                 } catch (err) {
                   toast("挖宝神识受阻：" + err.message, "bad");
                 } finally {
                   busy(false);
+                }
+                if (!digSuccess) {
+                  if (boxEl) {
+                    boxEl.innerHTML = `
+                      <div class="text-center space-y-3 py-6">
+                        <div class="text-3xl mx-auto">⚠️</div>
+                        <h4 class="text-sm font-bold text-rose-800">破阵受阻 · 宝匣未启</h4>
+                        <p class="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
+                          玄光溃散，未能启封古仙洞府。请参照上方天道卷轴警示。
+                        </p>
+                      </div>
+                    `;
+                  }
+                  return;
                 }
               } else {
                 busy(false);
@@ -3167,7 +3185,7 @@
                       <div class="flex items-center gap-2 pt-0.5">
                         <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold">【破煞】词缀</span>
                         <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-300 font-bold">【斩龙】词缀</span>
-                        <span class="text-[10px] text-slate-500 ml-auto">另得【九转还魂真丹】x2</span>
+                        <span class="text-[10px] text-slate-500 ml-auto">另得【${esc(dropPill.name)}】×1</span>
                       </div>
                     </div>
                   </div>
