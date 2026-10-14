@@ -11,6 +11,8 @@ from storage.db import CharacterRepository, WorldStateRepository
 
 _KEY = "npc_chat_sessions"
 _MEM_KEY = "npc_chat_memory"
+_INBOX_KEY = "player_chat_inbox"
+_P2P_KEY = "p2p_chat_history"
 _MAX_TURNS = 24
 _TIMEOUT_S = 900.0  # 15 分钟无消息自动散
 _MAX_MSG_LEN = 200
@@ -34,6 +36,103 @@ def _save_all(d: Dict[str, Any]) -> None:
 
 def _session_id(player_id: str, npc_id: str) -> str:
     return f"{player_id}::{npc_id}"
+
+
+def _p2p_pair_key(id_a: str, id_b: str) -> str:
+    return f"{min(id_a, id_b)}::{max(id_a, id_b)}"
+
+
+def get_p2p_history(id_a: str, id_b: str, limit: int = 30) -> List[Dict[str, Any]]:
+    try:
+        data = WorldStateRepository.get(_P2P_KEY) or {}
+        pair = _p2p_pair_key(id_a, id_b)
+        return list(data.get(pair) or [])[-limit:]
+    except Exception:
+        return []
+
+
+def deliver_player_message(sender: Character, receiver: Character, text: str) -> Dict[str, Any]:
+    """真人玩家向真人玩家传音：零 AI 调用，消息双向落账，写入接收方识海信箱"""
+    now = time.time()
+    msg_item = {
+        "from_id": sender.id,
+        "from_name": sender.name,
+        "to_id": receiver.id,
+        "to_name": receiver.name,
+        "text": text,
+        "ts": now,
+        "who": sender.name,
+    }
+    # 1. 记入双人 P2P 共享对话历史
+    try:
+        p2p_all = WorldStateRepository.get(_P2P_KEY) or {}
+        pair = _p2p_pair_key(sender.id, receiver.id)
+        history = list(p2p_all.get(pair) or [])
+        history.append(msg_item)
+        p2p_all[pair] = history[-40:]
+        WorldStateRepository.set(_P2P_KEY, p2p_all)
+    except Exception:
+        pass
+
+    # 2. 记入双方在 npc_chat_sessions 中的活跃 session（若存在）
+    try:
+        d = _load_all()
+        # 发送方 session
+        rec_sender = d.get(sender.id)
+        if rec_sender and rec_sender.get("npc_id") == receiver.id:
+            rec_sender.setdefault("messages", []).append({"who": sender.name, "text": text, "ts": now})
+            rec_sender["messages"] = rec_sender["messages"][-_MAX_TURNS:]
+            rec_sender["updated_at"] = now
+            d[sender.id] = rec_sender
+        # 接收方 session（若当前打开了针对发送方的会话）
+        rec_rcv = d.get(receiver.id)
+        if rec_rcv and rec_rcv.get("npc_id") == sender.id:
+            rec_rcv.setdefault("messages", []).append({"who": sender.name, "text": text, "ts": now})
+            rec_rcv["messages"] = rec_rcv["messages"][-_MAX_TURNS:]
+            rec_rcv["updated_at"] = now
+            d[receiver.id] = rec_rcv
+        _save_all(d)
+    except Exception:
+        pass
+
+    # 3. 记入接收方的未读识海信箱
+    try:
+        inbox_all = WorldStateRepository.get(_INBOX_KEY) or {}
+        rcv_inbox = list(inbox_all.get(receiver.id) or [])
+        rcv_inbox.append({
+            "from_name": sender.name,
+            "from_id": sender.id,
+            "text": text,
+            "ts": now,
+        })
+        inbox_all[receiver.id] = rcv_inbox[-20:]
+        WorldStateRepository.set(_INBOX_KEY, inbox_all)
+    except Exception:
+        pass
+
+    return {"success": True, "msg": msg_item}
+
+
+def pop_player_inbox(player_id: str) -> List[Dict[str, Any]]:
+    """读取并清空玩家的未读传音信箱"""
+    try:
+        inbox_all = WorldStateRepository.get(_INBOX_KEY) or {}
+        msgs = list(inbox_all.get(player_id) or [])
+        if msgs:
+            inbox_all[player_id] = []
+            WorldStateRepository.set(_INBOX_KEY, inbox_all)
+        return msgs
+    except Exception:
+        return []
+
+
+def peek_player_inbox(player_id: str) -> List[Dict[str, Any]]:
+    """只读查看玩家未读信箱"""
+    try:
+        inbox_all = WorldStateRepository.get(_INBOX_KEY) or {}
+        return list(inbox_all.get(player_id) or [])
+    except Exception:
+        return []
 
 
 def get_session(player_id: str) -> Optional[Dict[str, Any]]:
@@ -197,27 +296,37 @@ def open_session(player: Character, npc: Character) -> Dict[str, Any]:
             "success": False,
             "message": f"【{npc.name}】不在【{player.location}】，无法当面交谈。",
         }
+
+    from core.npc_mind import _is_npc
+    is_target_npc = _is_npc(npc)
+    shared_msgs = []
+    if not is_target_npc:
+        shared_msgs = get_p2p_history(player.id, npc.id)
+
     d = _load_all()
     d[player.id] = {
         "npc_id": npc.id,
         "npc_name": npc.name,
         "status": "open",
-        "turns": 0,
-        "willingness": _init_willingness(npc, player.id),
-        "messages": [],
+        "turns": len(shared_msgs),
+        "willingness": 100 if not is_target_npc else _init_willingness(npc, player.id),
+        "messages": shared_msgs,
         "created_at": now,
         "updated_at": now,
         "end_reason": "",
         "running_attitude_delta": 0,
+        "is_player": not is_target_npc,
     }
     _save_all(d)
-    return {"success": True, "session": d[player.id], "npc": npc}
+    return {"success": True, "session": d[player.id], "npc": npc, "is_player": not is_target_npc}
 
 
 def _init_willingness(npc: Character, player_id: str) -> int:
     """0~100，态度映射"""
     try:
-        from core.npc_mind import attitude_toward
+        from core.npc_mind import _is_npc, attitude_toward
+        if not _is_npc(npc):
+            return 100
 
         att = attitude_toward(npc, player_id)
         v = int(att.get("value") or 0)
@@ -312,9 +421,16 @@ def player_say(player: Character, text: str) -> Dict[str, Any]:
     if not npc:
         close_session(player.id, "对方已不在场。", by="system")
         return {"success": False, "message": "对方已不在场，会话终止。", "ended": True}
+
+    from core.npc_mind import _is_npc
+    is_target_npc = _is_npc(npc)
+    if not is_target_npc:
+        deliver_player_message(player, npc, text)
+
     return {
         "success": True,
-        "need_ai": True,
+        "need_ai": is_target_npc,
+        "is_player": not is_target_npc,
         "session": rec,
         "npc": npc,
         "player_text": text,

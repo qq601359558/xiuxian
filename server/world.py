@@ -1139,22 +1139,22 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                     log_event("DECISION", "join_sect", name=char.name, sect=res.get("sect"))
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/leave_sect", "/叛门"):
                 res = leave_sect(char)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/salary", "/领俸禄", "/俸禄"):
                 res = claim_salary(char)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/promote", "/晋升"):
                 res = promote(char)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/teach", "/传功"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/传功 <弟子道号>"}
@@ -1165,7 +1165,7 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                     CharacterRepository.save(disciple)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/adventure", "/探险"):
                 target = ""
                 if len(parts) > 1:
@@ -1514,14 +1514,14 @@ class World:
                     qty = max(1, int(toks[-1]))
                     toks = toks[:-1]
                 res = donate_item(char, "".join(toks), qty)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/兑换",):
                 from core.sect_contrib import format_shop, exchange
 
                 if len(parts) < 2:
                     return {"ok": True, "text": format_shop() + f"\n当前贡献：{char.sect_contribution}"}
                 res = exchange(char, "".join(parts[1:]))
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/宗门环", "/sectring"):
                 from core.sect_contrib import format_ring
 
@@ -1534,7 +1534,7 @@ class World:
                 res = accept_theme(char, int(parts[1]))
                 if res.get("success") and res.get("hook") == "hunt":
                     pass
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/宗门势", "/sectpower"):
                 from core.sect_contrib import sect_powerboard
 
@@ -1644,11 +1644,26 @@ class World:
                     opened = npc_chat.open_session(char, target)
                     if not opened.get("success"):
                         return {"ok": False, "error": opened.get("message", "无法交谈")}
+                    from core.npc_mind import _is_npc
+                    is_target_npc = _is_npc(target)
+
                     greet = (
                         f"【会话开始】与【{target.name}】交谈中。\n"
                         f"用 /说 <内容> 继续，/挂断 结束；聊天窗可直接打字。"
                     )
                     if words:
+                        if not is_target_npc:
+                            from core.npc_chat import deliver_player_message
+                            deliver_player_message(char, target, words)
+                            log_event("DECISION", "talk_player", name=char.name, target=target.name, words_len=len(words))
+                            return {
+                                "ok": True,
+                                "text": greet + f"\n\n【神识传音】你向同道【{target.name}】传音：“{words}” 灵念已达，静候回音。",
+                                "chat_open": True,
+                                "npc": target.name,
+                                "is_player": True,
+                                "source": "player_direct",
+                            }
                         res = NpcDialogueEngine.talk(target, char, words)
                         log_event("DECISION", "talk", name=char.name, target=target.name, words_len=len(words), source=res.get("source"))
                         if not res.get("ok"):
@@ -1679,6 +1694,7 @@ class World:
                         "text": greet + "\n\n（可开口：直接在聊天窗打字，无需 /说）",
                         "chat_open": True,
                         "npc": target.name,
+                        "is_player": not is_target_npc,
                     }
                 except Exception as _talk_ex:
                     return {"ok": False, "error": f"交谈异常：{type(_talk_ex).__name__}: {_talk_ex}"}
@@ -1704,6 +1720,9 @@ class World:
                     return {"ok": False, "error": said.get("message", "无法发言"), "chat_ended": said.get("ended")}
                 rec = said["session"]
                 npc = said["npc"]
+                from core.npc_mind import _is_npc
+                is_target_npc = _is_npc(npc)
+
                 # 会话中若离地/死亡/被擒则终止
                 if npc.location != char.location or npc.status == CharacterStatus.DEAD:
                     npc_chat.close_session(char.id, "对方已不在同场，会话终止。", by="system")
@@ -1711,6 +1730,18 @@ class World:
                 if npc.status == CharacterStatus.CAPTURED:
                     npc_chat.close_session(char.id, f"【{npc.name}】已被擒。", by="system")
                     return {"ok": False, "error": f"【{npc.name}】已被擒，会话终止。", "chat_ended": True}
+
+                if not is_target_npc:
+                    # 真人同道：绝不走 AI，直接返回成功与双方历史
+                    return {
+                        "ok": True,
+                        "text": f"【神识传音】你向同道【{npc.name}】传音：“{words}” 灵念已达，静候回音。",
+                        "chat_open": True,
+                        "chat_ended": False,
+                        "npc": npc.name,
+                        "is_player": True,
+                        "source": "player_direct",
+                    }
 
                 # 会话内动作：自由文本 → 意图 → 规则落账
                 from core import chat_actions as CA
@@ -2837,6 +2868,78 @@ class World:
             else:
                 unworn_entities.append(it)
 
+        # 宗门信息与俸禄/日环/仙门名录
+        from config import SECTS_CONFIG, SECONDS_PER_GAME_MONTH
+        from core.sect import PROMOTE_REQ_TIER
+        from core.sect_contrib import get_streak, ensure_daily_ring
+        from core.npc_chat import pop_player_inbox
+
+        sect_name = c.sect or ""
+        sect_rank = c.sect_rank or ("散修" if not sect_name else "外门弟子")
+        sect_cfg = SECTS_CONFIG.get(sect_name) or {}
+
+        # 俸禄冷却计算
+        salary = sect_cfg.get("monthly_salary", 0) if sect_name else 0
+        last_salary = getattr(c, "last_salary_time", 0.0) or 0.0
+        elapsed_salary = _t.time() - last_salary
+        salary_cd_sec = max(0, int(SECONDS_PER_GAME_MONTH - elapsed_salary)) if (last_salary > 0 and elapsed_salary < SECONDS_PER_GAME_MONTH) else 0
+        salary_claimable = bool(sect_name and salary > 0 and salary_cd_sec <= 0)
+
+        # 晋升资格判定
+        order = ["外门弟子", "内门弟子", "执事", "长老"]
+        next_rank = None
+        can_promote = False
+        promote_req_tier = 0
+        if sect_name and sect_rank in order:
+            idx = order.index(sect_rank)
+            if idx < len(order) - 1:
+                next_rank = order[idx + 1]
+                promote_req_tier = PROMOTE_REQ_TIER.get(next_rank, 99)
+                can_promote = (c.realm.tier >= promote_req_tier)
+
+        # 宗门日环
+        streak = get_streak(c) if sect_name else 0
+        ring_info = {}
+        if sect_name:
+            try:
+                ring_raw = ensure_daily_ring(c)
+                ring_info = {
+                    "day": ring_raw.get("day", ""),
+                    "accepted": ring_raw.get("accepted"),
+                    "done": bool(ring_raw.get("done")),
+                    "themes": [
+                        {
+                            "id": t.get("id"),
+                            "label": t.get("label", ""),
+                            "lore": t.get("lore", ""),
+                            "need_item": t.get("need_item", ""),
+                            "need_streak": t.get("need_streak", 0),
+                        }
+                        for t in (ring_raw.get("themes") or [])
+                    ]
+                }
+            except Exception:
+                ring_info = {}
+
+        sects_catalog = [
+            {
+                "name": k,
+                "alignment": v.get("alignment", ""),
+                "desc": v.get("desc", ""),
+                "headquarters": v.get("headquarters", ""),
+                "cave_location": v.get("cave_location", ""),
+                "req_dao_heart": v.get("req_dao_heart", 0),
+                "max_sin": v.get("max_sin", 10**9),
+                "min_sin": v.get("min_sin", 0),
+                "monthly_salary": v.get("monthly_salary", 0),
+                "starter_array": v.get("starter_array", ""),
+                "rules_tip": v.get("rules_tip", ""),
+            }
+            for k, v in SECTS_CONFIG.items()
+        ]
+
+        unread_msgs = pop_player_inbox(c.id)
+
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
@@ -2857,8 +2960,19 @@ class World:
             "skills": list(c.skills[:8]),
             "meditating": c.status == CharacterStatus.MEDITATING,
             "is_meditating": c.status == CharacterStatus.MEDITATING,
-            "sect": c.sect or "",
-            "rank": c.sect_rank or "",
+            "sect": sect_name,
+            "rank": sect_rank,
+            "sect_contribution": getattr(c, "sect_contribution", 0),
+            "sect_streak": streak,
+            "salary": salary,
+            "salary_claimable": salary_claimable,
+            "salary_cd_sec": salary_cd_sec,
+            "can_promote": can_promote,
+            "next_rank": next_rank,
+            "promote_req_tier": promote_req_tier,
+            "sect_ring": ring_info,
+            "sects_catalog": sects_catalog,
+            "unread_messages": unread_msgs,
             "newbie_protected": prot,
             "newbie_left_hours": round(prot_left / 3600.0, 1) if prot else 0,
             "protect": ProtectionEngine.status_text(c),
