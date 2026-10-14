@@ -195,6 +195,13 @@ class MarketEngine:
             return {"success": False, "message": f"囊中并无【{raw_name}】。"}
 
         cfg = ITEM_CATALOG.get(target_name) or {}
+
+        # 装备防护拦截：若道具本身是法宝装备或已佩戴在身，坚决禁止当丹药服食
+        if (entity and entity.kind == ItemKind.EQUIP) or cfg.get("kind") == "equip":
+            return {"success": False, "message": f"【{target_name}】乃护道法宝，不可服食入腹！"}
+        if target_name in getattr(user, "equipped", []):
+            return {"success": False, "message": f"【{target_name}】已佩戴在身，不可服食！"}
+
         is_entity_pill = entity is not None and entity.kind in (ItemKind.PILL, ItemKind.CONSUMABLE)
         is_cfg_pill = cfg.get("kind") == "pill"
         is_name_pill = any(w in target_name for w in ("丹", "露", "丸", "液", "散", "膏", "琼浆", "灵酿"))

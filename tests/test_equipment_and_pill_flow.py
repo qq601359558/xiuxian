@@ -201,7 +201,7 @@ def test_dynamic_pill_consumption_jiuzhuan_huanhun():
 
 
 def test_non_pill_consumption_rejected():
-    """测试对非丹药道具（如武器装备）点击服用被优雅拦截"""
+    """测试对非丹药道具（如武器装备与矿石材料）点击服用被优雅拦截"""
     c = _make_test_character("铁头娃")
     armor = ItemEntity.create(
         name="玄铁护腕",
@@ -211,11 +211,24 @@ def test_non_pill_consumption_rejected():
     )
     c.add_item_entity(armor)
 
+    # 1. 尝试服用法宝装备
     res = MarketEngine.use_pill(c, "玄铁护腕")
     assert res["success"] is False
-    assert "不是可服用的丹药或灵露" in res["message"]
+    assert "乃护道法宝，不可服食入腹" in res["message"]
     # 实体未被误删
     assert c.find_item("玄铁护腕") is not None
+
+    # 2. 尝试服用铸造矿石材料
+    ore = ItemEntity.create(
+        name="赤铜石",
+        kind=ItemKind.MATERIAL,
+        quality=1,
+    )
+    c.add_item_entity(ore)
+    res2 = MarketEngine.use_pill(c, "赤铜石")
+    assert res2["success"] is False
+    assert "不是可服用的丹药或灵露" in res2["message"]
+    assert c.find_item("赤铜石") is not None
 
 
 def test_status_dict_includes_equipped_and_filters_unworn():

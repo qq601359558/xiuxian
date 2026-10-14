@@ -184,6 +184,14 @@ class TreasureEngine:
         archetype = tmap.custom_metadata.get("archetype", TreasureArchetype.ELEMENT_PUZZLE)
         tier = tmap.tier
 
+        # 若纳戒已满（64/64），破除古阵将掘出神兵仙药，提前拦截避免爆仓丢宝
+        if choice_id and hasattr(c, "is_bag_full") and c.is_bag_full():
+            max_slots = getattr(c, "MAX_BAG_SLOTS", 64)
+            return {
+                "success": False,
+                "message": f"百宝纳戒乾坤已满（{len(getattr(c, 'items', []))}/{max_slots}），破阵开匣将掘出古修神兵与仙药，请先腾挪纳戒空间再行破阵！",
+            }
+
         # ==========================================
         # 原型 A：五行生克阵盘 (Element Puzzle)
         # ==========================================
