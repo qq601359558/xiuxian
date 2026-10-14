@@ -53,17 +53,17 @@ flowchart TD
 
 ## 4. Implementation Tasks (任务拆解)
 
-- [ ] **Task 1: 八卦方位风水算法与双轨文言天机指引生成器** (`core/treasure_system.py`, `tests/test_treasure_direction.py`)
+- [x] **Task 1: 八卦方位风水算法与双轨文言天机指引生成器** (`core/treasure_system.py`, `tests/test_treasure_direction.py`)
   - 实现基于拓扑坐标的八卦方位判定与山川物候匹配；
   - 实现双轨制（AI 天机推演 + 本地八卦算经库）文言指引函数；
   - 编写单元测试验证八个方向、远近跳数及文言输出质量。
-- [ ] **Task 2: 寻宝与挖宝空间校验改造与多轮指令契约** (`core/treasure_system.py`, `server/world.py`)
+- [x] **Task 2: 寻宝与挖宝空间校验改造与多轮指令契约** (`core/treasure_system.py`, `server/world.py`)
   - 改造 `TreasureEngine.dig` 与 `read_map`，在未到达目标地点时输出文言寻龙指引；
   - 服务端 `_status_dict` 输出藏宝图节点的匹配状态；
   - 编写测试验证未到地点时不损耗宝图并返回文言指引。
-- [ ] **Task 3: 前端【天机秘宝 · 风水定盘】双阶段形态与【御风寻脉】直达按钮** (`web/workbench.js`)
+- [x] **Task 3: 前端【天机秘宝 · 风水定盘】双阶段形态与【御风寻脉】直达按钮** (`web/workbench.js`)
   - 改造 `handleTreasureAction`：未在目标地时呈现风水寻龙卷轴，提供一键【御风寻脉】跳转；
   - 到达目标地后呈现五行破阵大典，破除开匣受阻的误解。
-- [ ] **Task 4: 全流程端到端自动化测试与全量回归** (`tests/test_treasure_direction_flow.py`)
+- [x] **Task 4: 全流程端到端自动化测试与全量回归** (`tests/test_treasure_direction_flow.py`)
   - 编写涵盖“获图 -> 寻龙定盘（文言指引） -> 御风前往 -> 破阵开匣 -> 神兵仙药入库”的全闭环端到端测试；
   - 运行全量回归套件确保零历史破坏。

@@ -4168,14 +4168,103 @@
     }
 
     const tmap = state.inventory[mapIdx];
-    const targetNode = tmap.targetNodeName || "落霞古洞灵穴";
+    const targetNode = tmap.targetNodeName || "落霞山灵泉";
     const archetype = tmap.archetypeCn || "坎水五行破阵";
     const coords = tmap.coords || "甲子方位 · 震木宫 东南二十里 地脉三丈";
     const riddle = tmap.riddle || "五行倒悬，阴阳同炉。阵眼匿于地脉灵穴最深处，非晓生克之道者不可轻启。";
+    const clue = tmap.clue || "天池磁针微颤，煞气森森。真穴隐于此方山水秘境，当循定盘指针寻访。";
+    const currLoc = (s.location || "").trim();
+    const isAtTarget = Boolean(
+      tmap.isAtTarget ||
+      (currLoc && targetNode && (currLoc === targetNode || currLoc.includes(targetNode) || targetNode.includes(currLoc)))
+    );
 
+    // =========================================================================
+    // 阶段一：未抵达目标地 · 【天机定盘 · 寻龙点穴】
+    // =========================================================================
+    if (!isAtTarget) {
+      openJadeDialog({
+        title: "天机秘宝 · 风水定盘寻龙诀",
+        icon: "🧭",
+        cardClass: "max-w-xl",
+        bodyHtml: `
+          <div class="space-y-4" id="treasureStageBox">
+            <div class="relative w-full h-40 rounded-xl overflow-hidden bg-slate-900 border border-amber-300 shadow-sm">
+              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                   class="w-full h-full object-cover" alt="古修洞府遗穴" />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
+              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/90 text-amber-200 border border-amber-500/40">${esc(tmap.tierName || '地品')} · ${esc(tmap.slotCn || '天机秘宝图卷')}</span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-700/90 text-white">定盘感应中</span>
+              </div>
+              <div class="absolute bottom-2.5 left-2.5 right-2.5 flex items-end justify-between text-white">
+                <div>
+                  <h3 class="text-base font-bold tracking-wide">${esc(tmap.name)}</h3>
+                  <p class="text-xs text-amber-200">道身当前位于：【${esc(currLoc || "红尘客栈")}】</p>
+                </div>
+                <div class="text-right text-[11px] text-amber-200 font-mono">
+                  <span>卦位：${esc(tmap.bagua || coords)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-amber-50/70 p-3.5 rounded-xl border border-amber-300/80 space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-amber-950">🧭 天机定盘 · 寻龙点穴</span>
+                <span class="text-filigree-700 font-mono text-[11px] font-bold">${esc(coords)}</span>
+              </div>
+              <div class="p-2.5 rounded-lg bg-white/80 border border-amber-200 space-y-1.5">
+                <div class="text-amber-900 font-serif italic text-xs leading-relaxed font-bold">
+                  “${esc(riddle)}”
+                </div>
+                <p class="text-[11px] text-slate-700 leading-relaxed">
+                  ${esc(clue)}
+                </p>
+              </div>
+            </div>
+
+            <div class="p-3.5 bg-slate-900 text-amber-200 font-mono text-xs rounded-xl border border-amber-400/60 space-y-2">
+              <div class="flex items-center gap-2 text-amber-300 font-bold">
+                <span class="text-base">📍</span>
+                <span>风水提点 · 御风动身</span>
+              </div>
+              <p class="text-slate-300 text-xs leading-relaxed">
+                道友当前身在【${esc(currLoc || '客栈')}】，未至图中所指灵穴绝地【${esc(targetNode)}】。
+                藏宝图未受损耗。请点击下方灵符【御风寻脉】启程前往该地，抵达后自可起坛破阵开匣！
+              </p>
+            </div>
+          </div>
+        `,
+        footerHtml: `
+          <div id="treasureFooterActions" class="w-full flex items-center justify-between">
+            <button type="button" class="px-4 py-2 rounded-xl bg-white hover:bg-jade-50 text-slate-700 border border-jade-200 text-xs font-medium cursor-pointer" onclick="workbench.closeJadeDialog()">
+              收敛宝图
+            </button>
+            <button type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-jade-700 via-jade-600 to-teal-700 hover:from-jade-600 hover:to-teal-600 text-white text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5" id="btnTravelToTarget">
+              <span>🍃</span>
+              <span>御风寻脉 · 启程前往【${esc(targetNode)}】</span>
+            </button>
+          </div>
+        `,
+        onMount: (overlay) => {
+          const travelBtn = overlay.querySelector("#btnTravelToTarget");
+          if (travelBtn) {
+            travelBtn.addEventListener("click", () => {
+              workbench.closeJadeDialog();
+              sendCmd(`/前往 ${targetNode}`);
+            });
+          }
+        }
+      });
+      return;
+    }
+
+    // =========================================================================
+    // 阶段二：已抵达目标地 · 【古阵现世 · 五行天机破阵大典】
+    // =========================================================================
     openJadeDialog({
-      title: "天机秘宝 · 风水定盘五行破阵大典",
-      icon: "🧭",
+      title: "天机秘宝 · 古阵现世破阵大典",
+      icon: "⚡",
       cardClass: "max-w-xl",
       bodyHtml: `
         <div class="space-y-4" id="treasureStageBox">
@@ -4185,12 +4274,12 @@
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
               <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/90 text-amber-200 border border-amber-500/40">${esc(tmap.tierName || '地品')} · ${esc(tmap.slotCn || '天机秘宝图卷')}</span>
-              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-jade-700/90 text-white">定盘已锁定</span>
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600/90 text-white">✨ 龙穴已定 · 金光破晓</span>
             </div>
             <div class="absolute bottom-2.5 left-2.5 right-2.5 flex items-end justify-between text-white">
               <div>
                 <h3 class="text-base font-bold tracking-wide">${esc(tmap.name)}</h3>
-                <p class="text-xs text-amber-200">定位灵穴：${esc(targetNode)}</p>
+                <p class="text-xs text-emerald-300">已达真穴：${esc(targetNode)}</p>
               </div>
               <div class="text-right text-[11px] text-slate-300 font-mono">
                 <span>[${esc(archetype)}]</span>
@@ -4223,7 +4312,7 @@
                   <input type="radio" name="puzzleChoice" value="water" checked class="text-jade-500" />
                   <div>
                     <div class="font-bold text-white">① 调运癸水真元 (以柔克刚 · 五行相克)</div>
-                    <div class="text-[10px] text-slate-400">引纯阴玄水浇灌离火阵眼 · 成功率 92% · 耗真元 50 点</div>
+                    <div class="text-[10px] text-slate-400">引纯阴玄水浇灌离火阵眼 · 调和五行 · 耗真元 50 点</div>
                   </div>
                 </div>
                 <span class="text-emerald-400 font-bold text-[11px]">极稳健</span>
@@ -4234,7 +4323,7 @@
                   <input type="radio" name="puzzleChoice" value="force" class="text-amber-500" />
                   <div>
                     <div class="font-bold text-white">② 祭出本命神兵 (以力破巧 · 强轰阵眼)</div>
-                    <div class="text-[10px] text-slate-400">祭出道体全部煞气强行破壁 · 成功率 75% · 依赖战力</div>
+                    <div class="text-[10px] text-slate-400">祭出道体全部煞气强行破壁 · 破灭禁制 · 依赖战力</div>
                   </div>
                 </div>
                 <span class="text-amber-400 font-bold text-[11px]">需战力</span>
@@ -4245,7 +4334,7 @@
                   <input type="radio" name="puzzleChoice" value="earth" class="text-amber-500" />
                   <div>
                     <div class="font-bold text-white">③ 勾动戊土灵石 (土掩烈火 · 稳固道基)</div>
-                    <div class="text-[10px] text-slate-400">注入地脉灵石化火生金 · 成功率 85% · 耗 30 灵石</div>
+                    <div class="text-[10px] text-slate-400">注入地脉灵石化火生金 · 稳如磐石 · 耗 30 灵石</div>
                   </div>
                 </div>
                 <span class="text-slate-300 font-bold text-[11px]">30 灵石</span>
@@ -4320,6 +4409,7 @@
               if (!state.demo) {
                 // 联机模式：向服务端调用 /挖宝 1 或 /挖宝 2
                 let digSuccess = false;
+                let errMsg = "";
                 try {
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
@@ -4328,10 +4418,13 @@
                     if (res.equipment) excavatedEquip = res.equipment;
                     if (res.pill) dropPill = res.pill;
                     if (res.stone_gain) stoneGain = res.stone_gain;
+                  } else {
+                    errMsg = res.text || "玄光溃散，未能启封古仙洞府。";
                   }
                   pushFeed(res.text, res.ok ? "ok" : "bad");
                 } catch (err) {
-                  toast("挖宝神识受阻：" + err.message, "bad");
+                  errMsg = "挖宝神识受阻：" + err.message;
+                  toast(errMsg, "bad");
                 } finally {
                   busy(false);
                 }
@@ -4341,8 +4434,8 @@
                       <div class="text-center space-y-3 py-6">
                         <div class="text-3xl mx-auto">⚠️</div>
                         <h4 class="text-sm font-bold text-rose-800">破阵受阻 · 宝匣未启</h4>
-                        <p class="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-                          玄光溃散，未能启封古仙洞府。请参照上方天道卷轴警示。
+                        <p class="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed whitespace-pre-line">
+                          ${esc(errMsg || "玄光溃散，未能启封古仙洞府。请参照上方天道卷轴警示。")}
                         </p>
                       </div>
                     `;
@@ -4544,6 +4637,10 @@
     let inspectorHtml = "";
     const isMapItem = sel && (sel.kind === "treasure_map" || sel.kind === "map" || String(sel.name).includes("图"));
     if (isMapItem) {
+      const currLoc = (state.status && (state.status.location || state.status.current_node)) || "";
+      const targetNode = sel.targetNodeName || "落霞荒泽";
+      const isAtTarget = !!sel.isAtTarget || (currLoc && targetNode && currLoc.includes(targetNode));
+
       inspectorHtml = `
       <div class="space-y-4">
         <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-sm">
@@ -4555,14 +4652,20 @@
           </div>
           <div class="absolute bottom-2.5 left-2.5 right-2.5 text-white">
             <h4 class="text-base font-bold">${esc(sel.name)}</h4>
-            <div class="text-[11px] text-filigree-200 font-mono">定位灵穴：${esc(sel.targetNodeName || "落霞荒泽")}</div>
+            <div class="text-[11px] font-mono flex items-center gap-1.5 mt-0.5">
+              <span class="text-slate-300">定位灵穴：</span>
+              <span class="font-bold ${isAtTarget ? 'text-emerald-300' : 'text-amber-200'}">${esc(targetNode)}</span>
+              ${isAtTarget ? `<span class="px-1.5 py-0.2 rounded bg-emerald-600/90 text-white text-[10px] font-bold">已抵真穴</span>` : `<span class="px-1.5 py-0.2 rounded bg-amber-600/90 text-white text-[10px] font-bold">未至灵穴</span>`}
+            </div>
           </div>
         </div>
 
         <div class="bg-amber-50/70 p-3.5 rounded-xl border border-filigree-300/80 space-y-2 text-xs">
           <div class="flex items-center justify-between">
             <span class="font-bold text-amber-950">🧭 干支风水定盘方位</span>
-            <span class="text-filigree-700 font-semibold">[${esc(sel.archetypeCn || "坎水五行破阵")}]</span>
+            <span class="text-xs px-2 py-0.5 rounded font-bold ${isAtTarget ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}">
+              ${isAtTarget ? "✨ 道身已至真穴" : "🍃 尚未抵赴灵脉"}
+            </span>
           </div>
           <div class="bg-white/80 p-2.5 rounded-lg border border-amber-200 font-mono text-slate-700 leading-relaxed">
             ${esc(sel.coords || "甲子方位 · 震木宫 东南二十里 地脉三丈")}
@@ -4576,9 +4679,17 @@
           ${esc(sel.lore)}
         </div>
 
-        <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-filigree-600 to-amber-600 hover:from-filigree-500 hover:to-amber-500 text-white text-xs font-bold shadow-md border border-filigree-300 transition cursor-pointer" type="button" data-treasure-act="dig" data-map-name="${esc(sel.name)}">
-          依图寻宝探秘 (御风启程)
-        </button>
+        ${isAtTarget ? `
+          <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-jade-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md border border-emerald-400 transition cursor-pointer flex items-center justify-center gap-1.5" type="button" data-treasure-act="dig" data-map-name="${esc(sel.name)}">
+            <span>⚡</span>
+            <span>破阵开匣 (道身已抵真穴)</span>
+          </button>
+        ` : `
+          <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-filigree-600 to-amber-600 hover:from-filigree-500 hover:to-amber-500 text-white text-xs font-bold shadow-md border border-filigree-300 transition cursor-pointer flex items-center justify-center gap-1.5" type="button" data-treasure-act="dig" data-map-name="${esc(sel.name)}">
+            <span>🧭</span>
+            <span>寻龙定盘 · 勘测天机方位 (御风前往)</span>
+          </button>
+        `}
       </div>`;
     } else if (sel) {
       const statsList = Object.entries(sel.stats || {}).map(([k, v]) => `
