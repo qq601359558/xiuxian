@@ -1315,6 +1315,54 @@ class World:
                             pass
                     return {"ok": res.get("success"), "text": res.get("message", "")}
                 return {"ok": True, "text": SecretRealmEngine.board_text()}
+            if action in ("/dungeon", "/禁地", "/锁妖塔", "/古窟"):
+                from core.dungeon import DungeonEngine, DUNGEON_FLOORS
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("叩关", "enter", "进", "开启"):
+                    fl = 1
+                    if len(parts) > 2 and parts[2].isdigit():
+                        fl = int(parts[2])
+                    res = DungeonEngine.start_dungeon(char, floor=fl)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub in ("撤离", "遁出", "retreat", "走"):
+                    res = DungeonEngine.retreat(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub in ("深入", "下层", "next"):
+                    res = DungeonEngine.advance_floor(char)
+                    return {"ok": res.get("success"), "text": "踏入下一层！" if res.get("success") else res.get("message", ""), "status": self._status_dict(char)}
+                if sub in ("探秘", "要穴", "explore", "node"):
+                    res = DungeonEngine.interact_event(char)
+                    return {"ok": res.get("success"), "text": "要穴探索完成！" if res.get("success") else res.get("message", ""), "status": self._status_dict(char)}
+                sess = DungeonEngine.get_session(char.id)
+                if sess and sess.get("active"):
+                    return {"ok": True, "text": f"当前正身处【第{sess.get('floor', 1)}层】，状态：{sess.get('state')}。可用 /施法、/出招、/祭法宝、/撤离。", "status": self._status_dict(char)}
+                return {"ok": True, "text": "【锁妖古窟】九幽镇妖之所，九重险地深藏造化。可用 /禁地 叩关 [层数] 启阵。", "status": self._status_dict(char)}
+
+            if action in ("/cast", "/施法", "/神通"):
+                from core.dungeon import DungeonEngine
+                spell_key = parts[1] if len(parts) > 1 else "fire_blast"
+                res = DungeonEngine.execute_combat_action(char, action="spell", spell_key=spell_key)
+                logs_text = "\n".join(res.get("logs", [])) or res.get("message", "")
+                return {"ok": res.get("success"), "text": logs_text, "status": self._status_dict(char)}
+
+            if action in ("/cast_treasure", "/祭法宝", "/法宝大招"):
+                from core.dungeon import DungeonEngine
+                res = DungeonEngine.execute_combat_action(char, action="treasure")
+                logs_text = "\n".join(res.get("logs", [])) or res.get("message", "")
+                return {"ok": res.get("success"), "text": logs_text, "status": self._status_dict(char)}
+
+            if action in ("/dungeon_attack", "/出招", "/斩击"):
+                from core.dungeon import DungeonEngine
+                res = DungeonEngine.execute_combat_action(char, action="attack")
+                logs_text = "\n".join(res.get("logs", [])) or res.get("message", "")
+                return {"ok": res.get("success"), "text": logs_text, "status": self._status_dict(char)}
+
+            if action in ("/pick_boon", "/择道韵", "/领悟道韵"):
+                from core.dungeon import DungeonEngine
+                boon_key = parts[1] if len(parts) > 1 else ""
+                res = DungeonEngine.choose_boon(char, boon_key)
+                return {"ok": res.get("success"), "text": "道韵领悟圆满！" if res.get("success") else res.get("message", ""), "status": self._status_dict(char)}
+
             if action in ("/break", "/突破"):
                 try:
                     from core.tasks import hook_note
@@ -2828,6 +2876,8 @@ class World:
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:
         import time as _t
+        from core.dungeon import DungeonEngine, DUNGEON_FLOORS
+        from core.spells import SPELL_CATALOG
         prot = c.is_newbie_protected()
         prot_left = 0.0
         if prot:
@@ -3047,6 +3097,12 @@ class World:
                     "affixes": "真仙契约担保",
                 }
                 for l in MarketEngine.open_listings(MarketListingRepository.list_all())
+            ],
+            "dungeon": DungeonEngine.get_session(c.id),
+            "spells_catalog": list(SPELL_CATALOG.values()),
+            "dungeon_floors": [
+                {"floor": f_k, "name": f_v["name"], "tier_name": f_v["tier_name"], "min_tier": f_v["min_tier"]}
+                for f_k, f_v in DUNGEON_FLOORS.items()
             ],
         }
 

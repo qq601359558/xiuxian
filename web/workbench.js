@@ -2242,8 +2242,264 @@
   }
 
   // ==========================================================================
-  // 主境：【宗门大殿 · 仙门百家总揽】 (Sect) - 水墨仙风 1:1 高保真
+  // 锁妖古窟与半即时神通出招交互处理器 (Dungeon Action Handler)
   // ==========================================================================
+  function handleDungeonAction(act, val, el) {
+    if (checkActionLock("禁地煞气激荡中，请稍候再降法旨…")) return;
+
+    if (act === "tab") {
+      state.wildernessSubTab = val || "dungeon";
+      renderBody();
+      return;
+    }
+
+    if (act === "enter") {
+      const fl = val || "1";
+      if (state.demo) {
+        state.status = state.status || {};
+        state.status.stones = Math.max(0, (state.status.stones || 100) - 30);
+        state.status.dungeon = {
+          floor: parseInt(fl, 10) || 1,
+          node_idx: 0,
+          active: true,
+          state: "battle",
+          nodes: [
+            { idx: 0, type: "combat", title: "幽暗密道 · 妖煞伏行", desc: "穿过狭窄石缝，忽闻腥风扑鼻，一头【嗜血妖狼】自阴影中窜出！", cleared: false },
+            { idx: 1, type: "spring", title: "古窟造化灵泉", desc: "断崖凹陷处汇聚了一汪乳白色古泉，丝丝缕缕的天地造化灵气升腾。", cleared: false },
+            { idx: 2, type: "boss", title: "【本层镇关凶煞】双头赤眼狼王", desc: "山腹洞窟豁然开朗，恐怖的【双头赤眼狼王】正俯视着你！", cleared: false },
+          ],
+          player: {
+            name: state.name || "太虚散人",
+            realm: state.status.realm || "筑基初期",
+            hp: 220,
+            max_hp: 220,
+            mp: 120,
+            max_mp: 120,
+            shield: 0,
+            attack: 45,
+            defense: 15,
+            equipped_weapon: "纯阳斩仙剑",
+            treasure_used: false,
+          },
+          monster: {
+            name: "嗜血妖狼",
+            realm: "一阶巅峰",
+            hp: 90,
+            max_hp: 90,
+            shield: 0,
+            attack: 20,
+            defense: 6,
+            status_effects: {},
+          },
+          stash: { stones: 0, items: [] },
+          boons: [],
+          boon_choices: [],
+          combat_logs: [
+            "【叩关入窟】辟邪大阵光幕洞开，你踏入了【锁妖古窟 · 第一层】！",
+            "前方腥风扑鼻，一头【嗜血妖狼】自阴影中窜出，撕咬而来！",
+          ],
+        };
+        toast("已叩开锁妖古窟石门，探秘开始！", "gold");
+        renderBody();
+      } else {
+        sendCmd("/禁地 叩关 " + fl);
+      }
+      return;
+    }
+
+    if (act === "spell") {
+      if (state.demo) {
+        toast(`催动神通【${val}】！`, "gold");
+        const dg = state.status?.dungeon;
+        if (dg && dg.monster) {
+          dg.monster.hp = Math.max(0, dg.monster.hp - 45);
+          dg.player.mp = Math.max(0, dg.player.mp - 15);
+          dg.combat_logs.push(`⚡ 你催动五行神通轰向【${dg.monster.name}】，造成 45 点伤害！`);
+          if (dg.monster.hp <= 0) {
+            dg.combat_logs.push(`🎉 妖兽【${dg.monster.name}】发出一声哀鸣，倒地毙命！`);
+            dg.monster = null;
+            dg.nodes[dg.node_idx].cleared = true;
+            dg.stash.stones += 25;
+            dg.stash.items.push({ name: "百年凝血草", count: 1 });
+            dg.node_idx += 1;
+            if (dg.node_idx >= dg.nodes.length) {
+              dg.state = "choosing_boon";
+              dg.boon_choices = [
+                { key: "pure_yang", name: "纯阳烈煞", icon: "🔥", desc: "火系伤害 +35%，基础攻击 +25%" },
+                { key: "iron_wall", name: "不动如山", icon: "🛡️", desc: "气血上限 +30%，护盾 +40%" },
+                { key: "sword_heart", name: "剑心通明", icon: "⚡", desc: "太乙剑气破盾额外 50% 斩击" },
+              ];
+            } else {
+              dg.state = dg.nodes[dg.node_idx].type === "combat" || dg.nodes[dg.node_idx].type === "boss" ? "battle" : "event";
+            }
+          } else {
+            dg.player.hp = Math.max(0, dg.player.hp - 12);
+            dg.combat_logs.push(`🐾 妖兽反扑，你承受了 12 点伤害。`);
+          }
+        }
+        renderBody();
+      } else {
+        sendCmd("/施法 " + val);
+      }
+      return;
+    }
+
+    if (act === "treasure") {
+      if (state.demo) {
+        toast("祭出本命法宝必杀大招！", "gold");
+        const dg = state.status?.dungeon;
+        if (dg && dg.monster) {
+          dg.player.treasure_used = true;
+          dg.monster.hp = Math.max(0, dg.monster.hp - 80);
+          dg.combat_logs.push(`🌟 本命法宝真灵苏醒，惊世一击重创【${dg.monster.name}】造成 80 点真实伤害！`);
+          if (dg.monster.hp <= 0) {
+            dg.combat_logs.push(`🎉 妖兽【${dg.monster.name}】身躯溃灭！`);
+            dg.monster = null;
+            dg.nodes[dg.node_idx].cleared = true;
+            dg.stash.stones += 30;
+            dg.node_idx += 1;
+            if (dg.node_idx >= dg.nodes.length) {
+              dg.state = "choosing_boon";
+              dg.boon_choices = [
+                { key: "pure_yang", name: "纯阳烈煞", icon: "🔥", desc: "火系伤害 +35%，基础攻击 +25%" },
+                { key: "iron_wall", name: "不动如山", icon: "🛡️", desc: "气血上限 +30%，护盾 +40%" },
+                { key: "sword_heart", name: "剑心通明", icon: "⚡", desc: "太乙剑气破盾额外 50% 斩击" },
+              ];
+            } else {
+              dg.state = dg.nodes[dg.node_idx].type === "combat" || dg.nodes[dg.node_idx].type === "boss" ? "battle" : "event";
+            }
+          }
+        }
+        renderBody();
+      } else {
+        sendCmd("/祭法宝");
+      }
+      return;
+    }
+
+    if (act === "attack") {
+      if (state.demo) {
+        const dg = state.status?.dungeon;
+        if (dg && dg.monster) {
+          dg.monster.hp = Math.max(0, dg.monster.hp - 25);
+          dg.combat_logs.push(`🗡️ 飞剑斩击造成 25 点伤害。`);
+          if (dg.monster.hp <= 0) {
+            dg.monster = null;
+            dg.nodes[dg.node_idx].cleared = true;
+            dg.stash.stones += 20;
+            dg.node_idx += 1;
+            if (dg.node_idx >= dg.nodes.length) {
+              dg.state = "choosing_boon";
+              dg.boon_choices = [
+                { key: "pure_yang", name: "纯阳烈煞", icon: "🔥", desc: "火系伤害 +35%，基础攻击 +25%" },
+                { key: "iron_wall", name: "不动如山", icon: "🛡️", desc: "气血上限 +30%，护盾 +40%" },
+                { key: "sword_heart", name: "剑心通明", icon: "⚡", desc: "太乙剑气破盾额外 50% 斩击" },
+              ];
+            } else {
+              dg.state = dg.nodes[dg.node_idx].type === "combat" || dg.nodes[dg.node_idx].type === "boss" ? "battle" : "event";
+            }
+          }
+        }
+        renderBody();
+      } else {
+        sendCmd("/出招");
+      }
+      return;
+    }
+
+    if (act === "node") {
+      if (state.demo) {
+        const dg = state.status?.dungeon;
+        if (dg) {
+          dg.player.hp = Math.min(dg.player.max_hp, dg.player.hp + 60);
+          dg.player.mp = Math.min(dg.player.max_mp, dg.player.mp + 40);
+          dg.combat_logs.push("💧 汲饮造化灵泉，四肢百骸灵气流转，气血 +60，真元 +40！");
+          dg.nodes[dg.node_idx].cleared = true;
+          dg.node_idx += 1;
+          if (dg.node_idx >= dg.nodes.length) {
+            dg.state = "choosing_boon";
+            dg.boon_choices = [
+              { key: "pure_yang", name: "纯阳烈煞", icon: "🔥", desc: "火系伤害 +35%，基础攻击 +25%" },
+              { key: "iron_wall", name: "不动如山", icon: "🛡️", desc: "气血上限 +30%，护盾 +40%" },
+              { key: "sword_heart", name: "剑心通明", icon: "⚡", desc: "太乙剑气破盾额外 50% 斩击" },
+            ];
+          } else {
+            dg.state = dg.nodes[dg.node_idx].type === "combat" || dg.nodes[dg.node_idx].type === "boss" ? "battle" : "event";
+          }
+        }
+        renderBody();
+      } else {
+        sendCmd("/禁地 探秘");
+      }
+      return;
+    }
+
+    if (act === "boon") {
+      if (state.demo) {
+        const dg = state.status?.dungeon;
+        if (dg) {
+          dg.boons.push(val);
+          dg.state = "floor_cleared";
+          dg.combat_logs.push(`🧘 顿悟天地道韵【${val}】！`);
+        }
+        renderBody();
+      } else {
+        sendCmd("/择道韵 " + val);
+      }
+      return;
+    }
+
+    if (act === "next") {
+      if (state.demo) {
+        const dg = state.status?.dungeon;
+        if (dg) {
+          dg.floor += 1;
+          dg.node_idx = 0;
+          dg.state = "battle";
+          dg.monster = { name: "赤磷火蟒", realm: "二阶妖兽", hp: 140, max_hp: 140, shield: 30, attack: 28, defense: 8, status_effects: {} };
+          dg.combat_logs.push(`🌀 踏入传送古阵，抵达【锁妖古窟 · 第 ${dg.floor} 层】！`);
+        }
+        renderBody();
+      } else {
+        sendCmd("/禁地 深入");
+      }
+      return;
+    }
+
+    if (act === "retreat") {
+      openJadeDialog({
+        title: "脱离古窟 · 安全归仓",
+        badge: "谨慎决断",
+        lore: "捏碎大挪移遁符将彻底抽身离去，当前纳戒将入库已积攒的所有灵石与天材地宝。山门虽险，见好就收方是仙道长生之本。道友真意已决？",
+        choices: [
+          {
+            label: "执意撤离 · 战利品归仓",
+            cls: "bg-amber-700 hover:bg-amber-800 text-white font-bold",
+            onClick: () => {
+              closeJadeDialog();
+              if (state.demo) {
+                const dg = state.status?.dungeon;
+                const stEarned = dg?.stash?.stones || 0;
+                state.status.stones = (state.status.stones || 0) + stEarned;
+                state.status.dungeon = null;
+                toast(`已安全撤离古窟，随身灵石 +${stEarned}！`, "gold");
+                pushFeed(`【功德圆满 · 安全归仓】捏碎大挪移玉符遁出古窟，随身灵石 +${stEarned}！`, "ok");
+                renderBody();
+              } else {
+                sendCmd("/禁地 撤离");
+              }
+            }
+          },
+          {
+            label: "再战一轮 · 深入索宝",
+            cls: "bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium",
+            onClick: () => closeJadeDialog()
+          }
+        ]
+      });
+      return;
+    }
+  }
   function renderSect() {
     const s = state.status || {};
     const sectName = s.sect || "";
@@ -2777,9 +3033,28 @@
   // ==========================================================================
   function renderWilderness() {
     const curLoc = (state.status && state.status.location) || "落霞山灵泉";
+    const dgSess = state.status && state.status.dungeon;
+    const subTab = state.wildernessSubTab || ((dgSess && dgSess.active) ? "dungeon" : "dungeon");
+
+    if (subTab === "dungeon") {
+      return renderDungeon();
+    }
 
     return `
     <div class="w-full flex flex-col gap-5">
+      <!-- 顶部子标签切换 -->
+      <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+        <div class="flex items-center gap-2">
+          <button type="button" class="px-4 py-1.5 rounded-full text-xs font-medium bg-white/80 hover:bg-jade-100 text-slate-600 border border-jade-200 transition-all flex items-center gap-1.5 cursor-pointer" data-dungeon-act="tab" data-dungeon-val="dungeon">
+            <span>🏮 锁妖古窟 · 九幽伏魔</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-900 border border-amber-500/30">核心策略</span>
+          </button>
+          <button type="button" class="px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-jade-800 to-jade-700 text-white shadow-sm flex items-center gap-1.5 cursor-pointer" data-dungeon-act="tab" data-dungeon-val="wild">
+            <span>🗺️ 大荒寻历 · 秘境图卷</span>
+          </button>
+        </div>
+      </div>
+
       <!-- 顶部界隙天痕异变条 (Top Dynamic Alert Banner) -->
       <section class="w-full" data-purpose="world-scar-alert">
         <div class="relative overflow-hidden rounded-xl border border-rose-300/80 bg-gradient-to-r from-rose-50/95 via-amber-50/90 to-jade-50/80 p-3 sm:p-4 shadow-sm">
@@ -3149,6 +3424,454 @@
         </aside>
       </div>
     </div>`;
+  }
+
+  // ==========================================================================
+  // 锁妖古窟 · 九幽伏魔 水墨半即时卷轴视图 (Dungeon View)
+  // ==========================================================================
+  function renderDungeon() {
+    const st = state.status || {};
+    const dg = st.dungeon;
+    const floors = st.dungeon_floors || [
+      { floor: 1, name: "锁妖古窟 · 幽暗外穴", tier_name: "炼气期试炼", min_tier: 1 },
+      { floor: 2, name: "锁妖古窟 · 赤岩裂谷", tier_name: "炼气圆满 / 准筑基", min_tier: 1 },
+      { floor: 3, name: "锁妖古窟 · 煞骨灵冢", tier_name: "筑基初期守关层", min_tier: 1 },
+      { floor: 4, name: "锁妖古窟 · 万毒渊薮", tier_name: "筑基中期深探", min_tier: 2 },
+      { floor: 5, name: "锁妖古窟 · 焚天炎池", tier_name: "筑基后期搏杀", min_tier: 2 },
+      { floor: 6, name: "锁妖古窟 · 绝阴冰窟", tier_name: "结丹初期大妖关", min_tier: 2 },
+      { floor: 7, name: "锁妖古窟 · 幽冥绝渊", tier_name: "结丹中期凶险", min_tier: 3 },
+      { floor: 8, name: "锁妖古窟 · 太古雷狱", tier_name: "结丹圆满 / 准元婴", min_tier: 3 },
+      { floor: 9, name: "锁妖古窟 · 封魔古殿", tier_name: "元婴总魔尊决战", min_tier: 3 },
+    ];
+    const spells = st.spells_catalog || [
+      { key: "metal_sword", name: "太乙破虚剑气", element_cn: "金", cost_mp: 15, cooldown: 1, desc: "凝聚庚金剑芒破空斩击。造成破甲杀伤；敌方身负护盾额外 1.5 倍破盾！" },
+      { key: "wood_heal", name: "青帝长生引", element_cn: "木", cost_mp: 20, cooldown: 2, desc: "引动乙木长生之气化入肉身，恢复 30% 气血并驱散负累。" },
+      { key: "water_freeze", name: "玄冰寒煞魄", element_cn: "水", cost_mp: 18, cooldown: 2, desc: "以玄阴真水凝聚寒煞，造成冰霜伤害并冻结目标神魂（下回合无法出手）。" },
+      { key: "fire_blast", name: "九幽地煞火", element_cn: "火", cost_mp: 20, cooldown: 1, desc: "催动地心煞火焚身造成灼烧；若目标处于冻结状态引发【真火爆燃】双倍额外暴击！" },
+      { key: "earth_shield", name: "不动明王罡", element_cn: "土", cost_mp: 20, cooldown: 3, desc: "借大地戊土灵脉化为明王护体罡气，生成 35% 灵盾并反震 20% 伤害。" },
+    ];
+
+    // 顶部公共子导航
+    const subNavHtml = `
+      <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
+        <div class="flex items-center gap-2">
+          <button type="button" class="px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-jade-800 to-jade-700 text-white shadow-sm flex items-center gap-1.5 cursor-pointer" data-dungeon-act="tab" data-dungeon-val="dungeon">
+            <span>🏮 锁妖古窟 · 九幽伏魔</span>
+            ${dg && dg.active ? `<span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-amber-950 font-mono">第${dg.floor}层·深入中</span>` : `<span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-900 border border-amber-500/30">核心策略</span>`}
+          </button>
+          <button type="button" class="px-4 py-1.5 rounded-full text-xs font-medium bg-white/80 hover:bg-jade-100 text-slate-600 border border-jade-200 transition-all flex items-center gap-1.5 cursor-pointer" data-dungeon-act="tab" data-dungeon-val="wild">
+            <span>🗺️ 大荒寻历 · 秘境图卷</span>
+          </button>
+        </div>
+        ${dg && dg.active ? `
+          <button type="button" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold shadow-md border border-amber-400/50 flex items-center gap-1.5 cursor-pointer animate-pulse" data-dungeon-act="retreat">
+            <span>💨 捏碎遁符 · 安全归仓</span>
+            <span class="text-[10px] bg-amber-950/40 px-1.5 py-0.2 rounded text-amber-200">灵石+${dg.stash?.stones || 0}</span>
+          </button>
+        ` : ''}
+      </div>
+    `;
+
+    // 场景 A: 尚未进入古窟（大厅山门选择层数）
+    if (!dg || !dg.active) {
+      return `
+      <div class="w-full flex flex-col gap-5">
+        ${subNavHtml}
+
+        <!-- 古窟山门震撼水墨巨幕 -->
+        <div class="relative overflow-hidden rounded-2xl border border-jade-300 shadow-md bg-gradient-to-br from-slate-950 via-slate-900 to-jade-950 text-white p-6 sm:p-8">
+          <div class="relative z-10 max-w-2xl space-y-3">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 border border-amber-400/40 text-amber-300">
+              <span>⚡ 太古封妖重地 · 九重深渊秘境</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-jade-100 to-amber-400">
+              锁妖古窟 · 九幽伏魔卷
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              古窟深连九幽幽冥，封印着上古凶煞大妖。每深入一层，煞气加重一分。
+              修士需依仗【五行神通】连携相生相克，借【造化灵泉】调息，搜寻【古修遗骸】，在险死还生中顿悟【天地道韵】。
+              步步为营，随时可捏碎遁符安全归仓，亦可冒险深入夺取太古魔尊无上遗珍！
+            </p>
+            <div class="pt-2 flex flex-wrap items-center gap-3">
+              <button type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-jade-700 via-jade-600 to-jade-700 hover:from-jade-600 hover:to-jade-500 text-white text-xs sm:text-sm font-bold shadow-lg border border-filigree-400/50 flex items-center gap-2 cursor-pointer" data-dungeon-act="enter" data-dungeon-val="1">
+                <span>叩关启阵（消耗 30 灵石辟邪）</span>
+                <span class="text-[10px] text-jade-200">自第一层探秘 »</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 九重古窟玄奥层级图卷 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-jade-950 flex items-center gap-1.5">
+              <span>🏯 九重禁地封魔卷轴</span>
+            </h2>
+            <span class="text-xs text-slate-500">逐层深入 · 见好就收</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            ${floors.map((fl) => `
+              <div class="jade-panel p-4 rounded-xl border border-jade-200/80 shadow-sm flex flex-col justify-between gap-3 ${fl.floor % 3 === 0 ? 'bg-amber-50/40 border-amber-300/60' : 'bg-white/80'}">
+                <div>
+                  <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="font-bold text-jade-950 text-sm">第 ${fl.floor} 层 · ${esc(fl.name.split('·')[1] || fl.name)}</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${fl.floor % 3 === 0 ? 'bg-amber-600 text-white' : 'bg-jade-100 text-jade-800'}">
+                      ${fl.floor % 3 === 0 ? '👑 妖王守关' : esc(fl.tier_name)}
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-500 line-clamp-2">
+                    ${fl.floor <= 3 ? '外围煞气薄弱，狼妖骨雕盘踞，宜炼气筑基修士淬炼法诀。' : (fl.floor <= 6 ? '深层毒瘴炎池交织，狐王猿王啸聚，需五行连携方可自保。' : '太古雷煞与魔殿魔尊，非金丹圆满元婴大能不可轻涉！')}
+                  </p>
+                </div>
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span class="text-slate-500">掉落：<strong class="text-jade-900">${fl.floor <= 3 ? '灵石 / 凝血草 / 聚气丹' : (fl.floor <= 6 ? '千年朱果 / 筑基丹' : '九叶涅槃芝 / 九转金丹')}</strong></span>
+                  <button type="button" class="px-3 py-1 rounded-lg bg-jade-800 hover:bg-jade-700 text-white text-xs font-semibold cursor-pointer" data-dungeon-act="enter" data-dungeon-val="${fl.floor}">
+                    叩关
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      `;
+    }
+
+    // 场景 B: 正在古窟探索中（半即时微策略战斗 / 探索卷轴）
+    const p = dg.player || {};
+    const m = dg.monster;
+    const curState = dg.state; // battle | event | choosing_boon | floor_cleared
+    const logs = dg.combat_logs || [];
+    const boons = dg.boons || [];
+    const boonChoices = dg.boon_choices || [];
+    const nodes = dg.nodes || [];
+    const curNode = nodes[dg.node_idx] || {};
+
+    const p_hp_pct = Math.max(0, Math.min(100, Math.round((p.hp / (p.max_hp || 1)) * 100)));
+    const p_mp_pct = Math.max(0, Math.min(100, Math.round((p.mp / (p.max_mp || 1)) * 100)));
+
+    return `
+    <div class="w-full flex flex-col gap-5">
+      ${subNavHtml}
+
+      <!-- 禁地推进横幅与环境煞气 -->
+      <div class="jade-panel p-4 rounded-xl border border-jade-200/90 shadow-sm bg-gradient-to-r from-jade-50 via-white to-amber-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-jade-900 text-amber-300 font-bold flex items-center justify-center text-lg shadow-sm border border-amber-400/40">
+            ${dg.floor}
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-jade-950">
+                【锁妖古窟 · 第 ${dg.floor} 层】${esc(curNode.title || '要穴推进中')}
+              </h2>
+              <span class="px-2 py-0.2 rounded text-[10px] font-semibold bg-jade-700 text-white">
+                要穴 ${dg.node_idx + 1} / ${nodes.length}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">
+              ${esc(curNode.desc || '神识警觉，步步为营。')}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 text-xs bg-white/80 px-3 py-2 rounded-xl border border-jade-200">
+          <div class="flex items-center gap-1.5">
+            <span class="text-slate-400">🎒 暂存纳袋:</span>
+            <span class="font-bold text-amber-700 font-mono">+${dg.stash?.stones || 0} 灵石</span>
+            <span class="text-slate-300">|</span>
+            <span class="font-bold text-jade-700 font-mono">${(dg.stash?.items || []).length} 件灵珍</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主战场区域 (12 栏双侧对峙) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- 左侧 5 栏：修士真元法躯与已领悟道韵 -->
+        <div class="lg:col-span-5 flex flex-col gap-4">
+          <div class="jade-panel p-5 rounded-2xl border border-jade-300 shadow-sm space-y-4 bg-white/90">
+            <div class="flex items-center justify-between pb-2 border-b border-jade-100">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🧘</span>
+                <div>
+                  <h3 class="text-sm font-bold text-jade-950">${esc(p.name || st.name)}</h3>
+                  <span class="text-[10px] text-slate-500">${esc(p.realm || st.realm)} · ${esc(p.equipped_weapon || '随身法宝')}</span>
+                </div>
+              </div>
+              ${p.shield > 0 ? `
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500 text-amber-950 border border-amber-300 shadow-sm animate-pulse">
+                  🛡️ 灵盾 ${p.shield}
+                </span>
+              ` : ''}
+            </div>
+
+            <!-- 气血条 HP -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs">
+                <span class="text-rose-800 font-medium">肉身气血</span>
+                <span class="font-mono font-bold text-rose-950">${p.hp} / ${p.max_hp}</span>
+              </div>
+              <div class="w-full h-2.5 bg-rose-100 rounded-full overflow-hidden border border-rose-200">
+                <div class="bg-gradient-to-r from-rose-600 to-rose-500 h-full rounded-full transition-all duration-300" style="width: ${p_hp_pct}%"></div>
+              </div>
+            </div>
+
+            <!-- 真元条 MP -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs">
+                <span class="text-cyan-800 font-medium">通天真元</span>
+                <span class="font-mono font-bold text-cyan-950">${p.mp} / ${p.max_mp}</span>
+              </div>
+              <div class="w-full h-2.5 bg-cyan-100 rounded-full overflow-hidden border border-cyan-200">
+                <div class="bg-gradient-to-r from-cyan-600 to-blue-500 h-full rounded-full transition-all duration-300" style="width: ${p_mp_pct}%"></div>
+              </div>
+            </div>
+
+            <!-- 攻防速数值 -->
+            <div class="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                <span class="text-slate-400 block text-[10px]">神通道力</span>
+                <strong class="text-jade-950 font-mono">${p.attack}</strong>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                <span class="text-slate-400 block text-[10px]">护体罡气</span>
+                <strong class="text-jade-950 font-mono">${p.defense}</strong>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                <span class="text-slate-400 block text-[10px]">法宝大招</span>
+                <strong class="${p.treasure_used ? 'text-slate-400' : 'text-amber-600'} font-bold">
+                  ${p.treasure_used ? '已祭出' : '蓄势待发'}
+                </strong>
+              </div>
+            </div>
+
+            <!-- 已顿悟道韵徽章 -->
+            <div class="pt-2 border-t border-slate-100 space-y-1.5">
+              <span class="text-[11px] font-medium text-slate-500">局内顿悟道韵 (${boons.length}):</span>
+              <div class="flex flex-wrap gap-1.5">
+                ${boons.length === 0 ? '<span class="text-[11px] text-slate-400">暂未顿悟道韵，通关本层可获天地造化</span>' : ''}
+                ${boons.map(b => `
+                  <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                    ✨ ${b === 'pure_yang' ? '纯阳烈煞' : (b === 'iron_wall' ? '不动如山' : (b === 'sword_heart' ? '剑心通明' : (b === 'spirit_well' ? '灵泉生机' : '玄冥冰魄')))}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧 7 栏：遭遇强敌 / 要穴交互 / 道韵抉择 / 战斗因果 -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+          
+          <!-- 状态 1: 战斗交锋 (battle) -->
+          ${curState === 'battle' && m ? `
+            <div class="jade-panel p-5 rounded-2xl border border-rose-300 shadow-sm space-y-4 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/30">
+              <div class="flex items-center justify-between pb-2 border-b border-rose-100">
+                <div class="flex items-center gap-2">
+                  <span class="text-2xl">${m.name.includes('王') ? '👹' : '🐺'}</span>
+                  <div>
+                    <h3 class="text-base font-bold text-rose-950 flex items-center gap-2">
+                      <span>${esc(m.name)}</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded font-normal bg-rose-200 text-rose-900">${esc(m.realm)}</span>
+                    </h3>
+                  </div>
+                </div>
+                ${m.shield > 0 ? `
+                  <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-600 text-white shadow-sm">
+                    🛡️ 妖气护盾 ${m.shield}
+                  </span>
+                ` : ''}
+              </div>
+
+              <!-- 怪物血条 -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-600 font-medium">妖煞气血</span>
+                  <span class="font-mono font-bold text-rose-950">${m.hp} / ${m.max_hp}</span>
+                </div>
+                <div class="w-full h-3 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
+                  <div class="bg-gradient-to-r from-rose-700 via-rose-600 to-amber-600 h-full rounded-full transition-all duration-300" style="width: ${Math.max(0, Math.min(100, Math.round((m.hp / (m.max_hp || 1)) * 100)))}%"></div>
+                </div>
+              </div>
+
+              <!-- 异常状态图标 -->
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-400 text-[11px]">负面因果:</span>
+                ${Object.keys(m.status_effects || {}).length === 0 ? '<span class="text-slate-400">无异常</span>' : ''}
+                ${m.status_effects?.burn ? `<span class="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold animate-pulse">🔥 灼烧 (${m.status_effects.burn}回合)</span>` : ''}
+                ${m.status_effects?.freeze ? `<span class="px-2 py-0.5 rounded bg-cyan-600 text-white text-[10px] font-bold animate-pulse">❄️ 冻结中</span>` : ''}
+                ${m.status_effects?.chill ? `<span class="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-bold border border-cyan-300">❄️ 寒煞 (${m.status_effects.chill}回合)</span>` : ''}
+                ${m.status_effects?.stun ? `<span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold animate-pulse">💫 震慑眩晕</span>` : ''}
+              </div>
+
+              <!-- 出招操作台：五行法诀与法宝必杀 -->
+              <div class="pt-3 border-t border-rose-100 space-y-2.5">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-bold text-jade-950 flex items-center gap-1">
+                    <span>⚡ 捏诀施法 · 半即时神通连携</span>
+                  </span>
+                  <span class="text-[10px] text-slate-500">水火相激触发【真火爆燃】</span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <!-- 金 · 太乙破虚剑气 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-amber-300/80 bg-gradient-to-b from-amber-50 to-white hover:border-amber-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 15 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="metal_sword">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-amber-950">⚡ 太乙破虚剑</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">15 真元</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-1">金系 · 破盾1.5倍</span>
+                  </button>
+
+                  <!-- 木 · 青帝长生引 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-emerald-300/80 bg-gradient-to-b from-emerald-50 to-white hover:border-emerald-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="wood_heal">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-emerald-950">🌿 青帝长生引</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-1">木系 · 恢复30%血</span>
+                  </button>
+
+                  <!-- 水 · 玄冰寒煞魄 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-cyan-300/80 bg-gradient-to-b from-cyan-50 to-white hover:border-cyan-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 18 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="water_freeze">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-cyan-950">❄️ 玄冰寒煞魄</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">18 真元</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-1">水系 · 冰冻停滞</span>
+                  </button>
+
+                  <!-- 火 · 九幽地煞火 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-rose-300/80 bg-gradient-to-b from-rose-50 to-white hover:border-rose-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="fire_blast">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-rose-950">🔥 九幽地煞火</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-1">火系 · 爆燃连携</span>
+                  </button>
+
+                  <!-- 土 · 不动明王罡 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-amber-400/80 bg-gradient-to-b from-amber-100/60 to-white hover:border-amber-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="earth_shield">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-amber-950">🛡️ 不动明王罡</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 mt-1">土系 · 35%灵盾反震</span>
+                  </button>
+
+                  <!-- 法宝必杀大招 -->
+                  <button type="button" class="p-2.5 rounded-xl border border-filigree-400 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-left flex flex-col justify-between cursor-pointer transition shadow-sm ${p.treasure_used || p.mp < 25 ? 'opacity-40 pointer-events-none' : ''}" data-dungeon-act="treasure">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold">🌟 法宝大招</span>
+                      <span class="text-[10px] font-mono text-amber-100 font-bold">25 真元</span>
+                    </div>
+                    <span class="text-[10px] text-amber-100 mt-1">单场限 1 次 · 崩天</span>
+                  </button>
+                </div>
+
+                <div class="pt-1 flex items-center gap-2">
+                  <button type="button" class="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer transition flex items-center justify-center gap-1.5" data-dungeon-act="attack">
+                    <span>🗡️ 飞剑普通斩击 (0 消耗)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- 状态 2: 非战斗要穴 (event: 灵泉 / 遗骸) -->
+          ${curState === 'event' ? `
+            <div class="jade-panel p-6 rounded-2xl border border-jade-300 shadow-sm space-y-4 bg-gradient-to-br from-jade-50/50 via-white to-amber-50/30 text-center">
+              <div class="w-16 h-16 mx-auto rounded-full bg-jade-100 border border-jade-300 flex items-center justify-center text-3xl shadow-inner">
+                ${curNode.type === 'spring' ? '💧' : '💀'}
+              </div>
+              <div class="space-y-1">
+                <h3 class="text-lg font-bold text-jade-950">${esc(curNode.title || '古窟奇遇要穴')}</h3>
+                <p class="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                  ${esc(curNode.desc || '神识感应到此地留存着古修造化或清澈灵脉，可上前调息探寻。')}
+                </p>
+              </div>
+              <div class="pt-2">
+                <button type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-jade-800 to-jade-700 hover:from-jade-700 hover:to-jade-600 text-white text-xs font-bold shadow-md cursor-pointer transition" data-dungeon-act="node">
+                  ${curNode.type === 'spring' ? '汲饮造化灵泉 (恢复 45% 气血与真元)' : '搜寻古修残宝 (拾得灵石与古物)'}
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- 状态 3: 顿悟道韵 3 选 1 (choosing_boon) -->
+          ${curState === 'choosing_boon' ? `
+            <div class="jade-panel p-5 rounded-2xl border border-amber-300 shadow-md space-y-4 bg-gradient-to-br from-amber-50/60 via-white to-amber-100/40">
+              <div class="text-center space-y-1">
+                <span class="text-2xl">✨</span>
+                <h3 class="text-base font-bold text-amber-950">天地残存道韵共鸣 · 顿悟三选一</h3>
+                <p class="text-xs text-slate-600">本层凶煞涤净，感应天道灵光，请择一门造化道韵化入神魂：</p>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                ${boonChoices.map(b => `
+                  <button type="button" class="p-4 rounded-xl border border-amber-300 bg-white hover:border-amber-500 hover:shadow-md text-left flex flex-col justify-between gap-2 cursor-pointer transition group" data-dungeon-act="boon" data-dungeon-val="${b.key}">
+                    <div>
+                      <div class="flex items-center gap-1.5 mb-1">
+                        <span class="text-lg">${b.icon || '✨'}</span>
+                        <strong class="text-xs font-bold text-amber-950 group-hover:text-amber-700">${esc(b.name)}</strong>
+                      </div>
+                      <p class="text-[11px] text-slate-600 leading-relaxed">${esc(b.desc)}</p>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 text-right">
+                      <span class="text-[10px] font-bold text-amber-800">参悟领受 »</span>
+                    </div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- 状态 4: 本层圆满 (floor_cleared) -->
+          ${curState === 'floor_cleared' ? `
+            <div class="jade-panel p-6 rounded-2xl border border-jade-300 shadow-sm space-y-4 bg-gradient-to-br from-jade-50/80 via-white to-amber-50 text-center">
+              <div class="text-3xl">🎉</div>
+              <div class="space-y-1">
+                <h3 class="text-base font-bold text-jade-950">【第 ${dg.floor} 层荡涤圆满】</h3>
+                <p class="text-xs text-slate-600 max-w-md mx-auto">
+                  通往下层的传送古阵已然被灵气点亮。道友可选择【深入下一层】挑战更强妖兽与至宝，亦可【捏碎遁符】见好就收、全额带走纳袋收益！
+                </p>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button type="button" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-jade-800 to-jade-700 hover:from-jade-700 hover:to-jade-600 text-white text-xs font-bold shadow-md cursor-pointer transition" data-dungeon-act="next">
+                  🌀 深入下一层 (第 ${dg.floor + 1} 层) »
+                </button>
+                <button type="button" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md cursor-pointer transition" data-dungeon-act="retreat">
+                  💨 捏碎遁符 · 满载安全归仓
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- 水墨战斗因果战报流 -->
+          <div class="jade-panel p-4 rounded-2xl border border-jade-200/80 shadow-sm space-y-2 bg-white/70">
+            <div class="flex items-center justify-between pb-1.5 border-b border-jade-100 text-xs">
+              <span class="font-bold text-jade-950 flex items-center gap-1.5">
+                <span>📜 战斗因果法鉴</span>
+              </span>
+              <span class="text-[10px] text-slate-400">刀刀到肉 · 瞬息万变</span>
+            </div>
+            <div class="h-44 overflow-y-auto space-y-1.5 pr-1 font-mono text-[11px] leading-relaxed text-slate-700 select-text" id="dungeonLogBox">
+              ${logs.slice(-12).map(l => `
+                <div class="p-1 rounded ${l.includes('💥') || l.includes('🎉') ? 'bg-amber-50 text-amber-950 font-bold' : (l.includes('承受') || l.includes('生机') ? 'bg-rose-50/70 text-rose-900' : 'text-slate-700')}">
+                  ${esc(l)}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+    `;
   }
 
   // ==========================================================================
@@ -5748,6 +6471,15 @@
         const act = wildEl.getAttribute("data-wild-act");
         const target = wildEl.getAttribute("data-target") || "野外山原";
         handleWildernessAction(act, target, wildEl);
+        return;
+      }
+
+      // 锁妖古窟与神通出招动作 data-dungeon-act
+      const dungeonEl = e.target.closest("[data-dungeon-act]");
+      if (dungeonEl) {
+        const act = dungeonEl.getAttribute("data-dungeon-act");
+        const val = dungeonEl.getAttribute("data-dungeon-val") || "";
+        handleDungeonAction(act, val, dungeonEl);
         return;
       }
 
