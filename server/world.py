@@ -1689,12 +1689,14 @@ class World:
                             "source": res.get("source"),
                             "bystanders": res.get("bystanders") or [],
                         }
+                    history_msgs = opened.get("session", {}).get("messages", [])
                     return {
                         "ok": True,
                         "text": greet + "\n\n（可开口：直接在聊天窗打字，无需 /说）",
                         "chat_open": True,
                         "npc": target.name,
                         "is_player": not is_target_npc,
+                        "messages": history_msgs[-10:],
                     }
                 except Exception as _talk_ex:
                     return {"ok": False, "error": f"交谈异常：{type(_talk_ex).__name__}: {_talk_ex}"}

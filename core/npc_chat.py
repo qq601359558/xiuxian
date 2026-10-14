@@ -80,10 +80,13 @@ def deliver_player_message(sender: Character, receiver: Character, text: str) ->
         # 发送方 session
         rec_sender = d.get(sender.id)
         if rec_sender and rec_sender.get("npc_id") == receiver.id:
-            rec_sender.setdefault("messages", []).append({"who": sender.name, "text": text, "ts": now})
-            rec_sender["messages"] = rec_sender["messages"][-_MAX_TURNS:]
-            rec_sender["updated_at"] = now
-            d[sender.id] = rec_sender
+            s_msgs = rec_sender.setdefault("messages", [])
+            # 若尾部已存入相同发言（如刚刚由 player_say 写入），避免重复追加
+            if not s_msgs or s_msgs[-1].get("text") != text or s_msgs[-1].get("who") != sender.name:
+                s_msgs.append({"who": sender.name, "text": text, "ts": now})
+                rec_sender["messages"] = s_msgs[-_MAX_TURNS:]
+                rec_sender["updated_at"] = now
+                d[sender.id] = rec_sender
         # 接收方 session（若当前打开了针对发送方的会话）
         rec_rcv = d.get(receiver.id)
         if rec_rcv and rec_rcv.get("npc_id") == sender.id:
@@ -232,13 +235,18 @@ def write_chat_memory(
     rec: Dict[str, Any],
     summary: str = "",
 ) -> Dict[str, Any]:
-    """会话结束：写入双方记忆摘要 + 事件账（优先 AI 摘要）"""
-    summary = (
-        summary
-        or summarize_session_ai(rec, player, npc)
-        or summarize_session_rule(rec, player, npc)
-        or "曾有一席交谈"
-    ).strip()[:140]
+    """会话结束：写入双方记忆摘要 + 事件账（真人免 AI 摘要，NPC 优先 AI 摘要）"""
+    from core.npc_mind import _is_npc
+    is_real_player = rec.get("is_player") or not _is_npc(npc)
+    if not summary:
+        if is_real_player:
+            summary = summarize_session_rule(rec, player, npc)
+        else:
+            summary = (
+                summarize_session_ai(rec, player, npc)
+                or summarize_session_rule(rec, player, npc)
+            )
+    summary = (summary or "曾有一席交谈").strip()[:140]
     now = time.time()
     mem = _load_memory()
     key = _mem_key(player.id, npc.id)

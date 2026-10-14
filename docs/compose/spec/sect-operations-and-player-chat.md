@@ -60,18 +60,18 @@
 
 ## 4. Implementation Tasks (任务拆解)
 
-- [ ] **Task 1: 服务端宗籍状态投影与指令增强** (`server/world.py`, `core/sect.py`, `core/sect_contrib.py`)
+- [x] **Task 1: 服务端宗籍状态投影与指令增强** (`server/world.py`, `core/sect.py`, `core/sect_contrib.py`)
   - `_status_dict` 增加 `sect_contribution`, `sect_streak`, `salary_claimable`, `salary_cd_sec`, `sect_ring` 字段；
   - 确保宗门指令响应带回最新权威 `status`。
-- [ ] **Task 2: 真人玩家免 AI 传音与双向识海信箱引擎** (`core/npc_chat.py`, `server/world.py`)
+- [x] **Task 2: 真人玩家免 AI 传音与双向识海信箱引擎** (`core/npc_chat.py`, `server/world.py`)
   - 实现 `_is_npc(target)` 判定，针对真人玩家彻底旁路 AI；
   - 实现真人即时传音记录落账与接收方 `unread_messages` 信箱。
-- [ ] **Task 3: 前端主导航与宗门大殿全景画卷骨架** (`web/index.html`, `web/workbench.js`)
+- [x] **Task 3: 前端主导航与宗门大殿全景画卷骨架** (`web/index.html`, `web/workbench.js`)
   - 在顶部导航新增 `data-view="sect"` 标签【宗门 · 仙门总揽】；
   - 实现 `renderSect()` 基础布局与水墨风格画卷。
-- [ ] **Task 4: 宗门大殿交互逻辑与核心操作落地** (`web/workbench.js`)
+- [x] **Task 4: 宗门大殿交互逻辑与核心操作落地** (`web/workbench.js`)
   - 实现领月俸、考核晋升、拜入总坛、叛出门墙、接宗门环、交付物品等前端交互联动。
-- [ ] **Task 5: 前端真人传音交互与未读信箱适配** (`web/workbench.js`)
+- [x] **Task 5: 前端真人传音交互与未读信箱适配** (`web/workbench.js`)
   - 聊天窗支持真人模式（无 AI 延时、真实双向回显、识海玉简提醒）。
-- [ ] **Task 6: 自动化测试套件与全量回归** (`tests/test_sect_and_player_chat.py`)
+- [x] **Task 6: 自动化测试套件与全量回归** (`tests/test_sect_and_player_chat.py`)
   - 编写覆盖宗籍状态输出、宗门操作、真人免 AI 传音、NPC 保持走 AI、信箱落账的测试用例并全量跑通。

@@ -2631,6 +2631,9 @@
   // ==========================================================================
   function handleSectAction(act, el) {
     if (checkActionLock("宗门阵枢推演中，请稍候再降法旨…")) return;
+    if (state.status) {
+      state.status.sect_ring = state.status.sect_ring || { themes: [] };
+    }
 
     if (act === "salary") {
       if (state.demo) {
@@ -4758,6 +4761,15 @@
       return;
     }
     if (data.is_player) {
+      if (data.chat_open) {
+        if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, true);
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          data.messages.forEach((m) => {
+            const isMe = m.who === (state.status?.name || "你");
+            chatMsg(isMe ? "你" : m.who, m.text, isMe ? "me" : "npc");
+          });
+        }
+      }
       // 真人玩家传音：零 AI 伪造，确认传音送达
       pushFeed(text, "cmd");
       return;
@@ -5504,6 +5516,23 @@
       root: "金水双灵根",
       blood_marked: false,
       meditating: false,
+      sect_contribution: 480,
+      sect_streak: 3,
+      salary: 120,
+      salary_claimable: true,
+      salary_cd_sec: 0,
+      can_promote: false,
+      next_rank: "客卿长老",
+      promote_req_tier: 3,
+      sect_ring: {
+        accepted: null,
+        done_today: false,
+        themes: [
+          { key: "gather", name: "采撷灵草", desc: "前往黑风绝渊采撷百年凝血草两株上交宗门。", reward_contrib: 30, reward_stones: 50 },
+          { key: "hunt", name: "清剿妖兽", desc: "前往落霞山斩杀赤目妖狼，带回狼妖内丹。", reward_contrib: 50, reward_stones: 80 },
+          { key: "patrol", name: "巡查山门", desc: "巡视总坛周遭十里界碑，防范魔道细作潜入。", reward_contrib: 40, reward_stones: 60 },
+        ]
+      },
     };
     state.here = [
       { name: "柳三娘", realm: "筑基中期", sect: "四海散修盟", rank: "掌柜", is_npc: true, personality: "和气生财", attitude_cn: "友善" },
