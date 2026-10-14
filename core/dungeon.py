@@ -589,11 +589,15 @@ class DungeonEngine:
 
         # 写入物品
         try:
-            from core.loot_equip import EquipEngine
+            from core.items import ItemFactory
             for it in items_earned:
                 it_name = it.get("name")
+                if not it_name:
+                    continue
                 for _ in range(int(it.get("count", 1))):
-                    EquipEngine.award_item(char, it_name)
+                    if not char.is_bag_full():
+                        entity = ItemFactory.from_legacy_name(it_name)
+                        char.add_item_entity(entity)
         except Exception:
             pass
 

@@ -3610,7 +3610,7 @@
             <!-- 气血条 HP -->
             <div class="space-y-1">
               <div class="flex justify-between text-xs">
-                <span class="text-rose-800 font-medium">肉身气血 (HP)</span>
+                <span class="text-rose-800 font-medium">肉身气血</span>
                 <span class="font-mono font-bold text-rose-950">${p.hp} / ${p.max_hp}</span>
               </div>
               <div class="w-full h-2.5 bg-rose-100 rounded-full overflow-hidden border border-rose-200">
@@ -3621,7 +3621,7 @@
             <!-- 真元条 MP -->
             <div class="space-y-1">
               <div class="flex justify-between text-xs">
-                <span class="text-cyan-800 font-medium">通天真元 (MP)</span>
+                <span class="text-cyan-800 font-medium">通天真元</span>
                 <span class="font-mono font-bold text-cyan-950">${p.mp} / ${p.max_mp}</span>
               </div>
               <div class="w-full h-2.5 bg-cyan-100 rounded-full overflow-hidden border border-cyan-200">
@@ -3720,7 +3720,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-amber-300/80 bg-gradient-to-b from-amber-50 to-white hover:border-amber-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 15 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="metal_sword">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-amber-950">⚡ 太乙破虚剑</span>
-                      <span class="text-[10px] font-mono text-cyan-700 font-bold">15 MP</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">15 真元</span>
                     </div>
                     <span class="text-[10px] text-slate-500 mt-1">金系 · 破盾1.5倍</span>
                   </button>
@@ -3729,7 +3729,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-emerald-300/80 bg-gradient-to-b from-emerald-50 to-white hover:border-emerald-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="wood_heal">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-emerald-950">🌿 青帝长生引</span>
-                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 MP</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
                     </div>
                     <span class="text-[10px] text-slate-500 mt-1">木系 · 恢复30%血</span>
                   </button>
@@ -3738,7 +3738,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-cyan-300/80 bg-gradient-to-b from-cyan-50 to-white hover:border-cyan-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 18 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="water_freeze">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-cyan-950">❄️ 玄冰寒煞魄</span>
-                      <span class="text-[10px] font-mono text-cyan-700 font-bold">18 MP</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">18 真元</span>
                     </div>
                     <span class="text-[10px] text-slate-500 mt-1">水系 · 冰冻停滞</span>
                   </button>
@@ -3747,7 +3747,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-rose-300/80 bg-gradient-to-b from-rose-50 to-white hover:border-rose-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="fire_blast">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-rose-950">🔥 九幽地煞火</span>
-                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 MP</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
                     </div>
                     <span class="text-[10px] text-slate-500 mt-1">火系 · 爆燃连携</span>
                   </button>
@@ -3756,7 +3756,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-amber-400/80 bg-gradient-to-b from-amber-100/60 to-white hover:border-amber-500 hover:shadow-sm text-left flex flex-col justify-between cursor-pointer transition ${p.mp < 20 ? 'opacity-50 pointer-events-none' : ''}" data-dungeon-act="spell" data-dungeon-val="earth_shield">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold text-amber-950">🛡️ 不动明王罡</span>
-                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 MP</span>
+                      <span class="text-[10px] font-mono text-cyan-700 font-bold">20 真元</span>
                     </div>
                     <span class="text-[10px] text-slate-500 mt-1">土系 · 35%灵盾反震</span>
                   </button>
@@ -3765,7 +3765,7 @@
                   <button type="button" class="p-2.5 rounded-xl border border-filigree-400 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-left flex flex-col justify-between cursor-pointer transition shadow-sm ${p.treasure_used || p.mp < 25 ? 'opacity-40 pointer-events-none' : ''}" data-dungeon-act="treasure">
                     <div class="flex items-center justify-between">
                       <span class="text-xs font-bold">🌟 法宝大招</span>
-                      <span class="text-[10px] font-mono text-amber-100 font-bold">25 MP</span>
+                      <span class="text-[10px] font-mono text-amber-100 font-bold">25 真元</span>
                     </div>
                     <span class="text-[10px] text-amber-100 mt-1">单场限 1 次 · 崩天</span>
                   </button>

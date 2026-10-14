@@ -82,9 +82,11 @@ def test_dungeon_retreat_and_award():
     assert ret["success"] is True
     assert ret["stones"] == 88
 
-    # 验证人物身上已真正获得 88 灵石
+    # 验证人物身上已真正获得 88 灵石与道具
     reloaded = CharacterRepository.get_by_id(c.id)
     assert reloaded.spirit_stones == (70 + 88)
+    assert "千年朱果" in reloaded.inventory
+    assert any(it.name == "千年朱果" for it in reloaded.items)
 
     # 验证会话已清除
     assert DungeonEngine.get_session(c.id) is None

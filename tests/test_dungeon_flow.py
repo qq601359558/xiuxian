@@ -91,9 +91,13 @@ def test_full_dungeon_core_loop():
     assert "安全归仓" in r_retreat["text"]
     assert r_retreat["status"]["dungeon"] is None
 
-    # 验证最终战利品真正入账（470 + 120 = 590 灵石）
+    # 验证最终战利品真正入账（470 + 120 = 590 灵石，以及丹药草药）
     final_char = CharacterRepository.get_by_id(char.id)
     assert final_char.spirit_stones == 590
+    assert "千年朱果" in final_char.inventory
+    assert "筑基丹" in final_char.inventory
+    assert any(it.name == "千年朱果" for it in final_char.items)
+    assert any(it.name == "筑基丹" for it in final_char.items)
 
 
 def test_defeat_and_penalty():

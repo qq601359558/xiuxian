@@ -13,8 +13,17 @@ from core.models import Character
 
 
 # ==============================================================================
-# 五行基础神通字典
+# 战斗负面状态与五行基础神通字典
 # ==============================================================================
+DEBUFF_NAMES: Dict[str, str] = {
+    "burn": "真火灼烧",
+    "freeze": "玄煞冰冻",
+    "chill": "极寒煞气",
+    "poison": "阴冥尸毒",
+    "weaken": "元气虚浮",
+    "bleed": "血气溃散",
+}
+
 SPELL_CATALOG: Dict[str, Dict[str, Any]] = {
     "metal_sword": {
         "key": "metal_sword",
@@ -149,25 +158,51 @@ def create_player_entity(char: Character, boons: Optional[List[str]] = None) -> 
     tier_base_atk = int(25 * (1.7 ** (tier - 1))) + sub * 8
     tier_base_def = int(8 * (1.6 ** (tier - 1))) + sub * 3
 
-    # 装备加成
+    # 装备加成（按百宝纳戒实体与配置加权）
     weapon_name = ""
     try:
-        from core.loot_equip import EquipEngine
-        from storage.db import ItemEntityRepository
+        from config import ITEM_CATALOG
+        for eq_name in getattr(char, "equipped", []) or []:
+            ent = char.find_item(eq_name)
+            cfg = ITEM_CATALOG.get(eq_name) or {}
+            slot = (ent.slot if ent and ent.slot else None) or cfg.get("slot")
+            if not slot:
+                if any(w in eq_name for w in ("甲", "袍", "衣")):
+                    slot = "armor"
+                elif any(w in eq_name for w in ("佩", "珠", "符", "戒")):
+                    slot = "trinket"
+                else:
+                    slot = "weapon"
 
-        equipped = EquipEngine.get_equipped(char)
-        if equipped:
-            for slot, ent_id in equipped.items():
-                ent = ItemEntityRepository.get(ent_id)
-                if not ent:
-                    continue
-                attrs = getattr(ent, "affixes", {}) or {}
-                tier_base_atk += int(attrs.get("attack", 0))
-                tier_base_def += int(attrs.get("defense", 0))
-                tier_base_hp += int(attrs.get("hp", 0))
-                tier_base_mp += int(attrs.get("mp", 0))
-                if slot in ("weapon", "main_weapon"):
-                    weapon_name = ent.name
+            if slot in ("weapon", "main_weapon") and not weapon_name:
+                weapon_name = eq_name
+
+            if ent:
+                st = getattr(ent, "stats", {}) or {}
+                tier_base_atk += int(st.get("attack", st.get("power", 0)))
+                tier_base_def += int(st.get("defense", 0))
+                tier_base_hp += int(st.get("hp", 0))
+                tier_base_mp += int(st.get("mp", 0))
+                for aff in getattr(ent, "affixes", []) or []:
+                    k = getattr(aff, "stat_key", "")
+                    v = float(getattr(aff, "value", 0.0))
+                    if k in ("power", "attack", "pierce"):
+                        tier_base_atk += int(v if v >= 1 else tier_base_atk * v)
+                    elif k == "defense":
+                        tier_base_def += int(v if v >= 1 else tier_base_def * v)
+                    elif k == "hp":
+                        tier_base_hp += int(v)
+                    elif k == "mp":
+                        tier_base_mp += int(v)
+            else:
+                p_bonus = float(cfg.get("power_bonus", 0.05))
+                if slot == "weapon":
+                    tier_base_atk += int(tier_base_atk * p_bonus)
+                elif slot == "armor":
+                    tier_base_def += int(tier_base_def * p_bonus * 1.5)
+                    tier_base_hp += int(tier_base_hp * p_bonus)
+                elif slot == "trinket":
+                    tier_base_mp += int(tier_base_mp * p_bonus * 1.5)
     except Exception:
         pass
 
@@ -319,12 +354,14 @@ class SpellCombatEngine:
                     if "spirit_well" in boon_list:
                         heal_amt = int(heal_amt * 1.3)
                     player.hp = min(player.max_hp, player.hp + heal_amt)
-                    # 驱散一层异常
+                    # 仅驱散负面异常状态，不误驱增益
                     dispelled = ""
-                    if player.status_effects:
-                        k = next(iter(player.status_effects.keys()))
+                    debuff_candidates = [k for k in player.status_effects if k in DEBUFF_NAMES]
+                    if debuff_candidates:
+                        k = debuff_candidates[0]
                         del player.status_effects[k]
-                        dispelled = f"，驱散了身负的【{k}】异状"
+                        k_cn = DEBUFF_NAMES.get(k, "暗疾")
+                        dispelled = f"，拔除体内的【{k_cn}】异状"
                     logs.append(f"🌿【乙木回生】你运转【{spell['name']}】，青色生机流转经脉，气血恢复 +{heal_amt}{dispelled}！")
 
                 elif spell_key == "water_freeze":
@@ -445,6 +482,15 @@ class SpellCombatEngine:
                 refl_dmg = int(m_dmg * 0.20)
                 monster.hp = max(0, monster.hp - refl_dmg)
                 logs.append(f"  ↳ 明王反震！厚土宝罡激荡反震，反伤【{monster.name}】 {refl_dmg} 点伤害！")
+                if monster.hp <= 0:
+                    logs.append(f"💥【妖煞溃散】妖兽【{monster.name}】承受不住明王宝罡剧烈反震，周身气绝，轰然倒地！")
+                    return {
+                        "ended": True,
+                        "winner": "player",
+                        "player": player.to_dict(),
+                        "monster": monster.to_dict(),
+                        "logs": logs,
+                    }
 
         # 4. 回合末异常状态结算 (玩家身上)
         if player.status_effects.get("reflect", 0) > 0:

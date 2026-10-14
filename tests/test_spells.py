@@ -125,3 +125,67 @@ def test_treasure_skill_single_use():
     # 第二次使用法宝被拒并回退普攻
     res2 = SpellCombatEngine.step_round(p, m, action="treasure")
     assert any("法宝温养中" in line for line in res2["logs"])
+
+
+def test_reflect_damage_kill_monster():
+    p = CombatEntity(
+        id="p1", name="反伤道人", realm="筑基初期", tier=2,
+        max_hp=200, hp=150, max_mp=100, mp=100, attack=30, defense=5
+    )
+    # 怪物血量很低 (仅剩 2 点)，但攻击较高 (20)
+    m = CombatEntity(
+        id="m1", name="残血妖狼", realm="二阶妖兽", tier=2,
+        max_hp=200, hp=2, max_mp=50, mp=50, attack=20, defense=0
+    )
+    # 玩家已开启不动明王罡 (reflect 状态)
+    p.status_effects["reflect"] = 2
+
+    # 玩家本回合施展青帝长生引调理气血（不对怪物造成直接杀伤），怪物扑杀玩家触发反震 (20 * 0.2 = 4 反震伤害)
+    res = SpellCombatEngine.step_round(p, m, action="spell", spell_key="wood_heal")
+    # 反震造成 4 点伤害，怪物血量归 0，应当立即判定战斗胜利
+    assert res["ended"] is True
+    assert res["winner"] == "player"
+    assert any("明王反震" in line for line in res["logs"])
+    assert any("妖煞溃散" in line for line in res["logs"])
+
+
+def test_wood_heal_preserves_reflect_buff():
+    p = CombatEntity(
+        id="p1", name="木系散修", realm="筑基初期", tier=2,
+        max_hp=200, hp=80, max_mp=100, mp=100, attack=30, defense=10
+    )
+    m = CombatEntity(
+        id="m1", name="炎蛛", realm="二阶妖兽", tier=2,
+        max_hp=200, hp=200, max_mp=50, mp=50, attack=15, defense=0
+    )
+    # 玩家身上同时有 reflect 增益与 burn 负面
+    p.status_effects["reflect"] = 2
+    p.status_effects["burn"] = 1
+
+    # 施展木系青帝长生引
+    res = SpellCombatEngine.step_round(p, m, action="spell", spell_key="wood_heal")
+    # 应当拔除真火灼烧，但保留明王反震
+    assert "burn" not in p.status_effects
+    # reflect 在反击和回合末递减 1，但不会被青帝长生引误当成负面拔除
+    assert p.status_effects.get("reflect", 0) == 1
+    assert any("真火灼烧" in line for line in res["logs"])
+
+
+def test_equipped_gear_enhances_combat_entity():
+    init_db()
+    c = WorldClock.create_new_character("u_gear_tester", "多宝散修")
+    from core.items import ItemFactory
+    # 佩戴武器与玄龟甲
+    weapon = ItemFactory.create_equip("纯阳金光剑", tier=3, slot="weapon", base_power=40.0)
+    c.add_item_entity(weapon)
+    c.equipped.append("纯阳金光剑")
+
+    armor = ItemFactory.create_equip("玄龟灵甲", tier=2, slot="armor", base_power=20.0)
+    c.add_item_entity(armor)
+    c.equipped.append("玄龟灵甲")
+
+    p = create_player_entity(c)
+    assert p.equipped_weapon == "纯阳金光剑"
+    assert p.attack > 25  # 显著高于基础攻击
+    assert p.defense > 8  # 显著高于基础防御
+
