@@ -13,8 +13,9 @@ from core import npc_chat
 from core.models import CharacterStatus
 
 
-def _p(name, loc="青云坊市客栈"):
-    c = WorldClock.create_new_character(f"ch_{name}", name)
+def _p(name, loc="青云坊市客栈", is_npc=False):
+    prefix = "npc_" if is_npc else "ch_"
+    c = WorldClock.create_new_character(f"{prefix}{name}", name)
     c.location = loc
     c.born_at = time.time() - 80 * 3600.0
     CharacterRepository.save(c)
@@ -25,7 +26,7 @@ def test_open_and_say_then_hangup_no_ai():
     init_db()
     WorldStateRepository.delete(npc_chat._KEY)
     p = _p("话客")
-    n = _p("柳三娘测")
+    n = _p("柳三娘测", is_npc=True)
     o = npc_chat.open_session(p, n)
     assert o["success"] is True
     s = npc_chat.player_say(CharacterRepository.get_by_id(p.id), "道友安好")
@@ -47,7 +48,7 @@ def test_remote_cannot_open():
     init_db()
     WorldStateRepository.delete(npc_chat._KEY)
     p = _p("近", loc="青云坊市客栈")
-    n = _p("远", loc="万星古岛")
+    n = _p("远", loc="万星古岛", is_npc=True)
     o = npc_chat.open_session(p, n)
     assert o["success"] is False
     print("✓ 异地不可开会话")
@@ -57,7 +58,7 @@ def test_timeout_closes():
     init_db()
     WorldStateRepository.delete(npc_chat._KEY)
     p = _p("久候")
-    n = _p("冷淡")
+    n = _p("冷淡", is_npc=True)
     npc_chat.open_session(p, n)
     d = WorldStateRepository.get(npc_chat._KEY) or {}
     d[p.id]["updated_at"] = time.time() - 2000
@@ -70,7 +71,7 @@ def test_force_hangup_low_willingness():
     init_db()
     WorldStateRepository.delete(npc_chat._KEY)
     p = _p("絮叨")
-    n = _p("不耐")
+    n = _p("不耐", is_npc=True)
     npc_chat.open_session(p, n)
     # 压低意愿
     d = WorldStateRepository.get(npc_chat._KEY) or {}
