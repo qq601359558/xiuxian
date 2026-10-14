@@ -184,6 +184,14 @@ class TreasureEngine:
         archetype = tmap.custom_metadata.get("archetype", TreasureArchetype.ELEMENT_PUZZLE)
         tier = tmap.tier
 
+        # 若纳戒已满（64/64），破除古阵将掘出神兵仙药，提前拦截避免爆仓丢宝
+        if choice_id and hasattr(c, "is_bag_full") and c.is_bag_full():
+            max_slots = getattr(c, "MAX_BAG_SLOTS", 64)
+            return {
+                "success": False,
+                "message": f"百宝纳戒乾坤已满（{len(getattr(c, 'items', []))}/{max_slots}），破阵开匣将掘出古修神兵与仙药，请先腾挪纳戒空间再行破阵！",
+            }
+
         # ==========================================
         # 原型 A：五行生克阵盘 (Element Puzzle)
         # ==========================================
@@ -206,54 +214,129 @@ class TreasureEngine:
                     ),
                 }
 
-            if choice_id == "3":
+            choice_str = str(choice_id).strip().lower() if choice_id else ""
+            if choice_str == "3":
                 return {
                     "success": False,
                     "message": "自由破局请直接输入：/做 <你的操作>，宝图未受损耗。",
                 }
 
-            if choice_id not in ("1", "2"):
+            if choice_str not in ("1", "water", "earth", "巧破", "2", "force", "brute", "蛮力"):
                 return {
                     "success": False,
-                    "message": f"无效选项：{choice_id}。请输入 /挖宝 1 或 /挖宝 2，或输入 /做 <自由操作>。宝图未受损耗。",
+                    "message": f"无效选项：{choice_id}。请输入 /挖宝 1（以水克火）或 /挖宝 2（蛮力轰门），或输入 /做 <自由操作>。宝图未受损耗。",
                 }
 
             # 仅在合法选项时消耗宝图
             c.remove_item_entity(tmap.uid)
 
-            if choice_id == "1":
+            if choice_str in ("1", "water", "earth", "巧破"):
                 # 巧破五行
                 exp_gain = 120 + tier * 50
                 stones_gain = 200 + tier * 80
                 c.realm.current_exp = min(c.realm.max_exp, c.realm.current_exp + exp_gain)
                 c.spirit_stones += stones_gain
-                drop_pill = ItemFactory.from_legacy_name("玄元聚气丹")
+
+                # 服务端权威生成高阶神兵与极品仙丹
+                equip_tier = max(2, min(5, tier))
+                weapon_pool = {
+                    1: ["青锋剑", "玄铁剑"],
+                    2: ["玄铁剑", "赤霄剑"],
+                    3: ["斩龙古剑", "太乙玄天戈", "七星诛魔剑", "赤霄惊神刃"],
+                    4: ["斩龙古剑", "太乙玄天戈", "七星诛魔剑", "赤霄惊神刃"],
+                    5: ["斩仙神剑", "太乙玄天戈", "混元斩龙刃"],
+                }
+                candidates = weapon_pool.get(equip_tier, ["斩龙古剑", "太乙玄天戈", "七星诛魔剑", "赤霄惊神刃"])
+                pick_weapon_name = random.choice(candidates)
+
+                drop_weapon = ItemFactory.create_equip(
+                    name=pick_weapon_name,
+                    tier=equip_tier,
+                    slot="weapon",
+                    base_power=30.0 * equip_tier,
+                    lore=f"自【{target_node.base_name if target_node else '古修秘境'}】上古洞府密室石棺中发掘而出的古仙神兵，锋芒毕露，隐隐有龙吟破空之声。",
+                    affix_count=2,
+                )
+                c.add_item_entity(drop_weapon)
+
+                pill_name = "九转还魂真丹" if equip_tier >= 3 else "玄元聚气丹"
+                drop_pill = ItemEntity.create(
+                    name=pill_name,
+                    kind=ItemKind.PILL,
+                    quality=equip_tier,
+                    description="上古秘藏中保存完好的绝品仙丹，服用可大补元气并辟除心魔火煞。" if pill_name == "九转还魂真丹" else "温养周天经脉的玄门正宗凝气灵丹。"
+                )
                 c.add_item_entity(drop_pill)
 
                 return {
                     "success": True,
                     "outcome": "perfect_solve",
+                    "equipment": {
+                        "uid": drop_weapon.uid,
+                        "name": drop_weapon.name,
+                        "kind": drop_weapon.kind.value,
+                        "tier": drop_weapon.tier,
+                        "tierName": drop_weapon.tier_name,
+                        "slot": drop_weapon.slot,
+                        "slotCn": "绝世法宝",
+                        "stats": drop_weapon.stats,
+                        "affixes": [{"name": a.name, "desc": a.desc} for a in drop_weapon.affixes],
+                        "lore": drop_weapon.lineage_lore,
+                    },
+                    "pill": {
+                        "uid": drop_pill.uid,
+                        "name": drop_pill.name,
+                        "kind": drop_pill.kind.value,
+                        "tier": drop_pill.tier,
+                        "tierName": drop_pill.tier_name,
+                    },
+                    "stone_gain": stones_gain,
                     "message": (
                         f"【妙算破阵 · 完好启封】\n"
                         f"你运起柔水法诀引动清泉注入生门，水火相济，阵纹白光一闪轰然洞开！\n"
-                        f"洞内古修遗藏完好无损：修为 +{exp_gain}，灵石 +{stones_gain}，"
-                        f"另收得极品【{drop_pill.display_name}】！"
+                        f"洞内古修遗藏完好无损：修为 +{exp_gain}，灵石 +{stones_gain}，\n"
+                        f"掘得绝品神兵【{drop_weapon.display_name}】与【{drop_pill.display_name}】！\n"
+                        f"战利品已妥善纳归百宝纳戒。"
                     ),
                 }
-            elif choice_id == "2":
+            elif choice_str in ("2", "force", "brute", "蛮力"):
                 # 蛮力强攻
                 loss_stones = 40
                 exp_gain = 80 + tier * 30
                 c.spirit_stones = max(0, c.spirit_stones - loss_stones)
                 c.realm.current_exp = min(c.realm.max_exp, c.realm.current_exp + exp_gain)
-                # 蛮力轰击留下轻微震荡
+
+                equip_tier = max(1, tier - 1)
+                drop_weapon = ItemFactory.create_equip(
+                    name="残铁古剑",
+                    tier=equip_tier,
+                    slot="weapon",
+                    base_power=20.0 * equip_tier,
+                    lore="在蛮力轰击中幸存的残损古刃，剑身虽有裂痕，依旧留存微弱法光。",
+                    affix_count=1,
+                )
+                c.add_item_entity(drop_weapon)
+
                 return {
                     "success": True,
                     "outcome": "brute_force",
+                    "equipment": {
+                        "uid": drop_weapon.uid,
+                        "name": drop_weapon.name,
+                        "kind": drop_weapon.kind.value,
+                        "tier": drop_weapon.tier,
+                        "tierName": drop_weapon.tier_name,
+                        "slot": drop_weapon.slot,
+                        "slotCn": "绝世法宝",
+                        "stats": drop_weapon.stats,
+                        "affixes": [{"name": a.name, "desc": a.desc} for a in drop_weapon.affixes],
+                        "lore": drop_weapon.lineage_lore,
+                    },
                     "message": (
                         f"【蛮力轰门 · 震碎偏殿】\n"
-                        f"你运起周身真力强行轰击阵眼，石门崩碎，但剧烈爆炸震毁了内部丹药！\n"
-                        f"受反震损耗灵石 {loss_stones}，搜刮残余古卷得修为 +{exp_gain}。"
+                        f"你运起周身真力强行轰击阵眼，石门崩碎，剧烈爆炸震毁了内部丹药！\n"
+                        f"受反震损耗灵石 {loss_stones}，搜刮残余洞室得修为 +{exp_gain}，"
+                        f"抢救出残损法宝【{drop_weapon.display_name}】入纳戒。"
                     ),
                 }
 
