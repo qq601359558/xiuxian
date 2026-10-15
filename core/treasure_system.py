@@ -5,6 +5,7 @@ Core-V2 新一代探险与藏宝系统 (Treasure & Adventure Engine V2)
 """
 from __future__ import annotations
 
+import math
 import random
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -22,6 +23,121 @@ class TreasureArchetype:
     RUIN_HAZARD = "ruin_hazard"          # 地渊坍塌 / 绝地涉险
 
 
+# ==============================================================================
+# 八卦风水五行地脉物候典籍
+# ==============================================================================
+FENGSHUI_BAGUA_LORE: Dict[str, Dict[str, str]] = {
+    "震位 · 正东": {
+        "direction_cn": "正东",
+        "beast": "青龙",
+        "element": "木",
+        "rhyme": "东荒气象发青阳，木德流转引灵光。",
+        "clue": "罗盘天池金针颤颤指东，苍莽古木与海天生机相连。此地绝非藏真之所，当循东方朝阳升起之方、生机盎然之处寻觅。",
+    },
+    "艮位 · 东北": {
+        "direction_cn": "东北",
+        "beast": "苍岩",
+        "element": "土",
+        "rhyme": "重峦叠嶂连幽谷，艮岳峥嵘掩仙窟。",
+        "clue": "指针偏向东北艮山之位，隐透厚重岩石压迫之感。宝穴匿于崇山绝岭环抱之间，当往东北苍岩叠翠之处探寻。",
+    },
+    "坎位 · 极北": {
+        "direction_cn": "极北",
+        "beast": "玄武",
+        "element": "水",
+        "rhyme": "玄水沉渊锁万重，朔风萧瑟掠幽峰。",
+        "clue": "罗盘指针直指极北坎水之方，冰冷煞气透过针盘微凉刺骨。机缘隐于北方幽暗阴湿水泽或深渊之底，当往极北寻去。",
+    },
+    "乾位 · 西北": {
+        "direction_cn": "西北",
+        "beast": "天罡",
+        "element": "金",
+        "rhyme": "乾天高朗云间隐，罡风呼啸过千仞。",
+        "clue": "磁针斜指西北乾位天门，高天之上隐有罡风呼啸雷音。宝藏当在西北天高云深、地势孤拔之绝顶。",
+    },
+    "兑位 · 正西": {
+        "direction_cn": "正西",
+        "beast": "白虎",
+        "element": "金",
+        "rhyme": "夕照残阳西岭没，金戈煞气起苍阔。",
+        "clue": "天池金针直指南天西垂落日方位，带有一股冷冽兵戈肃杀之气。当往极西杀伐险地、残阳落日之处摸索。",
+    },
+    "坤位 · 西南": {
+        "direction_cn": "西南",
+        "beast": "厚地",
+        "element": "土",
+        "rhyme": "厚土载物藏幽室，地气回环锁金石。",
+        "clue": "指针偏向西南坤地，地脉脉动沉稳凝重。机缘深埋于西南方大地深处或古修陵寝地脉，当往西南探幽。",
+    },
+    "离位 · 正南": {
+        "direction_cn": "正南",
+        "beast": "朱雀",
+        "element": "火",
+        "rhyme": "南明离火耀长空，赤霞漫卷落仙宗。",
+        "clue": "罗盘金针震颤指向南明午位，隐隐泛起一股温润灼热之意。宝图所示机缘当在南方热气升腾、霞光蒸蔚之地。",
+    },
+    "巽位 · 东南": {
+        "direction_cn": "东南",
+        "beast": "巽风",
+        "element": "木",
+        "rhyme": "烟波浩渺大泽东，巽风卷浪隐仙宫。",
+        "clue": "指针斜指东南巽风之位，似有水泽波涛与长风浩荡之感。当向东南烟雨浩渺、水陆交界之方探访。",
+    },
+}
+
+
+def calculate_fengshui_direction(curr_node: Any, target_node: Any) -> Dict[str, Any]:
+    """根据两个节点的拓扑相对坐标计算八卦方位与风水气象"""
+    c1 = getattr(curr_node, "coordinates", (0, 0)) if curr_node else (0, 0)
+    c2 = getattr(target_node, "coordinates", (0, 0)) if target_node else (0, 0)
+    dx = c2[0] - c1[0]
+    dy = c2[1] - c1[1]
+
+    if dx == 0 and dy == 0:
+        return {
+            "bagua": "中宫 · 龙穴",
+            "direction_cn": "同穴",
+            "beast": "黄龙",
+            "element": "土",
+            "rhyme": "真龙盘踞正中宫，天地灵机此际融。",
+            "clue": "定盘天池金针静止不动，宝穴已在此山此水之间！",
+            "dx": 0,
+            "dy": 0,
+        }
+
+    # 角度计算 (0~360 度，0度为正东，90度为正北，180度为正西，270度为正南)
+    deg = (math.degrees(math.atan2(dy, dx)) + 360) % 360
+
+    if deg >= 337.5 or deg < 22.5:
+        key = "震位 · 正东"
+    elif 22.5 <= deg < 67.5:
+        key = "艮位 · 东北"
+    elif 67.5 <= deg < 112.5:
+        key = "坎位 · 极北"
+    elif 112.5 <= deg < 157.5:
+        key = "乾位 · 西北"
+    elif 157.5 <= deg < 202.5:
+        key = "兑位 · 正西"
+    elif 202.5 <= deg < 247.5:
+        key = "坤位 · 西南"
+    elif 247.5 <= deg < 292.5:
+        key = "离位 · 正南"
+    else:
+        key = "巽位 · 东南"
+
+    lore = FENGSHUI_BAGUA_LORE[key]
+    return {
+        "bagua": key,
+        "direction_cn": lore["direction_cn"],
+        "beast": lore["beast"],
+        "element": lore["element"],
+        "rhyme": lore["rhyme"],
+        "clue": lore["clue"],
+        "dx": dx,
+        "dy": dy,
+    }
+
+
 class TreasureEngine:
     """新一代探险与藏宝裁决引擎"""
 
@@ -30,6 +146,7 @@ class TreasureEngine:
         c: Optional[Character] = None,
         tier: int = 2,
         preferred_target: Optional[str] = None,
+        preferred_archetype: Optional[TreasureArchetype] = None,
     ) -> ItemEntity:
         """根据当前世界图谱，生成一张独一无二的实体藏宝图"""
         nodes = WorldGridEngine.list_nodes()
@@ -46,7 +163,7 @@ class TreasureEngine:
         if not target_node:
             target_node = random.choice(candidates)
 
-        archetype = random.choice([
+        archetype = preferred_archetype or random.choice([
             TreasureArchetype.ELEMENT_PUZZLE,
             TreasureArchetype.COMBAT,
             TreasureArchetype.RUIN_HAZARD,
@@ -77,6 +194,83 @@ class TreasureEngine:
             riddle=riddle,
             lore=f"此图自【{target_node.region}】风水脉络截取而出，纸帛上隐现星斗暗芒。",
         )
+
+    @staticmethod
+    def get_directional_guide(
+        c: Character,
+        tmap: ItemEntity,
+        curr_node: Optional[Any],
+        target_node: Optional[Any],
+    ) -> Dict[str, Any]:
+        """双轨制生成文言方位寻龙指引（AI 意境推演 + 八卦算经模板保底）"""
+        target_name = target_node.base_name if target_node else "未知秘境"
+        curr_name = curr_node.base_name if curr_node else (getattr(c, "location", "") or "红尘旷野")
+
+        fengshui = calculate_fengshui_direction(curr_node, target_node)
+        bagua = fengshui["bagua"]
+        rhyme = fengshui["rhyme"]
+        clue = fengshui["clue"]
+
+        # 计算跳数与距离描述
+        hops = 2
+        if curr_node and target_node:
+            path = WorldGridEngine.find_shortest_hops(curr_node.id, target_node.id)
+            if path:
+                hops = max(1, len(path) - 1)
+            else:
+                hops = max(1, WorldGridEngine.calculate_distance(curr_node.id, target_node.id))
+
+        if hops == 1:
+            dist_desc = "灵息浓烈，相隔约一舍之路（近在邻山）"
+        elif hops in (2, 3):
+            dist_desc = f"关山重重，约莫相距 {hops} 重山水"
+        else:
+            dist_desc = f"山高水远，相隔大荒 {hops} 站之遥"
+
+        ai_poetry = ""
+        ai_clue = ""
+        try:
+            from ai.gateway import ai_ready, _chat_json
+            if ai_ready():
+                prompt = (
+                    "你是一位通晓天机风水神数的古典修仙寻龙宗师。\n"
+                    f"玩家：{c.name}（当前位于【{curr_name}】）\n"
+                    f"藏宝图目标地：【{target_name}】（请勿在文本中直接剧透死板地名，用山水物候朦胧点拨）\n"
+                    f"相对八卦方位：【{bagua}】\n"
+                    f"大致距离气机：【{dist_desc}】\n"
+                    "请输出纯 JSON，包含：\n"
+                    "\"poetry\": \"一句七言绝句风水谶语判词\",\n"
+                    "\"clue\": \"60~100字古典优美、意境悠远的文言风水寻龙指引，依卦象为道友指出大致方位与物候特征，语带天机\"\n"
+                )
+                res = _chat_json(prompt, timeout=6.0)
+                if isinstance(res, dict) and res.get("clue"):
+                    ai_clue = str(res.get("clue")).strip()
+                    if res.get("poetry"):
+                        ai_poetry = str(res.get("poetry")).strip()
+        except Exception:
+            pass
+
+        final_rhyme = ai_poetry or rhyme
+        final_clue = ai_clue or clue
+
+        full_text = (
+            f"【天机定盘 · 寻龙点穴】\n"
+            f"方位卦象：【{bagua}】（{dist_desc}）\n"
+            f"谶语判词：『{final_rhyme}』\n"
+            f"风水感应：{final_clue}\n"
+            f"天道提点：此地乃【{curr_name}】，非宝图真穴。道友可御风向【{target_name}】方向动身，宝图未受损耗。"
+        )
+
+        return {
+            "bagua": bagua,
+            "direction_cn": fengshui["direction_cn"],
+            "hops": hops,
+            "dist_desc": dist_desc,
+            "rhyme": final_rhyme,
+            "clue": final_clue,
+            "target_node_name": target_name,
+            "full_text": full_text,
+        }
 
     @staticmethod
     def read_map(c: Character, map_query: Optional[str] = None) -> Dict[str, Any]:
@@ -113,18 +307,12 @@ class TreasureEngine:
         distance_info = ""
         if curr_node and target_node:
             if curr_node.id == target_node.id:
-                distance_info = "\n【勘测感应】你已身处宝图所指绝地！立即执行 /挖宝 开启勘探！"
+                distance_info = "\n\n【勘测感应】天池金针归位，神芒冲天！你已身处宝图所指绝地！立即执行 /挖宝 破阵开匣！"
             else:
-                dist = WorldGridEngine.calculate_distance(curr_node.id, target_node.id)
-                path = WorldGridEngine.find_shortest_hops(curr_node.id, target_node.id)
-                hops = (len(path) - 1) if path else dist
-                distance_info = (
-                    f"\n【罗盘导引】当前位于【{curr_node.base_name}】，距宝藏地约 {hops} 处路程。"
-                    f"请先 /前往 {target_name}。"
-                )
+                guide = TreasureEngine.get_directional_guide(c, tmap, curr_node, target_node)
+                distance_info = f"\n\n{guide.get('full_text')}"
         elif target_node:
-            distance_info = f"\n【罗盘导引】宝图所示机缘深藏于【{target_name}】。请先 /前往 {target_name}。"
-
+            distance_info = f"\n\n【天机未测】宝图所示机缘深藏于【{target_name}】。请先动身前往。"
 
         return {
             "success": True,
@@ -165,19 +353,17 @@ class TreasureEngine:
 
         # 核心校验：必须到达目标空间节点！
         if not curr_node or not target_node or curr_node.id != target_node.id:
+            guide = TreasureEngine.get_directional_guide(c, tmap, curr_node, target_node)
             target_name = target_node.base_name if target_node else "未知"
-            hops = 2
-            if curr_node and target_node:
-                path = WorldGridEngine.find_shortest_hops(curr_node.id, target_node.id)
-                hops = (len(path) - 1) if path else 2
+            hops = guide.get("hops", 2)
             return {
                 "success": False,
                 "wrong_location": True,
-                "message": (
-                    f"【罗盘狂颤】此地风水为【{curr_node.base_name if curr_node else c.location}】，"
-                    f"与图中所指天机大相径庭！\n宝图暗指：【{target_name}】（相距约 {hops} 站路程）。"
-                    f"请先 /前往 {target_name}，宝图未受损耗。"
-                ),
+                "target_node_name": target_name,
+                "target_node_id": target_node.id if target_node else "",
+                "bagua": guide.get("bagua", ""),
+                "direction_text": guide.get("clue", ""),
+                "message": guide.get("full_text"),
             }
 
         # 玩家已在正确地点！进入对应玩法原型
@@ -369,6 +555,19 @@ class TreasureEngine:
                 return {
                     "success": True,
                     "outcome": "combat_victory",
+                    "equipment": {
+                        "uid": drop_weapon.uid,
+                        "name": drop_weapon.name,
+                        "kind": drop_weapon.kind.value,
+                        "tier": drop_weapon.tier,
+                        "tierName": drop_weapon.tier_name,
+                        "slot": drop_weapon.slot,
+                        "slotCn": "绝世法宝",
+                        "stats": drop_weapon.stats,
+                        "affixes": [{"name": a.name, "desc": a.desc} for a in drop_weapon.affixes],
+                        "lore": drop_weapon.lineage_lore,
+                    },
+                    "stone_gain": stones_gain,
                     "message": (
                         f"【剑荡妖氛 · 怒斩守卫】\n"
                         f"推开石棺，守墓巨傀狂啸扑出！你剑若奔雷，数合之内将其斩首！\n"
@@ -432,6 +631,19 @@ class TreasureEngine:
             return {
                 "success": True,
                 "outcome": "scar_created",
+                "equipment": {
+                    "uid": ancient_relic.uid,
+                    "name": ancient_relic.name,
+                    "kind": ancient_relic.kind.value,
+                    "tier": ancient_relic.tier,
+                    "tierName": ancient_relic.tier_name,
+                    "slot": getattr(ancient_relic, "slot", "trinket"),
+                    "slotCn": "稀世重宝",
+                    "stats": getattr(ancient_relic, "stats", {}),
+                    "affixes": [{"name": a.name, "desc": a.desc} for a in getattr(ancient_relic, "affixes", [])],
+                    "lore": ancient_relic.lineage_lore,
+                },
+                "stone_gain": stones_gain,
                 "message": (
                     f"【地脉崩裂 · 劫波动天】\n"
                     f"你拔出封印古印的一刹那，整座地宫剧烈坍塌，炽热地火冲破地脉喷涌而出！\n"

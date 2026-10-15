@@ -1078,6 +1078,11 @@ class World:
                     "status": self._status_dict(char),
                     "equipment": res.get("equipment"),
                     "pill": res.get("pill"),
+                    "wrong_location": res.get("wrong_location"),
+                    "target_node_name": res.get("target_node_name"),
+                    "target_node_id": res.get("target_node_id"),
+                    "bagua": res.get("bagua"),
+                    "direction_text": res.get("direction_text"),
                 }
 
             if action in ("/do", "/做", "/act"):
@@ -2923,6 +2928,8 @@ class World:
         # 宗门信息与俸禄/日环/仙门名录
         from config import SECTS_CONFIG, SECONDS_PER_GAME_MONTH
         from core.sect import PROMOTE_REQ_TIER
+        from core.world_grid import WorldGridEngine
+        from core.treasure_system import calculate_fengshui_direction
         from core.sect_contrib import get_streak, ensure_daily_ring
         from core.npc_chat import pop_player_inbox
 
@@ -3042,13 +3049,38 @@ class World:
                     "tier": it.tier,
                     "tierName": ["凡品", "人品", "地品", "天品", "仙品"][min(4, max(0, it.tier - 1))],
                     "slot": getattr(it, "slot", None),
-                    "slotCn": "天机秘宝图卷" if "图" in it.name else ("神材" if getattr(it.kind, "value", str(it.kind)) == "material" else ("绝世法宝" if getattr(it.kind, "value", str(it.kind)) == "equip" else "灵物")),
+                    "slotCn": "天机秘宝图卷" if (getattr(it, "kind", None) == ItemKind.TREASURE_MAP or "图" in it.name) else ("神材" if getattr(it.kind, "value", str(it.kind)) == "material" else ("绝世法宝" if getattr(it.kind, "value", str(it.kind)) == "equip" else "灵物")),
                     "lore": getattr(it, "lineage_lore", "") or getattr(it, "description", "") or "天地造化所钟之奇珍。",
                     "desc": getattr(it, "description", "") or getattr(it, "lineage_lore", "") or "天地造化所钟之奇珍。",
-                    "targetNodeName": getattr(it, "treasure_target_node_name", "") or (it.custom_metadata.get("target_node_name", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "落霞古洞灵穴",
-                    "archetypeCn": getattr(it, "treasure_archetype_cn", "") or (it.custom_metadata.get("archetype", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "离火九宫破阵",
-                    "coords": getattr(it, "treasure_coords_desc", "") or (it.custom_metadata.get("coords", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "丙午方位 · 离火宫 南行三十里",
-                    "riddle": getattr(it, "treasure_riddle_cn", "") or (it.custom_metadata.get("riddle", "") if hasattr(it, "custom_metadata") and isinstance(it.custom_metadata, dict) else "") or "天道浩渺，机缘自显。",
+                    "targetNodeName": (
+                        (getattr(it, "custom_metadata", {}) or {}).get("target_node_name")
+                        or getattr(it, "treasure_target_node_name", "")
+                        or "落霞山灵泉"
+                    ),
+                    "targetNodeId": (getattr(it, "custom_metadata", {}) or {}).get("target_node_id", ""),
+                    "isAtTarget": bool(
+                        (getattr(it, "kind", None) == ItemKind.TREASURE_MAP or "图" in it.name)
+                        and (
+                            (getattr(it, "custom_metadata", {}) or {}).get("target_node_name") == c.location
+                            or (getattr(it, "custom_metadata", {}) or {}).get("target_node_id") == getattr(WorldGridEngine.get_node(c.location), "id", "")
+                        )
+                    ),
+                    "archetypeCn": (getattr(it, "custom_metadata", {}) or {}).get("archetype", "") or getattr(it, "treasure_archetype_cn", "") or "离火九宫破阵",
+                    "coords": (
+                        f"{calculate_fengshui_direction(WorldGridEngine.get_node(c.location), WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))).get('bagua', '天机方位')} · {calculate_fengshui_direction(WorldGridEngine.get_node(c.location), WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))).get('direction_cn', '前路')}气机"
+                        if (getattr(it, "kind", None) == ItemKind.TREASURE_MAP or "图" in it.name) and WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))
+                        else ((getattr(it, "custom_metadata", {}) or {}).get("coords", "") or getattr(it, "treasure_coords_desc", "") or "丙午方位 · 离火宫 南行三十里")
+                    ),
+                    "riddle": (
+                        calculate_fengshui_direction(WorldGridEngine.get_node(c.location), WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))).get('rhyme', '')
+                        if (getattr(it, "kind", None) == ItemKind.TREASURE_MAP or "图" in it.name) and WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))
+                        else (getattr(it, "treasure_riddle_cn", "") or (getattr(it, "custom_metadata", {}) or {}).get("riddle_text", "") or (getattr(it, "custom_metadata", {}) or {}).get("riddle", "") or "天道浩渺，机缘自显。")
+                    ),
+                    "clue": (
+                        calculate_fengshui_direction(WorldGridEngine.get_node(c.location), WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))).get('clue', '')
+                        if (getattr(it, "kind", None) == ItemKind.TREASURE_MAP or "图" in it.name) and WorldGridEngine.get_node((getattr(it, 'custom_metadata', {}) or {}).get('target_node_id', ''))
+                        else "风水汇聚，当循天机定盘指针寻访宝穴。"
+                    ),
                     "stats": getattr(it, "stats", {}),
                     "affixes": [
                         {"name": a.name, "desc": a.desc} for a in getattr(it, "affixes", [])
