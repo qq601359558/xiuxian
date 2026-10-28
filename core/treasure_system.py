@@ -15,6 +15,7 @@ from core.models import Character, CharacterStatus
 from core.items import ItemEntity, ItemKind, ItemFactory
 from core.world_grid import WorldGridEngine, EnvironmentState
 from core.combat import CombatEngine
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 
 
 class TreasureArchetype:
@@ -328,10 +329,12 @@ class TreasureEngine:
     ) -> Dict[str, Any]:
         """在当前地点执行挖宝 / 勘探"""
         t = now if now is not None else time.time()
-        if c.status == CharacterStatus.DEAD or c.lifespan.is_dead(t):
-            return {"success": False, "message": "身死道消，无力挖宝。"}
-        if c.status == CharacterStatus.MEDITATING:
-            return {"success": False, "message": "闭关打坐中不可勘探，请先 /出关。"}
+        try:
+            CharacterIntegrity.assert_alive(c, now=t)
+            CharacterIntegrity.assert_idle(c, action="/挖宝")
+            CharacterIntegrity.assert_bag_space(c, needed_slots=1)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
 
         # 获取玩家身上的藏宝图
         maps = c.find_items_by_kind(ItemKind.TREASURE_MAP)

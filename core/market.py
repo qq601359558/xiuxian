@@ -18,6 +18,7 @@ from config import (
 )
 from core.models import Character, CharacterStatus
 from core.items import ItemEntity, ItemFactory
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 
 
 class ListingStatus(str, Enum):
@@ -81,16 +82,14 @@ class MarketEngine:
         except Exception:
             pass
         total = unit * qty
-        if buyer.spirit_stones < total:
-            return {
-                "success": False,
-                "message": f"【{item_name}】单价 {unit} 灵石，买 {qty} 件需 {total}，囊中仅有 {buyer.spirit_stones}。",
-            }
+        try:
+            CharacterIntegrity.assert_alive(buyer)
+            CharacterIntegrity.assert_bag_space(buyer, qty)
+            CharacterIntegrity.assert_currency(buyer, total)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
 
-        if buyer.status == CharacterStatus.DEAD:
-            return {"success": False, "message": "死人不可逛坊市。"}
-
-        buyer.spirit_stones -= total
+        CharacterIntegrity.deduct_currency(buyer, total)
 
         applied_msg = ""
         if cfg["kind"] == "array":
@@ -308,21 +307,19 @@ class MarketEngine:
 
         if amount <= 0:
             return {"success": False, "message": "寄存数量必须为正。"}
-        if c.spirit_stones < amount:
-            return {"success": False, "message": f"随身仅有 {c.spirit_stones} 灵石，不足寄存 {amount}。"}
 
         fee = max(0, int(amount * MARKET_DEPOSIT_FEE_RATE))
-        # 手续费从存入额外扣还是从存入额里扣？外扣更符合「保管费」
-        if c.spirit_stones < amount + fee:
+        total_need = amount + fee
+        try:
+            CharacterIntegrity.assert_alive(c)
+            CharacterIntegrity.assert_currency(c, total_need)
+        except CharacterIntegrityError as e:
             return {
                 "success": False,
-                "message": (
-                    f"寄存 {amount} 灵石需另付保管费 {fee}"
-                    f"（合计 {amount + fee}），囊中仅有 {c.spirit_stones}。"
-                ),
+                "message": f"寄存 {amount} 灵石需另付保管费 {fee}（合计 {total_need}），{e}",
             }
 
-        c.spirit_stones -= (amount + fee)
+        CharacterIntegrity.deduct_currency(c, total_need)
         c.vault_stones += amount
         return {
             "success": True,
@@ -461,15 +458,14 @@ class MarketEngine:
             return {"success": False, "message": "此单已不在售。"}
         if listing.seller_id == buyer.id:
             return {"success": False, "message": "不可买回自己的挂单。"}
-        if hasattr(buyer, "is_bag_full") and buyer.is_bag_full():
-            return {"success": False, "message": f"百宝纳戒乾坤已满（{getattr(buyer, 'MAX_BAG_SLOTS', 64)}/{getattr(buyer, 'MAX_BAG_SLOTS', 64)}），无法容纳新仙物，请先清理纳戒！"}
-        if buyer.spirit_stones < listing.price:
-            return {
-                "success": False,
-                "message": f"标价 {listing.price}，囊中仅有 {buyer.spirit_stones}。",
-            }
+        try:
+            CharacterIntegrity.assert_alive(buyer)
+            CharacterIntegrity.assert_bag_space(buyer, 1)
+            CharacterIntegrity.assert_currency(buyer, listing.price)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
 
-        buyer.spirit_stones -= listing.price
+        CharacterIntegrity.deduct_currency(buyer, listing.price)
         listing.status = ListingStatus.SOLD
 
         if listing.item_entity:

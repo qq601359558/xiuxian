@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from storage.db import CharacterRepository, WorldStateRepository
 from core.models import Character
 from core.items import ItemEntity, ItemFactory
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 from core.spells import (
     CombatEntity,
     SpellCombatEngine,
@@ -263,10 +264,15 @@ class DungeonEngine:
 
         # 消耗灵石开启辟邪法阵 (30 灵石)
         fee = 30
-        if char.spirit_stones < fee:
-            return {"success": False, "message": f"开启锁妖古窟辟邪法阵需供奉 {fee} 灵石，随身灵石不足！"}
+        try:
+            CharacterIntegrity.assert_alive(char)
+            CharacterIntegrity.assert_idle(char, action="/副本")
+            CharacterIntegrity.assert_bag_space(char, needed_slots=1)
+            CharacterIntegrity.assert_currency(char, fee)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
 
-        char.spirit_stones -= fee
+        CharacterIntegrity.deduct_currency(char, fee)
         CharacterRepository.save(char)
 
         # 创建战斗实体
@@ -588,16 +594,22 @@ class DungeonEngine:
         char.spirit_stones += stones_earned
 
         # 写入物品
+        overflow_count = 0
         try:
             from core.items import ItemFactory
+
             for it in items_earned:
                 it_name = it.get("name")
                 if not it_name:
                     continue
                 for _ in range(int(it.get("count", 1))):
+                    entity = ItemFactory.from_legacy_name(it_name)
                     if not char.is_bag_full():
-                        entity = ItemFactory.from_legacy_name(it_name)
                         char.add_item_entity(entity)
+                    else:
+                        overflow_count += 1
+                        if char.crane_pending_item is None:
+                            char.crane_pending_item = entity.model_dump()
         except Exception:
             pass
 
@@ -614,6 +626,8 @@ class DungeonEngine:
         if items_earned:
             names = [f"{i['name']}x{i.get('count', 1)}" for i in items_earned]
             summary_msg += f"，纳戒入库灵物：{'、'.join(names)}"
+        if overflow_count > 0:
+            summary_msg += f"\n【天道示警】纳戒百宝囊乾坤已满，有 {overflow_count} 件战利品溢出（首件已由仙鹤暂存云巢灵囊，请尽快移挪旧物）！"
 
         return {
             "success": True,

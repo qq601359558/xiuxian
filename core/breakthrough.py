@@ -9,6 +9,7 @@ from config import (
     REALM_NAMES
 )
 from core.models import Character, CharacterStatus
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 
 
 class BreakthroughEngine:
@@ -29,11 +30,14 @@ class BreakthroughEngine:
         :param heart_mod: 心魔回合对天劫成功率的修正（-0.15~0.15）
         """
         # 1. 基础状态校验
-        if character.status == CharacterStatus.DEAD or character.lifespan.is_dead():
+        try:
+            CharacterIntegrity.assert_alive(character)
+            CharacterIntegrity.assert_idle(character, action="/突破")
+        except CharacterIntegrityError as e:
             return {
                 "success": False,
-                "is_fatal": True,
-                "message": "修士已坐化身死，真灵已散，无法再行逆天破境！"
+                "is_fatal": character.status == CharacterStatus.DEAD,
+                "message": str(e),
             }
 
         if not character.realm.is_full:
@@ -165,6 +169,7 @@ class BreakthroughEngine:
             if fail_roll <= 15:
                 # 1. 身死道消 (15%)
                 character.status = CharacterStatus.DEAD
+                character.death_cause = "渡劫天劫反噬，身死道消"
                 character.lifespan.death_timestamp = 0.0
                 _post_fail("天劫反噬，身死道消")
                 return {
@@ -185,6 +190,27 @@ class BreakthroughEngine:
                 # 2. 道基崩溃 (25%): 永久减寿命 10~25 岁
                 lost_years = round(random.uniform(10.0, 25.0), 1)
                 character.lifespan.burn_lifespan(lost_years)
+
+                # 寿元枯竭自愈与生死判定
+                if character.lifespan.is_dead():
+                    character.status = CharacterStatus.DEAD
+                    character.death_cause = "天劫雷火焚脉，寿元耗尽坐化"
+                    _post_fail("道基崩溃，寿尽道消")
+                    return {
+                        "success": False,
+                        "is_major": True,
+                        "is_fatal": True,
+                        "fail_tier": "DEATH",
+                        "prob_pct": round(final_prob * 100, 1),
+                        "judge_source": judge_source,
+                        "judge_reason": judge_reason,
+                        "message": (
+                            f"【雷火焚脉 · 寿尽道消】\n"
+                            f"雷劫入体撕裂丹田，寿元被强行削去 {lost_years} 岁！\n"
+                            f"道友阳寿彻底耗尽，当场坐化解体，真灵归于天地……{judge_line}"
+                        ),
+                    }
+
                 # 境界跌落一阶
                 character.realm.sub_tier = max(0, character.realm.sub_tier - 1)
                 _post_fail("道基崩溃，境界跌落")

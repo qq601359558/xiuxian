@@ -83,3 +83,19 @@
 - **requirement-evaluator**：阶段一深度分析方法。
 
 新功能默认路径：**requirement-evaluator 细化 → compose-next 开发与评审 → 回归验证 → 用户确认收尾**。
+
+---
+
+## ⚖️ 基准开发规则：道体数据合规守恒律 (Mandatory Integrity Law)
+
+所有涉及角色数据交互的新增功能、指令扩展或数值计算，必须强制遵循以下道则：
+
+1. **前置门禁守则 (Pre-action Guard)**：
+   - 凡非轮回/查体类世俗操作，必须调用 `CharacterIntegrity.assert_alive(char)` 拦截已坐化道身；
+   - 凡涉及迁跃、历练、斗法等重行为，必须调用 `CharacterIntegrity.assert_idle(char)` 拦截处于 `MEDITATING`（闭关）与 `CAPTURED`（被擒）状态的修士；
+   - 凡涉及消耗灵石，必须调用 `CharacterIntegrity.assert_currency(char, cost)` 或 `deduct_currency(char, cost)`，禁止产生灵石负数赤字；
+   - 凡涉及产出道具放入纳戒，必须调用 `CharacterIntegrity.assert_bag_space(char, slots)`，满 64 格前置阻断并提示移挪旧物。
+
+2. **后置入库审计 (Post-action Audit)**：
+   - 所有角色存档落盘必须统一走 `CharacterRepository.save(char)`，在此切入 6 大不变式自愈审查（寿元非负、境界有效、灵石非负、道心 0~100、纳戒 <= 64 格、定势排他），杜绝脏数据入库。
+

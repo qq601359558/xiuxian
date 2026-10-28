@@ -8,6 +8,7 @@ from config import (
     KARMA_KILL_LOWER_TIER
 )
 from core.models import Character, CharacterStatus, status_cn
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 
 
 class CombatEngine:
@@ -100,10 +101,15 @@ class CombatEngine:
         发起伏击/斗法
         :return: 战斗战报与生死财货清算
         """
-        if attacker.status == CharacterStatus.DEAD:
-            return {"success": False, "message": "已死之身不可动手！"}
-        if defender.status == CharacterStatus.DEAD:
-            return {"success": False, "message": "对方已坐化陨落，无可斗之理。"}
+        try:
+            CharacterIntegrity.assert_alive(attacker)
+            CharacterIntegrity.assert_alive(defender)
+            CharacterIntegrity.assert_idle(attacker, action="/斗法")
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
+
+        if defender.status == CharacterStatus.CAPTURED:
+            return {"success": False, "message": "对方已身陷囹圄被擒，不可再行斗法。"}
 
         # 计算战力
         att_power = CombatEngine.calculate_power(attacker)
@@ -184,8 +190,24 @@ class CombatEngine:
                     # 方案 B：肉身自卫替死血遁，挪移至坊市安全区，扣除1年寿命，保住性命！
                     burn_years = 1.0
                     defender.lifespan.burn_lifespan(burn_years)
-                    defender.status = CharacterStatus.IDLE
                     defender.meditation.is_active = False
+                    if defender.lifespan.is_dead():
+                        defender.status = CharacterStatus.DEAD
+                        defender.death_cause = f"洞府大阵被【{attacker.name}】轰碎，燃寿枯竭道消"
+                        return {
+                            "winner_id": attacker.id,
+                            "loser_id": defender.id,
+                            "target_died": True,
+                            "blood_escaped": False,
+                            "looted_stones": looted_stones,
+                            "report": (
+                                f"【大阵爆碎 · 燃寿道消】\n"
+                                f"{attacker.name} 施展极招彻底轰碎了 {defender.name} 的【{arr.name}】！\n"
+                                f"危急关头，{defender.name} 试图燃寿替死血遁，然寿元已近枯竭，血气溃散，当场坐化陨落！"
+                            ),
+                        }
+
+                    defender.status = CharacterStatus.IDLE
                     old_loc = defender.location
                     defender.location = "青云坊市客栈"
 
@@ -202,7 +224,7 @@ class CombatEngine:
                             f"【天道生机 · 替死血遁】\n"
                             f"危急关头，{defender.name} 体内本命替命玉符自燃，消耗 1 岁真寿化作血遁狂飙！\n"
                             f"肉身自【{old_loc}】随机挪移至【青云坊市客栈】，虽被洗劫且元气大伤，然侥幸保全性命！"
-                        )
+                        ),
                     }
             else:
                 # 分支 2: 荒野裸露闭关无阵盘（方案 B 严苛受创惩罚）
@@ -216,6 +238,23 @@ class CombatEngine:
                 # 燃烧 3 岁寿元逃命
                 burn_years = 3.0
                 defender.lifespan.burn_lifespan(burn_years)
+                defender.meditation.is_active = False
+
+                if defender.lifespan.is_dead():
+                    defender.status = CharacterStatus.DEAD
+                    defender.death_cause = f"荒野闭关遭【{attacker.name}】伏击，燃寿枯竭道消"
+                    return {
+                        "winner_id": attacker.id,
+                        "loser_id": defender.id,
+                        "target_died": True,
+                        "blood_escaped": False,
+                        "looted_stones": looted_stones,
+                        "report": (
+                            f"【荒野裸闭 · 燃寿道消】\n"
+                            f"{defender.name} 露天闭关遭 {attacker.name} 致命突袭！\n"
+                            f"试图强行燃寿血遁，怎奈所剩阳寿不足三载，道体崩解，当场坐化陨落！"
+                        ),
+                    }
 
                 # 道基受创跌境
                 if defender.realm.sub_tier > 0:
@@ -227,7 +266,6 @@ class CombatEngine:
                     realm_loss_msg = "道基震荡，体内元气溃散大半！"
 
                 defender.status = CharacterStatus.IDLE
-                defender.meditation.is_active = False
                 old_loc = defender.location
                 defender.location = "青云坊市客栈"
 

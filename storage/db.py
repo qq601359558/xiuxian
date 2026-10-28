@@ -390,6 +390,9 @@ class CharacterRepository:
 
     @staticmethod
     def save(character: Character):
+        from core.character_integrity import CharacterIntegrity
+
+        CharacterIntegrity.audit_character(character, auto_repair=True)
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         now = time.time()

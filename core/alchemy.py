@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import ITEM_CATALOG
 from core.models import Character, CharacterStatus
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 from storage.db import WorldStateRepository, CharacterRepository
 from core.content_pack import RECIPES, ALCHEMY_MATERIAL_POOL
 
@@ -144,10 +145,14 @@ def _return_half(c: Character, taken: List[Tuple[str, int]], kind: str) -> None:
 
 def craft(c: Character, recipe_name: str, kind: str) -> Dict[str, Any]:
     """kind: pill|equip —— 决定用 /炼丹 还是 /炼器 的提示语"""
-    if c.status == CharacterStatus.DEAD or c.lifespan.is_dead():
-        return {"success": False, "message": "身死道消，何谈开炉。"}
-    if c.status == CharacterStatus.MEDITATING:
-        return {"success": False, "message": "闭关中不可开炉。"}
+    action_name = f"/{'炼器' if kind == 'equip' else '炼丹'}"
+    try:
+        CharacterIntegrity.assert_alive(c)
+        CharacterIntegrity.assert_idle(c, action=action_name)
+        CharacterIntegrity.assert_bag_space(c, needed_slots=1)
+    except CharacterIntegrityError as e:
+        return {"success": False, "message": str(e)}
+
     r = get_recipe(recipe_name, known_only=True, user_id=c.user_id)
     if not r:
         # 是否未习得
@@ -160,15 +165,17 @@ def craft(c: Character, recipe_name: str, kind: str) -> Dict[str, Any]:
     if c.realm.tier < r.get("req_tier", 0):
         return {"success": False, "message": f"境界不足，需 {r.get('req_tier')} 阶以上。"}
     fee = int(r.get("stones_fee") or 0)
-    if c.spirit_stones < fee:
-        return {"success": False, "message": f"开炉需 {fee} 灵石，囊中仅有 {c.spirit_stones}。"}
+    try:
+        CharacterIntegrity.assert_currency(c, fee)
+    except CharacterIntegrityError as e:
+        return {"success": False, "message": f"开炉需 {fee} 灵石，{e}"}
 
     taken = _take_materials(c, r.get("materials") or {})
     if taken is None:
         mats = "、".join(f"{k}×{v}" for k, v in (r.get("materials") or {}).items())
         return {"success": False, "message": f"材料不足，需：{mats}"}
 
-    c.spirit_stones -= fee
+    CharacterIntegrity.deduct_currency(c, fee)
     rate = success_rate(c, r)
     roll = random.random()
     if roll < rate:

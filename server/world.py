@@ -545,6 +545,33 @@ class World:
                     "hint": "free_text",
                 }
 
+            # 生死门禁：道身已殒，唯可轮回转世或察看因果道统
+            if char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
+                if char.status != CharacterStatus.DEAD:
+                    char.status = CharacterStatus.DEAD
+                    CharacterRepository.save(char)
+                from core.character_integrity import CharacterIntegrity
+
+                if action not in CharacterIntegrity.ALLOWED_DEAD_ACTIONS:
+                    cause = char.death_cause or "寿尽道消"
+                    return {
+                        "ok": False,
+                        "error": f"【道身已殒】修士 {char.name} 已坐化道消（死因：{cause}），不可再行世俗之事。请用 /转世 步入轮回，或用 /道统 查看前世余泽。",
+                        "status": self._status_dict(char),
+                        "dead": True,
+                    }
+
+            # 被擒门禁：身陷囹圄，不可自由迁跃行商
+            if char.status == CharacterStatus.CAPTURED:
+                from core.character_integrity import CharacterIntegrity
+
+                if action not in CharacterIntegrity.ALLOWED_CAPTURED_ACTIONS:
+                    return {
+                        "ok": False,
+                        "error": f"【身陷囹圄】修士 {char.name} 当前处于被擒状态，无法自由行动！请先 /自救、/认输 或等待营救。",
+                        "status": self._status_dict(char),
+                    }
+
             # 闭关锁定：洞府入定，只许观照/出关等只读敕令
             if char.status == CharacterStatus.MEDITATING:
                 med_ok = (

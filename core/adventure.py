@@ -29,6 +29,7 @@ from config import (
     time_scale,
 )
 from core.models import Character, CharacterStatus
+from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 from core.combat import CombatEngine
 from core.qi import global_qi_multiplier
 from core.season import season_status_text
@@ -246,20 +247,19 @@ class AdventureEngine:
         use_ai: bool = True,
     ) -> Dict[str, Any]:
         t = now if now is not None else time.time()
-        if c.status == CharacterStatus.DEAD or c.lifespan.is_dead(t):
-            return {"success": False, "message": "身死道消，不可探险。"}
-        if c.status == CharacterStatus.MEDITATING:
-            return {"success": False, "message": "闭关锁门，不可外出。请先 /出关。"}
+        try:
+            CharacterIntegrity.assert_alive(c, now=t)
+            CharacterIntegrity.assert_idle(c, action="/探险")
+            CharacterIntegrity.assert_bag_space(c, needed_slots=1)
+            CharacterIntegrity.assert_currency(c, ADVENTURE_FEE)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
+
         if c.offline_protected_until > t or c.reclusion_active:
             return {"success": False, "message": "归隐庇护中不可探险，请先 /出隐。"}
         cd = getattr(c, "adventure_cd_until", 0.0)
         if cd > t:
             return {"success": False, "message": f"气息未平，还需 {int(cd - t)} 秒方可再探。"}
-        if c.spirit_stones < ADVENTURE_FEE:
-            return {
-                "success": False,
-                "message": f"盘缠不足，外出需 {ADVENTURE_FEE} 灵石（囊中 {c.spirit_stones}）。",
-            }
 
         target = resolve_target(target_name)
         if not target:
@@ -271,7 +271,7 @@ class AdventureEngine:
             c.location = target["location"]
             travel_note = f"先至【{target['location']}】。"
 
-        c.spirit_stones -= ADVENTURE_FEE
+        CharacterIntegrity.deduct_currency(c, ADVENTURE_FEE)
         # 前置盘缠原子落盘，防止长耗时 AI 响应期间产生陈旧快照或并发竞争
         try:
             from storage.db import CharacterRepository
@@ -387,16 +387,24 @@ class AdventureEngine:
             qty = int(item.get("qty") or 1)
             if kind == "map":
                 from core.treasure_system import TreasureEngine
+
                 for _ in range(qty):
                     tmap = TreasureEngine.generate_treasure_map(c, tier=max(1, min(4, c.realm.tier)))
-                    c.add_item_entity(tmap)
+                    if not c.is_bag_full():
+                        c.add_item_entity(tmap)
+                    elif c.crane_pending_item is None:
+                        c.crane_pending_item = tmap.model_dump()
                     c.has_found_map = True
                     loot_lines.append(tmap.display_name)
             else:
                 from core.items import ItemFactory
+
                 for _ in range(qty):
                     entity = ItemFactory.from_legacy_name(name)
-                    c.add_item_entity(entity)
+                    if not c.is_bag_full():
+                        c.add_item_entity(entity)
+                    elif c.crane_pending_item is None:
+                        c.crane_pending_item = entity.model_dump()
                     loot_lines.append(name)
 
 
