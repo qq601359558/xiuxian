@@ -964,10 +964,15 @@ class World:
                 # 选项
                 if sub.isdigit():
                     res = omen_choose(char, sub)
+                    still_open = bool(get_scene(char.id))
+                    from core.omen_scene import current_choices
+
                     return {
                         "ok": res.get("success"),
                         "text": res.get("message", ""),
-                        "omen_open": bool(get_scene(char.id)),
+                        "omen_open": still_open,
+                        "omen_inline": still_open,
+                        "omen_choices": current_choices(char.id) if still_open else [],
                         "omen_ended": bool(res.get("ended")),
                         "omen_status": res.get("omen_status"),
                         "status": self._status_dict(char),
@@ -975,51 +980,22 @@ class World:
                 # 有进行中则渲染
                 sc = get_scene(char.id)
                 if sc:
-                    from core.omen_scene import _render
+                    from core.omen_scene import _render, current_choices
 
                     return {
                         "ok": True,
                         "text": _render(sc, char),
                         "omen_open": True,
+                        "omen_inline": True,
                         "omen_title": sc.get("title"),
+                        "omen_choices": current_choices(char.id),
                         "status": self._status_dict(char),
                     }
-                # 无则尝试新开（保持旧：也可先跑 EventChain）
-                res = start_scene(char)
-                if not res.get("success"):
-                    # 退回旧链逻辑
-                    from core.event_chains import EventChainEngine
-
-                    if not EventChainEngine.active_for(char.id):
-                        ch = EventChainEngine.maybe_start(char, trigger="force", force=True)
-                        if ch:
-                            CharacterRepository.save(char)
-                            st = ch.steps[0]
-                            opts = " | ".join(f"{x['id']}.{x['label']}" for x in st["choices"])
-                            return {
-                                "ok": True,
-                                "text": (
-                                    f"【奇遇 · {ch.title}】{st['prompt']}\n"
-                                    f"选项：{opts}\n（/奇遇 <n> 推进）"
-                                ),
-                                "omen_open": True,
-                                "status": self._status_dict(char),
-                            }
-                    ev = EventEngine.fire(char, force=True, context="主动推演")
-                    if not ev:
-                        return {"ok": True, "text": "天机混沌，无事发生。", "status": self._status_dict(char)}
-                    CharacterRepository.save(char)
-                    return {
-                        "ok": True,
-                        "text": f"【{ev['title']}】\n{ev['narrative']}\n落账：{ev['effects_summary']}",
-                        "status": self._status_dict(char),
-                    }
-                CharacterRepository.save(char)
                 return {
                     "ok": True,
-                    "text": res.get("message", ""),
-                    "omen_open": True,
-                    "omen_title": res.get("scene", {}).get("title"),
+                    "text": "【天机渺茫】机缘天定，不可强求……",
+                    "omen_open": False,
+                    "omen_inline": False,
                     "status": self._status_dict(char),
                 }
             if action in ("/omen_say", "/奇遇说"):
@@ -1042,10 +1018,15 @@ class World:
                 except Exception:
                     pass
                 res = omen_say(char, words)
+                still_open = not bool(res.get("ended"))
+                from core.omen_scene import current_choices
+
                 return {
                     "ok": res.get("success"),
                     "text": res.get("message", ""),
-                    "omen_open": not bool(res.get("ended")),
+                    "omen_open": still_open,
+                    "omen_inline": still_open,
+                    "omen_choices": current_choices(char.id) if still_open else [],
                     "omen_ended": bool(res.get("ended")),
                     "omen_status": res.get("omen_status"),
                     "intent": res.get("intent"),
@@ -1110,6 +1091,9 @@ class World:
                     "target_node_id": res.get("target_node_id"),
                     "bagua": res.get("bagua"),
                     "direction_text": res.get("direction_text"),
+                    "omen_inline": res.get("omen_inline"),
+                    "omen_title": res.get("omen_title"),
+                    "omen_choices": res.get("omen_choices"),
                 }
 
             if action in ("/do", "/做", "/act"):
@@ -1127,11 +1111,13 @@ class World:
                         if res.get("success"):
                             CharacterRepository.save(char)
                             log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
-                        return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                        ret = {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                        return self._append_natural_omen(char, ret, context="寻幽破局")
                 res = FreeActionEngine.execute(char, free_text)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("narrative", res.get("message", "")), "status": self._status_dict(char)}
+                ret = {"ok": res.get("success"), "text": res.get("narrative", res.get("message", "")), "status": self._status_dict(char)}
+                return self._append_natural_omen(char, ret, context="随心行止")
 
 
             if action in ("/equip", "/穿戴"):
@@ -1224,12 +1210,13 @@ class World:
                     exp=res.get("exp_delta"),
                     loot=len(res.get("loot") or []),
                 )
-                return {
+                payload = {
                     "ok": True,
                     "text": res.get("message", ""),
                     "adventure": res,
                     "status": self._status_dict(char),
                 }
+                return self._append_natural_omen(char, payload, context=f"大荒探险 · {res.get('target', '')}")
             if action in ("/配方", "/recipes"):
                 from core.alchemy import format_book
 
@@ -1984,8 +1971,7 @@ class World:
                             append_banter_to_session(char.id, banter_list)
                 except Exception:
                     banter_text = ""
-                log_event("DECISION", "chat", name=char.name, target=npc.name, source=source, ended=bool(out.get("ended")))
-                return {
+                payload = {
                     "ok": True,
                     "text": (out.get("message", line) or "") + banter_text,
                     "chat_open": not out.get("ended"),
@@ -1994,6 +1980,9 @@ class World:
                     "source": source,
                     "bystanders": banter_list,
                 }
+                if not out.get("ended"):
+                    return self._append_natural_omen(char, payload, context="与NPC交谈", in_chat_npc=npc)
+                return payload
             if action in ("/挂断", "/hangup"):
                 from core import npc_chat
 
@@ -3265,6 +3254,14 @@ class World:
         if not matched:
             return {"ok": False, "error": f"未知地点：{dest}"}
 
+        dismiss_note = None
+        try:
+            from core.omen_scene import dismiss_on_leave
+
+            dismiss_note = dismiss_on_leave(c, action_label="御剑迁跃")
+        except Exception:
+            pass
+
         c.location = matched
         CharacterRepository.save(c)
         text = f"御剑化虹，抵达【{matched}】。"
@@ -3322,13 +3319,27 @@ class World:
                 text += f"\n【天机示现】附近【{rid}】禁制松动，似已开启！输入 /秘境 {rid} 可入。"
         except Exception:
             pass
-        return {"ok": True, "text": text, "status": self._status_dict(c)}
+        if dismiss_note:
+            text = f"{dismiss_note}\n{text}"
+        payload = {"ok": True, "text": text, "status": self._status_dict(c)}
+        return self._append_natural_omen(c, payload, context="御剑迁跃")
 
     def _meditate(self, c: Character, hours: float) -> Dict[str, Any]:
+        dismiss_note = None
+        try:
+            from core.omen_scene import dismiss_on_leave
+
+            dismiss_note = dismiss_on_leave(c, action_label="入定闭关")
+        except Exception:
+            pass
+
         res = WorldClock.start_meditation(c, hours, 0)
         if res["success"]:
             CharacterRepository.save(c)
-        return {"ok": res["success"], "text": res["message"], "status": self._status_dict(c)}
+        msg = res["message"]
+        if dismiss_note:
+            msg = f"{dismiss_note}\n{msg}"
+        return {"ok": res["success"], "text": msg, "status": self._status_dict(c)}
 
     def _emerge(self, c: Character) -> Dict[str, Any]:
         if c.status != CharacterStatus.MEDITATING:
@@ -3346,13 +3357,16 @@ class World:
             lines.append("寿尽坐化。")
             dead = True
             self._settle_if_needed(c, cause="洞府坐化")
-        return {
+        ret = {
             "ok": True,
             "text": "\n".join(lines),
             "death": dead,
             "status": self._status_dict(c),
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
         }
+        if not dead:
+            return self._append_natural_omen(c, ret, context="出关入世")
+        return ret
 
     def legacy_info_id(self, user_id: str) -> Dict[str, Any]:
         account = LegacyRepository.get_or_create(user_id)
@@ -3456,35 +3470,56 @@ class World:
             ChronicleRepository.record("KILL", c.name, f"【{c.name}】斩杀【{target.name}】")
         return {"ok": True, "text": text, "outcome": res.get("outcome"), "target_died": res.get("target_died")}
 
-    def _event(self, c: Character) -> Dict[str, Any]:
-        # 优先尝试通用奇遇链（force）；已有链则走旧单发事件
+    def _append_natural_omen(
+        self,
+        char: Character,
+        payload: Dict[str, Any],
+        context: str = "",
+        in_chat_npc: Optional[Character] = None,
+    ) -> Dict[str, Any]:
+        """为日常行为结果追加自然奇遇检定"""
         try:
-            from core.event_chains import EventChainEngine
+            if not payload.get("ok", True):
+                return payload
+            from core.omen_scene import maybe_trigger_natural_omen
 
-            if not EventChainEngine.active_for(c.id):
-                ch = EventChainEngine.maybe_start(c, trigger="force", force=True)
-                if ch:
-                    CharacterRepository.save(c)
-                    st = ch.steps[0]
-                    opts = " | ".join(f"{x['id']}.{x['label']}" for x in st["choices"])
-                    return {
-                        "ok": True,
-                        "text": (
-                            f"【奇遇 · {ch.title}】{st['prompt']}\n"
-                            f"选项：{opts}\n（/奇遇 <n> 推进）"
-                        ),
-                        "omen": ch.model_dump(),
-                    }
+            omen = maybe_trigger_natural_omen(char, context=context, in_chat_npc=in_chat_npc)
+            if omen and omen.get("triggered"):
+                if in_chat_npc:
+                    payload["omen_chat"] = omen
+                    payload["text"] = (payload.get("text") or "") + "\n\n" + (omen.get("text") or "")
+                else:
+                    payload["omen_inline"] = bool(omen.get("omen_inline", True))
+                    payload["omen_title"] = omen.get("omen_title") or omen.get("title")
+                    payload["omen_choices"] = omen.get("omen_choices") or []
+                    payload["text"] = (payload.get("text") or "") + "\n\n" + (omen.get("text") or "")
+                payload["status"] = self._status_dict(char)
         except Exception:
             pass
-        ev = EventEngine.fire(c, force=True, context="主动推演")
-        if not ev:
-            return {"ok": True, "text": "天机混沌，无事发生。"}
-        CharacterRepository.save(c)
+        return payload
+
+    def _event(self, c: Character) -> Dict[str, Any]:
+        from core.omen_scene import get_scene
+
+        sc = get_scene(c.id)
+        if sc:
+            from core.omen_scene import _render, current_choices
+
+            return {
+                "ok": True,
+                "text": _render(sc, c),
+                "omen_open": True,
+                "omen_inline": True,
+                "omen_title": sc.get("title"),
+                "omen_choices": current_choices(c.id),
+                "status": self._status_dict(c),
+            }
         return {
             "ok": True,
-            "text": f"【{ev['title']}】\n{ev['narrative']}\n落账：{ev['effects_summary']}",
-            "event": ev,
+            "text": "【天机渺茫】机缘天定，不可强求……",
+            "omen_open": False,
+            "omen_inline": False,
+            "status": self._status_dict(c),
         }
 
     def _bounty_board(self) -> str:

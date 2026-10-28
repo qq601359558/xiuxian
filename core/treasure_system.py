@@ -322,6 +322,28 @@ class TreasureEngine:
         }
 
     @staticmethod
+    def _attach_omen_if_needed(c: Character, res: Dict[str, Any]) -> Dict[str, Any]:
+        if not (res.get("success") and res.get("outcome")):
+            return res
+        is_first_dig = not bool(getattr(c, "first_dig_omen_done", False))
+        if is_first_dig:
+            c.first_dig_omen_done = True
+        try:
+            from core.omen_scene import maybe_trigger_natural_omen
+
+            omen = maybe_trigger_natural_omen(c, context="按图挖宝", force=is_first_dig)
+            if omen and omen.get("triggered"):
+                res["omen_triggered"] = True
+                res["first_dig_omen"] = is_first_dig
+                res["omen_inline"] = bool(omen.get("omen_inline", True))
+                res["omen_title"] = omen.get("omen_title") or omen.get("title")
+                res["omen_choices"] = omen.get("omen_choices") or []
+                res["message"] = (res.get("message") or "") + "\n\n" + (omen.get("text") or "")
+        except Exception:
+            pass
+        return res
+
+    @staticmethod
     def dig(
         c: Character,
         now: Optional[float] = None,
@@ -457,7 +479,7 @@ class TreasureEngine:
                 )
                 c.add_item_entity(drop_pill)
 
-                return {
+                return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "perfect_solve",
                     "equipment": {
@@ -487,7 +509,7 @@ class TreasureEngine:
                         f"掘得绝品神兵【{drop_weapon.display_name}】与【{drop_pill.display_name}】！\n"
                         f"战利品已妥善纳归百宝纳戒。"
                     ),
-                }
+                })
             elif choice_str in ("2", "force", "brute", "蛮力"):
                 # 蛮力强攻
                 loss_stones = 40
@@ -506,7 +528,7 @@ class TreasureEngine:
                 )
                 c.add_item_entity(drop_weapon)
 
-                return {
+                return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "brute_force",
                     "equipment": {
@@ -527,7 +549,7 @@ class TreasureEngine:
                         f"受反震损耗灵石 {loss_stones}，搜刮残余洞室得修为 +{exp_gain}，"
                         f"抢救出残损法宝【{drop_weapon.display_name}】入纳戒。"
                     ),
-                }
+                })
 
 
         # ==========================================
@@ -555,7 +577,7 @@ class TreasureEngine:
                     lore="洞府守墓傀儡手中握着的古老战刃，煞气未消。",
                 )
                 c.add_item_entity(drop_weapon)
-                return {
+                return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "combat_victory",
                     "equipment": {
@@ -577,11 +599,11 @@ class TreasureEngine:
                         f"缴获战利：修为 +{exp_gain}，灵石 +{stones_gain}，"
                         f"缴获法宝【{drop_weapon.display_name}】！"
                     ),
-                }
+                })
             else:
                 # 负伤苦战逃遁
                 c.lifespan.burn_lifespan(0.5)
-                return {
+                return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "combat_defeat",
                     "message": (
@@ -589,7 +611,7 @@ class TreasureEngine:
                         f"守墓傀儡战力狂暴（战力约 {int(guardian_power)}），你护体罡气受创，"
                         f"燃寿 0.5 岁施展血遁脱险，所幸留得一命！"
                     ),
-                }
+                })
 
         # ==========================================
         # 原型 C：地渊残迹与世界疤痕 (Ruin Hazard & Scars)
@@ -631,7 +653,7 @@ class TreasureEngine:
             )
             c.add_item_entity(ancient_relic)
 
-            return {
+            return TreasureEngine._attach_omen_if_needed(c, {
                 "success": True,
                 "outcome": "scar_created",
                 "equipment": {
@@ -655,7 +677,7 @@ class TreasureEngine:
                     f"【天道警示】你引爆地脉殃及生灵，业力 +20！"
                     f"【{target_node.base_name}】地貌永久异变为【赤焰火海】！"
                 ),
-            }
+            })
 
         return {"success": False, "message": "未知谜题原型。"}
 
@@ -742,7 +764,7 @@ class TreasureEngine:
                 name="太虚流云履", tier=2, slot="armor", lore="奇谋破阵得大能赏识所留宝履。"
             )
             c.add_item_entity(reward_item)
-            return {
+            return TreasureEngine._attach_omen_if_needed(c, {
                 "success": True,
                 "outcome": "free_action_success",
                 "narrative": ai_narrative,
@@ -751,14 +773,14 @@ class TreasureEngine:
                     f"落账收益：修为 +{exp}，灵石 +{stones}，道心 +5，"
                     f"获赐法宝【{reward_item.display_name}】！"
                 ),
-            }
+            })
         else:
             # 向前失败（Fail Forward）：虽败犹荣，获得隐藏机缘！
             loss_exp = 20
             c.realm.current_exp = max(0, c.realm.current_exp - loss_exp)
             hidden_pill = ItemFactory.from_legacy_name("九转培元丹")
             c.add_item_entity(hidden_pill)
-            return {
+            return TreasureEngine._attach_omen_if_needed(c, {
                 "success": True,
                 "outcome": "fail_forward",
                 "narrative": ai_narrative,
@@ -766,4 +788,4 @@ class TreasureEngine:
                     f"【天道反转 · 因祸得福（Fail Forward）】\n{ai_narrative}\n"
                     f"虽被反噬震伤修为 -{loss_exp}，却在密室暗格拾得上古遗丹【{hidden_pill.display_name}】！"
                 ),
-            }
+            })

@@ -790,9 +790,15 @@ def say(c: Character, text: str) -> Dict[str, Any]:
         scene["messages"].append({"who": c.name, "text": f"@{at_name} {body}".strip(), "ts": time.time()})
     else:
         scene["messages"].append({"who": c.name, "text": text, "ts": time.time()})
-    intent = _classify_intent(body if at_name else text)
+    clean_input = body if at_name else text
+    intent = _classify_intent(clean_input)
     node = _node(scene["script_id"], scene["node_id"])
     edge = next((e for e in (node.get("edges") or []) if e.get("intent") == intent), None)
+    if not edge:
+        ai_edge, ai_intent = _ai_match_edge(c, scene, node, clean_input)
+        if ai_edge:
+            edge = ai_edge
+            intent = ai_intent
     speaker = node.get("speaker") or scene.get("speaker") or "旁白"
     # @ 指定：若该人不在当前节点 speaker，给一句应答仍推进（或仅回一句）
     if at_name and at_name != speaker and at_name in speakers:
@@ -866,3 +872,183 @@ def abandon(c: Character) -> Dict[str, Any]:
         return {"success": False, "message": "当前无奇遇。"}
     scene["messages"].append({"who": "你", "text": "（抽身而退）", "ts": time.time()})
     return _finish(c, scene, "abandoned", "你主动抽身，天道不罪。", {})
+
+
+def current_choices(player_id: str) -> List[Dict[str, str]]:
+    """返回玩家当前奇遇节点的可用选项列表（供主界面内联芯片渲染）"""
+    scene = get_scene(player_id)
+    if not scene:
+        return []
+    node = _node(scene.get("script_id", ""), scene.get("node_id", ""))
+    out: List[Dict[str, str]] = []
+    for ch in node.get("choices") or []:
+        if isinstance(ch, dict) and ch.get("id") and ch.get("label"):
+            out.append({"id": str(ch["id"]), "label": str(ch["label"])})
+    return out
+
+
+def dismiss_on_leave(c: Character, action_label: str = "转身离去") -> Optional[str]:
+    """当玩家在奇遇未完时直接迁跃或闭关，自动按擦肩而过散场，防止卡死"""
+    scene = get_scene(c.id)
+    if not scene:
+        return None
+    title = scene.get("title") or "奇遇"
+    scene["status"] = "abandoned"
+    scene["end_reason"] = f"你{action_label}，此间机缘随之消散。"
+    scene["ended_at"] = time.time()
+    save_scene(c.id, scene)
+    return f"【机缘散去】你{action_label}，「{title}」之机缘擦肩而过。"
+
+
+def _ai_match_edge(
+    c: Character,
+    scene: Dict[str, Any],
+    node: Dict[str, Any],
+    player_text: str,
+) -> Tuple[Optional[Dict[str, Any]], str]:
+    """当本地关键词未命中时，若 AI 可用，结合玩家境界/功法/行囊与节点语义动态映射意图边"""
+    edges = node.get("edges") or []
+    if not edges:
+        return None, "chat"
+    try:
+        from ai.gateway import _chat_json, ai_ready
+
+        if not ai_ready():
+            return None, "chat"
+        valid_intents = [str(e.get("intent")) for e in edges if e.get("intent")]
+        if not valid_intents:
+            return None, "chat"
+        skills_str = "、".join((c.skills or [])[:6]) or "无"
+        inv_str = "、".join((c.inventory or [])[:6]) or "无"
+        prompt = (
+            "你是修仙奇遇意图裁判。只输出 JSON。\n"
+            f"当前奇遇：{scene.get('title')}｜情境：{node.get('prompt')}\n"
+            f"修士：{c.name}（{c.realm.name}，法门：{skills_str}，行囊：{inv_str}）\n"
+            f"修士应对原文：{player_text[:120]}\n"
+            f"可选意图分支：{', '.join(valid_intents)}，若完全是无关胡言乱语则输出 none。\n"
+            '输出：{"intent":"分支名或none"}'
+        )
+        data = _chat_json(prompt, timeout=10.0)
+        picked = str((data or {}).get("intent") or "").strip().lower()
+        for e in edges:
+            if str(e.get("intent")) == picked:
+                return e, picked
+    except Exception:
+        pass
+    return None, "chat"
+
+
+_CHAT_OMEN_TEMPLATES: List[Dict[str, Any]] = [
+    {
+        "title": "言谈顿悟",
+        "narrative": "与【{npc}】交谈间，其无心一言恰触动你体内真元滞涩之处，识海豁然开朗！",
+        "effects": {"exp": 65, "dao_heart": 2},
+        "attitude_delta": 3,
+    },
+    {
+        "title": "袖中残简",
+        "narrative": "【{npc}】打量你片刻，忽自袖中摸出一枚蒙尘玉简递来：「此物留我处无用，赠予道友参详。」",
+        "effects": {"exp": 50, "stones": 35},
+        "attitude_delta": 4,
+    },
+    {
+        "title": "警觉凝神",
+        "narrative": "正与【{npc}】说话间，窗外一道隐秘神识一扫而过，你二人同时警觉，道心愈发凝练。",
+        "effects": {"exp": 45, "dao_heart": 3},
+        "attitude_delta": 2,
+    },
+    {
+        "title": "古方残页",
+        "narrative": "【{npc}】谈及昔年游历旧事，随手在案上画出几道行气轨迹，你暗记于心，获益匪浅。",
+        "effects": {"exp": 80},
+        "attitude_delta": 3,
+    },
+]
+
+
+def maybe_trigger_natural_omen(
+    c: Character,
+    context: str = "",
+    *,
+    force: bool = False,
+    in_chat_npc: Optional[Character] = None,
+    rng: Optional[random.Random] = None,
+    allow_ai: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """
+    自然奇遇统一触发器：
+    - force=True：100% 触发（用于本世首次使用藏宝图 /挖宝）
+    - force=False：按 config.omen_chance()（生产 1%，测试 30%）随机检定
+    - in_chat_npc 非空时：在 NPC 聊天弹窗（chatModal）内就地触发交谈奇遇，不跳出弹窗
+    - 其余情况：开启内联奇遇场景（主界面天道录展示 + 底部应对芯片，无独立弹窗）
+    """
+    if c is None or c.status != CharacterStatus.IDLE or c.lifespan.is_dead():
+        return None
+    if get_scene(c.id):
+        return None
+
+    from config import omen_chance
+
+    r = rng or random
+    chance = 1.0 if force else omen_chance()
+    if not force and r.random() >= chance:
+        return None
+
+    c.last_omen_at = time.time()
+
+    # 分支 1：在 NPC 聊天弹窗中触发交谈奇遇（保留聊天窗体验）
+    if in_chat_npc is not None:
+        tpl = r.choice(_CHAT_OMEN_TEMPLATES)
+        narrative = tpl["narrative"].format(npc=in_chat_npc.name, player=c.name)
+        try:
+            from core import ai_flavor
+
+            tip = ai_flavor._ask(
+                f"你是修仙旁白，写一句45字内的交谈突发奇遇。{c.name}正与{in_chat_npc.name}在{c.location}交谈，"
+                f"主题：{tpl['title']}。只输出 JSON {{\"line\":\"...\"}}",
+                timeout=8.0,
+            )
+            if tip:
+                narrative = tip
+        except Exception:
+            pass
+        summary = _apply(c, tpl.get("effects") or {})
+        att_delta = int(tpl.get("attitude_delta") or 0)
+        if att_delta:
+            try:
+                from core.npc_mind import shift_attitude
+
+                shift_attitude(in_chat_npc, c.id, att_delta, reason=f"交谈奇遇:{tpl['title']}")
+                CharacterRepository.save(in_chat_npc)
+            except Exception:
+                pass
+        CharacterRepository.save(c)
+        text = f"【天机偶发 · {tpl['title']}】{narrative}（落账：{summary}）"
+        return {
+            "triggered": True,
+            "mode": "chat",
+            "title": tpl["title"],
+            "text": text,
+            "effects_summary": summary,
+            "omen_inline": False,
+        }
+
+    # 分支 2：主界面内联奇遇（首次挖宝 100% 或日常行动 1%/30% 触发）
+    started = start_scene(c, allow_ai=allow_ai)
+    if not started.get("success"):
+        return None
+    scene = started["scene"]
+    CharacterRepository.save(c)
+    choices = current_choices(c.id)
+    header = "【首图奇遇 · 机缘天降】" if force else f"【天机奇遇 · 偶发于{context or c.location}】"
+    return {
+        "triggered": True,
+        "mode": "inline",
+        "title": scene.get("title") or "奇遇",
+        "scene": scene,
+        "text": f"{header}\n{started.get('message', '')}",
+        "omen_inline": True,
+        "omen_title": scene.get("title") or "奇遇",
+        "omen_choices": choices,
+    }
+

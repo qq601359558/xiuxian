@@ -558,9 +558,6 @@ ITEM_CATALOG = {
     "藏宝图": {"kind": "map", "price": 300, "npc_sell": False, "desc": "残破藏宝图，标注某处洞天（后续可挖宝）。天地造化机缘，商会不可售，仅能历练发掘或玩家间交易。"},
 }
 
-# ==================== 世界事件（机缘/危机）====================
-# 每次外出/出关后触发事件的概率
-EVENT_TRIGGER_CHANCE = 0.45
 # 动态载入五行材料、丹药与装备总纲（含 7 大材料、5 大流派丹药、5 大槽位装备、难度 DC、五行属性与中英双键索引）
 from core.catalogs.materials import MATERIAL_CATALOG
 from core.catalogs.pills import PILL_CATALOG
@@ -568,6 +565,22 @@ from core.catalogs.equipments import EQUIPMENT_CATALOG
 ITEM_CATALOG.update(MATERIAL_CATALOG)
 ITEM_CATALOG.update(PILL_CATALOG)
 ITEM_CATALOG.update(EQUIPMENT_CATALOG)
+
+# ==================== 世界事件与自然奇遇（机缘/危机）====================
+# 首次使用藏宝图（/挖宝）100% 触发奇遇；后续在交谈/行动中随机偶发：
+# 生产环境 1% (0.01)，测试环境 30% (0.30)
+OMEN_CHANCE_PROD = float(os.getenv("OMEN_CHANCE_PROD", "0.01"))
+OMEN_CHANCE_TEST = float(os.getenv("OMEN_CHANCE_TEST", "0.30"))
+OMEN_COOLDOWN_SECONDS = float(os.getenv("OMEN_COOLDOWN_SECONDS", "600.0"))
+
+
+def omen_chance() -> float:
+    """日常行为（交谈/言行/迁跃/探险/出关/后续挖宝）自然触发奇遇概率"""
+    return OMEN_CHANCE_PROD if is_production() else OMEN_CHANCE_TEST
+
+
+# 每次外出/出关后触发事件的基准概率（与自然奇遇概率对齐）
+EVENT_TRIGGER_CHANCE = OMEN_CHANCE_PROD if is_production() else OMEN_CHANCE_TEST
 # 事件类别权重
 EVENT_WEIGHTS = {
     "fortune": 45,  # 机缘

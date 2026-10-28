@@ -327,7 +327,9 @@ class Character(BaseModel):
     flee_cooldown_until: float = 0.0
     adventure_cd_until: float = 0.0
     has_found_map: bool = False  # 是否已获取过首张探险宝图（首探必得保底）
-    # 目标（六类目标源，可接可拒）
+    # 自然奇遇与首张藏宝图必出奇遇标记
+    first_dig_omen_done: bool = False  # 本世是否已触发过首次藏宝图 100% 奇遇
+    last_omen_at: float = 0.0          # 上次自然触发奇遇时间戳
 
     goals: List[Dict[str, Any]] = Field(default_factory=list)
 

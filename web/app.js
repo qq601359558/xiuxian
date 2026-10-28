@@ -782,69 +782,70 @@
     box.appendChild(el);
     box.scrollTop = box.scrollHeight;
   }
-  function openOmen(title) {
-    const m = $("omenModal");
-    if (!m) return;
-    m.classList.remove("hidden");
-    m.setAttribute("aria-hidden", "false");
-    if ($("omenTitle") && title) $("omenTitle").textContent = "奇遇 · " + title;
-    const inp = $("omenInput");
-    if (inp) inp.focus();
+  function removeInlineOmenBar() {
+    state.omenInlineOpen = false;
+    const bar = $("inlineOmenBar");
+    if (bar) bar.remove();
   }
-  function closeOmen() {
-    const m = $("omenModal");
-    if (!m) return;
-    m.classList.add("hidden");
-    m.setAttribute("aria-hidden", "true");
-    const chips = $("omenChips");
-    if (chips) chips.innerHTML = "";
+
+  function renderInlineOmenBar(title, choices) {
+    state.omenInlineOpen = true;
+    let bar = $("inlineOmenBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "inlineOmenBar";
+      bar.className = "inline-omen-bar";
+      const form = $("cmdForm");
+      if (form && form.parentNode) {
+        form.parentNode.insertBefore(bar, form);
+      }
+    }
+    bar.innerHTML = "";
+    const titleEl = document.createElement("span");
+    titleEl.className = "omen-tag";
+    titleEl.textContent = `【机缘 · ${title || "奇遇"}】`;
+    bar.appendChild(titleEl);
+
+    const list = Array.isArray(choices) ? choices : [];
+    for (const ch of list) {
+      const id = typeof ch === "object" ? ch.id : ch.split(".")[0];
+      const label = typeof ch === "object" ? ch.label : ch.replace(/^\d+\./, "");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-soft omen-chip";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        send("/奇遇 " + id);
+      });
+      bar.appendChild(btn);
+    }
+    const leaveBtn = document.createElement("button");
+    leaveBtn.type = "button";
+    leaveBtn.className = "btn-ghost sm omen-abandon";
+    leaveBtn.textContent = "抽身";
+    leaveBtn.addEventListener("click", () => {
+      send("/奇遇 弃");
+      removeInlineOmenBar();
+    });
+    bar.appendChild(leaveBtn);
   }
+
   function parseOmenChoices(text) {
     const m = /选项：(.+)/.exec(text || "");
     if (!m) return [];
     return m[1].split("|").map((s) => s.trim()).filter(Boolean);
   }
+
   function handleOmenPayload(data, text) {
-    if (!data.omen_open && !data.omen_ended) return false;
-    if (data.omen_open) {
-      openOmen(data.omen_title || "奇遇");
-      const meta = $("omenMeta");
-      if (meta && text) {
-        const g = /目标：(.+)/.exec(text);
-        const p = /进度：(.+)/.exec(text);
-        const s = /灵石 (\d+).*修为 (\d+)\/(\d+)/.exec(text);
-        meta.textContent = [g && g[1], p && p[1], s && `灵石${s[1]} 修为${s[2]}/${s[3]}`]
-          .filter(Boolean).join(" · ");
-      }
-      if (data.ok && text) {
-        for (const ln of text.split("\n").filter(Boolean)) {
-          if (/【奇遇|目标：|进度：|选项：|灵石 /.test(ln)) omenAppend("", ln, "sys");
-          else omenAppend("", ln, "npc");
-        }
-        const chips = $("omenChips");
-        if (chips) {
-          chips.innerHTML = "";
-          for (const c of parseOmenChoices(text)) {
-            const id = c.split(".")[0];
-            const label = c.replace(/^\d+\./, "");
-            const b = document.createElement("button");
-            b.type = "button";
-            b.className = "chip";
-            b.textContent = label;
-            b.addEventListener("click", () => {
-              omenAppend("你", "（选择）" + label, "me");
-              lastCmd = "/奇遇";
-              send("/奇遇 " + id);
-            });
-            chips.appendChild(b);
-          }
-        }
-      }
+    const isInline = data.omen_inline || data.omen_open;
+    if (!isInline && !data.omen_ended) return false;
+    if (isInline) {
+      const choices = data.omen_choices || parseOmenChoices(text);
+      renderInlineOmenBar(data.omen_title || "奇遇", choices);
       return true;
     }
     if (data.omen_ended) {
-      if (text) omenAppend("", text, "sys");
-      setTimeout(closeOmen, 1800);
+      removeInlineOmenBar();
       return true;
     }
     return false;
@@ -1246,7 +1247,12 @@
 
   $("cmdForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    const v = $("cmdInput").value;
+    const raw = ($("cmdInput").value || "").trim();
+    if (!raw) return;
+    let v = raw;
+    if (state.omenInlineOpen && !raw.startsWith("/")) {
+      v = "/奇遇说 " + raw;
+    }
     // 打开补全且仅输入 /xxx（无参数）时 Enter 已在 keydown 处理；此处提交完整指令
     lastCmd = v;
     $("cmdInput").value = "";

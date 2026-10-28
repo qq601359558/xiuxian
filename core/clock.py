@@ -90,7 +90,8 @@ class WorldClock:
             status=CharacterStatus.IDLE,
             meditation=MeditationSession(),
             location="青云坊市客栈",
-            arrays=[] # 初始散修背包空空，无阵盘
+            arrays=[],  # 初始散修背包空空，无阵盘
+            inventory=["藏宝图"],  # 入世自带 1 张藏宝图，首次 /挖宝 100% 触发奇遇
         )
         return char
 

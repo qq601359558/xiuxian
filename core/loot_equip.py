@@ -20,16 +20,102 @@ def _is_equip(name: str) -> bool:
 
 
 class DigEngine:
-    """使用藏宝图挖宝（Core-V2 桥接层）"""
+    """使用藏宝图挖宝（Core-V2 桥接层与自然奇遇支持）"""
 
     @staticmethod
     def dig(
         c: Character,
         now: Optional[float] = None,
         choice_id: Optional[str] = None,
+        force_legacy: bool = False,
     ) -> Dict[str, Any]:
-        from core.treasure_system import TreasureEngine
-        return TreasureEngine.dig(c, now=now, choice_id=choice_id)
+        if not force_legacy:
+            from core.treasure_system import TreasureEngine
+
+            res = TreasureEngine.dig(c, now=now, choice_id=choice_id)
+            if res.get("success") or res.get("wrong_location") or res.get("need_choice"):
+                return res
+            if "藏宝图" not in c.inventory:
+                return res
+
+        t = now if now is not None else time.time()
+        if c.status == CharacterStatus.DEAD or c.lifespan.is_dead(t):
+            return {"success": False, "message": "身死道消，无宝可挖。"}
+        if c.status == CharacterStatus.MEDITATING:
+            return {"success": False, "message": "闭关中不可外出挖宝，请先 /出关。"}
+        if "藏宝图" not in c.inventory:
+            return {"success": False, "message": "行囊中并无藏宝图。可外出探险拾取或坊市购入。"}
+
+        c.inventory.remove("藏宝图")
+        is_first_dig = not bool(getattr(c, "first_dig_omen_done", False))
+        if is_first_dig:
+            c.first_dig_omen_done = True
+
+        # 首次使用藏宝图：必得掘宝机缘 + 100% 触发奇遇
+        r = 0.10 if is_first_dig else random.random()
+        if r < 0.45:
+            stones = random.randint(80, 400 + c.realm.tier * 80)
+            exp = random.randint(50, 200 + c.realm.tier * 40)
+            c.spirit_stones += stones
+            c.realm.current_exp = min(c.realm.max_exp, c.realm.current_exp + exp)
+            extra = ""
+            if is_first_dig or random.random() < 0.35:
+                from config import DIG_RARE_PILLS
+
+                r2 = random.random()
+                if r2 < 0.7:
+                    pill = random.choice(ADVENTURE_PILLS)
+                elif r2 < 0.95:
+                    pill = "玄元聚气丹"
+                else:
+                    pill = random.choice(DIG_RARE_PILLS)
+                c.inventory.append(pill)
+                extra = f"，另得【{pill}】"
+            res: Dict[str, Any] = {
+                "success": True,
+                "outcome": "fortune",
+                "message": (
+                    f"【挖宝功成】循图至幽谷，掘出上古玉匣：灵石 +{stones}，修为 +{exp}{extra}。"
+                ),
+                "stones": stones,
+                "exp": exp,
+            }
+        elif r < 0.75:
+            res = {
+                "success": True,
+                "outcome": "empty",
+                "message": "【空图】掘地三尺，唯余黄土。藏宝图作废。",
+            }
+        else:
+            loss_exp = int(c.realm.current_exp * 0.1) + 15
+            burn = round(random.uniform(0.3, 1.2), 2)
+            c.realm.current_exp = max(0, c.realm.current_exp - loss_exp)
+            c.lifespan.burn_lifespan(burn)
+            res = {
+                "success": True,
+                "outcome": "trap",
+                "message": (
+                    f"【险境】图上标注竟是古修残留禁制！破禁脱身，修为 -{loss_exp}，燃寿 {burn} 岁。"
+                ),
+                "exp": -loss_exp,
+                "lifespan": -burn,
+            }
+
+        # 奇遇检定：本世首次挖宝 100% 触发；后续按 omen_chance()（生产 1% / 测试 30%）触发
+        try:
+            from core.omen_scene import maybe_trigger_natural_omen
+
+            omen = maybe_trigger_natural_omen(c, context="按图挖宝", force=is_first_dig)
+            if omen and omen.get("triggered"):
+                res["omen_triggered"] = True
+                res["first_dig_omen"] = is_first_dig
+                res["omen_inline"] = bool(omen.get("omen_inline", True))
+                res["omen_title"] = omen.get("omen_title") or omen.get("title")
+                res["omen_choices"] = omen.get("omen_choices") or []
+                res["message"] = res["message"] + "\n\n" + (omen.get("text") or "")
+        except Exception:
+            pass
+        return res
 
 
 
