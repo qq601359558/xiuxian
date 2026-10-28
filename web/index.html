@@ -279,11 +279,14 @@
 
   <!-- 神识交谈玉简 -->
   <div id="chatModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="chatTitle">
-    <div class="slab jade-panel-elevated rounded-2xl">
-      <div class="slab-head border-b border-jade-200/80 pb-3 flex items-center justify-between">
+    <div class="slab jade-slip-dialog rounded-2xl relative overflow-hidden" style="border: 2px solid rgba(212, 175, 55, 0.45); box-shadow: 0 0 40px rgba(0,0,0,0.8);">
+      <div class="slab-head border-b border-jade-500/30 pb-3 flex items-center justify-between">
         <div style="flex:1;min-width:0">
-          <h2 id="chatTitle" class="text-base font-bold text-jade-950">神识交谈</h2>
-          <p id="chatSub" class="text-xs text-slate-500">直接向对方传音言语；买卖与动作由天道权威裁决结算</p>
+          <h2 id="chatTitle" class="text-base font-bold text-amber-200 font-serif flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <span>神识传讯 · 古修玉简</span>
+          </h2>
+          <p id="chatSub" class="text-xs text-slate-400">直接向对方传音言语；买卖与动作由天道权威裁决结算</p>
         </div>
         <button type="button" class="btn ghost sm" id="chatClose" data-close-chat="1" aria-label="收束传音">收束</button>
       </div>

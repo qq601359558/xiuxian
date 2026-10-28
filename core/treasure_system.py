@@ -222,11 +222,11 @@ class TreasureEngine:
                 hops = max(1, WorldGridEngine.calculate_distance(curr_node.id, target_node.id))
 
         if hops == 1:
-            dist_desc = "灵息浓烈，相隔约一舍之路（近在邻山）"
+            dist_desc = "灵息浓烈，相隔约一舍之路（近在邻山，距宝藏地约 1 站）"
         elif hops in (2, 3):
-            dist_desc = f"关山重重，约莫相距 {hops} 重山水"
+            dist_desc = f"关山重重，约莫相距 {hops} 重山水（距宝藏地约 {hops} 站）"
         else:
-            dist_desc = f"山高水远，相隔大荒 {hops} 站之遥"
+            dist_desc = f"山高水远，相隔大荒 {hops} 站之遥（距宝藏地约 {hops} 站）"
 
         ai_poetry = ""
         ai_clue = ""
@@ -256,6 +256,7 @@ class TreasureEngine:
 
         full_text = (
             f"【天机定盘 · 寻龙点穴】\n"
+            f"此地风水为【{curr_name}】，与图中所指天机大相径庭。\n"
             f"方位卦象：【{bagua}】（{dist_desc}）\n"
             f"谶语判词：『{final_rhyme}』\n"
             f"风水感应：{final_clue}\n"
