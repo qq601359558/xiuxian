@@ -19,6 +19,51 @@
     { name: "九幽天魔宗坛", tip: "九幽煞泉 · 魔道凶穴", region: "幽冥地府", isSafe: false },
   ];
 
+  // 本地离线高保真画卷资源 (脱网局域网秒开，免代理)
+  const ASSETS = {
+    realm_1: "/images/realm_1.jpg",      // 落霞灵泉
+    realm_2: "/images/realm_2.jpg",      // 落霞古洞 / 黑风绝渊
+    realm_3: "/images/realm_3.jpg",      // 黑风绝渊裂隙
+    realm_4: "/images/realm_4.jpg",      // 万星遗迹 / 万星古岛
+    portrait: "/images/portrait.jpg",    // 太素仙尊道身真影
+    sanctum_bg: "/images/sanctum_bg.jpg",// 洞天仙山云海全景
+    sanctum_bg_dark: "/images/sanctum_bg_dark.png",        // 暗黑仙峰水墨洞天静室
+    cultivator_meditating: "/images/cultivator_meditating.png",// 修士五心朝天吐纳法相
+    jade_slip_frame: "/images/jade_slip_frame.png",        // 古修传讯玉简雕龙画框
+    lifespan_compass: "/images/lifespan_compass.png",      // 天道八卦大限罗盘
+  };
+
+  // 国风水墨意境 SVG 兜底 (零外部网络依赖，绝不出现死黑块)
+  const INK_FALLBACK_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" width="100%" height="100%">
+      <defs>
+        <linearGradient id="inkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f261e" />
+          <stop offset="50%" stop-color="#16382c" />
+          <stop offset="100%" stop-color="#091813" />
+        </linearGradient>
+        <radialGradient id="mist" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="#2d6a4f" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>
+        </radialGradient>
+      </defs>
+      <rect width="600" height="360" fill="url(#inkGrad)" />
+      <circle cx="300" cy="180" r="220" fill="url(#mist)" />
+      <path d="M 0,260 Q 150,180 300,240 T 600,210 L 600,360 L 0,360 Z" fill="#0b1d16" opacity="0.9" />
+      <path d="M 0,290 Q 200,230 400,280 T 600,260 L 600,360 L 0,360 Z" fill="#06120e" opacity="0.95" />
+      <circle cx="300" cy="140" r="32" fill="none" stroke="#52b788" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>
+      <circle cx="300" cy="140" r="20" fill="none" stroke="#b7e4c7" stroke-width="1" opacity="0.6"/>
+      <text x="300" y="146" font-family="serif, STSong, SimSun" font-size="16" fill="#d8f3dc" text-anchor="middle" letter-spacing="4">仙缘</text>
+      <text x="300" y="325" font-family="sans-serif" font-size="12" fill="#74c69d" text-anchor="middle" letter-spacing="2" opacity="0.75">道法自然 · 灵境深隐</text>
+    </svg>
+  `);
+
+  window.handleImgFallback = function (imgEl) {
+    if (!imgEl) return;
+    imgEl.onerror = null;
+    imgEl.src = INK_FALLBACK_SVG;
+  };
+
   // 十方大荒四大秘境画卷 (Stitch 原生高保真图鉴)
   const WILDERNESS_REALMS = [
     {
@@ -26,7 +71,7 @@
       title: "落霞灵泉",
       tierName: "凡阶九品 · 入门历练",
       tagClass: "low",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuA1AZ4waRujsx2R_ef9JUIGTcbPUMZ9ruLgErD47XYCtd78vC9qtCodfmJu04rMmzD58drdyOHMZtGx_Y3TMK-pMnUzhAeK2KWS57g3wlGiR83NLGZGh9moboS3ncIz5oV0NhoJonHqFXTrhAayoCF1MGzI7dKOpZJcLlIiPE7VXdQ8TDIQqtPUdNEeBTZkcHf3rLuD4zeAAvLi9JoYBZ8RTY8h9elPAjq-m3NSFW0fNaw3e24PJk2mDpVwwV7YF-sUm1NNbiLjoV20",
+      image: ASSETS.realm_1,
       mapDrop: "9%",
       dangerPercent: "22%",
       dangerText: "微波无害",
@@ -42,7 +87,7 @@
       title: "落霞古洞",
       tierName: "玄阶上品 · 仙家古迹",
       tagClass: "mid",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx",
+      image: ASSETS.realm_2,
       mapDrop: "18%",
       dangerPercent: "35%",
       dangerText: "暗藏禁制",
@@ -58,7 +103,7 @@
       title: "黑风绝渊",
       tierName: "地阶中品 · 罡风天堑",
       tagClass: "danger",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDBrs5mCoUskHEbq1GlHOnBx7XWlud9-v5oIgbGeyYxe2ZzY4l3wRW1M1CTwwi8pFnX89v6X9ntxxBARx9Cb4Ql__nMwtBuQAYh-jEEtkSUo33eUdV59LGotu4vUq2__xsR-HnpMSLLev1Z7qwBpPGQmHxq04_AmEZpElihjyukTLNy9R-_Ypl69spuWXf7KoGj03iHgd1b8L-HVibTt72FDChjhuGY75UCephhoygFbX595WE_AWkDjio-wxN2z5AtO-zQuSGpJ-nk",
+      image: ASSETS.realm_3,
       mapDrop: "30%",
       dangerPercent: "55%",
       dangerText: "罡风裂魂",
@@ -74,7 +119,7 @@
       title: "万星遗迹",
       tierName: "天阶绝境 · 上古仙阙",
       tagClass: "danger",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBbPOc8iM9b6MSMEI4lwWSqB16hzd1Hi4uor0XBPRt27QwOU-ZbBNZrbDjllObF13h_ontpANtf5BFwy8f9oM8gwa8BHesL_031HYxJRLDdD3Sh4He0-KflozAkqRWqa4mrCxGo5pKYOPuE2aypwkSNXu3iXGzdBTuCFwNFQRH0I8lfC3bsilMTemAfzWBWmQG6qrIBL3Vpp3rFksluu8Do6I10_Rl8dy4iDGXe699GlKoa0Uz7TO_Dg5TQ177c8CjpZvSyM-YuZSQ-",
+      image: ASSETS.realm_4,
       mapDrop: "40%",
       dangerPercent: "70%",
       dangerText: "十死一生",
@@ -1460,36 +1505,68 @@
 
     return `
     <div class="w-full flex flex-col gap-6">
-      <!-- 顶部仙山云海全景画卷 (纯净自然原画，绝无人物面板文字重影) -->
-      <div class="relative w-full rounded-2xl overflow-hidden shadow-md bg-slate-900 min-h-[220px] flex items-end p-6 border border-filigree-400/40"
-           style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa'); background-size: cover; background-position: center 35%;">
-        <div class="absolute inset-0 bg-gradient-to-t from-jade-950/90 via-jade-950/40 to-transparent"></div>
-        <div class="relative z-10 w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
-          <div class="space-y-1.5">
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-emerald-200 text-xs font-medium border border-white/20">
-              <span class="text-xs">🌅</span>
-              <span>洞天福地 · 太素第七重微界</span>
+      <!-- 沉浸式 2D 洞天仙境视窗 (暗黑水墨原画 + 吐纳冥想法相 + 天道大限罗盘) -->
+      <div class="sanctum-canvas-viewport relative flex flex-col justify-between p-6"
+           style="background-image: url('${ASSETS.sanctum_bg_dark}');">
+        <!-- 视窗暗角渐变遮罩 -->
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/60 pointer-events-none"></div>
+
+        <!-- 顶部天象、灵气与天道大限岁星罗盘 -->
+        <div class="relative z-10 w-full flex items-start justify-between gap-4">
+          <div class="space-y-1">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-emerald-300 text-xs border border-emerald-500/30">
+              <span class="w-2 h-2 rounded-full ${isMed ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
+              <span>${esc(s.location || "九天碧虚洞府")} · ${isMed ? "【闭关入定中】" : "【静室观照】"}</span>
             </div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-widest drop-shadow-md">
-              九天碧虚洞府 · 乾坤枢机
+            <h1 class="text-2xl sm:text-3xl font-bold text-amber-100 tracking-widest drop-shadow-lg font-serif">
+              太素洞天 · 乾坤灵枢
             </h1>
-            <p class="text-xs sm:text-sm text-jade-100/90 max-w-xl leading-relaxed">
-              日出扶桑，紫气东渐三千里。聚灵法阵周天运转，灵泉温润，道友灵神已与主峰地脉相契。
+            <p class="text-xs text-emerald-200/90 leading-relaxed hidden sm:block">
+              周天聚灵阵恒常运化，玄牝之门常开，神识通感天地之造化。
             </p>
           </div>
-          <div class="flex items-center gap-3.5 bg-white/90 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-md border border-filigree-400/40">
+
+          <!-- 天道岁星大限罗盘 -->
+          <div class="flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-filigree-400/50 shadow-2xl">
+            <img src="${ASSETS.lifespan_compass}"
+                 onerror="window.handleImgFallback(this)"
+                 class="w-12 h-12 compass-rotating drop-shadow-md" alt="天道大限罗盘" />
             <div class="flex flex-col text-right">
-              <span class="text-[11px] text-slate-500 font-medium">灵气浓度</span>
-              <span class="text-sm font-bold text-jade-900">九品上极 · 灵潮充沛</span>
+              <span class="text-[10px] text-amber-300 tracking-wider">天道寿元大限</span>
+              <span class="text-base font-bold text-white font-mono leading-none mt-0.5">
+                ${Number(s.rem_years || 100).toFixed(1)} <span class="text-xs text-amber-200 font-normal">载</span>
+              </span>
             </div>
-            <div class="w-9 h-9 rounded-full bg-jade-100 flex items-center justify-center text-jade-700 text-base">
-              <span>💧</span>
-            </div>
+          </div>
+        </div>
+
+        <!-- 中部核心：五心朝天修士吐纳法相 (2D 灵气粒子律动) -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <img src="${ASSETS.cultivator_meditating}"
+               onerror="window.handleImgFallback(this)"
+               class="cultivator-breathing max-h-[320px] object-contain drop-shadow-2xl"
+               alt="修士吐纳法相" />
+        </div>
+
+        <!-- 底部快捷运功盘与境界反馈 -->
+        <div class="relative z-20 w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-white/10 bg-black/40 backdrop-blur-sm -mx-6 -mb-6 px-6 py-4">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-300">当前道身：</span>
+            <span class="text-sm font-bold text-amber-200 font-serif">${esc(s.name || "散修道友")}</span>
+            <span class="px-2 py-0.5 rounded text-xs bg-jade-900/80 text-emerald-300 border border-emerald-500/40">${esc(s.realm || "练气初期")}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" class="px-4 py-1.5 rounded-xl ${isMed ? 'bg-amber-600 hover:bg-amber-700 animate-pulse text-white' : 'bg-gradient-to-r from-jade-700 to-jade-600 hover:from-jade-600 hover:to-jade-500 text-white'} text-xs font-bold border border-filigree-400/40 shadow-md transition cursor-pointer" data-sanctum-act="meditate_toggle">
+              ${isMed ? "收功出关" : "入定闭关"}
+            </button>
+            <button type="button" class="px-4 py-1.5 rounded-xl ${expPct >= 100 ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border border-amber-300 animate-pulse' : 'bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20'} text-xs font-bold shadow-md transition cursor-pointer" data-sanctum-act="breakthrough">
+              ${expPct >= 100 ? (rInfo.isMajorBreakthrough ? "引雷渡劫" : "顺畅晋阶") : `破境 (${expPct}%)`}
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- 12 栏主网格：左 4 栏修士本命玉牌，右 8 栏仙府运转万象图 -->
+      <!-- 12 栏主网格：左 4 栏修士本命玉牌与装备数值，右 8 栏仙府运转万象图 -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         <!-- ================= 左栏：修士本命玉牌与立绘 (4 Cols) ================= -->
         <div class="xl:col-span-4 flex flex-col gap-5">
@@ -1895,7 +1972,7 @@
       dropRate: 9,
       staminaCost: 15,
       powerMin: 60,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa",
+      image: ASSETS.realm_1,
       beast: {
         name: "白额青鬃兽",
         avatar: "🐺",
@@ -1918,7 +1995,7 @@
       dropRate: 18,
       staminaCost: 25,
       powerMin: 200,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx",
+      image: ASSETS.realm_2,
       beast: {
         name: "守洞玄猿",
         avatar: "🦍",
@@ -1941,7 +2018,7 @@
       dropRate: 30,
       staminaCost: 35,
       powerMin: 800,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDBrs5mCoUskHEbq1GlHOnBx7XWlud9-v5oIgbGeyYxe2ZzY4l3wRW1M1CTwwi8pFnX89v6X9ntxxBARx9Cb4Ql__nMwtBuQAYh-jEEtkSUo33eUdV59LGotu4vUq2__xsR-HnpMSLLev1Z7qwBpPGQmHxq04_AmEZpElihjyukTLNy9R-_Ypl69spuWXf7KoGj03iHgd1b8L-HVibTt72FDChjhuGY75UCephhoygFbX595WE_AWkDjio-wxN2z5AtO-zQuSGpJ-nk",
+      image: ASSETS.realm_3,
       beast: {
         name: "九幽冥风蝠",
         avatar: "🦇",
@@ -1964,7 +2041,7 @@
       dropRate: 40,
       staminaCost: 50,
       powerMin: 2500,
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBbPOc8iM9b6MSMEI4lwWSqB16hzd1Hi4uor0XBPRt27QwOU-ZbBNZrbDjllObF13h_ontpANtf5BFwy8f9oM8gwa8BHesL_031HYxJRLDdD3Sh4He0-KflozAkqRWqa4mrCxGo5pKYOPuE2aypwkSNXu3iXGzdBTuCFwNFQRH0I8lfC3bsilMTemAfzWBWmQG6qrIBL3Vpp3rFksluu8Do6I10_Rl8dy4iDGXe699GlKoa0Uz7TO_Dg5TQ177c8CjpZvSyM-YuZSQ-",
+      image: ASSETS.realm_4,
       beast: {
         name: "太古剑煞傀儡",
         avatar: "⚔️",
@@ -2027,7 +2104,7 @@
       bodyHtml: `
         <div class="space-y-4" id="adventureStageBox">
           <div class="relative w-full h-40 rounded-xl overflow-hidden bg-slate-900 border border-jade-300 shadow-sm">
-            <img src="${target.image}" class="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="${esc(target.name)}" />
+            <img src="${target.image}" onerror="window.handleImgFallback(this)" class="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="${esc(target.name)}" />
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
               <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-jade-950/90 text-jade-200 border border-jade-500/40">${esc(target.tierName)}</span>
@@ -2634,7 +2711,7 @@
     <div class="w-full flex flex-col gap-6">
       <!-- 顶部宗门大殿山门全景横幅 -->
       <div class="relative w-full rounded-2xl overflow-hidden shadow-md bg-slate-900 min-h-[200px] flex items-end p-6 border border-filigree-400/40"
-           style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa'); background-size: cover; background-position: center 25%;">
+           style="background-image: url('${ASSETS.sanctum_bg}'); background-size: cover; background-position: center 25%;">
         <div class="absolute inset-0 bg-gradient-to-t from-jade-950/90 via-jade-950/40 to-transparent"></div>
         <div class="relative z-10 w-full flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
           <div class="space-y-1.5">
@@ -3173,7 +3250,8 @@
             <!-- 卡片 1: 野外山原 -->
             <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
               <div class="relative h-44 w-full overflow-hidden bg-slate-900">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
+                <img src="${ASSETS.realm_1}"
+                     onerror="window.handleImgFallback(this)"
                      class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="野外山原" />
                 <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/30"></div>
                 <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
@@ -3225,7 +3303,8 @@
             <!-- 卡片 2: 落霞古洞 -->
             <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
               <div class="relative h-44 w-full overflow-hidden bg-slate-900">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                <img src="${ASSETS.realm_2}"
+                     onerror="window.handleImgFallback(this)"
                      class="w-full h-full object-cover object-left transition-transform duration-700 group-hover:scale-105" alt="落霞古洞" />
                 <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/30"></div>
                 <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
@@ -3277,7 +3356,8 @@
             <!-- 卡片 3: 黑风绝渊裂隙 -->
             <article class="jade-panel jade-panel-hover rounded-xl overflow-hidden flex flex-col border border-jade-200 shadow-sm relative group">
               <div class="relative h-44 w-full overflow-hidden bg-slate-900">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBrs5mCoUskHEbq1GlHOnBx7XWlud9-v5oIgbGeyYxe2ZzY4l3wRW1M1CTwwi8pFnX89v6X9ntxxBARx9Cb4Ql__nMwtBuQAYh-jEEtkSUo33eUdV59LGotu4vUq2__xsR-HnpMSLLev1Z7qwBpPGQmHxq04_AmEZpElihjyukTLNy9R-_Ypl69spuWXf7KoGj03iHgd1b8L-HVibTt72FDChjhuGY75UCephhoygFbX595WE_AWkDjio-wxN2z5AtO-zQuSGpJ-nk"
+                <img src="${ASSETS.realm_3}"
+                     onerror="window.handleImgFallback(this)"
                      class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="黑风绝渊裂隙" />
                 <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
                 <div class="absolute top-3 left-3 flex flex-wrap gap-1.5">
@@ -3334,7 +3414,8 @@
                 </div>
               </div>
               <div class="relative h-44 w-full overflow-hidden bg-slate-950">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbPOc8iM9b6MSMEI4lwWSqB16hzd1Hi4uor0XBPRt27QwOU-ZbBNZrbDjllObF13h_ontpANtf5BFwy8f9oM8gwa8BHesL_031HYxJRLDdD3Sh4He0-KflozAkqRWqa4mrCxGo5pKYOPuE2aypwkSNXu3iXGzdBTuCFwNFQRH0I8lfC3bsilMTemAfzWBWmQG6qrIBL3Vpp3rFksluu8Do6I10_Rl8dy4iDGXe699GlKoa0Uz7TO_Dg5TQ177c8CjpZvSyM-YuZSQ-"
+                <img src="${ASSETS.realm_4}"
+                     onerror="window.handleImgFallback(this)"
                      class="w-full h-full object-cover object-right transition-transform duration-700 group-hover:scale-105" alt="万星遗迹残址" />
                 <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/20 to-black/30"></div>
                 <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
@@ -4246,7 +4327,8 @@
         bodyHtml: `
           <div class="space-y-4" id="treasureStageBox">
             <div class="relative w-full h-40 rounded-xl overflow-hidden bg-slate-900 border border-amber-300 shadow-sm">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+              <img src="${ASSETS.realm_2}"
+                   onerror="window.handleImgFallback(this)"
                    class="w-full h-full object-cover" alt="古修洞府遗穴" />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
               <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
@@ -4325,7 +4407,8 @@
       bodyHtml: `
         <div class="space-y-4" id="treasureStageBox">
           <div class="relative w-full h-40 rounded-xl overflow-hidden bg-slate-900 border border-amber-300 shadow-sm">
-            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+            <img src="${ASSETS.realm_2}"
+                 onerror="window.handleImgFallback(this)"
                  class="w-full h-full object-cover" alt="古修洞府遗穴" />
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
             <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
@@ -4700,7 +4783,8 @@
       inspectorHtml = `
       <div class="space-y-4">
         <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-sm">
-          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+          <img src="${ASSETS.realm_2}"
+               onerror="window.handleImgFallback(this)"
                class="w-full h-full object-cover" alt="藏宝图卷" />
           <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
           <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-filigree-500/90 text-amber-950 font-bold text-[11px] shadow-sm">
@@ -5067,11 +5151,13 @@
                 ` : ''}
                 <div class="relative w-36 h-28 rounded-lg overflow-hidden bg-slate-900 flex-shrink-0 shadow-inner flex items-center justify-center">
                   ${isWeapon ? `
-                    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNggPj4AGHEqJhe9iU83W1YRePfLywRJ7izNYtV_guyNEVqy7wQCWSumM2RgEu1kUnoyaikSEY-4SyTljW3XGa4F-PpCPhS2XZUu2FcCLSuDUIfpFod_Zq6GqTrXe6sC95V-CphUFf06CtaOlJjWAVAxJXnjE8GqkVaXB_XhscGY01nQqO74k7IpR9jKWef8souqUFhVB3FOswfEnnmemhgTWavzOyAlZbbXvjzStRAEsuAiZrQHRwI0GhLD7ImwJ_NSGyUhC5fQGa"
+                    <img src="${ASSETS.sanctum_bg}"
+                         onerror="window.handleImgFallback(this)"
                          class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="${esc(it.name)}" />
                     <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">九天神兵</div>
                   ` : isMap ? `
-                    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+                    <img src="${ASSETS.realm_2}"
+                         onerror="window.handleImgFallback(this)"
                          class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="${esc(it.name)}" />
                     <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] text-white">太虚图录</div>
                   ` : isPill ? `
@@ -5132,7 +5218,8 @@
 
             <!-- 全景验宝图卷 -->
             <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-inner">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAY-3PXdQr6IEHvP5aEDaOeKorPpTjLy0nVqnYkTOxKcwaWu8UEbSmjdR3njEijyvKQE91PBvyeBMwEBRpne4OzXdhXknKlw9d6u8mbQ4d8arwzRQjzPV60ikcN9XAnjLMKuZQMb6hyul-OKMojwKAfa-K5Pls3P447zVBXPg1o8frmbuUldeJE9KLEB4d2N5WKweWlAf_WUUpui6dTupPUQApdqhI0ALBAI1sKyHxzUFBwy6P9xZMNyt5ZPFzo5R11TN-gLeGXO-lx"
+              <img src="${ASSETS.realm_2}"
+                   onerror="window.handleImgFallback(this)"
                    class="w-full h-full object-cover" alt="神台验宝" />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
               <div class="absolute top-2.5 right-2.5 px-1.5 py-2 rounded bg-rose-950/90 text-rose-200 border border-rose-500 text-[10px] font-bold [writing-mode:vertical-rl] tracking-widest shadow-md">

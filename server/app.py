@@ -47,6 +47,8 @@ class GameHandler(BaseHTTPRequestHandler):
             rel = "web/index.html"
         elif path.startswith("/web/"):
             rel = "web/" + unquote(path[len("/web/"):])
+        elif path.startswith("/images/"):
+            rel = "web/images/" + unquote(path[len("/images/"):])
         elif path in ("/workbench.css", "/workbench.js", "/app.css", "/app.js", "/style.css"):
             fname = unquote(path.lstrip("/"))
             if (BASE_DIR / "web" / fname).is_file():
@@ -75,6 +77,14 @@ class GameHandler(BaseHTTPRequestHandler):
             ctype = "application/json; charset=utf-8"
         elif fp.suffix == ".svg":
             ctype = "image/svg+xml"
+        elif fp.suffix in (".jpg", ".jpeg"):
+            ctype = "image/jpeg"
+        elif fp.suffix == ".png":
+            ctype = "image/png"
+        elif fp.suffix == ".webp":
+            ctype = "image/webp"
+        elif fp.suffix == ".gif":
+            ctype = "image/gif"
         data = fp.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
