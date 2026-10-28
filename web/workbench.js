@@ -1509,15 +1509,71 @@
               </div>
             </div>
 
-            <!-- 真人仙风立绘 (Stitch 原生原画，彻底告别单字大圆圈) -->
-            <div class="relative w-full h-56 rounded-xl overflow-hidden bg-slate-900 shadow-inner group ${isMed ? 'meditating-glow' : ''}">
-              <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuC92R2mr6xU9UHjsRfuNu3g2Zp1nBIKlcuhjOOX4E208W0CQffLkq5NTks8DeAIDsPOnVZbhDC1Mw62UweMhOUr4Yweo6-Yl-XPj4lwbwZFGJ63SwOYGC-RtjclNtB3dHecCgeTHMMT1eO4GmNfkAky--4kxkAtzNBdmq6UYa2m9spz5HL4uyaacOnjLcntHyq6q-seoNoZkWP2hCKkTbDp6Lu2immHkKZwYuf4NdsMbeQZAamMXQtxcA"
-                   class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                   alt="太素仙尊道身真影" />
-              <div class="absolute inset-0 bg-gradient-to-t from-jade-950/85 via-transparent to-transparent"></div>
-              <div class="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/85 backdrop-blur-md shadow-xs">
-                <span class="text-xs text-jade-950 font-medium">${isMed ? '【周天运化吐纳中】' : `当前境界：${esc(s.realm || "化神后期")}`}</span>
-                <span class="text-xs text-filigree-700 font-bold">${isMed ? '静室锁闭' : '登仙第玖阶'}</span>
+            <!-- 5 大槽位护道法宝装备架 -->
+            <div class="bg-black/40 rounded-xl p-3.5 space-y-2 border border-filigree-400/30">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-amber-200 flex items-center gap-1 font-serif">
+                  <span>🗡️ 五方护道法宝</span>
+                </span>
+                <span class="text-[10px] text-slate-400">/穿戴 · /卸下</span>
+              </div>
+              <div class="grid grid-cols-1 gap-1.5 text-xs">
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                  <span class="text-slate-400 text-[11px]">兵刃 [攻伐]</span>
+                  <span class="font-semibold text-amber-100">${esc((s.equip_slots && s.equip_slots.weapon) || (s.equipped && s.equipped[0]) || "未佩")}</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                  <span class="text-slate-400 text-[11px]">宝甲 [护体]</span>
+                  <span class="font-semibold text-amber-100">${esc((s.equip_slots && s.equip_slots.armor) || "未佩")}</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                  <span class="text-slate-400 text-[11px]">灵佩 [凝神]</span>
+                  <span class="font-semibold text-amber-100">${esc((s.equip_slots && s.equip_slots.trinket) || "未佩")}</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                  <span class="text-slate-400 text-[11px]">灵靴 [遁速]</span>
+                  <span class="font-semibold text-amber-100">${esc((s.equip_slots && s.equip_slots.boots) || "未佩")}</span>
+                </div>
+                <div class="flex items-center justify-between px-2.5 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                  <span class="text-slate-400 text-[11px]">御空 [本命]</span>
+                  <span class="font-semibold text-amber-100">${esc((s.equip_slots && s.equip_slots.flying_treasure) || "未佩")}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 核心斗法神魂数值 (Combat & Soul Attributes) -->
+            <div class="bg-black/30 rounded-xl p-3 border border-jade-500/20 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-emerald-200 flex items-center gap-1">
+                  <span>⚡ 斗法气象与神魂</span>
+                </span>
+                <span class="text-[10px] text-slate-400">即时属性</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">气血 HP</div>
+                  <div class="text-xs font-bold text-emerald-400 font-mono">${(s.combat && s.combat.current_hp) || 100} / ${(s.combat && s.combat.max_hp) || 100}</div>
+                </div>
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">真元 MP</div>
+                  <div class="text-xs font-bold text-sky-400 font-mono">${(s.combat && s.combat.current_mp) || 50} / ${(s.combat && s.combat.max_mp) || 50}</div>
+                </div>
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">攻伐 (物/法)</div>
+                  <div class="text-xs font-bold text-amber-300 font-mono">${(s.combat && s.combat.phys_atk) || 15} / ${(s.combat && s.combat.spell_atk) || 10}</div>
+                </div>
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">护体 (物/法)</div>
+                  <div class="text-xs font-bold text-slate-300 font-mono">${(s.combat && s.combat.phys_def) || 5} / ${(s.combat && s.combat.spell_def) || 5}</div>
+                </div>
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">身法 Speed</div>
+                  <div class="text-xs font-bold text-amber-200 font-mono">${(s.combat && s.combat.speed) || 10}</div>
+                </div>
+                <div class="bg-black/40 p-2 rounded-lg border border-white/5">
+                  <div class="text-[10px] text-slate-400">神识 Sense</div>
+                  <div class="text-xs font-bold text-purple-300 font-mono">${(s.soul && s.soul.divine_sense) || 20} <span class="text-[10px] text-slate-400">(${(s.soul && s.soul.sense_range) || 50}步)</span></div>
+                </div>
               </div>
             </div>
 

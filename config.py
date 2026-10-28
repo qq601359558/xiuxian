@@ -534,8 +534,6 @@ ITEM_CATALOG = {
         "heal_lifespan": 1.0,
         "desc": "凡品伤药。下次闭关 +8% 修为，并回春 1 岁寿元（比聚气丹便宜，加成更弱）。",
     },
-    "妖兽内丹": {"kind": "material", "price": 80, "desc": "炼丹炼器材料，亦可直接换灵石。"},
-    "百年灵芝": {"kind": "material", "price": 55, "desc": "温养道基的药材。"},
     # 装备：slot=weapon|armor|trinket；grade 品阶；power_bonus 战力加成/件
     "青锋剑": {"kind": "equip", "slot": "weapon", "grade": "凡品", "power_bonus": 0.03, "price": 220,
         "desc": "凡品法剑。战力 +3%。"},
@@ -563,6 +561,13 @@ ITEM_CATALOG = {
 # ==================== 世界事件（机缘/危机）====================
 # 每次外出/出关后触发事件的概率
 EVENT_TRIGGER_CHANCE = 0.45
+# 动态载入五行材料、丹药与装备总纲（含 7 大材料、5 大流派丹药、5 大槽位装备、难度 DC、五行属性与中英双键索引）
+from core.catalogs.materials import MATERIAL_CATALOG
+from core.catalogs.pills import PILL_CATALOG
+from core.catalogs.equipments import EQUIPMENT_CATALOG
+ITEM_CATALOG.update(MATERIAL_CATALOG)
+ITEM_CATALOG.update(PILL_CATALOG)
+ITEM_CATALOG.update(EQUIPMENT_CATALOG)
 # 事件类别权重
 EVENT_WEIGHTS = {
     "fortune": 45,  # 机缘

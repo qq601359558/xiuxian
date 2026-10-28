@@ -72,10 +72,17 @@ class BreakthroughEngine:
 
         # 丹药准备度加成
         prep_bonus = pill_bonus if use_pill else 0.0
-        # 背包中筑基丹药力（坊市购入并服用后写入 skills 标记）
+        # 1. 兼容旧版：背包中筑基丹药力（坊市购入并服用后写入 skills 标记）
         if "筑基丹药力(待渡劫)" in character.skills:
             prep_bonus = max(prep_bonus, pill_bonus)
             character.skills.remove("筑基丹药力(待渡劫)")
+        # 2. 丹道全品阶破境灵丹药效 (pill_breakthrough_prep)
+        if getattr(character, "pill_breakthrough_prep", None):
+            tier_key = str(target_tier)
+            if tier_key in character.pill_breakthrough_prep:
+                prep_bonus = max(prep_bonus, character.pill_breakthrough_prep.pop(tier_key))
+            if "rate_bonus" in character.pill_breakthrough_prep:
+                prep_bonus = max(prep_bonus, character.pill_breakthrough_prep.pop("rate_bonus"))
 
         # 因果业力惩罚 (杀人越多，天劫越狂暴，最高扣 40% 成功率)
         sin = character.karma.sin_value
@@ -89,8 +96,12 @@ class BreakthroughEngine:
         merit = character.karma.merit_value
         merit_bonus = min(0.15, merit * 0.002)
 
+        # 丹毒噬脉惩罚 (丹毒超过 20 点腐蚀经脉，阻碍气机，最高扣 30% 突破率)
+        toxicity = getattr(character, "pill_toxicity", 0)
+        toxicity_penalty = min(0.30, max(0.0, (toxicity - 20) * 0.005)) if toxicity > 20 else 0.0
+
         # 综合计算最终成功率 (锁定在 5% ~ 95% 之间)
-        final_prob = base_prob + prep_bonus - karma_penalty - heart_penalty + merit_bonus
+        final_prob = base_prob + prep_bonus - karma_penalty - heart_penalty - toxicity_penalty + merit_bonus
         final_prob += max(-0.15, min(0.15, float(heart_mod or 0.0)))
         final_prob = max(0.05, min(0.95, final_prob))
 

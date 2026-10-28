@@ -208,10 +208,36 @@ class MarketEngine:
         if not is_entity_pill and not is_cfg_pill and not is_name_pill:
             return {"success": False, "message": f"【{target_name}】不是可服用的丹药或灵露。"}
 
-        # 4. 特殊进阶大丹限服规则（如聚气丹、玄元聚气丹、九转凝灵丹防重复嗑药）
-        one_time_pills = {"聚气丹", "玄元聚气丹", "九转凝灵丹"}
-        if target_name in one_time_pills and target_name in user.used_pills:
-            return {"success": False, "message": f"【{target_name}】本世已服过，再服无益（天道有常）。"}
+        # 闭关药力未化解拦截：若丹药附带闭关加成且体内已有未消化药力，需先行闭关
+        has_exp_mult = cfg.get("pill_exp_mult") is not None or target_name in {"聚气丹", "玄元聚气丹", "九转凝灵丹"}
+        if has_exp_mult and getattr(user, "pill_exp_mult", 0.0) > 0.0:
+            note = getattr(user, 'pill_exp_note', '') or '灵丹'
+            pct = int(user.pill_exp_mult * 100)
+            return {
+                "success": False,
+                "message": f"体内尚有【{note}】未化解之闭关药力（加成 {pct}%），不可叠加大丹，请先行闭关吐纳！"
+            }
+
+        # 4. 耐药抗性与软上限衰减计算 (Soft Cap & Resistance Decay)
+        max_life_intake = int(cfg.get("max_life_intake", 999))
+        decay_rate = float(cfg.get("decay_rate", 0.5))
+        min_decay_floor = float(cfg.get("min_decay_floor", 0.2))
+        toxicity = int(cfg.get("toxicity", 0))
+
+        if not hasattr(user, "pill_intake_counts") or user.pill_intake_counts is None:
+            user.pill_intake_counts = {}
+
+        current_intake = user.pill_intake_counts.get(target_name, 0)
+        decay_note = ""
+        if current_intake < max_life_intake:
+            efficiency = 1.0
+        else:
+            over = current_intake - max_life_intake + 1
+            efficiency = max(min_decay_floor, round(1.0 - over * decay_rate, 2))
+            decay_note = (
+                f"\n【耐药渐生】此丹本世已服食 {current_intake} 次，肉身经脉渐生抗性，"
+                f"药力发挥 {int(efficiency * 100)}%（软上限衰减中，最低保底 {int(min_decay_floor * 100)}%）。"
+            )
 
         # 5. 原子扣减道具实体与行囊记录
         if entity:
@@ -220,78 +246,189 @@ class MarketEngine:
             if target_name in user.inventory:
                 user.inventory.remove(target_name)
         user.used_pills.append(target_name)
+        user.pill_intake_counts[target_name] = current_intake + 1
+
+        # 丹毒累加 (若丹药含有丹毒)
+        if toxicity > 0:
+            user.pill_toxicity = getattr(user, "pill_toxicity", 0) + toxicity
 
         tier = entity.tier if entity else (cfg.get("tier") or 1)
         grade = (entity.tier_name if entity else None) or cfg.get("grade") or (
             ["凡品", "人品", "地品", "天品", "仙品"][min(4, max(0, tier - 1))]
         )
 
-        # 6. 特殊丹药药效专精
+        # 6. 兼容性经典大丹分支保持 (筑基丹、玄冰玉露、九转还魂真丹)
         if target_name == "筑基丹":
             user.skills.append("筑基丹药力(待渡劫)")
+            b_bonus = round(float(cfg.get("breakthrough_bonus", 0.35)) * efficiency, 3)
+            if not hasattr(user, "pill_breakthrough_prep") or user.pill_breakthrough_prep is None:
+                user.pill_breakthrough_prep = {}
+            user.pill_breakthrough_prep["2"] = max(user.pill_breakthrough_prep.get("2", 0.0), b_bonus)
+            user.pill_breakthrough_prep["rate_bonus"] = max(user.pill_breakthrough_prep.get("rate_bonus", 0.0), b_bonus)
+            tox_msg = f"\n当前体内丹毒：{user.pill_toxicity}。" if user.pill_toxicity > 0 else ""
             return {
                 "success": True,
-                "message": "服下【筑基丹】，药力沉入丹田，下次筑基天劫成功率提升（由突破引擎结算）。",
+                "message": (
+                    f"服下【筑基丹】，药力沉入丹田，下次筑基天劫成功率提升 +{int(b_bonus * 100)}%（由突破引擎结算）。"
+                    f"{decay_note}{tox_msg}"
+                ),
             }
 
-        # 玄冰玉露：直增真元 + 温养道心 + 闭关加成
         if "玄冰玉露" in target_name:
-            exp_gain = 250 + tier * 50
+            exp_gain = int((250 + tier * 50) * efficiency)
             user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + exp_gain)
             user.karma.dao_heart = min(100, user.karma.dao_heart + 5)
-            mult = max(user.pill_exp_mult, 0.20)
+            mult = max(user.pill_exp_mult, 0.20 * efficiency)
             user.pill_exp_mult = mult
             user.pill_exp_note = f"{target_name}·{grade}"
+            tox_msg = f"\n当前体内丹毒：{user.pill_toxicity}。" if user.pill_toxicity > 0 else ""
             return {
                 "success": True,
                 "message": (
                     f"服下【{grade}·{target_name}】，清寒玉露涤荡周身经脉！\n"
                     f"直增真元 +{exp_gain}，道心澄澈 +5，下次闭关修为 +{int(mult * 100)}%。"
+                    f"{decay_note}{tox_msg}"
                 ),
             }
 
-        # 九转还魂真丹：大补寿元 + 极品真元 + 护持道心
         if "九转还魂真丹" in target_name:
-            exp_gain = 350 + tier * 50
+            exp_gain = int((350 + tier * 50) * efficiency)
             user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + exp_gain)
-            user.lifespan.add_lifespan(3.0)
+            user.lifespan.add_lifespan(3.0 * efficiency)
             user.karma.dao_heart = min(100, user.karma.dao_heart + 10)
-            mult = max(user.pill_exp_mult, 0.35)
+            mult = max(user.pill_exp_mult, 0.35 * efficiency)
             user.pill_exp_mult = mult
             user.pill_exp_note = f"{target_name}·{grade}"
+            tox_msg = f"\n当前体内丹毒：{user.pill_toxicity}。" if user.pill_toxicity > 0 else ""
             return {
                 "success": True,
                 "message": (
                     f"【金丹入腹 · 逆转天数】服下【{grade}·{target_name}】，纯阳仙力直冲华盖！\n"
-                    f"寿元温养 +3 岁，真元充盈 +{exp_gain}，道心固化 +10，下次闭关修为 +{int(mult * 100)}%。"
+                    f"寿元温养 +{3.0 * efficiency:.1f} 岁，真元充盈 +{exp_gain}，道心固化 +10，下次闭关修为 +{int(mult * 100)}%。"
+                    f"{decay_note}{tox_msg}"
                 ),
             }
 
-        # 7. 通用丹药与灵液药力化纳
+        # 7. 全流派多维度丹药药力化纳
+        notes = []
+
+        # (1) 冲关破境 (breakthrough)
+        b_rate = float(cfg.get("breakthrough_rate_bonus") or cfg.get("breakthrough_bonus") or 0.0)
+        if b_rate > 0:
+            scaled_b = round(b_rate * efficiency, 3)
+            b_tier = cfg.get("breakthrough_pill_tier", tier)
+            if not hasattr(user, "pill_breakthrough_prep") or user.pill_breakthrough_prep is None:
+                user.pill_breakthrough_prep = {}
+            user.pill_breakthrough_prep[str(b_tier)] = max(user.pill_breakthrough_prep.get(str(b_tier), 0.0), scaled_b)
+            user.pill_breakthrough_prep["rate_bonus"] = max(user.pill_breakthrough_prep.get("rate_bonus", 0.0), scaled_b)
+            notes.append(f"引动天地气机，下次大境界突破成功率 +{int(scaled_b * 100)}%")
+
+        # (2) 修为进境 (cultivation)
         mult = cfg.get("pill_exp_mult")
-        if mult is None:
+        if mult is None and cfg.get("pill_type") == "cultivation":
             mult = 0.10 * tier if entity else (0.15 if target_name == "聚气丹" else 0.08)
-        mult = max(0.0, min(1.0, float(mult)))
-        user.pill_exp_mult = max(user.pill_exp_mult, mult)
-        user.pill_exp_note = f"{target_name}·{grade}"
+        if mult is not None:
+            mult_val = max(0.0, min(1.0, float(mult))) * efficiency
+            user.pill_exp_mult = max(user.pill_exp_mult, mult_val)
+            user.pill_exp_note = f"{target_name}·{grade}"
+            notes.append(f"下次闭关修为吸收效率 +{int(mult_val * 100)}%")
 
-        heal = float(cfg.get("heal_lifespan") or 0.0)
-        if heal <= 0 and tier >= 4:
-            heal = 1.0 * (tier - 3)
-        heal_msg = ""
-        if heal > 0:
-            user.lifespan.add_lifespan(heal)
-            heal_msg = f"\n寿元 +{heal:.0f} 岁。"
-
-        direct_exp = int(cfg.get("direct_exp") or (40 * tier if entity else 0))
+        direct_exp = int((cfg.get("direct_exp") or (40 * tier if entity and not cfg.get("direct_exp") else 0)) * efficiency)
         if direct_exp > 0:
             user.realm.current_exp = min(user.realm.max_exp, user.realm.current_exp + direct_exp)
+            notes.append(f"直增真元 +{direct_exp}")
+
+        perm_hp = int(cfg.get("permanent_hp_max", 0) * efficiency)
+        if perm_hp > 0:
+            user.combat.max_hp += perm_hp
+            user.combat.current_hp += perm_hp
+            notes.append(f"气血上限永久 +{perm_hp}")
+
+        perm_mp = int(cfg.get("permanent_mp_max", 0) * efficiency)
+        if perm_mp > 0:
+            user.combat.max_mp += perm_mp
+            user.combat.current_mp += perm_mp
+            notes.append(f"法力上限永久 +{perm_mp}")
+
+        # (3) 斗法回春 (recovery)
+        heal_hp_pct = float(cfg.get("heal_hp_pct", 0.0))
+        if heal_hp_pct > 0:
+            recovered_hp = int(user.combat.max_hp * heal_hp_pct * efficiency)
+            user.combat.current_hp = min(user.combat.max_hp, user.combat.current_hp + recovered_hp)
+            notes.append(f"气血回复 +{recovered_hp}")
+
+        heal_mp_pct = float(cfg.get("heal_mp_pct", 0.0))
+        if heal_mp_pct > 0:
+            recovered_mp = int(user.combat.max_mp * heal_mp_pct * efficiency)
+            user.combat.current_mp = min(user.combat.max_mp, user.combat.current_mp + recovered_mp)
+            notes.append(f"真元回复 +{recovered_mp}")
+
+        # (4) 延寿夺命 (lifespan)
+        heal_years = float(cfg.get("heal_lifespan") or cfg.get("add_lifespan_years") or 0.0)
+        if heal_years <= 0 and tier >= 4 and cfg.get("pill_type") == "lifespan":
+            heal_years = 1.0 * (tier - 3)
+        if heal_years > 0:
+            scaled_years = heal_years * efficiency
+            user.lifespan.add_lifespan(scaled_years)
+            notes.append(f"寿元延展 +{scaled_years:.1f} 岁")
+
+        # (5) 神魂淬炼 (soul_purity)
+        perm_sense = int(cfg.get("perm_divine_sense", 0) * efficiency)
+        if perm_sense > 0:
+            user.soul.divine_sense += perm_sense
+            notes.append(f"神识强度永久 +{perm_sense}")
+
+        s_range = int(cfg.get("sense_range_bonus", 0) * efficiency)
+        if s_range > 0:
+            user.soul.sense_range += s_range
+            notes.append(f"神识探查半径 +{s_range}米")
+
+        ill_res = float(cfg.get("illusion_resist_bonus", 0.0)) * efficiency
+        if ill_res > 0:
+            user.soul.illusion_resist = min(0.95, user.soul.illusion_resist + ill_res)
+            notes.append(f"心魔与幻阵抵抗率 +{int(ill_res * 100)}%")
+
+        # (6) 灵根洗炼 (root_purify)
+        root_b = float(cfg.get("root_efficiency_bonus", 0.0)) * efficiency
+        if root_b > 0:
+            user.spiritual_root.efficiency = round(user.spiritual_root.efficiency + root_b, 3)
+            notes.append(f"灵根吐纳吸收效率永久提升 +{int(root_b * 100)}%（当前: {user.spiritual_root.efficiency:.2f}）")
+
+        # (7) 涤毒清髓 (detox)
+        cleanse = int(cfg.get("cleanse_toxicity", 0))
+        if cleanse > 0:
+            before_tox = getattr(user, "pill_toxicity", 0)
+            user.pill_toxicity = max(0, before_tox - cleanse)
+            cleansed = before_tox - user.pill_toxicity
+            notes.append(f"洗涤肉身，清除体内丹毒 {cleansed} 点（余 {user.pill_toxicity}）")
+
+        add_heart = int(cfg.get("add_dao_heart", 0) or cfg.get("dao_heart_bonus", 0))
+        if add_heart > 0:
+            user.karma.dao_heart = min(100, user.karma.dao_heart + add_heart)
+            notes.append(f"道心纯度 +{add_heart}（当前: {user.karma.dao_heart}）")
+
+        # (8) 战力狂暴 (combat_buff)
+        cb = float(cfg.get("combat_power_bonus", 0.0)) * efficiency
+        if cb > 0:
+            if not hasattr(user, "pill_combat_buffs") or user.pill_combat_buffs is None:
+                user.pill_combat_buffs = []
+            user.pill_combat_buffs.append({
+                "name": target_name,
+                "power_bonus": cb,
+                "expire_at": time.time() + 1800
+            })
+            notes.append(f"斗法战力暴涨 +{int(cb * 100)}%（持续半个时辰）")
+
+        effect_summary = ("，".join(notes) + "。") if notes else "药力沉入丹田温养周天。"
+        tox_status = f"\n当前体内丹毒：{user.pill_toxicity} 点。" if getattr(user, "pill_toxicity", 0) > 0 else ""
 
         return {
             "success": True,
             "message": (
-                f"服下【{grade}·{target_name}】，药力沉入丹田。"
-                f"{heal_msg}\n下次闭关修为 +{int(mult * 100)}%，出关后药力耗尽。"
+                f"服下【{grade}·{target_name}】，药力化入四肢百骸！\n"
+                f"{effect_summary}"
+                f"{decay_note}"
+                f"{tox_status}"
             ),
         }
 

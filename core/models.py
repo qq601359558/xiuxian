@@ -169,6 +169,70 @@ class MeditationSession(BaseModel):
     array: Optional[ArrayFormation] = None # 部署的防护大阵
 
 
+class CombatAttributes(BaseModel):
+    """战斗与生存六维（动态受境界、装备、体质加成）"""
+    max_hp: int = 100
+    current_hp: int = 100
+    max_mp: int = 50
+    current_mp: int = 50
+    phys_atk: int = 15          # 物理/破甲攻击
+    spell_atk: int = 20         # 灵力/法术攻击
+    phys_def: int = 10          # 护甲减伤
+    spell_def: int = 10         # 灵光护盾法抗
+    speed: int = 10             # 身法速度（先攻与移速）
+    crit_rate: float = 0.05     # 暴击率 5%
+    crit_damage: float = 1.50   # 暴击伤害 150%
+
+
+class SoulAttributes(BaseModel):
+    """神识与心境（修仙专属精神维度）"""
+    divine_sense: int = 20        # 神识强度（境界突破大幅成长）
+    sense_range: int = 50         # 神识扫描半径（米/里）
+    illusion_resist: float = 0.10 # 心魔与幻阵抵抗率
+
+
+class EquipmentSlots(BaseModel):
+    """结构化装备槽位（杜绝乱穿装备漏洞）"""
+    weapon: Optional[str] = None          # 主手兵刃 (如: 青锋剑)
+    armor: Optional[str] = None           # 护身宝甲 (如: 软猬甲)
+    trinket: Optional[str] = None         # 随身灵佩 (如: 聚灵佩)
+    boots: Optional[str] = None           # 飞遁灵靴
+    flying_treasure: Optional[str] = None # 本命法宝 / 御空法具
+
+
+class SpecialPhysique(BaseModel):
+    """特殊体质与血脉"""
+    name: str = "凡胎肉身"
+    tier: int = 1
+    desc: str = "普普通通的凡夫肉胎，无特殊增益亦无天生残缺。"
+    resistances: Dict[str, float] = Field(default_factory=lambda: {
+        "金": 0.0, "木": 0.0, "水": 0.0, "火": 0.0, "土": 0.0,
+        "雷": 0.0, "冰": 0.0, "风": 0.0, "毒": 0.0
+    })
+
+
+class DaoProfessions(BaseModel):
+    """修仙四艺熟练度（决定炼丹、炼器、破阵成败）"""
+    alchemy_level: int = 0      # 炼丹等级 (0阶为门外汉，1阶对应练气丹药...)
+    alchemy_exp: int = 0
+    forge_level: int = 0        # 炼器等级
+    forge_exp: int = 0
+    array_level: int = 0        # 阵法等级
+    array_exp: int = 0
+    talisman_level: int = 0     # 符箓等级
+    talisman_exp: int = 0
+
+
+class SocialProfile(BaseModel):
+    """尊号与人际网"""
+    dao_title: str = "无名散修"
+    righteous_fame: int = 0     # 正道声望
+    demonic_fame: int = 0       # 魔道凶名
+    dao_companion_id: Optional[str] = None # 道侣
+    master_id: Optional[str] = None        # 师尊
+    enemy_ids: List[str] = Field(default_factory=list) # 生死死敌
+
+
 class Character(BaseModel):
     """修士完整核心实体"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -183,6 +247,15 @@ class Character(BaseModel):
     meditation: MeditationSession = Field(default_factory=MeditationSession)
     location: str = "青云坊市客栈"   # 当前坐标/场景
     stealth_active: bool = False   # 是否开启敛息潜行
+
+    # --- 六大完整核心体系扩展 ---
+    combat: CombatAttributes = Field(default_factory=CombatAttributes)
+    soul: SoulAttributes = Field(default_factory=SoulAttributes)
+    equip_slots: EquipmentSlots = Field(default_factory=EquipmentSlots)
+    physique: SpecialPhysique = Field(default_factory=SpecialPhysique)
+    professions: DaoProfessions = Field(default_factory=DaoProfessions)
+    social: SocialProfile = Field(default_factory=SocialProfile)
+    core_art: str = "基础引气诀"
     skills: List[str] = Field(default_factory=lambda: ["吐纳术", "御剑术"])
     custom_arts: List[Dict[str, Any]] = Field(default_factory=list)  # 自创功法完整 DSL
     equipped: List[str] = Field(default_factory=list)  # 已穿戴装备名
@@ -237,7 +310,11 @@ class Character(BaseModel):
         return None
 
     captor_id: Optional[str] = None  # 被擒时擒拿者 id
-    used_pills: List[str] = Field(default_factory=list)  # 本世已服用过的丹药名（防重复嗑）
+    used_pills: List[str] = Field(default_factory=list)  # 本世已服用过的丹药名
+    pill_intake_counts: Dict[str, int] = Field(default_factory=dict)  # 每种丹药累计服用次数（耐药衰减计算）
+    pill_toxicity: int = 0  # 当前肉身积聚丹毒值（过高影响渡劫突破率与心魔）
+    pill_breakthrough_prep: Dict[str, float] = Field(default_factory=dict)  # 突破破境丹药准备加成缓存
+    pill_combat_buffs: List[Dict[str, Any]] = Field(default_factory=list)  # 战斗爆发临时丹药加成
     # 丹药闭关加成：服聚气丹后下次闭关修为 ×(1+mult)，结算后清零
     pill_exp_mult: float = 0.0
     pill_exp_note: str = ""

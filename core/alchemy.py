@@ -14,13 +14,20 @@ from core.models import Character, CharacterStatus
 from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 from storage.db import WorldStateRepository, CharacterRepository
 from core.content_pack import RECIPES, ALCHEMY_MATERIAL_POOL
+from core.catalogs.pills import PILL_RECIPES
+from core.catalogs.equipments import EQUIPMENT_RECIPES
 
 _KNOWN_KEY = "known_recipes"
 _WU_KEY = "wu_recipe_cd"
 
 
 def _all_recipes() -> Dict[str, Dict[str, Any]]:
-    return {r["id"]: dict(r) for r in RECIPES}
+    combined = {r["id"]: dict(r) for r in RECIPES}
+    for pr in PILL_RECIPES:
+        combined[pr["id"]] = dict(pr)
+    for er in EQUIPMENT_RECIPES:
+        combined[er["id"]] = dict(er)
+    return combined
 
 
 def _load_known(user_id: str) -> List[str]:
@@ -315,3 +322,86 @@ def ingest_ai_recipe(data: Dict[str, Any], kind: str) -> Optional[Dict[str, Any]
     # 写入全局配方表（进程内 RECIPES 列表）
     RECIPES.append(recipe)
     return recipe
+
+
+def recycle_pill(c: Character, pill_name: str, qty: int = 1) -> Dict[str, Any]:
+    """
+    回炉炼化：将耐药抗性过高、淘汰或闲置的丹药投入造化神炉回炉分解
+    - 扣减背包中对应的丹药数量 (实体或 inventory)
+    - 返还基础灵石（根据丹药价值折算 50%）
+    - 提炼萃取出相应品阶的药引灵砂（如灰岩灵砂、轻灵砂、庚金砂、纯阳玉髓等）
+    - 解决丹药随游戏进程贬值无用的经济痛点（实现丹道闭环经济循环）
+    """
+    pill_name = (pill_name or "").strip()
+    if not pill_name:
+        return {"success": False, "message": "请指定要回炉的丹药名称。"}
+    if qty <= 0:
+        return {"success": False, "message": "回炉数量必须为正整数。"}
+
+    from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
+    try:
+        CharacterIntegrity.assert_alive(c)
+    except CharacterIntegrityError as e:
+        return {"success": False, "message": str(e)}
+
+    # 1. 校验拥有的丹药数量
+    actual_count = c.inventory.count(pill_name)
+    if actual_count < qty:
+        return {"success": False, "message": f"囊中仅有 {actual_count} 枚【{pill_name}】，不足 {qty} 枚。"}
+
+    # 2. 获取丹药元数据
+    from config import ITEM_CATALOG
+    from core.catalogs.pills import PILL_CATALOG
+    cfg = PILL_CATALOG.get(pill_name) or ITEM_CATALOG.get(pill_name) or {}
+    tier = int(cfg.get("tier", 1))
+    price = int(cfg.get("price", cfg.get("base_price", 40)))
+
+    # 3. 扣减丹药 (优先扣实体，同步扣 inventory)
+    removed_count = 0
+    while removed_count < qty:
+        it = c.find_item(pill_name)
+        if it:
+            c.remove_item_entity(it.uid)
+        else:
+            if pill_name in c.inventory:
+                c.inventory.remove(pill_name)
+        removed_count += 1
+
+    # 4. 计算灵石返还 (单枚返还 50% 基准价，最低 5 灵石)
+    refund_per_pill = max(5, int(price * 0.50))
+    total_stones = refund_per_pill * qty
+    c.spirit_stones += total_stones
+
+    # 5. 回炉药引萃取 (提炼出纯净灵砂或药材)
+    RECYCLE_BYPRODUCTS = {
+        1: "灰岩灵砂",
+        2: "轻灵砂",
+        3: "庚金砂",
+        4: "纯阳玉髓",
+        5: "天道造化神水"
+    }
+    byproduct = RECYCLE_BYPRODUCTS.get(tier, "灰岩灵砂")
+    gained_byproducts = 0
+    for _ in range(qty):
+        if random.random() < 0.50:
+            gained_byproducts += 1
+
+    byproduct_msg = ""
+    if gained_byproducts > 0:
+        for _ in range(gained_byproducts):
+            c.inventory.append(byproduct)
+        byproduct_msg = f"，同时丹炉余烬中凝聚出【{byproduct}】×{gained_byproducts}"
+
+    return {
+        "success": True,
+        "recycled_pill": pill_name,
+        "qty": qty,
+        "spirit_stones_gained": total_stones,
+        "byproduct": byproduct if gained_byproducts > 0 else None,
+        "byproduct_count": gained_byproducts,
+        "message": (
+            f"【丹药回炉 · 造化化生】成功将 {qty} 枚【{pill_name}】投入造化烘炉炼化！\n"
+            f"析出纯净灵液，折返灵石 +{total_stones}{byproduct_msg}。\n"
+            f"当前随身灵石：{c.spirit_stones}。"
+        )
+    }
