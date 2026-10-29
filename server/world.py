@@ -1086,6 +1086,7 @@ class World:
                     "status": self._status_dict(char),
                     "equipment": res.get("equipment"),
                     "pill": res.get("pill"),
+                    "stone_gain": res.get("stone_gain", 0),
                     "wrong_location": res.get("wrong_location"),
                     "target_node_name": res.get("target_node_name"),
                     "target_node_id": res.get("target_node_id"),
@@ -1096,10 +1097,20 @@ class World:
                     "omen_choices": res.get("omen_choices"),
                 }
 
-            if action in ("/do", "/做", "/act"):
+            if action in ("/do", "/做", "/act", "/言行"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/做 <言行>"}
+                from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
+                from core.name_guard import reject_player_creation
                 from core.treasure_system import TreasureEngine
                 from core.world_grid import WorldGridEngine
-                free_text = command.strip().split(None, 1)[1] if len(parts) > 1 else ""
+
+                try:
+                    CharacterIntegrity.assert_alive(char)
+                    CharacterIntegrity.assert_idle(char, action="/做")
+                except CharacterIntegrityError as error:
+                    return {"ok": False, "error": str(error), "status": self._status_dict(char)}
+                free_text = command.strip().split(None, 1)[1].strip()
                 maps = char.find_items_by_kind(ItemKind.TREASURE_MAP)
                 # 仅当身上有宝图且玩家确实身处宝图目标节点时，才路由到挖宝 DM 破局
                 if maps:
@@ -1113,10 +1124,25 @@ class World:
                             log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
                         ret = {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
                         return self._append_natural_omen(char, ret, context="寻幽破局")
-                res = FreeActionEngine.execute(char, free_text)
-                if res.get("success"):
-                    CharacterRepository.save(char)
-                ret = {"ok": res.get("success"), "text": res.get("narrative", res.get("message", "")), "status": self._status_dict(char)}
+                rejection = reject_player_creation(free_text)
+                if rejection:
+                    log_event("GATE", "name_creation_rejected", name=char.name, sample=str(rejection.get("hits"))[:80])
+                    return {"ok": False, "error": rejection["message"], "rejected": True}
+                res = FreeActionEngine.resolve(char, free_text, others=self.others_at(char))
+                if not res.get("ok"):
+                    return {"ok": False, "error": res.get("error", "无果"), "status": self._status_dict(char)}
+                CharacterRepository.save(char)
+                spawned = res.get("spawned")
+                if spawned:
+                    CharacterRepository.save(spawned)
+                ret = {
+                    "ok": True,
+                    "text": res.get("text", ""),
+                    "intent": res.get("intent"),
+                    "outcome": res.get("outcome"),
+                    "spawned": bool(spawned),
+                    "status": self._status_dict(char),
+                }
                 return self._append_natural_omen(char, ret, context="随心行止")
 
 
@@ -2769,35 +2795,6 @@ class World:
                 for e in events:
                     lines.append(f"· {e}")
                 return {"ok": True, "text": "\n".join(lines)}
-            if action in ("/do", "/做", "/言行"):
-                raw = command.strip().split(" ", 1)
-                if len(raw) < 2:
-                    return {"ok": False, "error": "用法：/做 <言行>"}
-                # 玩家不得口述造物（自创功法除外）
-                try:
-                    from core.name_guard import reject_player_creation
-
-                    rej = reject_player_creation(raw[1])
-                    if rej:
-                        log_event("GATE", "name_creation_rejected", name=char.name, sample=str(rej.get("hits"))[:80])
-                        return {"ok": False, "error": rej["message"], "rejected": True}
-                except Exception:
-                    pass
-                others = self.others_at(char)
-                res = FreeActionEngine.resolve(char, raw[1], others=others)
-                if not res.get("ok"):
-                    return {"ok": False, "error": res.get("error", "无果")}
-                CharacterRepository.save(char)
-                spawned = res.get("spawned")
-                if spawned:
-                    CharacterRepository.save(spawned)
-                return {
-                    "ok": True,
-                    "text": res.get("text", ""),
-                    "intent": res.get("intent"),
-                    "outcome": res.get("outcome"),
-                    "spawned": bool(spawned),
-                }
             if action in ("/help", "/帮助", "/指令"):
                 from core.command_catalog import format_help
 
@@ -3439,6 +3436,13 @@ class World:
         }
 
     def _fight(self, c: Character, target_name: str) -> Dict[str, Any]:
+        from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
+
+        try:
+            CharacterIntegrity.assert_alive(c)
+            CharacterIntegrity.assert_idle(c, action="/斗法")
+        except CharacterIntegrityError as error:
+            return {"ok": False, "error": str(error)}
         target = CharacterRepository.get_by_name(target_name)
         if not target:
             return {"ok": False, "error": f"查无此人：{target_name}"}
@@ -3468,7 +3472,20 @@ class World:
             text += f"\n⚠【{spawned.name}】已入世于【{spawned.location}】"
         if res.get("target_died"):
             ChronicleRepository.record("KILL", c.name, f"【{c.name}】斩杀【{target.name}】")
-        return {"ok": True, "text": text, "outcome": res.get("outcome"), "target_died": res.get("target_died")}
+            open_bounties = BountyRepository.list_open_for_target(target.id)
+            if open_bounties:
+                payment = BountyEngine.settle_on_kill(c, target, open_bounties)
+                BountyRepository.save_many(open_bounties)
+                CharacterRepository.save(c)
+                if payment.get("message"):
+                    text += "\n" + payment["message"]
+        return {
+            "ok": True,
+            "text": text,
+            "outcome": res.get("outcome"),
+            "target_died": res.get("target_died"),
+            "status": self._status_dict(c),
+        }
 
     def _append_natural_omen(
         self,

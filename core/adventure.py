@@ -48,7 +48,7 @@ def _wild_target() -> Dict[str, Any]:
 
 def resolve_target(name: str) -> Optional[Dict[str, Any]]:
     name = (name or "").strip()
-    if not name or name in ("野外", "山野", "wild"):
+    if not name or name in ("野外山原", "野外", "山野", "wild"):
         return _wild_target()
     if name in SECRET_REALMS:
         cfg = SECRET_REALMS[name]

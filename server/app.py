@@ -6,13 +6,22 @@ from __future__ import annotations
 
 import json
 import re
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
 from urllib.parse import urlparse
 
 from config import LAN_HOST, LAN_PORT
+from core.command_catalog import all_entries
 from server.world import WORLD
 from server.log import log_event
+
+
+_ACTION_LOG_COMMANDS = frozenset(
+    name.lower()
+    for entry in all_entries()
+    for name in (entry["cmd"], *entry["aliases"])
+)
 
 
 def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str, Any]):
@@ -317,10 +326,31 @@ class GameHandler(BaseHTTPRequestHandler):
             command = str(data.get("command") or "")
             if not token or not command:
                 return _json_response(self, 400, {"ok": False, "error": "需要 token 与 command"})
-            log_event("CMD", "action", cmd=command.split()[0] if command else "")
-            result = WORLD.handle(token, command)
-            if not result.get("ok", True):
-                log_event("GATE", "action_rejected", cmd=command[:40], error=result.get("error"))
+            command_parts = command.split(None, 1)
+            command_name = command_parts[0].lower() if command_parts else ""
+            if command_name and command_name not in _ACTION_LOG_COMMANDS:
+                command_name = "UNKNOWN_COMMAND" if command_name.startswith("/") else "FREE_TEXT"
+            try:
+                log_event("CMD", "action", cmd=command_name)
+                result = WORLD.handle(token, command)
+                if not result.get("ok", True):
+                    log_event("GATE", "action_rejected", cmd=command_name, error="ACTION_REJECTED")
+            except Exception as error:
+                log_event(
+                    "ERROR",
+                    "action_failed",
+                    cmd=command_name,
+                    error_type=type(error).__name__,
+                    traceback=[
+                        {"file": frame.filename, "line": frame.lineno, "function": frame.name}
+                        for frame in traceback.extract_tb(error.__traceback__)
+                    ],
+                )
+                return _json_response(self, 500, {
+                    "ok": False,
+                    "code": "ACTION_FAILED",
+                    "error": "行动处理异常，请稍后重试。",
+                })
             return _json_response(self, 200, result)
 
         if path == "/chat":
