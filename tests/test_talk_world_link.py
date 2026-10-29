@@ -15,7 +15,7 @@ def test_world_talk_with_words():
 
     init_db()
     w = World(auto_tick=False)
-    r = w.join("链路对谈客")
+    r = w.join("链路对谈客", user_id="talk_world_link_player")
     tok = r["token"]
     c = w.get_char(tok)
     c.location = "青云坊市客栈"

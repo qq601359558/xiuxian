@@ -8,7 +8,7 @@ from storage.db import CharacterRepository
 def clean_world():
     w = World(auto_tick=False)
     dao_name = f"青玄子_{int(time.time() * 1000) % 100000}"
-    r = w.join(dao_name)
+    r = w.join(dao_name, user_id=f"sanctum_{time.time_ns()}")
     token = r["token"]
     char = w.get_char(token)
     char.born_at = time.time() - 80 * 3600.0

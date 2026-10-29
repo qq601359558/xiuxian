@@ -27,7 +27,7 @@ gw.USE_CCSWITCH = False
 def test_cli_parity_commands():
     init_db()
     w = World(auto_tick=False)
-    r = w.join("指令对齐客")
+    r = w.join("指令对齐客", user_id="cli_parity_player")
     tok = r["token"]
     char = w.get_char(tok)
     char.born_at = time_past()
@@ -66,7 +66,7 @@ def time_past():
 
 def test_create_art_writes_skill():
     w = World(auto_tick=False)
-    r = w.join("创法客")
+    r = w.join("创法客", user_id="cli_parity_art_player")
     tok = r["token"]
     res = w.handle(tok, "/自创功法 玄天正气")
     assert res.get("ok") is True, res

@@ -189,30 +189,19 @@ class World:
                 pass
 
     # ---------------- 会话 ----------------
-    def join(self, name: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    def join(self, name: str, *, user_id: str) -> Dict[str, Any]:
+        """以调用方已认证的 uid 恢复角色或开启新一世。"""
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("join requires an authenticated user_id")
         with self.lock:
-            uid = (user_id or "").strip()
-            char = None
+            uid = user_id.strip()
+            char = CharacterRepository.get_by_user_id(uid)
             resumed = False
-            # 1) 浏览器账号 ID
-            if uid:
-                char = CharacterRepository.get_by_user_id(uid)
-            # 2) 按道号找回仍存活的玩家号（换设备/清缓存）
-            if (not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead()):
-                by_name = CharacterRepository.get_by_name(name)
-                if by_name and by_name.status != CharacterStatus.DEAD and not by_name.lifespan.is_dead():
-                    uid_n = str(by_name.user_id or "")
-                    if uid_n and not (uid_n.startswith("npc_") or uid_n.startswith("ai_npc_")):
-                        char = by_name
-                        uid = uid_n
-                        resumed = True
             is_new_life = False
             if not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
                 # 已死：结算道统（若尚未结算），再新一世
                 if char is not None:
                     self._settle_if_needed(char, cause=char.death_cause or "身死道消")
-                if not uid:
-                    uid = f"lan_{uuid.uuid4().hex[:8]}"
                 char = WorldClock.create_new_character(uid, name)
                 CharacterRepository.save(char)
                 ChronicleRepository.record("JOIN", name, f"修士【{name}】登入局域网大世界。")
@@ -413,7 +402,7 @@ class World:
         with self.lock:
             char = self.get_char(token)
             if not char:
-                return {"ok": False, "error": "会话无效，请重新 /join"}
+                return {"ok": False, "error": "会话无效，请用账号密匙重新 /login"}
             session = self._session(token)
             parts = command.strip().split()
             if not parts:

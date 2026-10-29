@@ -39,7 +39,7 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/who", "aliases": ["/天下"], "usage": "/who", "desc": "天下名录：全服存活修士", "category": "core"},
     {"cmd": "/profile", "aliases": ["/人物", "/角色"], "usage": "/profile", "desc": "人物详情：命盘/心智/目标/回写投影", "category": "core"},
     {"cmd": "/go", "aliases": ["/前往"], "usage": "/go <地点>", "desc": "迁跃到指定地点", "category": "core"},
-    {"cmd": "/join", "aliases": ["/登入"], "usage": "/join <道号>", "desc": "登入局域网大世界（恢复或新建一世）", "category": "core"},
+    {"cmd": "/join", "aliases": ["/登入"], "usage": "POST /join {token}", "desc": "凭 token 续玩；换设备请用账号密匙登录，道号仅为显示名", "category": "core"},
     {"cmd": "/帮助", "aliases": ["/help", "/helpme"], "usage": "/帮助 [关键字]", "desc": "指令帮助；可按关键字模糊筛选", "category": "core"},
     {"cmd": "/退出", "aliases": ["/quit"], "usage": "/退出", "desc": "暂离修仙界（闭关仍按现实计时）", "category": "core"},
 

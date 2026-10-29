@@ -14,7 +14,7 @@ from storage.db import init_db, CharacterRepository
 def main():
     init_db()
     w = World(auto_tick=False)
-    j = w.join("一世道人")
+    j = w.join("一世道人", user_id="web_lifecycle_player")
     tok = j["token"]
     assert j.get("legacy_points") is not None
 

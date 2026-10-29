@@ -17,7 +17,7 @@ from core.clock import WorldClock
 
 def test_talk_command_end_to_end():
     w = World(auto_tick=False)
-    r = w.join("链路对谈客2")
+    r = w.join("链路对谈客2", user_id="talk_command_e2e_player")
     tok = r["token"]
     char = w.get_char(tok)
 

@@ -128,7 +128,7 @@ def test_world_unforceable_omen():
     assert r1.get("omen_open") is False
 
     # 主动输入 /奇遇
-    res_join = w.join(c.name, c.user_id)
+    res_join = w.join(c.name, user_id=c.user_id)
     token = res_join["token"]
     r2 = w.handle(token, "/奇遇")
     assert r2["ok"] is True

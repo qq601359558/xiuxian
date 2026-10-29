@@ -17,7 +17,7 @@ def _create_world():
 def test_bazaar_stall_and_cancel_lifecycle():
     w = _create_world()
     name = f"地摊掌柜_{uuid.uuid4().hex[:6]}"
-    r = w.join(name)
+    r = w.join(name, user_id=f"bazaar_{uuid.uuid4().hex}")
     tok = r["token"]
     c = w.get_char(tok)
     c.spirit_stones = 500
@@ -50,7 +50,7 @@ def test_bazaar_stall_and_cancel_lifecycle():
 def test_bazaar_bag_full_interceptions():
     w = _create_world()
     name = f"满格侠_{uuid.uuid4().hex[:6]}"
-    r = w.join(name)
+    r = w.join(name, user_id=f"bazaar_{uuid.uuid4().hex}")
     tok = r["token"]
     c = w.get_char(tok)
     c.spirit_stones = 2000
@@ -83,8 +83,8 @@ def test_bazaar_buy_listing_and_claim_earnings():
     w = _create_world()
     name_s = f"卖家_{uuid.uuid4().hex[:6]}"
     name_b = f"买家_{uuid.uuid4().hex[:6]}"
-    r_seller = w.join(name_s)
-    r_buyer = w.join(name_b)
+    r_seller = w.join(name_s, user_id=f"bazaar_{uuid.uuid4().hex}")
+    r_buyer = w.join(name_b, user_id=f"bazaar_{uuid.uuid4().hex}")
     tok_s = r_seller["token"]
     tok_b = r_buyer["token"]
 
@@ -122,7 +122,7 @@ def test_bazaar_buy_listing_and_claim_earnings():
 def test_bazaar_blind_box_gamble():
     w = _create_world()
     name = f"捡漏王_{uuid.uuid4().hex[:6]}"
-    r = w.join(name)
+    r = w.join(name, user_id=f"bazaar_{uuid.uuid4().hex}")
     tok = r["token"]
     c = w.get_char(tok)
     c.spirit_stones = 200
@@ -139,7 +139,7 @@ def test_bazaar_blind_box_gamble():
 def test_bazaar_solicit_and_haggle():
     w = _create_world()
     name = f"小贩_{uuid.uuid4().hex[:6]}"
-    r = w.join(name)
+    r = w.join(name, user_id=f"bazaar_{uuid.uuid4().hex}")
     tok = r["token"]
     c = w.get_char(tok)
     c.spirit_stones = 500

@@ -6,6 +6,8 @@
 
 完整说明以 [`AGENTS.md`](AGENTS.md) 为准，本文件与其保持一致。
 
+账号与道号分离：登录使用 `/login` 的 username/password；`POST /join` 仅凭 token 或账号密匙，禁止只传 name/user_id。道号允许重名。客户端示例与安全契约见 `server/README.md`。
+
 ---
 
 ## 🚨 阶段一：需求细化（未完成不得写业务代码）

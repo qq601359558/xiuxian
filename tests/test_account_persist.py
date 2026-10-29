@@ -1,4 +1,4 @@
-"""账号续玩：重启后 token 库恢复、同道号找回"""
+"""账号续玩：重启后 token 库恢复、同道号不串号。"""
 import os
 import sys
 import time
@@ -39,14 +39,17 @@ def test_persist_across_restart():
     print("✓ 重启后 token 续玩", char2.name, char2.spirit_stones)
 
 
-def test_resume_by_name():
+def test_same_name_does_not_resume_other_account():
     w = World(auto_tick=False)
     uname = f"同名{int(time.time())%100000}"
     r = w.join(uname, user_id=f"acct_name_{int(time.time()*1000)}")
     r2 = w.join(uname, user_id=f"acct_other_{int(time.time()*1000)}")
-    assert r2["resumed"] is True
-    assert r2["is_new_life"] is False
-    print("✓ 同道号找回账号", r2["user_id"], "resumed", r2["resumed"])
+    assert r2["resumed"] is False
+    assert r2["is_new_life"] is True
+    assert r2["user_id"] != r["user_id"]
+    assert r2["character_id"] != r["character_id"]
+    assert r2["name"] == r["name"]
+    print("✓ 同道号保持独立账号")
 
 
 def test_logout_clears_token():
@@ -61,6 +64,6 @@ def test_logout_clears_token():
 
 if __name__ == "__main__":
     test_persist_across_restart()
-    test_resume_by_name()
+    test_same_name_does_not_resume_other_account()
     test_logout_clears_token()
     print("\n✅ 账号续玩测试通过")

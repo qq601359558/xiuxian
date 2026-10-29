@@ -1,13 +1,17 @@
 """
 极简局域网客户端（命令行）
 用法：
-  python -m server.client join 厉飞雨
+  python -m server.client join <账号>（提示输入密匙）
+  python -m server.client join --token <token>
   python -m server.client <token> /look
 """
 from __future__ import annotations
 
+import argparse
+import getpass
 import json
 import sys
+import urllib.error
 import urllib.request
 from typing import Any, Dict
 
@@ -21,8 +25,12 @@ def _post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        with error:
+            return json.loads(error.read().decode("utf-8"))
 
 
 def main():
@@ -30,10 +38,24 @@ def main():
         print(__doc__)
         return
     if sys.argv[1] == "join":
-        name = sys.argv[2] if len(sys.argv) > 2 else "散修"
-        r = _post("/join", {"name": name})
+        parser = argparse.ArgumentParser(prog="python -m server.client join")
+        parser.add_argument("username", nargs="?", help="仙籍账号，不是道号")
+        parser.add_argument("password", nargs="?", help="密匙；建议省略并按提示输入")
+        parser.add_argument("--token", help="凭既有会话续玩")
+        args = parser.parse_args(sys.argv[2:])
+        if args.token:
+            if args.username or args.password:
+                parser.error("token 与账号密匙只能选择一种")
+            payload = {"token": args.token}
+        elif args.username:
+            password = args.password if args.password is not None else getpass.getpass("神识密匙：")
+            payload = {"username": args.username, "password": password}
+        else:
+            parser.error("需要账号与密匙，或 --token")
+        r = _post("/join", payload)
         print(json.dumps(r, ensure_ascii=False, indent=2))
-        print("\n保存 token 后：python -m server.client <token> /look")
+        if r.get("token"):
+            print("\n保存 token 后：python -m server.client <token> /look")
         return
 
     token = sys.argv[1]

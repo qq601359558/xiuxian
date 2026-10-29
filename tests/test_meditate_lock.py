@@ -41,7 +41,7 @@ def test_world_handle_gate():
     from server.world import World
 
     w = World(auto_tick=False)
-    r = w.join("闭关门禁测")
+    r = w.join("闭关门禁测", user_id="meditate_lock_player")
     token = r["token"]
     char = w.get_char(token)
     char.born_at = time.time() - 80 * 3600.0

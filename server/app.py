@@ -23,6 +23,27 @@ _ACTION_LOG_COMMANDS = frozenset(
     for name in (entry["cmd"], *entry["aliases"])
 )
 
+_STATIC_CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+_ROOT_STATIC_FILES = {
+    "/workbench.css": "workbench.css",
+    "/workbench.js": "workbench.js",
+    "/app.css": "app.css",
+    "/app.js": "app.js",
+    "/style.css": "style.css",
+}
+
 
 def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str, Any]):
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -48,53 +69,51 @@ class GameHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _serve_static(self, path: str) -> bool:
-        """托管工作台前端（web/ 与仓库根目录同名资源）"""
+        """只托管 web 目录与显式白名单资源。"""
         from config import BASE_DIR
         from urllib.parse import unquote
 
-        if path in ("/", "/index.html", "/web", "/web/", "/web/index.html"):
-            rel = "web/index.html"
-        elif path.startswith("/web/"):
-            rel = "web/" + unquote(path[len("/web/"):])
-        elif path.startswith("/images/"):
-            rel = "web/images/" + unquote(path[len("/images/"):])
-        elif path in ("/workbench.css", "/workbench.js", "/app.css", "/app.js", "/style.css"):
-            fname = unquote(path.lstrip("/"))
-            if (BASE_DIR / "web" / fname).is_file():
-                rel = "web/" + fname
-            else:
-                rel = fname
-        else:
-            return False
-        # 防路径穿越
         root = BASE_DIR.resolve()
-        fp = (root / rel).resolve()
+        allowed_root = root / "web"
+        if path in ("/", "/index.html", "/web", "/web/", "/web/index.html"):
+            candidate = allowed_root / "index.html"
+        else:
+            decoded = path
+            for decode_round in range(3):
+                if not decoded.startswith("/") or "\\" in decoded or "\x00" in decoded:
+                    return False
+                if any(segment in ("", ".", "..") for segment in decoded[1:].split("/")):
+                    return False
+                if decode_round < 2:
+                    decoded = unquote(decoded)
+            if "%" in decoded:
+                return False
+            if decoded.startswith("/web/"):
+                candidate = allowed_root / decoded[len("/web/"):]
+            elif decoded.startswith("/images/"):
+                allowed_root = allowed_root / "images"
+                candidate = allowed_root / decoded[len("/images/"):]
+            elif decoded in _ROOT_STATIC_FILES:
+                filename = _ROOT_STATIC_FILES[decoded]
+                candidate = allowed_root / filename
+                if not candidate.is_file():
+                    candidate = root / filename
+                    allowed_root = None
+            else:
+                return False
         try:
-            fp.relative_to(root)
-        except ValueError:
+            fp = candidate.resolve()
+            if allowed_root is None:
+                if fp != candidate:
+                    return False
+            else:
+                fp.relative_to(allowed_root)
+            ctype = _STATIC_CONTENT_TYPES.get(fp.suffix.lower())
+            if not ctype or not fp.is_file():
+                return False
+            data = fp.read_bytes()
+        except (OSError, ValueError, RuntimeError):
             return False
-        if not fp.is_file():
-            return False
-        ctype = "application/octet-stream"
-        if fp.suffix == ".html":
-            ctype = "text/html; charset=utf-8"
-        elif fp.suffix == ".css":
-            ctype = "text/css; charset=utf-8"
-        elif fp.suffix == ".js":
-            ctype = "text/javascript; charset=utf-8"
-        elif fp.suffix == ".json":
-            ctype = "application/json; charset=utf-8"
-        elif fp.suffix == ".svg":
-            ctype = "image/svg+xml"
-        elif fp.suffix in (".jpg", ".jpeg"):
-            ctype = "image/jpeg"
-        elif fp.suffix == ".png":
-            ctype = "image/png"
-        elif fp.suffix == ".webp":
-            ctype = "image/webp"
-        elif fp.suffix == ".gif":
-            ctype = "image/gif"
-        data = fp.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
@@ -180,26 +199,18 @@ class GameHandler(BaseHTTPRequestHandler):
                 "events": events,
                 "lines": [format_event_line(e) for e in events],
             })
-        if path.startswith("/world/briefing") or path == "/briefing":
+        if path in ("/world/briefing", "/briefing"):
             from storage.db import AuthSessionRepository, CharacterRepository
             from core.briefing import briefing as build_briefing
 
-            uid = None
             auth = self.headers.get("Authorization") or ""
-            token = auth.replace("Bearer ", "").strip()
-            if not token:
-                for part in (urlparse(self.path).query or "").split("&"):
-                    if part.startswith("uid="):
-                        uid = part[4:]
-            else:
-                try:
-                    sess = AuthSessionRepository.get(token)
-                    uid = sess.user_id if sess else None
-                except Exception:
-                    uid = None
-            if not uid:
-                return _json_response(self, 401, {"ok": False, "error": "需要 uid= 或 Bearer token"})
-            char = CharacterRepository.get_by_user_id(uid)
+            scheme, separator, token = auth.partition(" ")
+            if scheme.lower() != "bearer" or not separator or not token.strip():
+                return _json_response(self, 401, {"ok": False, "code": "AUTH_REQUIRED", "error": "需要 Bearer token"})
+            sess = AuthSessionRepository.get(token.strip())
+            if not sess:
+                return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "会话无效，请用账号密匙登录"})
+            char = CharacterRepository.get_by_user_id(sess["user_id"])
             if not char:
                 return _json_response(self, 404, {"ok": False, "error": "角色不存在"})
             b = build_briefing(char)
@@ -278,6 +289,8 @@ class GameHandler(BaseHTTPRequestHandler):
             data = json.loads(raw.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             return _json_response(self, 400, {"ok": False, "error": "invalid json"})
+        if not isinstance(data, dict):
+            return _json_response(self, 400, {"ok": False, "error": "需要 JSON 对象"})
 
         if path == "/register":
             from core.account import register as acct_register
@@ -292,27 +305,37 @@ class GameHandler(BaseHTTPRequestHandler):
             log_event("CMD", "register", username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})
 
-        if path == "/login":
+        if path in ("/login", "/join"):
             from core.account import login as acct_login
+            from storage.db import AuthSessionRepository
 
-            username = str(data.get("username") or "").strip()
-            password = str(data.get("password") or "")
-            name = str(data.get("name") or username or "").strip()[:12]
-            lg = acct_login(username, password)
+            token = data.get("token") if path == "/join" else None
+            if token:
+                sess = AuthSessionRepository.get(token) if isinstance(token, str) else None
+                if not sess:
+                    log_event("GATE", "authentication_failed", route=path, reason="INVALID_TOKEN")
+                    return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
+                name = str(data.get("name") or sess["name"] or "散修").strip()[:12]
+                result = WORLD.join(name, user_id=sess["user_id"])
+                log_event("CMD", "join", ok=True)
+                return _json_response(self, 200, {"ok": True, **result})
+
+            username = data.get("username") or ""
+            password = data.get("password") or ""
+            if path == "/join" and not username and not password:
+                return _json_response(self, 401, {"ok": False, "code": "AUTH_REQUIRED", "error": "需要 token 或账号与密匙"})
+            if isinstance(username, str) and isinstance(password, str):
+                lg = acct_login(username, password)
+            else:
+                lg = {"ok": False, "error": "INVALID_CREDENTIAL_TYPES"}
             if not lg.get("ok"):
-                return _json_response(self, 400, lg)
+                log_event("GATE", "authentication_failed", route=path, reason=lg.get("error"))
+                return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
+            username = lg["username"]
+            name = str(data.get("name") or username).strip()[:12]
             result = WORLD.join(name, user_id=lg["user_id"])
-            log_event("CMD", "login", username=username)
+            log_event("CMD", path[1:], username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})
-
-        if path == "/join":
-            name = str(data.get("name") or "").strip()[:12]
-            if not name:
-                return _json_response(self, 400, {"ok": False, "error": "需要道号 name"})
-            user_id = data.get("user_id")
-            result = WORLD.join(name, user_id=user_id)
-            log_event("CMD", "join", name=name, ok=result.get("ok", True) or "token" in result)
-            return _json_response(self, 200, {"ok": True, **result})
 
         if path == "/logout":
             token = str(data.get("token") or "")
@@ -408,9 +431,9 @@ def main():
 
     httpd = ThreadingHTTPServer((host, port), GameHandler)
     print(f"《天道因果录》局域网服已启动 http://{host}:{port}")
-    print("接口：网页 http://%s:%s/  · API POST /register /login /join /action /chat /logout  GET /who /health /commands /world/director" % (LAN_HOST, LAN_PORT))
+    print("接口：网页 http://%s:%s/  · 账号 POST /register /login，凭 token 续玩 /join；行动 /action /chat，退出 /logout  GET /who /health /commands /world/director" % (LAN_HOST, LAN_PORT))
     log_event("SEASON", "server_start", host=host, port=port)
-    print("示例：curl -X POST http://127.0.0.1:8765/join -d '{\"name\":\"厉飞雨\"}'")
+    print("示例（先注册账号）：curl -X POST http://127.0.0.1:8765/login -H 'Content-Type: application/json' -d '{\"username\":\"你的账号\",\"password\":\"你的密匙\"}'")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
