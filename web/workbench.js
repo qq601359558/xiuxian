@@ -153,6 +153,8 @@
     offline: false,
     demo: false,
     chat: { open: false, npc: "", lines: [] },
+    // 主界面内联奇遇（由服务端 omen_inline / omen_title / omen_choices 驱动）
+    omen: { open: false, title: "", choices: [], key: "" },
     sug: [],
     sugI: 0,
     drawerOpen: false,
@@ -2185,6 +2187,7 @@
             try {
               const res = await api("/action", { token: state.token, command: `/探险 ${target.name}` });
               if (res.status) applyStatus(res.status, reqEpoch);
+              applyOmenPayload(res);
               if (res.adventure) {
                 isWin = !!res.adventure.combat_success;
                 expGain = res.adventure.exp_delta || 0;
@@ -4552,6 +4555,7 @@
                 try {
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
+                  applyOmenPayload(res);
                   if (res.ok) {
                     digSuccess = true;
                     if (res.equipment) excavatedEquip = res.equipment;
@@ -5731,6 +5735,7 @@
   function handleChatData(data, reqEpoch) {
     if (!data) return;
     if (data.status) applyStatus(data.status, reqEpoch);
+    // 交谈内就地触发的奇遇（data.omen_chat）正文已并入 text，随玉简就地展示，不弹主界面芯片条
     const text = data.text || data.error || "";
     if (data.ok === false) {
       chatMsg("", text || "传音未送达", "sys");
@@ -5754,7 +5759,7 @@
     if (data.chat_open) {
       if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, false);
       String(text).split("\n").filter(Boolean).forEach((ln) => {
-        if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字/.test(ln)) chatMsg("", ln, "sys");
+        if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字|天机偶发/.test(ln)) chatMsg("", ln, "sys");
         else chatMsg(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
       });
       pushFeed(text, "npc");
@@ -5767,16 +5772,134 @@
   }
 
   // ==========================================================================
+  // 主界面内联奇遇芯片条 (Inline Omen Chips)
+  // ==========================================================================
+  const OMEN_DISMISS_PREFIXES = [
+    "/前往", "/go", "/闭关", "/打坐", "/meditate",
+    "/转世", "/reborn", "/归隐", "/下线", "/logout",
+  ];
+
+  function syncOmenInputHint() {
+    const inp = $("cmdInput");
+    if (!inp) return;
+    if (state.omen.open) {
+      if (inp.getAttribute("data-omen-ph") == null) {
+        inp.setAttribute("data-omen-ph", inp.getAttribute("placeholder") || "");
+      }
+      inp.setAttribute("placeholder", "以言语应对此刻天机…（回车即应答，或点选下方机缘芯片）");
+    } else {
+      const orig = inp.getAttribute("data-omen-ph");
+      if (orig != null) {
+        inp.setAttribute("placeholder", orig);
+        inp.removeAttribute("data-omen-ph");
+      }
+    }
+  }
+
+  function renderInlineOmenBar() {
+    const host = $("inlineOmenBar");
+    if (!host) return;
+    if (!state.omen.open) {
+      host.innerHTML = "";
+      host.classList.remove("is-open");
+      return;
+    }
+    const chips = state.omen.choices.map((c) => `
+      <button type="button" class="omen-chip" data-omen-choice="${esc(c.id)}">${esc(c.label)}</button>
+    `).join("");
+    host.innerHTML = `
+      <div class="omen-bar-inner">
+        <span class="omen-tag">【机缘 · ${esc(state.omen.title || "奇遇")}】</span>
+        <div class="omen-chips">${chips}</div>
+        <button type="button" class="omen-chip omen-abandon" data-omen-act="abandon">抽身</button>
+      </div>
+    `;
+    host.classList.add("is-open");
+    syncOmenInputHint();
+  }
+
+  function setInlineOmenBar(title, choices) {
+    const host = $("inlineOmenBar");
+    if (!host) return;
+    const key = `${title}||${choices.map((c) => c.id).join(",")}`;
+    if (state.omen.open && state.omen.key === key && host.innerHTML) return;
+    state.omen = { open: true, title, choices, key };
+    renderInlineOmenBar();
+  }
+
+  function clearInlineOmenBar() {
+    const was = state.omen.open;
+    state.omen = { open: false, title: "", choices: [], key: "" };
+    if (was) renderInlineOmenBar();
+    syncOmenInputHint();
+  }
+
+  // 响应体里的奇遇字段统一在此收口；无 omen 字段的普通响应一律不动作
+  function applyOmenPayload(data) {
+    if (!data) return;
+    if (data.omen_ended === true) {
+      clearInlineOmenBar();
+      return;
+    }
+    if (data.omen_inline === true) {
+      const choices = (Array.isArray(data.omen_choices) ? data.omen_choices : [])
+        .filter((c) => c && c.id != null)
+        .map((c) => ({ id: String(c.id), label: String(c.label || c.id) }));
+      setInlineOmenBar(data.omen_title || "奇遇", choices);
+      return;
+    }
+    if (data.omen_inline === false || data.omen_open === false) clearInlineOmenBar();
+  }
+
+  // 散场兜底：服务端迁跃/闭关会静默作废奇遇且不回带 omen 字段，客户端按指令前缀先行清空
+  function dismissOmenOnLeave(cmd) {
+    if (!state.omen.open) return;
+    const c = String(cmd || "").trim();
+    for (const p of OMEN_DISMISS_PREFIXES) {
+      if (c === p || c.startsWith(p + " ")) {
+        clearInlineOmenBar();
+        return;
+      }
+    }
+  }
+
+  // 刷新/重新入世后静默对齐服务端进行中的奇遇
+  async function syncOmenOnBoot() {
+    if (state.demo || !state.token) {
+      clearInlineOmenBar();
+      return;
+    }
+    const s = state.status || {};
+    if (s.is_meditating || s.meditating) {
+      clearInlineOmenBar();
+      return;
+    }
+    try {
+      const res = await api("/action", { token: state.token, command: "/奇遇" });
+      // 死亡/被擒等状态下 /奇遇 被门禁拦截，此时无法确认进行中的奇遇，按无奇遇处理
+      if (res && res.ok === false) clearInlineOmenBar();
+      else applyOmenPayload(res);
+    } catch (_) {}
+  }
+
+  // ==========================================================================
   // 底部神识敕令台 (Divine Sense Console)
   // ==========================================================================
   async function sendCmd(cmd) {
-    const c = (cmd || "").trim();
+    let c = (cmd || "").trim();
     if (!c) return;
     if (checkActionLock("天道神念推演中，诸法暂滞，请稍候再降法旨…")) return;
 
     if (state.chat.open && !c.startsWith("/")) {
       sendChat(c);
       return;
+    }
+
+    dismissOmenOnLeave(c);
+
+    // 奇遇芯片开启时，无斜杠发言即为对天机的应对
+    if (state.omen.open && !c.startsWith("/")) {
+      c = "/奇遇说 " + c;
     }
 
     if (c.startsWith("/探险") || c.startsWith("/adventure")) {
@@ -5820,6 +5943,7 @@
 
       if (data.status) applyStatus(data.status, reqEpoch);
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
+      applyOmenPayload(data);
       if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
       if (c.startsWith("/突破") || c.startsWith("/break")) {
@@ -6366,6 +6490,8 @@
       setText("topHereCount", (state.here.length || 0) + " 位同道");
     } catch (_) {}
 
+    await syncOmenOnBoot();
+
     try {
       const world = await api("/world/director");
       if (world && world.ok !== false) state.world = world;
@@ -6477,6 +6603,7 @@
     state.demo = true;
     state.token = "demo";
     state.name = "太虚散人";
+    clearInlineOmenBar();
     state.status = {
       name: "太虚散人",
       realm: "筑基初期",
@@ -6761,6 +6888,18 @@
         const act = bazaarEl.getAttribute("data-bazaar-act");
         const val = bazaarEl.getAttribute("data-bazaar-val") || "";
         handleBazaarAction(act, val, bazaarEl);
+        return;
+      }
+
+      // 主界面奇遇芯片：点选应对 / 抽身
+      const omenChoiceEl = e.target.closest("[data-omen-choice]");
+      if (omenChoiceEl) {
+        sendCmd("/奇遇 " + omenChoiceEl.getAttribute("data-omen-choice"));
+        return;
+      }
+      const omenActEl = e.target.closest("[data-omen-act]");
+      if (omenActEl && omenActEl.getAttribute("data-omen-act") === "abandon") {
+        sendCmd("/奇遇 弃");
         return;
       }
 

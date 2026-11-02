@@ -498,6 +498,104 @@ body.is-acting-busy button[data-equip-act] {
   background: rgba(24, 36, 56, 0.95);
 }
 
+/* ==========================================================================
+   主界面内联奇遇芯片条 (悬浮于神识敕令台正上方，全视图可见)
+   ========================================================================== */
+.inline-omen-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1400px;
+  padding: 0 16px;
+  z-index: 85;
+  display: none;
+  pointer-events: none;
+}
+.inline-omen-bar.is-open {
+  display: block;
+  animation: omenBarRise 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.omen-bar-inner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(10, 20, 18, 0.94);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), inset 0 0 22px rgba(45, 106, 79, 0.35);
+  backdrop-filter: blur(10px);
+}
+.omen-tag {
+  font-family: "Noto Serif SC", serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f3d9a4;
+  white-space: nowrap;
+}
+.omen-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.omen-chip {
+  pointer-events: auto;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #d8efe4;
+  background: rgba(20, 106, 89, 0.35);
+  border: 1px solid rgba(62, 207, 142, 0.45);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.omen-chip:hover,
+.omen-chip:focus-visible {
+  color: #10241d;
+  background: linear-gradient(135deg, #7fdcb2 0%, #3ecf8e 100%);
+  border-color: rgba(212, 175, 55, 0.85);
+  outline: none;
+}
+.omen-abandon {
+  color: #cbbfa4;
+  background: transparent;
+  border: 1px dashed rgba(212, 175, 55, 0.45);
+}
+.omen-abandon:hover,
+.omen-abandon:focus-visible {
+  color: #2b1d06;
+  background: linear-gradient(135deg, #f0d79a 0%, #c59b27 100%);
+}
+
+@keyframes omenBarRise {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 640px) {
+  .inline-omen-bar { bottom: 132px; }
+  .omen-bar-inner { gap: 8px; padding: 9px 12px; }
+  .omen-tag { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-omen-bar.is-open { animation: none; }
+  .omen-chip { transition: none; }
+}
+
+
 
 
 
