@@ -53,6 +53,7 @@ from core.secret_realm import SecretRealmEngine
 from core.combat import CombatEngine
 from core.adventure import AdventureEngine
 from core.loot_equip import DigEngine, EquipEngine
+from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
 from core.season import settle_apocalypse
 from core import forge as forge_mod
 from config import (
@@ -218,6 +219,8 @@ class World:
             return None
         account = LegacyRepository.get_or_create(char.user_id)
         char.status = CharacterStatus.DEAD
+        # 灵宠随主而殁（F01，一世循环）
+        PetEngine.on_owner_death(char)
         if not char.death_cause:
             char.death_cause = cause
         settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
@@ -880,6 +883,61 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/pets", "/pet", "/灵宠"):
+                return {
+                    "ok": True,
+                    "text": PetEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/契约", "/contract"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/契约 <兽名>（先在 /灵宠 看待契约灵兽）"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.contract(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                    log_event("DECISION", "pet_contract", name=char.name, species=char.pets[-1].species if char.pets else "")
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/喂养", "/feed"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/喂养 <宠名> [丹药名]"}
+                toks = command.strip().split(None, 1)[1].split()
+                pill = ""
+                # 末段若是囊中丹药名则作丹药喂养，其余整体作宠名
+                if len(toks) >= 2:
+                    from config import ITEM_CATALOG as _IC
+
+                    if (_IC.get(toks[-1]) or {}).get("kind") == "pill":
+                        pill = toks[-1]
+                        toks = toks[:-1]
+                res = PetEngine.feed(char, " ".join(toks), pill)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/出战", "/deploy"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/出战 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.deploy(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/休息", "/petrest"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/休息 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.rest(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/放生", "/release"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/放生 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.release(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
                 if not board:
@@ -2078,6 +2136,7 @@ class World:
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
+            "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
@@ -2113,6 +2172,18 @@ class World:
             "inventory": list(c.inventory),
             "equipped": list(c.equipped),
             "arrays": list(c.arrays),
+            # 灵宠（F01）：出战灵宠摘要 + 在养只数（纯新增）
+            "pet": (
+                {
+                    "name": _ap.name,
+                    "species": _ap.species,
+                    "level": pet_level_for(_ap.growth),
+                    "intimacy": _ap.intimacy,
+                }
+                if (_ap := pet_active(c)) is not None
+                else None
+            ),
+            "pets_count": len([p for p in (c.pets or []) if p.state != "dead"]),
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),
             "lifespan_warning": c.lifespan.get_remaining_years()

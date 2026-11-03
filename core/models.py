@@ -157,6 +157,17 @@ class ArrayFormation(BaseModel):
     is_active: bool = False
 
 
+class SpiritPet(BaseModel):
+    """灵宠（F01）：随角色一世存续；主人坐化则灵宠殁"""
+    species: str                      # 物种名（见 core/pets.py 物种池）
+    name: str                         # 个体名（默认同物种，重名加序）
+    growth: int = 0                   # 成长值（等级由 core.pets.level_for 推导）
+    intimacy: int = 10                # 亲密度 0~100
+    active: bool = False              # 是否出战中（全角色唯一，由 PetEngine 维护）
+    state: str = "rest"               # follow 随行 / rest 休息 / dead 已殁
+    met_at: float = 0.0               # 结契时间戳
+
+
 class MeditationSession(BaseModel):
     """现实闭关会话（现实时间与游戏世界时间严格并行）"""
     is_active: bool = False
@@ -208,6 +219,9 @@ class Character(BaseModel):
     adventure_cd_until: float = 0.0
     # 目标（六类目标源，可接可拒）
     goals: List[Dict[str, Any]] = Field(default_factory=list)
+    # 灵宠（F01）：本世所养灵宠；待契约灵兽物种名（探险遇兽后写入，空=无）
+    pets: List[SpiritPet] = Field(default_factory=list)
+    pending_pet_species: str = ""
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

@@ -219,6 +219,16 @@
       setText("hudQi", t);
     }
     if (st.inventory || st.equipped || st.arrays) renderBag(st);
+    // 灵宠（F01）：命盘一行显示出战灵宠
+    if ("pet" in st || "pets_count" in st) {
+      if (st.pet) {
+        setText("stPet", st.pet.name + " · " + (st.pet.level || 1) + "级");
+      } else if (st.pets_count) {
+        setText("stPet", "休息中 " + st.pets_count + " 只");
+      } else {
+        setText("stPet", "—");
+      }
+    }
 
     // 庇护 / 冲突区 / 闭关
     const labels = [];
@@ -1017,6 +1027,11 @@
         购买: "先点「坊市」看货单。示例：聚气丹 / 筑基丹 / 一阶青木迷踪阵",
         出售: "卖给商会，约五折回收。示例：妖兽内丹 1",
         服用: "丹药名，如：聚气丹 / 筑基丹",
+        契约: "探险遇兽后结契，耗灵石。兽名先在灵宠面板看",
+        喂养: "宠名 [丹药名]：无丹药则耗灵石喂养，如：青鳞蟒 聚气丹",
+        出战: "宠名，同时仅一宠出战助战",
+        休息: "宠名，令出战灵宠退下",
+        放生: "宠名，放归山林，不可挽回",
       };
       openPrompt(title, hints[title] || "", prefix, ph, numeric);
     });

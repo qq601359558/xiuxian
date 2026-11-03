@@ -92,6 +92,12 @@ class CombatEngine:
             power *= art_combat_bonus(c)
         except Exception:
             pass
+        try:
+            from core.pets import PetEngine
+
+            power *= PetEngine.power_bonus(c)
+        except Exception:
+            pass
         return power
 
     @staticmethod
@@ -244,6 +250,15 @@ class CombatEngine:
         report = []
         report.append(f"【绝岭伏击】{attacker.name} 携雷霆杀机暴起突袭 {defender.name}！")
         report.append(f"  · {attacker.name} 战力评估：{int(att_power)} | {defender.name} 战力评估：{int(def_power)}")
+        try:
+            from core.pets import PetEngine
+
+            for side in (attacker, defender):
+                line = PetEngine.assist_line(side)
+                if line:
+                    report.append(line)
+        except Exception:
+            pass
 
         if attacker_wins:
             report.append(f"【剑光纵横】{attacker.name} 祭出道法死死压制，{defender.name} 护体罡气崩溃，狂喷鲜血！")

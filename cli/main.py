@@ -25,6 +25,7 @@ from core.combat import CombatEngine
 from core.legacy import LegacyEngine, LegacyAccount
 from core.bounty import BountyEngine, BountyStatus, BOUNTY_MIN_REWARD
 from core.market import MarketEngine
+from core.pets import PetEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
 from core.combat_fate import CombatFateEngine
@@ -162,6 +163,12 @@ def print_help():
   [bold yellow]/买寄售 <编号>[/bold yellow]         - 买下他人寄售货物
   [bold yellow]/撤单 <编号>[/bold yellow]           - 撤回自己的寄售
   [bold yellow]/服用 <丹药>[/bold yellow]           - 服用囊中丹药
+  [bold yellow]/灵宠[/bold yellow]                 - 灵宠面板（遇兽在探险，属局域网游径；存档互通）
+  [bold yellow]/契约 <兽名>[/bold yellow]          - 与待契约灵兽结契（耗灵石）
+  [bold yellow]/喂养 <宠名> [丹药][/bold yellow]   - 灵石或丹药喂养灵宠
+  [bold yellow]/出战 <宠名>[/bold yellow]          - 令灵宠随行出战（唯一）
+  [bold yellow]/休息 <宠名>[/bold yellow]          - 令灵宠退下休息
+  [bold yellow]/放生 <宠名>[/bold yellow]          - 放归灵宠于山林
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
@@ -246,6 +253,8 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
     if not player.death_settled:
         player.death_cause = cause
         player.status = CharacterStatus.DEAD
+        # 灵宠随主而殁（F01，一世循环）
+        PetEngine.on_owner_death(player)
         settle = LegacyEngine.settle_death(account, player, death_cause=cause)
         LegacyRepository.save(account)
         CharacterRepository.save(player)
@@ -904,6 +913,72 @@ def run_mud():
                     console.print(f"[red]囊中并无【{item_name}】。[/red]")
                     continue
                 res = MarketEngine.use_pill(player, matched)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/灵宠", "pets", "pet"]:
+                console.print(PetEngine.panel_text(player))
+
+            elif action in ["/契约", "contract"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/契约 <兽名>[/red]")
+                    continue
+                res = PetEngine.contract(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/喂养", "feed"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/喂养 <宠名> [丹药名][/red]")
+                    continue
+                toks = parts[1:]
+                pill = ""
+                if len(toks) >= 2:
+                    from config import ITEM_CATALOG as _IC
+
+                    if (_IC.get(toks[-1]) or {}).get("kind") == "pill":
+                        pill = toks[-1]
+                        toks = toks[:-1]
+                res = PetEngine.feed(player, " ".join(toks), pill)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/出战", "deploy"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/出战 <宠名>[/red]")
+                    continue
+                res = PetEngine.deploy(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/休息", "petrest"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/休息 <宠名>[/red]")
+                    continue
+                res = PetEngine.rest(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/放生", "release"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/放生 <宠名>[/red]")
+                    continue
+                res = PetEngine.release(player, " ".join(parts[1:]))
                 if res["success"]:
                     CharacterRepository.save(player)
                     console.print(f"[bold green]{res['message']}[/bold green]")

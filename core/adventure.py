@@ -311,6 +311,29 @@ class AdventureEngine:
         loot = _roll_loot(success, random.Random())
         # 若 AI 瞎给 loot 我们已忽略
 
+        # 灵宠（F01）：出战宠引用与探宝宠额外拾获（规则骰，AI 无权干预）
+        pet = None
+        pet_mod = None
+        try:
+            from core import pets as _pet_mod
+
+            pet_mod = _pet_mod
+            pet = pet_mod.active_pet(c)
+            if (
+                pet is not None
+                and success
+                and pet.intimacy >= pet_mod.PET_INTIMACY_MIN_WORK
+                and (pet_mod.PET_SPECIES.get(pet.species) or {}).get("tendency")
+                == "treasure"
+                and random.random() < pet_mod.PET_TREASURE_LOOT_P
+            ):
+                extra = _roll_loot(True, random.Random())
+                if extra:
+                    loot.extend(extra[:1])
+        except Exception:
+            pet = None
+            pet_mod = None
+
         # 落账
         before_exp = c.realm.current_exp
         c.realm.current_exp = max(0, min(c.realm.max_exp, c.realm.current_exp + exp_delta))
@@ -393,6 +416,22 @@ class AdventureEngine:
                     lines.append(f"\n【奇遇 · {ch.title}】{st['prompt']}\n选项：{opts}（/奇遇 <n>）")
             except Exception:
                 pass
+        # 灵宠助战文本与随行成长
+        if pet_mod is not None and pet is not None:
+            aline = pet_mod.PetEngine.assist_line(c)
+            if aline:
+                lines.append(aline)
+            if success:
+                pet.growth += pet_mod.PET_EXPLORE_GROWTH
+        # 遇兽（F01）：探险成功后规则掷骰，命中写入待契约
+        pet_encounter = None
+        if success and pet_mod is not None:
+            try:
+                pet_encounter = pet_mod.PetEngine.maybe_encounter(c, random.Random())
+                if pet_encounter:
+                    lines.append(pet_mod.PetEngine.encounter_line(pet_encounter))
+            except Exception:
+                pet_encounter = None
         lines.append(f"（盘缠已耗 {ADVENTURE_FEE} 灵石 · 下次可探约 {ADVENTURE_COOLDOWN_MIN:.0f} 设计分钟后）")
 
         return {
@@ -408,4 +447,5 @@ class AdventureEngine:
             "loot": loot,
             "events": ev_summaries,
             "prob": round(p, 3),
+            "pet_encounter": pet_encounter,
         }
