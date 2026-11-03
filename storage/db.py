@@ -526,6 +526,22 @@ class LegacyRepository:
         LegacyRepository.save(account)
         return account
 
+    @staticmethod
+    def list_all() -> List[LegacyAccount]:
+        """只读全量（F12 飞升榜用）：损坏行跳过不崩，不写盘。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM player_legacy ORDER BY rowid")
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[LegacyAccount] = []
+        for r in rows:
+            try:
+                out.append(LegacyAccount.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
 
 class BountyRepository:
     """悬赏告示仓储"""

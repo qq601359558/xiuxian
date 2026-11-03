@@ -36,6 +36,7 @@ from core.npc_proactive import NpcProactiveEngine
 from core.bounty import BountyEngine, bounty_status_cn
 from core.market import MarketEngine
 from core.atlas import AtlasEngine
+from core.ascension import AscensionEngine
 from core.breakthrough import BreakthroughEngine
 from core.protection import ProtectionEngine, is_conflict_zone
 from core.goals import GoalEngine
@@ -467,6 +468,8 @@ class World:
                     "/行情",
                     # 版图查看（F09：纯只读观照，查询零写盘）
                     "/版图", "/atlas",
+                    # 飞升榜（F12：纯只读观照，查询零写盘）
+                    "/飞升榜", "/ascend",
                     # 洞府查看（F06：纯只读观照；开辟/播种/收获/升级闭关中仍锁门）
                     "/洞府", "/cave",
                 )
@@ -1106,6 +1109,10 @@ class World:
                 }
                 key = alias.get(board, board)
                 return {"ok": True, "text": LeaderboardEngine.format_board(key), "board": key}
+            if action in ("/ascend", "/飞升榜"):
+                # 飞升榜（F12）：历世纪念碑，只读已落账前世，与现世六榜互不相干
+                arg = parts[1] if len(parts) > 1 else None
+                return {"ok": True, "text": AscensionEngine.panel_text(char, arg)}
             if action in ("/sect", "/宗门"):
                 return {"ok": True, "text": format_sect_board(char)}
             if action in ("/join_sect", "/拜入"):
@@ -2385,7 +2392,7 @@ class World:
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
             "/著书 [写] /研读 [书名] "
-            "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
+            "/榜 /飞升榜 [我|本纪元|道号] /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
