@@ -28,6 +28,7 @@ from core.market import MarketEngine
 from core.pets import PetEngine
 from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
+from core.council import CouncilEngine
 from core.art_slots import ArtSlotEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
@@ -142,6 +143,9 @@ def print_help():
   [bold yellow]/宗门[/bold yellow]                 - 查阅天下仙门宗派榜、门规约束、月俸待遇与个人宗籍
   [bold yellow]/拜入 <宗门>[/bold yellow]          - 前往总坛山门参加入门考核（如：/拜入 青云宗）
   [bold yellow]/领俸禄[/bold yellow]               - 宗门弟子每过现实2小时（游戏内1个月）可领月度灵石俸禄
+  [bold yellow]/议政[/bold yellow]                 - 宗门长老议政面板（本场议题/长老立场/票数/宗门状态）
+  [bold yellow]/投票 <支持|反对>[/bold yellow]      - 就本场议题投票（一人一票，截止前可改票）
+  [bold yellow]/游说 <长老名>[/bold yellow]          - 备礼灵石游说长老向支持松动（成本递增，有次数上限）
   [bold yellow]/前往 [地点][/bold yellow]           - 查阅灵脉或御剑迁跃（不同福地灵气浓度与危险度各异）
   [bold yellow]/闭关 <现实小时> [碎石][/bold yellow]- 步入洞府封门静修（现实时间并行！野外无阵盘则裸闭极易被杀）
   [bold yellow]/出关[/bold yellow]                 - 提前收功出定破关（按已过去现实时间结算修为）
@@ -1218,6 +1222,33 @@ def run_mud():
 
             elif action in ["/弃委托", "abandonquest"]:
                 res = QuestEngine.abandon(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/议政", "council"]:
+                console.print(CouncilEngine.panel_text(player))
+
+            elif action in ["/投票", "vote"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/投票 支持|反对[/red]")
+                    continue
+                res = CouncilEngine.vote(player, parts[1])
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/游说", "lobby"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/游说 <长老名>[/red]")
+                    continue
+                res = CouncilEngine.lobby(player, "".join(parts[1:]))
                 if res["success"] or res.get("dirty"):
                     CharacterRepository.save(player)
                 if res["success"]:

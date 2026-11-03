@@ -1424,6 +1424,28 @@ class World:
                 from core.sect_contrib import sect_powerboard
 
                 return {"ok": True, "text": sect_powerboard()}
+            if action in ("/议政", "/council"):
+                from core.council import CouncilEngine
+
+                return {"ok": True, "text": CouncilEngine.panel_text(char)}
+            if action in ("/投票", "/vote"):
+                from core.council import CouncilEngine
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/投票 支持|反对"}
+                res = CouncilEngine.vote(char, parts[1])
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/游说", "/lobby"):
+                from core.council import CouncilEngine
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/游说 <长老名>"}
+                res = CouncilEngine.lobby(char, "".join(parts[1:]))
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
 
             # ---------------- Wave2：除凶 ----------------
             if action in ("/除凶", "/hunt"):
@@ -2303,7 +2325,7 @@ class World:
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/ailog(=AI日志) /ai(=AI自检)"
         )
