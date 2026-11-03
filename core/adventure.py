@@ -407,6 +407,13 @@ class AdventureEngine:
                 AtlasEngine.record_activity(c, "explore")
             except Exception:
                 pass
+            # 著书立说（F11）：探险成功积攒灵感（只认规则成功，与版图同落账段）
+            try:
+                from core.books import INSPIRATION_FROM_EXPLORE, BookEngine
+
+                BookEngine.gain_inspiration(c, INSPIRATION_FROM_EXPLORE)
+            except Exception:
+                pass
 
         lines = [
             travel_note + narrative if travel_note else narrative,

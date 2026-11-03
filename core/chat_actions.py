@@ -146,6 +146,14 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         return {"ok": False, "error": f"行囊中无【{item_hint}】。现有：{'、'.join(player.inventory[:8]) or '空'}。"}
     if item:
         player.inventory.remove(item)
+        # 著书立说（F11）：赠出手稿则书目转终态 gifted（随赠礼离场，不再流通）
+        try:
+            from core.books import BOOK_ITEM, BookEngine
+
+            if item == BOOK_ITEM:
+                BookEngine.on_gifted(player, npc)
+        except Exception:
+            pass
     if stones > 0:
         player.spirit_stones -= stones
     try:

@@ -14,6 +14,7 @@ from core.legacy import LegacyAccount
 from core.bounty import Bounty, KarmaLink, BountyStatus
 from core.market import MarketListing, ListingStatus
 from core.pawn import PawnTicket
+from core.books import Book
 from core.trade import AuctionLot, AuctionStatus
 
 
@@ -93,6 +94,17 @@ def init_db():
         data_json TEXT NOT NULL,
         status TEXT NOT NULL,
         owner_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6c. 著书书目（F11；只加新表：每「本」亲笔手稿的元数据，物品本体是行囊固定名）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS books (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        author_id TEXT NOT NULL,
+        holder_id TEXT NOT NULL,
         created_at REAL NOT NULL
     );
     """)
@@ -659,6 +671,48 @@ class PawnTicketRepository:
     @staticmethod
     def list_by_owner(owner_id: str):
         return [t for t in PawnTicketRepository.list_all() if t.owner_id == owner_id]
+
+
+class BookRepository:
+    """著书书目仓储（F11，照 PawnTicketRepository 写法）"""
+
+    @staticmethod
+    def save(book: Book):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO books (id, data_json, author_id, holder_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            author_id = excluded.author_id,
+            holder_id = excluded.holder_id;
+        """, (
+            book.id,
+            book.model_dump_json(),
+            book.author_id,
+            book.holder_id,
+            book.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def list_all() -> List[Book]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM books ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [Book.model_validate_json(r[0]) for r in rows]
+
+    @staticmethod
+    def delete(book_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        conn.commit()
+        conn.close()
 
 
 class AuctionLotRepository:

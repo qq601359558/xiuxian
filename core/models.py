@@ -266,6 +266,9 @@ class Character(BaseModel):
     # 炼体/炼神双修（F10）：副修层数 0–10（见 core/body_soul.py）；随旧世消散，旧档自动补默认
     body_level: int = 0  # 炼体层数（战力/寿元微增）
     soul_level: int = 0  # 炼神层数（有效道心/神识加成）
+    # 著书立说（F11）：灵感（探险/委托/突破钩子积攒，著书消耗）与个人声望（著书被研读结算）；旧档自动补默认
+    inspiration: int = 0  # 灵感存量（封顶见 core/books.py INSPIRATION_CAP）
+    prestige: int = 0     # 个人声望（与宗门声望、功德分账）
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

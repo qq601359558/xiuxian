@@ -31,6 +31,7 @@ from core.quests import QuestEngine
 from core.council import CouncilEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
+from core.books import BOOK_ITEM, BookEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
 from core.combat_fate import CombatFateEngine
@@ -202,6 +203,8 @@ def print_help():
   [bold yellow]/卸功 <功法名>[/bold yellow]       - 卸下主修或辅修
   [bold yellow]/炼体 [修炼 [n]][/bold yellow]     - 炼体副修（妖兽内丹+灵石升层：战力+1%/层、寿元+1岁/层，满 10 层）
   [bold yellow]/炼神 [修炼 [n]][/bold yellow]     - 炼神副修（百年灵芝+灵石升层：有效道心+2/层、神识+3/层，满 10 层）
+  [bold yellow]/著书 [写][/bold yellow]           - 著书立说（灵感 10 + 燃寿 1 年成书；无参看面板：灵感/声望/在持手稿）
+  [bold yellow]/研读 [书名][/bold yellow]         - 研读所持亲笔手稿（他人之作首次研读得修为/道心，作者得声望）
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
@@ -891,6 +894,9 @@ def run_mud():
                     console.print(f"[bold red]{res['message']}[/bold red]")
                     continue
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿上架 → 书目转 listed 并绑定单号
+                if item_name == BOOK_ITEM:
+                    BookEngine.on_listing_created(player, listing.id)
                 CharacterRepository.save(player)
                 ChronicleRepository.record(
                     "MARKET", player.name,
@@ -908,10 +914,17 @@ def run_mud():
                     console.print("[red]寄售编号不存在。[/red]")
                     continue
                 listing = open_l[idx]
+                # 著书立说（F11）：手稿一人至多持一本，买家已持有则不成交
+                if listing.item_name == BOOK_ITEM and not BookEngine.buyer_can_hold(player):
+                    console.print("[bold red]怀中已有一部手稿，先将它流通出去再买新的。[/bold red]")
+                    continue
                 res = MarketEngine.buy_listing(player, listing)
                 if not res["success"]:
                     console.print(f"[bold red]{res['message']}[/bold red]")
                     continue
+                # 著书立说（F11）：手稿成交 → 书目过户买家
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_sold(listing.id, player)
                 # 付款给卖家（玩家或 NPC）
                 seller = CharacterRepository.get_by_name(listing.seller_name)
                 MarketEngine.complete_sale_payment(listing, seller)
@@ -940,6 +953,9 @@ def run_mud():
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
                     continue
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿撤单 → 书目回 held
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_cancelled(listing.id)
                 CharacterRepository.save(player)
                 console.print(f"[bold green]{res['message']}[/bold green]")
 
@@ -1323,6 +1339,31 @@ def run_mud():
                     console.print(f"[red]用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数][/red]")
                 else:
                     console.print(BodySoulEngine.panel_text(player, track))
+
+            elif action in ["/著书", "write_book"]:
+                # 著书立说（F11）：无参=面板；「写」=燃寿著书（与 server 同引擎同口径）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("写", "write"):
+                    res = BookEngine.write_book(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print("[red]用法：/著书 或 /著书 写[/red]")
+                else:
+                    console.print(BookEngine.panel_text(player))
+
+            elif action in ["/研读", "read_book"]:
+                # 研读（F11）：展卷所持手稿；首次研读结算收益与作者声望（引擎内幂等）
+                hint = cmd.strip().split(None, 1)[1] if len(cmd.strip().split(None, 1)) > 1 else ""
+                res = BookEngine.read_book(player, hint.strip())
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
 
             elif action in ["/机缘", "event", "/事件", "/推演"]:
                 etype = None

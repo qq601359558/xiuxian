@@ -59,6 +59,7 @@ from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
+from core.books import BOOK_ITEM, BookEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
 from config import (
@@ -1075,6 +1076,24 @@ class World:
                     "text": BodySoulEngine.panel_text(char, track),
                     "status": self._status_dict(char),
                 }
+            if action in ("/write_book", "/著书"):
+                # 著书立说（F11）：无参=面板；「写」=燃寿著书（闭关不进白名单，天然锁门）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("写", "write"):
+                    res = BookEngine.write_book(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": "用法：/著书 或 /著书 写"}
+                return {"ok": True, "text": BookEngine.panel_text(char), "status": self._status_dict(char)}
+            if action in ("/read_book", "/研读"):
+                # 研读（F11）：展卷所持手稿；首次研读结算收益与作者声望（引擎内幂等）
+                hint = command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else ""
+                res = BookEngine.read_book(char, hint.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
                 if not board:
@@ -1945,6 +1964,9 @@ class World:
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "寄售失败")}
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿上架 → 书目转 listed 并绑定单号
+                if item_name == BOOK_ITEM:
+                    BookEngine.on_listing_created(char, listing.id)
                 CharacterRepository.save(char)
                 ChronicleRepository.record(
                     "MARKET", char.name, f"【{char.name}】寄售【{item_name}】标价 {price} 灵石。"
@@ -1958,9 +1980,15 @@ class World:
                 if idx < 0 or idx >= len(open_l):
                     return {"ok": False, "error": "寄售编号不存在"}
                 listing = open_l[idx]
+                # 著书立说（F11）：手稿一人至多持一本，买家已持有则不成交
+                if listing.item_name == BOOK_ITEM and not BookEngine.buyer_can_hold(char):
+                    return {"ok": False, "error": "怀中已有一部手稿，先将它流通出去再买新的。"}
                 res = MarketEngine.buy_listing(char, listing)
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "购买失败")}
+                # 著书立说（F11）：手稿成交 → 书目过户买家
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_sold(listing.id, char)
                 seller = CharacterRepository.get_by_name(listing.seller_name)
                 MarketEngine.complete_sale_payment(listing, seller)
                 MarketListingRepository.save(listing)
@@ -1985,6 +2013,9 @@ class World:
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "撤单失败")}
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿撤单 → 书目回 held
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_cancelled(listing.id)
                 CharacterRepository.save(char)
                 return {"ok": True, "text": res["message"]}
 
@@ -2353,6 +2384,7 @@ class World:
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
+            "/著书 [写] /研读 [书名] "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
@@ -2411,6 +2443,11 @@ class World:
             "body_soul": {
                 "body": BodySoulEngine.body_level(c),
                 "soul": BodySoulEngine.soul_level(c),
+            },
+            # 著书立说（F11）：灵感/声望（纯新增）
+            "books": {
+                "inspiration": int(getattr(c, "inspiration", 0) or 0),
+                "prestige": int(getattr(c, "prestige", 0) or 0),
             },
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),

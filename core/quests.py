@@ -364,6 +364,13 @@ class QuestEngine:
         char.spirit_stones += stones
         if merit:
             char.karma.add_merit(merit)
+        # 著书立说（F11）：整链完成积攒灵感（与发奖同落账段，恰一次）
+        try:
+            from core.books import INSPIRATION_FROM_QUEST, BookEngine
+
+            BookEngine.gain_inspiration(char, INSPIRATION_FROM_QUEST)
+        except Exception:
+            pass
         clue_line = ""
         r = rng or random.Random()
         if r.random() < QUEST_ART_CLUE_P:

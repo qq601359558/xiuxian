@@ -134,6 +134,14 @@ class PawnEngine:
         item_name = (item_name or "").strip()
         if not item_name:
             return None, {"success": False, "message": "用法：/典当 <物品名>（无参查看当票）"}
+        # 著书立说（F11）：亲笔手稿不可典当（保书目绑定一致，只许寄售/赠予）
+        try:
+            from core.books import BOOK_ITEM
+
+            if item_name == BOOK_ITEM:
+                return None, {"success": False, "message": "【亲笔手稿】乃著者心血，当铺不收；可 /寄售 亲笔手稿 <价> 流通。"}
+        except Exception:
+            pass
         if item_name not in char.inventory:
             if item_name in char.equipped:
                 return None, {

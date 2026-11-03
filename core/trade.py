@@ -663,6 +663,14 @@ class NpcShopEngine:
             return {"success": False, "message": err}
         if not npc_accepts_sell(npc):
             return {"success": False, "message": f"【{npc.name}】只售不收。"}
+        # 著书立说（F11）：亲笔手稿只许寄售流通/赠予，专柜不回收（保书目绑定一致）
+        try:
+            from core.books import BOOK_ITEM
+
+            if item_name == BOOK_ITEM:
+                return {"success": False, "message": "【亲笔手稿】乃著者心血，专柜不收；可 /寄售 亲笔手稿 <价> 流通。"}
+        except Exception:
+            pass
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
         if not _take_item(player, item_name, qty):
             return {"success": False, "message": f"随身并无足够的【{item_name}】。"}
@@ -1116,6 +1124,14 @@ class AuctionEngine:
             return {"success": False, "message": "起拍价必须为正。"}
         if buyout_price is not None and buyout_price < start_price:
             return {"success": False, "message": "一口价不可低于起拍价。"}
+        # 著书立说（F11）：亲笔手稿不可上拍（保书目绑定一致，只许寄售/赠予）
+        try:
+            from core.books import BOOK_ITEM
+
+            if item_name == BOOK_ITEM:
+                return {"success": False, "message": "【亲笔手稿】乃著者心血，不入拍卖；可 /寄售 亲笔手稿 <价> 流通。"}
+        except Exception:
+            pass
         from storage.db import AuctionLotRepository, CharacterRepository
 
         open_n = sum(1 for l in AuctionLotRepository.list_all() if l.is_open() and l.seller_id == seller.id)
