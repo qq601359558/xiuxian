@@ -702,6 +702,24 @@ LLM_API_BASE = os.getenv("LLM_API_BASE", "https://api.deepseek.com/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 
+
+def _llm_timeout_seconds() -> float:
+    """主聊天通道超时（秒）：.env LLM_TIMEOUT_SECONDS 可调，默认 30，钳制 [5, 120]。
+
+    慢中转延迟常接近旧写死值 20s，故默认放宽到 30；非法/非有限值回退默认。
+    与其余 LLM_* 常量同口径：模块导入时冻结，改 .env 后重启生效。
+    """
+    try:
+        value = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+    except (TypeError, ValueError):
+        return 30.0
+    if value != value or value in (float("inf"), float("-inf")):
+        return 30.0
+    return min(120.0, max(5.0, value))
+
+
+LLM_TIMEOUT_SECONDS = _llm_timeout_seconds()
+
 # 是否走本机 CC Switch（Claude Code 本地代理）
 # USE_CCSWITCH=1：从 ~/.claude/settings.json 读 ANTHROPIC_BASE_URL / 模型，调 /v1/messages
 USE_CCSWITCH = os.getenv("USE_CCSWITCH", "0") in ("1", "true", "True")

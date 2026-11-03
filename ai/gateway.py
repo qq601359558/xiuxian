@@ -15,6 +15,7 @@ from config import (
     LLM_API_BASE,
     LLM_API_KEY,
     LLM_MODEL,
+    LLM_TIMEOUT_SECONDS,
     TRIBULATION_AI_JITTER,
     ai_available,
     local_ai_allowed,
@@ -111,7 +112,7 @@ def _router_data(
     *,
     facts: Any = None,
     actor_id: str = "system",
-    timeout: float = 20.0,
+    timeout: float = LLM_TIMEOUT_SECONDS,
 ) -> Optional[Dict[str, Any]]:
     """经中台 router 取 JSON；失败/非 dict 返回 None。业务不应再直呼 _chat_json。"""
     try:
@@ -244,7 +245,7 @@ def _anthropic_chat_json(prompt: str, timeout: float = 30.0) -> Optional[Dict[st
         return None
 
 
-def _chat_json(prompt: str, timeout: float = 20.0) -> Optional[Dict[str, Any]]:
+def _chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Dict[str, Any]]:
     """优先 CC Switch，其次 OpenAI 兼容接口；失败返回 None"""
     if USE_CCSWITCH:
         data = _anthropic_chat_json(prompt, timeout=max(timeout, 30.0))
@@ -356,7 +357,7 @@ def _parse_json_loose(content: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _chat_text(prompt: str, timeout: float = 8.0) -> Optional[str]:
+def _chat_text(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[str]:
     if not LLM_API_KEY:
         return None
     try:

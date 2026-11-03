@@ -8,6 +8,8 @@
 2. 复制配置：`cp .env.example .env`，至少填好 `LLM_API_KEY`
    （或改 `USE_CCSWITCH=1` 走本机 Claude Code 代理）。
    正式灰度保持 `ALLOW_LOCAL_AI=0`；无 Key 联调才临时开 1。
+   主通道超时 `LLM_TIMEOUT_SECONDS` 默认 30 秒；走慢中转或慢模型时建议调大
+   （如 60，可调区间 5–120），改后重启生效。
 3. 起服（二选一）：
    - 局域网网页服：`python -m server.run`（默认 0.0.0.0:8765）
    - 单机命令行：`python -m cli.main`
