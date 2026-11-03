@@ -93,6 +93,67 @@
     if (wrap) wrap.classList.toggle("low", !!low);
   }
 
+  // ---------- 行囊（灰度批次 B） ----------
+  function renderBag(st) {
+    const list = $("bagList");
+    if (!list) return;
+    const inv = Array.isArray(st.inventory) ? st.inventory : [];
+    const eq = Array.isArray(st.equipped) ? st.equipped : [];
+    const arr = Array.isArray(st.arrays) ? st.arrays : [];
+    const eqSet = new Set(eq);
+    // 计数：同名物品合并显示 ×n
+    const counts = new Map();
+    inv.forEach((n) => counts.set(n, (counts.get(n) || 0) + 1));
+    const total = inv.length + arr.length;
+    setText("bagCount", total ? total + " 件" : "");
+    list.innerHTML = "";
+    if (!counts.size && !arr.length) {
+      list.innerHTML = '<p class="empty">行囊空空</p>';
+    }
+    counts.forEach((n, name) => {
+      const row = document.createElement("div");
+      row.className = "bag-row";
+      const nm = document.createElement("span");
+      nm.className = "bag-name";
+      nm.textContent = name + (n > 1 ? " ×" + n : "") + (eqSet.has(name) ? "（已穿戴）" : "");
+      row.appendChild(nm);
+      const acts = document.createElement("span");
+      acts.className = "bag-acts";
+      const mk = (label, cmd) => {
+        const b = document.createElement("button");
+        b.className = "btn-mini";
+        b.textContent = label;
+        b.addEventListener("click", () => { lastCmd = cmd; send(cmd); });
+        return b;
+      };
+      if (eqSet.has(name)) acts.appendChild(mk("卸下", "/卸下 " + name));
+      else acts.appendChild(mk("穿戴", "/穿戴 " + name));
+      acts.appendChild(mk("服用", "/服用 " + name));
+      row.appendChild(acts);
+      list.appendChild(row);
+    });
+    arr.forEach((name) => {
+      const row = document.createElement("div");
+      row.className = "bag-row";
+      const nm = document.createElement("span");
+      nm.className = "bag-name";
+      nm.textContent = name + "（阵盘）";
+      row.appendChild(nm);
+      list.appendChild(row);
+    });
+    // 法门（功法）只读展示
+    const arts = $("bagArts");
+    if (arts) {
+      const sk = Array.isArray(st.skills) ? st.skills : [];
+      if (sk.length) {
+        arts.textContent = "法门：" + sk.join("、");
+        arts.classList.remove("hide");
+      } else {
+        arts.classList.add("hide");
+      }
+    }
+  }
+
   // ---------- status ----------
   function applyStatus(st) {
     if (!st) return;
@@ -147,6 +208,7 @@
       setText("stQi", t);
       setText("hudQi", t);
     }
+    if (st.inventory || st.equipped || st.arrays) renderBag(st);
 
     // 庇护 / 冲突区 / 闭关
     const labels = [];
@@ -158,6 +220,14 @@
       labels.push("新手 " + (st.newbie_left_hours || 0) + "h");
     }
     if (st.protect) labels.push(st.protect);
+    if (st.blood_marked) {
+      labels.push("血煞缠身");
+      warn = true;
+    }
+    if (st.lifespan_warning) {
+      labels.push("大限将至");
+      warn = true;
+    }
     if (st.conflict_zone) {
       labels.push("冲突区");
       warn = true;

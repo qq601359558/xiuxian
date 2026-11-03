@@ -62,6 +62,7 @@ from config import (
     LEGACY_MAX_BOOSTS_PER_LIFE,
     BOUNTY_MAX_PER_TARGET,
     MARKET_MAX_LISTINGS,
+    LIFESPAN_WARNING_YEARS,
 )
 from server.log import log_event
 from ai.gate import gate
@@ -2108,6 +2109,14 @@ class World:
             "root_eff": round(c.spiritual_root.efficiency, 2),
             "dao_heart": c.karma.dao_heart,
             "skills": list(c.skills[:8]),
+            # 灰度批次 B：行囊面板下发（纯新增字段，旧前端忽略即可）
+            "inventory": list(c.inventory),
+            "equipped": list(c.equipped),
+            "arrays": list(c.arrays),
+            # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
+            "blood_marked": c.karma.is_blood_marked(),
+            "lifespan_warning": c.lifespan.get_remaining_years()
+            < LIFESPAN_WARNING_YEARS,
             "meditating": c.status == CharacterStatus.MEDITATING,
             "sect": c.sect or "",
             "rank": c.sect_rank or "",
