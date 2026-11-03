@@ -160,10 +160,12 @@ def test_expiry_forfeit_flows_to_market():
     mine = [
         l for l in MarketListingRepository.list_all()
         if l.seller_id == "pawn_shop" and l.item_name == "百年灵芝" and l.is_open()
+        and l.price == ticket.redeem_cost()  # 按本票赎回价过滤，隔离共享库历史残留
     ]
     assert mine, "没收物应出现在当铺寄售中"
     listing = mine[0]
-    assert listing.price == PawnEngine.pawn_value("百年灵芝", HUB_LOC)
+    # 没收寄售价 = 票面赎回价（本金+息），与结算地点无关（评审 M1 口径）
+    assert listing.price == ticket.redeem_cost() == 30  # 百年灵芝 当27 + 息3
     # 他人买走：走既有 buy_listing 通道
     buyer = _char("捡漏客", stones=10000)
     res = MarketEngine.buy_listing(buyer, listing)
@@ -215,6 +217,79 @@ def test_equipped_cannot_pawn_and_boundaries():
     ticket, res = PawnEngine.pawn_item(c3, "聚气丹")
     assert ticket is None and not res["success"] and "已满" in res["message"]
     print("✓ 边界：已穿戴须卸下、无物/无票、死亡拒当、票满 8 张")
+
+
+def test_forfeit_buyback_costs_interest_no_arbitrage():
+    """评审 M1 回归：没收寄售价恒为票面赎回价——迁低价区触发结算也不能低价买回套利"""
+    c = _char("防套客", stones=1000, items=["青锋剑"])
+    s0 = c.spirit_stones
+    ticket = _pawn(c, "青锋剑", now=T0)  # 基准区：当 110，息 11，赎 121
+    assert ticket.principal == 110 and ticket.interest == 11 and ticket.redeem_cost() == 121
+    # 票主迁往产地（低价区）再触发没收结算
+    c.location = "万剑仙门峰"
+    rows = PawnEngine.settle_expired(c.id, now=T0 + PAWN_TERM_SECONDS, location=c.location)
+    assert len(rows) == 1
+    mine = [
+        l for l in MarketListingRepository.list_all()
+        if l.seller_id == "pawn_shop" and l.item_name == "青锋剑"
+        and l.is_open() and l.price == 121
+    ]
+    assert mine, "没收寄售价应为赎回价 121 而非当地五折 62"
+    listing = mine[0]
+    res = MarketEngine.buy_listing(c, listing)
+    assert res["success"] and "青锋剑" in c.inventory
+    # 一当一买回：净变动 = -利息（与赎回等价），无任何套利空间
+    assert c.spirit_stones == s0 - ticket.interest
+    print("✓ M1 回归：没收买回价 = 赎回价，跨区触发结算无套利")
+
+
+def test_forfeit_settle_idempotent_listing():
+    """没收幂等：多次结算/查看/赎回尝试后，当铺寄售只生成一条"""
+    c = _char("幂等客", stones=100, items=["玄铁护腕"])
+    _pawn(c, "玄铁护腕", now=T0)
+
+    def _count():
+        return len([
+            l for l in MarketListingRepository.list_all()
+            if l.seller_id == "pawn_shop" and l.item_name == "玄铁护腕"
+        ])
+
+    before = _count()
+    late = T0 + PAWN_TERM_SECONDS + 10
+    PawnEngine.settle_expired(c.id, now=late, location=HUB_LOC)
+    PawnEngine.panel_text(c, now=late + 10)
+    PawnEngine.redeem_item(c, "玄铁护腕", now=late + 20)
+    assert _count() == before + 1
+    print("✓ 没收结算幂等：重复触发不重复上架")
+
+
+def test_unknown_item_and_value_floor():
+    """未知货按市价回退 20 估值（当 10）；全目录×全区域典当额恒 ≥1"""
+    from config import ITEM_CATALOG
+
+    c = _char("杂货客", stones=0, items=["无名残片"])
+    ticket = _pawn(c, "无名残片")
+    assert ticket.principal == 10 and ticket.kind == "material"
+    for name in ITEM_CATALOG:
+        for loc in ("青云坊市客栈", "万剑仙门峰", "万星古岛", "黑风绝渊"):
+            assert PawnEngine.pawn_value(name, loc) >= 1, (name, loc)
+    print("✓ 未知货回退估值 10；典当额下限 1 全域成立")
+
+
+def test_dead_redeem_rejected_panel_allowed():
+    """死亡口径补全：赎回拒绝且无副作用；查看当票放行（遗容）"""
+    from core.models import CharacterStatus
+
+    c = _char("遗票客", stones=10000, items=["聚气丹"])
+    ticket = _pawn(c, "聚气丹", now=T0)
+    c.status = CharacterStatus.DEAD
+    t2, res = PawnEngine.redeem_item(c, "聚气丹", now=T0 + 60)
+    assert t2 is None and not res["success"]
+    saved = [t for t in PawnTicketRepository.list_by_owner(c.id) if t.id == ticket.id][0]
+    assert saved.status == PawnStatus.OPEN  # 死亡赎回不产生没收等副作用
+    text = PawnEngine.panel_text(c, now=T0 + 60)
+    assert "聚气丹" in text
+    print("✓ 死亡：赎回拒绝无副作用、查看放行")
 
 
 def test_panel_empty_and_old_save_compat():

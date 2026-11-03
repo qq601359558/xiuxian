@@ -88,8 +88,10 @@ class PawnEngine:
         now: Optional[float] = None,
         location: Optional[str] = None,
     ) -> List[PawnTicket]:
-        """把已到期 OPEN 票没收：物品生成当铺寄售（市价五折）流入坊市。
-        owner_id=None 表示全量结算（仅测试/GM 用，定价回退基准区市价）。
+        """把已到期 OPEN 票没收：物品生成当铺寄售流入坊市。
+        寄售价 = 票面赎回价（本金+息，成票时写死，与结算地点无关）——
+        票主自买回的成本恒等于赎回，杜绝「等逾期低价买回」的无息赎回与区域价差套利（评审 M1）。
+        owner_id=None 表示全量结算（仅测试/GM 用）。
         没收与寄售由本函数内部落库（同 AuctionEngine.settle_expired 惯例）。"""
         from storage.db import MarketListingRepository, PawnTicketRepository
 
@@ -108,7 +110,7 @@ class PawnEngine:
                 seller_name=PAWN_SHOP_NAME,
                 item_name=ticket.item_name,
                 kind=ticket.kind,
-                price=PawnEngine.pawn_value(ticket.item_name, location),
+                price=ticket.redeem_cost(),
                 status=ListingStatus.OPEN,
                 created_at=t,
             )
@@ -125,11 +127,10 @@ class PawnEngine:
         now: Optional[float] = None,
     ) -> Tuple[Optional[PawnTicket], Dict[str, Any]]:
         """典当行囊中 1 件物品。成功才改状态（成票由调用方落库）。"""
-        t = now if now is not None else time.time()
-        PawnEngine.settle_expired(char.id, now=t, location=char.location)
-
         if char.status == CharacterStatus.DEAD:
             return None, {"success": False, "message": "死人不可进当铺。"}
+        t = now if now is not None else time.time()
+        PawnEngine.settle_expired(char.id, now=t, location=char.location)
         item_name = (item_name or "").strip()
         if not item_name:
             return None, {"success": False, "message": "用法：/典当 <物品名>（无参查看当票）"}
@@ -182,17 +183,20 @@ class PawnEngine:
         now: Optional[float] = None,
     ) -> Tuple[Optional[PawnTicket], Dict[str, Any]]:
         """赎回该物品最早到期的一张 OPEN 票。灵石不足时票保持 OPEN（到期前可再赎）。"""
+        if char.status == CharacterStatus.DEAD:
+            return None, {"success": False, "message": "死人不可进当铺。"}
         t = now if now is not None else time.time()
         settled = PawnEngine.settle_expired(char.id, now=t, location=char.location)
 
-        if char.status == CharacterStatus.DEAD:
-            return None, {"success": False, "message": "死人不可进当铺。"}
         item_name = (item_name or "").strip()
         if not item_name:
             return None, {"success": False, "message": "用法：/赎回 <物品名>"}
         open_rows = [x for x in PawnEngine.open_tickets(char.id) if x.item_name == item_name]
         if not open_rows:
-            gone = [x for x in settled if x.item_name == item_name]
+            gone = [x for x in settled if x.item_name == item_name] or [
+                x for x in PawnEngine.my_tickets(char.id)
+                if x.item_name == item_name and x.status == PawnStatus.FORFEITED
+            ]
             if gone:
                 return None, {
                     "success": False,
@@ -230,7 +234,10 @@ class PawnEngine:
         rows = PawnEngine.my_tickets(char.id)
         open_rows = [x for x in rows if x.is_open()]
         open_rows.sort(key=lambda x: x.due_at)
+        # 没收记录只展示最近 5 张（防长期游玩后面板被旧账淹没，评审 S4）
         forfeited = [x for x in rows if x.status == PawnStatus.FORFEITED]
+        forfeited.sort(key=lambda x: x.pawned_at, reverse=True)
+        forfeited = forfeited[:5]
         lines = [
             f"【天道当铺】{char.name} 的当票（典当率五折 · 固定息 {int(PAWN_INTEREST_RATE * 100)}% · 当期 {PAWN_TERM_DAYS} 天）：",
         ]
