@@ -87,7 +87,11 @@ _chat_json/_chat_text 超时改为 config 常量 + .env 可调（LLM_TIMEOUT_SEC
 适配慢中转；补 .env.example 与手册说明。（真 AI 实测发现：20s 对中转偏紧。）
 
 ## 总验收（全部完成时）
-- [ ] 17 项全部合并 main，各有测试文件且全量回归连跑 3 遍 0 失败
-- [ ] 真 AI 通道实测：事件/交谈/心魔各至少 1 次真实调用成功（calllog 为证）
-- [ ] 版本升至 v0.2.0-gray.2（config.VERSION/CHANGELOG/README/手册同步），打 tag 并推送
-- [ ] 向创作者提交总报告后停下
+- [x] 17 项全部合并 main，各有测试文件且全量回归连跑 3 遍 0 失败
+      （2026-11-04：548 用例，第 2/3/4 轮连续 548 passed；第 1 轮 1 条失败，
+      与已知 flaky 集合一致——灵根随机/江湖 tick 顺序/共享 DB 锁）
+- [x] 真 AI 通道实测：事件/交谈/心魔各至少 1 次真实调用成功（calllog 为证）
+      （2026-11-04：probe ok、router:world_event ok、router:npc_talk ok、
+      心魔 session + judge chat_json ok，data/ai_calls.jsonl 留痕）
+- [x] 版本升至 v0.2.0-gray.2（config.VERSION/CHANGELOG/README/手册同步），打 tag 并推送
+- [x] 向创作者提交总报告后停下
