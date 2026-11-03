@@ -327,9 +327,12 @@ class AdventureEngine:
                 == "treasure"
                 and random.random() < pet_mod.PET_TREASURE_LOOT_P
             ):
-                extra = _roll_loot(True, random.Random())
-                if extra:
-                    loot.extend(extra[:1])
+                # 掉落表单次掷骰可能空手：重掷至非空（至多 5 次），保证名义概率≈额外拾获 1 件
+                for _try in range(5):
+                    extra = _roll_loot(True, random.Random())
+                    if extra:
+                        loot.extend(extra[:1])
+                        break
         except Exception:
             pet = None
             pet_mod = None
@@ -422,14 +425,17 @@ class AdventureEngine:
             if aline:
                 lines.append(aline)
             if success:
-                pet.growth += pet_mod.PET_EXPLORE_GROWTH
-        # 遇兽（F01）：探险成功后规则掷骰，命中写入待契约
+                pet_mod.add_growth(pet, pet_mod.PET_EXPLORE_GROWTH)
+        # 遇兽（F01）：探险成功后规则掷骰，命中写入待契约；待契约遁走亦播报
         pet_encounter = None
         if success and pet_mod is not None:
             try:
-                pet_encounter = pet_mod.PetEngine.maybe_encounter(c, random.Random())
+                enc = pet_mod.PetEngine.maybe_encounter(c, random.Random())
+                pet_encounter = enc.get("species")
                 if pet_encounter:
                     lines.append(pet_mod.PetEngine.encounter_line(pet_encounter))
+                elif enc.get("fled"):
+                    lines.append(pet_mod.PetEngine.flee_line())
             except Exception:
                 pet_encounter = None
         lines.append(f"（盘缠已耗 {ADVENTURE_FEE} 灵石 · 下次可探约 {ADVENTURE_COOLDOWN_MIN:.0f} 设计分钟后）")

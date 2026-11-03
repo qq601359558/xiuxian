@@ -40,6 +40,7 @@ PET_ENCOUNTER_CHANCE = 0.18     # 探险成功后遇可契灵兽概率
 PET_PENDING_FLEE_CHANCE = 0.5   # 已有待契约灵兽时，再次探险成功使其遁走的概率
 PET_TREASURE_LOOT_P = 0.25      # 探宝宠额外拾获概率
 PET_EXPLORE_GROWTH = 2          # 出战宠随主人探险成功所得成长
+PET_GROWTH_CAP = (PET_MAX_LEVEL - 1) * PET_GROWTH_PER_LEVEL  # 成长存储上限（满级阈值 900）
 
 _ENCOUNTER_LINES = [
     "林间窸窣，一头{species}自草影间探出头来，灵光内蕴，竟不惧人，踱到近前打量于你。",
@@ -51,6 +52,11 @@ _ENCOUNTER_LINES = [
 def level_for(growth: int) -> int:
     """成长值 → 等级（1 起，封顶 PET_MAX_LEVEL）"""
     return max(1, min(PET_MAX_LEVEL, int(growth) // PET_GROWTH_PER_LEVEL + 1))
+
+
+def add_growth(pet: SpiritPet, n: int) -> None:
+    """成长入账（封顶 PET_GROWTH_CAP，防止无意义堆积）"""
+    pet.growth = max(0, min(PET_GROWTH_CAP, int(pet.growth) + int(n)))
 
 
 def _alive_pets(c: Character) -> List[SpiritPet]:
@@ -87,26 +93,33 @@ class PetEngine:
 
     # ---------------- 遇兽 ----------------
     @staticmethod
-    def maybe_encounter(c: Character, rng: Optional[random.Random] = None) -> Optional[str]:
+    def maybe_encounter(c: Character, rng: Optional[random.Random] = None) -> Dict[str, Any]:
         """
-        探险成功后掷骰遇可契灵兽。命中则写入 c.pending_pet_species 并返回物种名。
-        已有待契约灵兽时不重复触发，并有概率使其遁走（清空 pending，返回 None）。
+        探险成功后掷骰遇可契灵兽。返回 {"species": 物种名|None, "fled": 是否有待契约灵兽遁走}。
+        已有待契约灵兽时不重复触发，并有概率使其遁走（清空 pending 并播报）。
         养宠已满则不再遇兽。
         """
         r = rng or random.Random()
+        out: Dict[str, Any] = {"species": None, "fled": False}
         if len(_alive_pets(c)) >= PET_MAX_OWNED:
-            return None
+            return out
         if c.pending_pet_species:
             if r.random() < PET_PENDING_FLEE_CHANCE:
                 c.pending_pet_species = ""
-            return None
+                out["fled"] = True
+            return out
         if r.random() >= PET_ENCOUNTER_CHANCE:
-            return None
+            return out
         species = list(PET_SPECIES.keys())
         weights = [PET_SPECIES[s]["weight"] for s in species]
         pick = r.choices(species, weights=weights, k=1)[0]
         c.pending_pet_species = pick
-        return pick
+        out["species"] = pick
+        return out
+
+    @staticmethod
+    def flee_line() -> str:
+        return "【灵兽遁走】此前徘徊的待契约灵兽等候已久，终是转身没入山林，缘分已散。"
 
     @staticmethod
     def encounter_line(species: str) -> str:
@@ -186,6 +199,8 @@ class PetEngine:
         if "pet" not in found:
             return {"success": False, "message": found["error"]}
         pet = found["pet"]
+        if pet.growth >= PET_GROWTH_CAP and pet.intimacy >= PET_INTIMACY_MAX:
+            return {"success": False, "message": f"【{pet.name}】成长与亲密皆已圆满，无需再喂。"}
         pill = (pill_name or "").strip()
         if pill:
             cfg = ITEM_CATALOG.get(pill) or {}
@@ -194,7 +209,7 @@ class PetEngine:
             if pill not in c.inventory:
                 return {"success": False, "message": f"囊中并无【{pill}】。"}
             c.inventory.remove(pill)
-            pet.growth += PET_FEED_PILL_GROWTH
+            add_growth(pet, PET_FEED_PILL_GROWTH)
             pet.intimacy = min(PET_INTIMACY_MAX, pet.intimacy + PET_FEED_PILL_INTIMACY)
             how = f"喂下丹药【{pill}】"
         else:
@@ -204,7 +219,7 @@ class PetEngine:
                     "message": f"喂养需灵石 {PET_FEED_STONES}（囊中 {c.spirit_stones}）。",
                 }
             c.spirit_stones -= PET_FEED_STONES
-            pet.growth += PET_FEED_STONES_GROWTH
+            add_growth(pet, PET_FEED_STONES_GROWTH)
             pet.intimacy = min(PET_INTIMACY_MAX, pet.intimacy + PET_FEED_STONES_INTIMACY)
             how = f"以灵石 {PET_FEED_STONES} 喂养"
         lv = level_for(pet.growth)
@@ -343,3 +358,18 @@ class PetEngine:
         lines.append(f"共 {len(alive)}/{PET_MAX_OWNED} 只（不含已殁）· 同时出战 1 只")
         lines.append("指令：/契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名>")
         return "\n".join(lines)
+
+
+def split_feed_args(c: Character, toks: List[str]) -> Any:
+    """
+    /喂养 参数解析（双端 handler 共用）：返回 (宠名, 丹药名)。
+    整体能匹配到灵宠时整串作宠名；否则末 token 在物品目录中时拆作丹药名透传引擎裁决。
+    """
+    joined = " ".join(toks)
+    if len(toks) >= 2:
+        found = _find_pet(c, joined)
+        if "pet" not in found:
+            last = toks[-1]
+            if last in ITEM_CATALOG:
+                return " ".join(toks[:-1]), last
+    return joined, ""

@@ -1,6 +1,7 @@
 """F01 灵宠系统：契约/喂养/出战/助战/放生/遇兽/死亡/旧档兼容"""
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -25,6 +26,10 @@ from core.pets import (
 from server.world import WORLD
 
 WORLD.stop_tick()
+
+
+def _uniq(base: str) -> str:
+    return f"{base}{os.getpid() % 997}_{int(time.time()) % 100000}"
 
 
 def _char(name="驭兽者", stones=500):
@@ -179,11 +184,14 @@ def test_encounter_roll_and_flee():
     old_flee = pets_mod.PET_PENDING_FLEE_CHANCE
     try:
         pets_mod.PET_ENCOUNTER_CHANCE = 1.0
-        sp = PetEngine.maybe_encounter(c, _random.Random(7))
+        res = PetEngine.maybe_encounter(c, _random.Random(7))
+        sp = res["species"]
         assert sp in pets_mod.PET_SPECIES and c.pending_pet_species == sp
-        # 已有待契约时不重复触发；遁走概率拉满 → 清空
+        assert res["fled"] is False
+        # 已有待契约时不重复触发；遁走概率拉满 → 清空并给出遁走信号
         pets_mod.PET_PENDING_FLEE_CHANCE = 1.0
-        assert PetEngine.maybe_encounter(c, _random.Random(7)) is None
+        res2 = PetEngine.maybe_encounter(c, _random.Random(7))
+        assert res2["species"] is None and res2["fled"] is True
         assert c.pending_pet_species == ""
     finally:
         pets_mod.PET_ENCOUNTER_CHANCE = old_chance
@@ -250,7 +258,7 @@ def test_world_handle_pet_commands():
 
     init_db()
     w = World(auto_tick=False)
-    r = w.join("灵宠链路客")
+    r = w.join(_uniq("灵宠链路客"))
     tok = r["token"]
     char = w.get_char(tok)
     char.spirit_stones = 999
@@ -275,3 +283,126 @@ def test_world_handle_pet_commands():
     res = w.handle(tok, "/灵宠")
     assert "尚未养有灵宠" in (res.get("text") or "")
     print("✓ World.handle 全链路：契约/面板/喂养/出战/status/休息/放生")
+
+
+def test_duplicate_species_name_suffix():
+    c = _char(stones=9999)
+    a = _contract(c, "青鳞蟒")
+    b = _contract(c, "青鳞蟒")
+    assert a.name == "青鳞蟒" and b.name == "青鳞蟒二"
+    # 精确名优先于子串，不会歧义
+    assert PetEngine.deploy(c, "青鳞蟒二")["success"]
+    assert active_pet(c) is b
+    print("✓ 同种重名自动加序，精确名可区分")
+
+
+def test_dead_owner_engine_refusals():
+    c = _char(stones=9999)
+    p1 = _contract(c, "青鳞蟒")
+    c.status = CharacterStatus.DEAD
+    c.pending_pet_species = "玄甲龟"
+    assert not PetEngine.contract(c, "玄甲龟")["success"]
+    assert not PetEngine.feed(c, p1.name)["success"]
+    assert not PetEngine.deploy(c, p1.name)["success"]
+    assert not PetEngine.rest(c, p1.name)["success"]
+    assert not PetEngine.release(c, p1.name)["success"]
+    print("✓ 死亡态：主人 DEAD 时全部灵宠操作被引擎拒绝")
+
+
+def test_pet_serialization_roundtrip():
+    c = _char(stones=9999)
+    p = _contract(c, "寻宝鼠")
+    p.growth = 137
+    p.intimacy = 66
+    PetEngine.deploy(c, p.name)
+    again = Character.model_validate(c.model_dump())
+    assert len(again.pets) == 1
+    q = again.pets[0]
+    assert (q.species, q.name, q.growth, q.intimacy, q.active, q.state) == (
+        "寻宝鼠", "寻宝鼠", 137, 66, True, "follow",
+    )
+    print("✓ 带宠角色序列化往返无损")
+
+
+def test_growth_cap_and_full_feed_refusal():
+    c = _char(stones=99999)
+    pet = _contract(c)
+    pet.growth = pets_mod.PET_GROWTH_CAP - 5
+    assert PetEngine.feed(c, pet.name)["success"]
+    assert pet.growth == pets_mod.PET_GROWTH_CAP
+    pet.intimacy = pets_mod.PET_INTIMACY_MAX
+    assert not PetEngine.feed(c, pet.name)["success"]
+    print("✓ 成长封顶 900；满级满亲密喂养被拒不扣费")
+
+
+def test_ambush_report_has_pet_line():
+    from config import WORLD_LOCATIONS
+
+    att = _char("伏击驭兽者", stones=999)
+    pet = _contract(att, "青鳞蟒")
+    pet.intimacy = 50
+    PetEngine.deploy(att, pet.name)
+    dfn = _char("受袭散修")
+    dfn.location = next(
+        n for n, cfg in WORLD_LOCATIONS.items() if not cfg.get("is_safe")
+    )
+    res = CombatEngine.execute_ambush(att, dfn)
+    assert "report" in res, res
+    assert "灵宠助战" in res["report"] and pet.name in res["report"]
+    print("✓ 斗法战报含灵宠助战行")
+
+
+def test_world_handle_meditation_pet_management():
+    from storage.db import init_db, CharacterRepository
+    from server.world import World
+
+    init_db()
+    w = World(auto_tick=False)
+    r = w.join(_uniq("闭关驭兽客"))
+    tok = r["token"]
+    char = w.get_char(tok)
+    char.spirit_stones = 999
+    char.pending_pet_species = "青鳞蟒"
+    CharacterRepository.save(char)
+    assert w.handle(tok, "/契约 青鳞蟒").get("ok")
+
+    char = w.get_char(tok)
+    char.status = CharacterStatus.MEDITATING
+    CharacterRepository.save(char)
+    # 闭关中可管理：面板/喂养/出战/休息放行（spec 契约）
+    assert w.handle(tok, "/灵宠").get("ok")
+    assert w.handle(tok, "/出战 青鳞蟒").get("ok")
+    assert w.handle(tok, "/喂养 青鳞蟒").get("ok")
+    assert w.handle(tok, "/休息 青鳞蟒").get("ok")
+    # 闭关中不可契约/放生：被闭关门禁拦截
+    for cmd in ("/契约 青鳞蟒", "/放生 青鳞蟒"):
+        res = w.handle(tok, cmd)
+        assert not res.get("ok") and "闭关锁门" in (res.get("error") or ""), (cmd, res)
+    print("✓ 闭关态 handle：灵宠管理放行，契约/放生被门禁拦截")
+
+
+def test_world_handle_feed_with_pill():
+    from storage.db import init_db, CharacterRepository
+    from server.world import World
+
+    init_db()
+    w = World(auto_tick=False)
+    r = w.join(_uniq("丹药喂宠客"))
+    tok = r["token"]
+    char = w.get_char(tok)
+    char.spirit_stones = 999
+    char.pending_pet_species = "玄甲龟"
+    char.inventory.append("聚气丹")
+    CharacterRepository.save(char)
+    assert w.handle(tok, "/契约 玄甲龟").get("ok")
+    res = w.handle(tok, "/喂养 玄甲龟 聚气丹")
+    assert res.get("ok"), res
+    char = w.get_char(tok)
+    assert char.pets[0].growth == pets_mod.PET_FEED_PILL_GROWTH
+    assert "聚气丹" not in char.inventory
+    # 非丹药名应被引擎以「不是丹药」拒绝（而非报宠名不存在）
+    char.inventory.append("青锋剑")
+    CharacterRepository.save(char)
+    res = w.handle(tok, "/喂养 玄甲龟 青锋剑")
+    assert not res.get("ok") and "不是丹药" in (res.get("text") or res.get("error") or ""), res
+    print("✓ handle 丹药喂养：透传引擎裁决（丹药消耗/非丹药报错）")

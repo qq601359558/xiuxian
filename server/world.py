@@ -436,6 +436,11 @@ class World:
                     "/bounty", "/告示",
                     "/profile", "/人物", "/角色",
                     "/logout", "/下线",
+                    # 灵宠管理（F01 spec：闭关中可管理，仅契约/放生不开）
+                    "/灵宠", "/pets", "/pet",
+                    "/喂养", "/feed",
+                    "/出战", "/deploy",
+                    "/休息", "/petrest",
                 )
                 if action not in med_ok:
                     prog = WorldClock.get_meditation_progress(char)
@@ -901,16 +906,12 @@ class World:
             if action in ("/喂养", "/feed"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/喂养 <宠名> [丹药名]"}
-                toks = command.strip().split(None, 1)[1].split()
-                pill = ""
-                # 末段若是囊中丹药名则作丹药喂养，其余整体作宠名
-                if len(toks) >= 2:
-                    from config import ITEM_CATALOG as _IC
+                from core.pets import split_feed_args
 
-                    if (_IC.get(toks[-1]) or {}).get("kind") == "pill":
-                        pill = toks[-1]
-                        toks = toks[:-1]
-                res = PetEngine.feed(char, " ".join(toks), pill)
+                pet_hint, pill = split_feed_args(
+                    char, command.strip().split(None, 1)[1].split()
+                )
+                res = PetEngine.feed(char, pet_hint, pill)
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}

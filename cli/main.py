@@ -386,7 +386,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -937,15 +937,10 @@ def run_mud():
                 if len(parts) < 2:
                     console.print("[red]用法：/喂养 <宠名> [丹药名][/red]")
                     continue
-                toks = parts[1:]
-                pill = ""
-                if len(toks) >= 2:
-                    from config import ITEM_CATALOG as _IC
+                from core.pets import split_feed_args
 
-                    if (_IC.get(toks[-1]) or {}).get("kind") == "pill":
-                        pill = toks[-1]
-                        toks = toks[:-1]
-                res = PetEngine.feed(player, " ".join(toks), pill)
+                pet_hint, pill = split_feed_args(player, parts[1:])
+                res = PetEngine.feed(player, pet_hint, pill)
                 if res["success"]:
                     CharacterRepository.save(player)
                     console.print(f"[bold green]{res['message']}[/bold green]")
