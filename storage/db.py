@@ -15,6 +15,7 @@ from core.bounty import Bounty, KarmaLink, BountyStatus
 from core.market import MarketListing, ListingStatus
 from core.pawn import PawnTicket
 from core.books import Book
+from core.promises import Promise
 from core.trade import AuctionLot, AuctionStatus
 
 
@@ -105,6 +106,18 @@ def init_db():
         data_json TEXT NOT NULL,
         author_id TEXT NOT NULL,
         holder_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6d. 诺言账（F14；只加新表：一诺一行的规则账目，终态不可逆）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS promises (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        promiser_id TEXT NOT NULL,
+        promisee_id TEXT NOT NULL,
         created_at REAL NOT NULL
     );
     """)
@@ -727,6 +740,48 @@ class BookRepository:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        conn.commit()
+        conn.close()
+
+
+class PromiseRepository:
+    """诺言账仓储（F14，照 BookRepository 写法）"""
+
+    @staticmethod
+    def save(promise: Promise):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO promises (id, data_json, status, promiser_id, promisee_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status;
+        """, (
+            promise.id,
+            promise.model_dump_json(),
+            promise.status.value,
+            promise.promiser_id,
+            promise.promisee_id,
+            promise.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def list_all() -> List[Promise]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM promises ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [Promise.model_validate_json(r[0]) for r in rows]
+
+    @staticmethod
+    def delete(promise_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM promises WHERE id = ?", (promise_id,))
         conn.commit()
         conn.close()
 

@@ -144,6 +144,7 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         }
     if item_hint and not item and stones <= 0:
         return {"ok": False, "error": f"行囊中无【{item_hint}】。现有：{'、'.join(player.inventory[:8]) or '空'}。"}
+    promise_line = ""
     if item:
         player.inventory.remove(item)
         # 著书立说（F11）：赠出手稿则书目转终态 gifted（随赠礼离场，不再流通）
@@ -154,6 +155,13 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
                 BookEngine.on_gifted(player, npc)
         except Exception:
             pass
+        # 诺言账（F14）：赠物诺核验——真赠出同名物品即践诺（钩子异常不炸赠礼主流程）
+        try:
+            from core.promises import PromiseEngine
+
+            promise_line = PromiseEngine.note_gift(player, npc, item) or ""
+        except Exception:
+            promise_line = ""
     if stones > 0:
         player.spirit_stones -= stones
     try:
@@ -174,10 +182,13 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         parts.append(f"{stones} 灵石")
     gave = "、".join(parts)
     line = _polish(npc, player, "gift", f"「{npc.name}」接过{gave}，神色稍缓：「道友有心了。」")
+    gift_text = f"【赠礼】你将{gave}递给【{npc.name}】。\n{line}"
+    if promise_line:
+        gift_text += f"\n{promise_line}"
     return {
         "ok": True,
         "action": "gift",
-        "text": f"【赠礼】你将{gave}递给【{npc.name}】。\n{line}",
+        "text": gift_text,
         "ended": False,
         "attitude_delta": delta,
     }

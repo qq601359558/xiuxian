@@ -58,6 +58,7 @@ from core.loot_equip import DigEngine, EquipEngine
 from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
 from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
+from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
 from core.books import BOOK_ITEM, BookEngine
@@ -242,6 +243,11 @@ class World:
         FarmEngine.on_owner_death(char)
         # 委托链随旧世而散（F07，一世循环）
         QuestEngine.on_owner_death(char)
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约
+        try:
+            PromiseEngine.on_owner_death(char)
+        except Exception:
+            pass
         if not char.death_cause:
             char.death_cause = cause
         settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
@@ -1051,6 +1057,41 @@ class World:
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/abandonquest", "/弃委托"):
                 res = QuestEngine.abandon(char)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/promises", "/诺言"):
+                changed = PromiseEngine.settle_due(char, actor_obj=char)
+                if changed:
+                    CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": PromiseEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/promise", "/许诺"):
+                if len(parts) < 3:
+                    return {"ok": False, "error": "用法：/许诺 <对象名> 赠物 <物品名> | 抵达 <地点名> | 委托 | 不攻（唯指令立诺入账，交谈口头应承不算）"}
+                target = CharacterRepository.get_by_name(parts[1])
+                if not target:
+                    return {"ok": False, "error": f"查无此人：{parts[1]}"}
+                kind = PROMISE_KIND_ALIASES.get(parts[2]) or PROMISE_KIND_ALIASES.get(parts[2].lower())
+                if not kind:
+                    return {"ok": False, "error": "诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）"}
+                param = parts[3] if len(parts) > 3 else ""
+                res = PromiseEngine.make_promise(char, target, kind, param)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/acceptpromise", "/应诺"):
+                hint = parts[1] if len(parts) > 1 else ""
+                res = PromiseEngine.accept(char, hint)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/breakpromise", "/毁诺"):
+                hint = parts[1] if len(parts) > 1 else ""
+                res = PromiseEngine.break_promise(char, hint)
                 if res.get("success") or res.get("dirty"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
@@ -2417,6 +2458,7 @@ class World:
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
+            "/诺言 /许诺 <对象> 赠物 <物品>|抵达 <地点>|委托|不攻 /应诺 [立诺者名] /毁诺 [受诺人名]（唯指令立诺入账，交谈口头应承不算） "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
             "/著书 [写] /研读 [书名] "
@@ -2601,7 +2643,15 @@ class World:
             return {"ok": False, "error": f"未知地点：{dest}"}
         c.location = matched
         CharacterRepository.save(c)
+        # 诺言账（F14）：抵达诺核验——迁跃落点即事实
+        promise_line = ""
+        try:
+            promise_line = PromiseEngine.note_arrival(c, matched) or ""
+        except Exception:
+            promise_line = ""
         text = f"御剑化虹，抵达【{matched}】。"
+        if promise_line:
+            text += f"\n{promise_line}"
         try:
             from core.sect_contrib import sync_ring
             from config import SECTS_CONFIG

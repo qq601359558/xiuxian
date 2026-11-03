@@ -371,6 +371,14 @@ class QuestEngine:
             BookEngine.gain_inspiration(char, INSPIRATION_FROM_QUEST)
         except Exception:
             pass
+        # 诺言账（F14）：委托诺核验——整链完成即践诺（与发奖同落账段，恰一次）
+        promise_line = ""
+        try:
+            from core.promises import PromiseEngine
+
+            promise_line = PromiseEngine.note_quest_completed(char, t) or ""
+        except Exception:
+            promise_line = ""
         clue_line = ""
         r = rng or random.Random()
         if r.random() < QUEST_ART_CLUE_P:
@@ -412,6 +420,7 @@ class QuestEngine:
                 f"【委托达成】{done_desc}\n"
                 f"【{publisher_name}】大喜过望，奉上谢仪：灵石 +{stones} · 功德 +{merit}。"
                 f"{clue_line}\n（其对你态度转暖；{int(QUEST_ACCEPT_COOLDOWN_SECONDS)} 秒后可再接新委托）"
+                + (f"\n{promise_line}" if promise_line else "")
             ),
         }
 

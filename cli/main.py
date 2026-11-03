@@ -28,6 +28,7 @@ from core.market import MarketEngine
 from core.pets import PetEngine
 from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
+from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
 from core.council import CouncilEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
@@ -199,6 +200,10 @@ def print_help():
   [bold yellow]/接委托 <NPC名|编号>[/bold yellow] - 接取一条委托链（2–4 环，同时限 1 条）
   [bold yellow]/交付[/bold yellow]                 - 向交付对象当面交付当前环
   [bold yellow]/弃委托[/bold yellow]               - 放弃进行中委托（无惩罚）
+  [bold yellow]/诺言[/bold yellow]                 - 诺言账面板（进行中/待应诺/近史；唯指令立诺入账，交谈口头应承不算）
+  [bold yellow]/许诺 <对象> <诺目> [参数][/bold yellow] - 立诺：赠物 <物品名>|抵达 <地点>|委托|不攻（对玩家须对方 /应诺 才生效）
+  [bold yellow]/应诺 [立诺者名][/bold yellow]     - 应下他人向你立的诺（义务只在立诺者）
+  [bold yellow]/毁诺 [受诺人名][/bold yellow]     - 毁弃未结之诺（已生效者按违约记账；待应诺者可无代价撤回）
   [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
   [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
   [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
@@ -297,6 +302,11 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
         FarmEngine.on_owner_death(player)
         # 委托链随旧世而散（F07，一世循环）
         QuestEngine.on_owner_death(player)
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约
+        try:
+            PromiseEngine.on_owner_death(player)
+        except Exception:
+            pass
         settle = LegacyEngine.settle_death(account, player, death_cause=cause)
         LegacyRepository.save(account)
         CharacterRepository.save(player)
@@ -545,6 +555,13 @@ def run_mud():
                 player.location = matched
                 CharacterRepository.save(player)
                 console.print(f"[bold green]御剑化虹！道友已遁行至【{matched}】！[/bold green]")
+                # 诺言账（F14）：抵达诺核验——迁跃落点即事实
+                try:
+                    _pline = PromiseEngine.note_arrival(player, matched)
+                    if _pline:
+                        console.print(f"[bold gold1]{_pline}[/bold gold1]")
+                except Exception:
+                    pass
                 render_character_sheet(player)
                 # 行路途中可能触发机缘/危机
                 ev = EventEngine.fire(player, context=f"御剑途经 {matched}")
@@ -1260,6 +1277,47 @@ def run_mud():
 
             elif action in ["/弃委托", "abandonquest"]:
                 res = QuestEngine.abandon(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/诺言", "promises"]:
+                if PromiseEngine.settle_due(player, actor_obj=player):
+                    CharacterRepository.save(player)
+                console.print(PromiseEngine.panel_text(player))
+
+            elif action in ["/许诺", "promise"]:
+                if len(parts) < 3:
+                    console.print("[red]用法：/许诺 <对象名> 赠物 <物品名> | 抵达 <地点名> | 委托 | 不攻（唯指令立诺入账，交谈口头应承不算）[/red]")
+                    continue
+                target = CharacterRepository.get_by_name(parts[1])
+                if not target:
+                    console.print(f"[red]查无此人：{parts[1]}[/red]")
+                    continue
+                kind = PROMISE_KIND_ALIASES.get(parts[2]) or PROMISE_KIND_ALIASES.get(parts[2].lower())
+                if not kind:
+                    console.print("[red]诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）[/red]")
+                    continue
+                res = PromiseEngine.make_promise(player, target, kind, parts[3] if len(parts) > 3 else "")
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/应诺", "acceptpromise"]:
+                res = PromiseEngine.accept(player, parts[1] if len(parts) > 1 else "")
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/毁诺", "breakpromise"]:
+                res = PromiseEngine.break_promise(player, parts[1] if len(parts) > 1 else "")
                 if res["success"] or res.get("dirty"):
                     CharacterRepository.save(player)
                 if res["success"]:
