@@ -670,6 +670,21 @@ class NpcShopEngine:
 
         mult, _ = attitude_sell_mult(npc, player.id)
         unit = max(1, int(cfg.get("price", 20) * MARKET_SELL_BACK_RATE * mult))
+        # 区域锚（F09 评审整改）：专柜回收以当地商会回收口径封顶。
+        # 旧口径只认标价不认区域：产地区商会买价低至标价约 0.55 倍（主导折扣后约 0.52 倍），
+        # 而交好专柜回收恒为标价 0.55 倍且无资金池/防刷分档约束——同地「商会买入→专柜回收」
+        # 可无限套利。以 min 封顶只收紧区域价低于标价之地；当地价 ≥ 标价处行为逐字不变。
+        try:
+            from core.market import MarketEngine
+
+            local_unit = int(
+                MarketEngine.market_price(item_name, npc.location)
+                * MARKET_SELL_BACK_RATE
+                * mult
+            )
+            unit = max(1, min(unit, local_unit))
+        except Exception:
+            pass
         gain = unit * qty
         player.spirit_stones += gain
         return {
