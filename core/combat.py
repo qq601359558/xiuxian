@@ -98,6 +98,12 @@ class CombatEngine:
             power *= PetEngine.power_bonus(c)
         except Exception:
             pass
+        try:
+            from core.art_slots import ArtSlotEngine
+
+            power *= ArtSlotEngine.power_bonus(c)
+        except Exception:
+            pass
         return power
 
     @staticmethod

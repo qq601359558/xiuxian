@@ -371,6 +371,13 @@ class WorldClock:
         except Exception:
             pass
         pill_mult = 1.0 + max(0.0, float(getattr(character, "pill_exp_mult", 0.0) or 0.0))
+        # 心法主修专注加成（F02）：未装配时恒为 1.0，与旧行为一致
+        try:
+            from core.art_slots import ArtSlotEngine
+
+            slot_mult = ArtSlotEngine.meditation_mult(character)
+        except Exception:
+            slot_mult = 1.0
         base_exp_per_hour = 28.0 * (1.0 + character.realm.tier * 0.4)
         raw_gain = (
             base_exp_per_hour
@@ -379,6 +386,7 @@ class WorldClock:
             * density_mult
             * qi_mult
             * art_mult
+            * slot_mult
             * newbie_mult
             * pill_mult
         )

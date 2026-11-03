@@ -26,6 +26,7 @@ from core.legacy import LegacyEngine, LegacyAccount
 from core.bounty import BountyEngine, BountyStatus, BOUNTY_MIN_REWARD
 from core.market import MarketEngine
 from core.pets import PetEngine
+from core.art_slots import ArtSlotEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
 from core.combat_fate import CombatFateEngine
@@ -169,6 +170,10 @@ def print_help():
   [bold yellow]/出战 <宠名>[/bold yellow]          - 令灵宠随行出战（唯一）
   [bold yellow]/休息 <宠名>[/bold yellow]          - 令灵宠退下休息
   [bold yellow]/放生 <宠名>[/bold yellow]          - 放归灵宠于山林
+  [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
+  [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
+  [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
+  [bold yellow]/卸功 <功法名>[/bold yellow]       - 卸下主修或辅修
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
@@ -386,7 +391,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -974,6 +979,42 @@ def run_mud():
                     console.print("[red]用法：/放生 <宠名>[/red]")
                     continue
                 res = PetEngine.release(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/心法", "xinfa"]:
+                console.print(ArtSlotEngine.panel_text(player))
+
+            elif action in ["/主修", "main_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/主修 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.set_main(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/辅修", "sub_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/辅修 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.add_sub(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/卸功", "remove_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/卸功 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.remove(player, " ".join(parts[1:]))
                 if res["success"]:
                     CharacterRepository.save(player)
                     console.print(f"[bold green]{res['message']}[/bold green]")

@@ -54,6 +54,7 @@ from core.combat import CombatEngine
 from core.adventure import AdventureEngine
 from core.loot_equip import DigEngine, EquipEngine
 from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
+from core.art_slots import ArtSlotEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
 from config import (
@@ -441,6 +442,8 @@ class World:
                     "/喂养", "/feed",
                     "/出战", "/deploy",
                     "/休息", "/petrest",
+                    # 心法查看（F02：只读观照；主修/辅修/卸功闭关中仍锁门，防结算前换功）
+                    "/心法", "/xinfa",
                 )
                 if action not in med_ok:
                     prog = WorldClock.get_meditation_progress(char)
@@ -936,6 +939,36 @@ class World:
                     return {"ok": False, "error": "用法：/放生 <宠名>"}
                 item = command.strip().split(None, 1)[1]
                 res = PetEngine.release(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/xinfa", "/心法"):
+                return {
+                    "ok": True,
+                    "text": ArtSlotEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/主修", "/main_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/主修 <功法名>（须已习得，/心法 查看）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.set_main(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/辅修", "/sub_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/辅修 <功法名>（须已习得，/心法 查看）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.add_sub(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/卸功", "/remove_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/卸功 <功法名>（卸下主修或辅修）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.remove(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
@@ -2138,6 +2171,7 @@ class World:
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
+            "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
@@ -2185,6 +2219,11 @@ class World:
                 else None
             ),
             "pets_count": len([p for p in (c.pets or []) if p.state != "dead"]),
+            # 心法槽位（F02）：当前主修/辅修（纯新增）
+            "arts": {
+                "main": getattr(c, "main_art", "") or "",
+                "sub": list(getattr(c, "sub_arts", None) or []),
+            },
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),
             "lifespan_warning": c.lifespan.get_remaining_years()

@@ -194,6 +194,10 @@ class Character(BaseModel):
     stealth_active: bool = False   # 是否开启敛息潜行
     skills: List[str] = Field(default_factory=lambda: ["吐纳术", "御剑术"])
     custom_arts: List[Dict[str, Any]] = Field(default_factory=list)  # 自创功法完整 DSL
+    # 心法槽位（F02）：默认空槽 = 未装配 = 旧行为；art_slot_changed_at=0 表示从未变更（免冷却）
+    main_art: str = ""  # 主修功法名（须在 skills 中）
+    sub_arts: List[str] = Field(default_factory=list)  # 辅修功法名（最多 ART_SUB_MAX 门）
+    art_slot_changed_at: float = 0.0  # 上次成功调整槽位的现实时间戳（冷却用）
     equipped: List[str] = Field(default_factory=list)  # 已穿戴装备名
     arrays: List[str] = Field(default_factory=list) # 持有的阵盘行囊
     sect: Optional[str] = None     # 所属宗门 (None 代表无门无派散修)

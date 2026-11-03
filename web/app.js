@@ -151,12 +151,18 @@
       row.appendChild(nm);
       list.appendChild(row);
     });
-    // 法门（功法）只读展示
+    // 法门（功法）只读展示（F02：附主修/辅修标记）
     const arts = $("bagArts");
     if (arts) {
       const sk = Array.isArray(st.skills) ? st.skills : [];
+      const slot = st.arts && typeof st.arts === "object" ? st.arts : null;
       if (sk.length) {
-        arts.textContent = "法门：" + sk.join("、");
+        let label = "法门：" + sk.join("、");
+        if (slot && slot.main) {
+          label += "｜主修：" + slot.main;
+          if (Array.isArray(slot.sub) && slot.sub.length) label += "｜辅修：" + slot.sub.join("、");
+        }
+        arts.textContent = label;
         arts.classList.remove("hide");
       } else {
         arts.classList.add("hide");
@@ -1024,6 +1030,9 @@
         探险: "野外 / 剑冢残碑 / 荒古兽巢 / 幽冥鬼市 / 灵药残圃 / 落霞古洞 等",
         穿戴: "装备名，如：青锋剑 / 玄铁护腕",
         卸下: "已穿戴的装备名",
+        主修: "已习得的功法名；主修令闭关修为 +10%，调整槽位有 1 小时冷却",
+        辅修: "已习得的功法名；每门辅修斗法战力 +3%，最多 2 门",
+        卸功: "卸下已装配的主修或辅修功法名",
         购买: "先点「坊市」看货单。示例：聚气丹 / 筑基丹 / 一阶青木迷踪阵",
         出售: "卖给商会，约五折回收。示例：妖兽内丹 1",
         服用: "丹药名，如：聚气丹 / 筑基丹",
