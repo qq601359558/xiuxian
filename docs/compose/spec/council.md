@@ -66,7 +66,8 @@
    {vault:1000, prestige:50, morale:50}。结算把 result 快照（结果/票数/效果增量/结算时刻）写回会话并置
    settled=True；settle/advance 重入直接返回快照、**绝不重复落账**（测试钉住：连调 3 次状态只变一次）。
    结算同时 `jianghu.append_event(kind="sect_council", ...)` 入世情（低频，enforce_budget=False 保证必达），
-   开场不播报防刷屏。
+   开场不播报防刷屏。播报时刻取真实墙钟，会话逻辑时刻只存 result.settled_at——否则测试注入的
+   逻辑时刻会污染世情「最新」排序（全量回归实测教训，test_lan_feed_endpoint_contract）。
 9. **可用性口径（与同类宗门指令对齐）**：
    - server 闭关：三指令**均不进** med_ok 白名单（与 /领俸禄 /晋升 /宗门环 同口径——议政面板带惰性
      结算/开场等状态写，非纯只读观照，闭关锁门）。

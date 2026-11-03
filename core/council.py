@@ -399,7 +399,8 @@ class CouncilEngine:
                 },
                 narrative=summary,
                 source="rule",
-                now=result.get("settled_at"),
+                # 播报时刻取真实墙钟（append_event 默认 time.time()）：会话的逻辑结算时刻
+                # 只存 result.settled_at，不用它给世情排序，避免注入时刻污染公共信息流。
             )
         except Exception:
             pass
