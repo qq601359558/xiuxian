@@ -1302,6 +1302,8 @@ def run_mud():
                     console.print("[red]诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）[/red]")
                     continue
                 res = PromiseEngine.make_promise(player, target, kind, parts[3] if len(parts) > 3 else "")
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
                 if res["success"]:
                     console.print(f"[bold green]{res['message']}[/bold green]")
                 else:

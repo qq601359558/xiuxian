@@ -551,3 +551,78 @@ def test_cli_source_parity():
     for token in ('"/诺言"', '"/许诺"', '"/应诺"', '"/毁诺"', "on_owner_death"):
         assert token in wsrc, token
     print("✓ CLI/server 源码对齐：四指令 + 钩子齐备")
+
+
+# ---------------- 评审整改回归（M1/S2/S3） ----------------
+
+def test_one_fact_fulfills_multiple_witnesses_quest():
+    # M1：见证人不消费事实——一单委托同时践两条不同见证人的委托诺
+    p = _char("多证客")
+    w1, w2 = _npc("见证甲"), _npc("见证乙")
+    pr1 = PromiseEngine.make_promise(p, w1, "quest")["promise"]
+    pr2 = PromiseEngine.make_promise(p, w2, "quest")["promise"]
+    now = time.time()
+    ring = QuestRing(kind="fetch", desc="寻物", deliver_npc_id=w1.id,
+                     deliver_npc_name=w1.name, item_name="聚灵草", need=1)
+    p.active_quest = QuestChain(
+        publisher_id=w1.id, publisher_name=w1.name, rings=[ring], ring_index=0,
+        accepted_at=now, expires_at=now + QUEST_CHAIN_TTL_SECONDS,
+        reward_stones=100, reward_merit=QUEST_REWARD_MERIT,
+    )
+    p.inventory.append("聚灵草")
+    CharacterRepository.save(p)
+    res = QuestEngine.deliver(p)
+    assert res["success"] and res.get("completed"), res
+    assert res["message"].count("【践诺】") == 2  # 两条诺同次结算
+    assert _get(pr1.id).status == PromiseStatus.KEPT
+    assert _get(pr2.id).status == PromiseStatus.KEPT
+    p2 = CharacterRepository.get_by_id(p.id)
+    assert p2.karma.merit_value == QUEST_REWARD_MERIT + 2 * PROMISE_MERIT_KEPT
+    _cleanup(p, w1, w2)
+    print("✓ M1：一单委托同时践多位见证人之诺，功德逐诺入账")
+
+
+def test_one_arrival_fulfills_multiple_witnesses():
+    # M1：同一次抵达同时践两条同目标抵达诺，不再误判第二条违约
+    p = _char("双证客")
+    w1, w2 = _npc("迎客甲"), _npc("迎客乙")
+    pr1 = PromiseEngine.make_promise(p, w1, "arrive", "落霞")["promise"]
+    pr2 = PromiseEngine.make_promise(p, w2, "arrive", "落霞")["promise"]
+    msg = PromiseEngine.note_arrival(p, LOC_B)
+    assert msg and msg.count("【践诺】") == 2
+    assert _get(pr1.id).status == PromiseStatus.KEPT
+    assert _get(pr2.id).status == PromiseStatus.KEPT
+    assert CharacterRepository.get_by_id(p.id).karma.merit_value == 2 * PROMISE_MERIT_KEPT
+    _cleanup(p, w1, w2)
+    print("✓ M1：一次抵达同时践多条同目标抵达诺")
+
+
+def test_expired_promises_free_slots_on_make():
+    # S3：立新诺时先惰性结算，过期旧诺不占上限名额
+    p = _char("腾挪客")
+    ns = [_npc(f"旧证{i}") for i in range(3)]
+    t0 = time.time()
+    for n in ns:
+        assert PromiseEngine.make_promise(p, n, "quest", now=t0)["success"]
+    n4 = _npc("新证人")
+    t1 = t0 + 3 * 86400.0 + 10  # 三条旧诺均已过期
+    res = PromiseEngine.make_promise(p, n4, "quest", now=t1)
+    assert res["success"], res  # 旧诺已被惰性判违约腾位，而非卡上限
+    assert len(PromiseEngine._open_of(p.id)) == 1
+    _cleanup(p, n4, *ns)
+    print("✓ S3：立诺前惰性结算释放名额")
+
+
+def test_gift_param_normalized_to_full_name():
+    # S2：简称立诺时按行囊全名规范化，赠礼模糊命中后核验不落空
+    p = _char("简称客")
+    npc = _npc("全名翁")
+    p.inventory.append("聚灵草")
+    CharacterRepository.save(p)
+    pr = PromiseEngine.make_promise(p, npc, "gift", "聚灵")["promise"]
+    assert pr.param == "聚灵草"
+    res = do_gift(p, npc, "聚灵", 0)  # 赠礼侧子串命中「聚灵草」
+    assert res["ok"] and "践诺" in res["text"], res
+    assert _get(pr.id).status == PromiseStatus.KEPT
+    _cleanup(p, npc)
+    print("✓ S2：赠物诺面规范为全名，简称赠出亦践诺")

@@ -146,29 +146,38 @@ class PromiseEngine:
         param = (param or "").strip()
         if not _alive(promiser, t):
             return {"success": False, "message": "身死道消，诺随旧世而散，无从立诺。"}
+        # 先惰性推进：过期/消散的旧诺先落终态，不长期占用上限与去重名额（评审 S3）；
+        # settle_due 若对立诺者活对象落了账，dirty 透传给调用方回存
+        dirty0 = PromiseEngine.settle_due(promiser, t, actor_obj=promiser)
         if promisee is None or promisee.id == promiser.id:
-            return {"success": False, "message": "不可向自己立诺——天道只记对他人之诺。"}
+            return {"success": False, "dirty": dirty0, "message": "不可向自己立诺——天道只记对他人之诺。"}
         if not _alive(promisee, t):
-            return {"success": False, "message": f"【{promisee.name}】已身死道消，无从受诺。"}
+            return {"success": False, "dirty": dirty0, "message": f"【{promisee.name}】已身死道消，无从受诺。"}
         if promisee.location != promiser.location:
             return {
-                "success": False,
+                "success": False, "dirty": dirty0,
                 "message": (
                     f"立诺须当面：【{promisee.name}】此刻在【{promisee.location}】，"
                     f"你身在【{promiser.location}】。先 /go 过去再立。"
                 ),
             }
         if kind not in PROMISE_KINDS:
-            return {"success": False, "message": "诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）。"}
+            return {"success": False, "dirty": dirty0, "message": "诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）。"}
         promisee_is_npc = _is_npc(promisee)
         if kind == "gift":
             if not promisee_is_npc:
                 return {
-                    "success": False,
+                    "success": False, "dirty": dirty0,
                     "message": "赠物之诺只可对同场 NPC 立：玩家间财货往来走 /交易，并无纯赠予之实可核；对玩家可立 抵达 / 委托 / 不攻 之诺。",
                 }
             if not param:
-                return {"success": False, "message": "用法：/许诺 <NPC名> 赠物 <物品名>（物品可先立诺后寻，期限内经交谈赠出即践诺）。"}
+                return {"success": False, "dirty": dirty0, "message": "用法：/许诺 <NPC名> 赠物 <物品名>（物品可先立诺后寻，期限内经交谈赠出即践诺）。"}
+            # 诺面以物品全名为准（评审 S2）：行囊已有含参物品时规范为全名，
+            # 免得简称立诺、赠礼模糊命中全名后核验对不上而误判违约
+            for it in promiser.inventory:
+                if param in it:
+                    param = it
+                    break
         elif kind == "arrive":
             matched = None
             for loc in WORLD_LOCATIONS:
@@ -183,13 +192,13 @@ class PromiseEngine:
         open_list = PromiseEngine._open_of(promiser.id)
         if len(open_list) >= PROMISE_MAX_OPEN:
             return {
-                "success": False,
+                "success": False, "dirty": dirty0,
                 "message": f"诺不可多立：你已有 {len(open_list)} 条未结之诺（上限 {PROMISE_MAX_OPEN}），先了结再立新诺。",
             }
         for p in open_list:
             if p.promisee_id == promisee.id and p.kind == kind:
                 return {
-                    "success": False,
+                    "success": False, "dirty": dirty0,
                     "message": f"你已对【{promisee.name}】立有同类未结之诺（{p.desc}），不可叠诺。",
                 }
         desc = describe_promise(kind, param, promisee.name)
@@ -213,6 +222,8 @@ class PromiseEngine:
                 f"天道已记账，{_fmt_left(promise.deadline - t)}内践诺得功德 +{PROMISE_MERIT_KEPT}，"
                 f"逾期违约沾业力 +{PROMISE_SIN_BROKEN} 并昭告世情。（/诺言 查看）"
             )
+            if kind == "gift":
+                msg += f"\n（诺物以全名为准：【{param}】；经交谈赠出全名同字之物方算践诺。）"
         else:
             promise.status = PromiseStatus.PENDING
             msg = (
@@ -447,31 +458,47 @@ class PromiseEngine:
 
     @staticmethod
     def note_arrival(char: Character, location: str, now: Optional[float] = None) -> Optional[str]:
-        """迁跃落点调用：落点命中抵达诺目标地 → 践诺。"""
+        """迁跃落点调用：落点命中抵达诺目标地 → 践诺。
+
+        见证人不消费事实（评审 M1）：同一次抵达可同时践多条同目标抵达诺
+        （不同见证人），结算全部命中诺而非首条即返；总量受未结上限约束。
+        """
         t = now if now is not None else time.time()
+        msgs: List[str] = []
         for p in PromiseEngine._open_of(char.id):
             if p.kind != "arrive":
                 continue
             if p.status == PromiseStatus.ACTIVE and t <= p.deadline and p.param == location:
                 if PromiseEngine._settle(p, PromiseStatus.KEPT, "如约抵达诺地", t, promiser_obj=char):
-                    return f"【践诺】你如约抵达【{location}】——天道记下此诺已践：功德 +{PROMISE_MERIT_KEPT}。"
+                    msgs.append(
+                        f"【践诺】你如约抵达【{location}】（【{p.promisee_name}】见证）"
+                        f"——天道记下此诺已践：功德 +{PROMISE_MERIT_KEPT}。"
+                    )
             else:
                 PromiseEngine._advance(p, t, actor_obj=char)
-        return None
+        return "\n".join(msgs) if msgs else None
 
     @staticmethod
     def note_quest_completed(char: Character, now: Optional[float] = None) -> Optional[str]:
-        """委托整链完成落账段调用 → 委托诺践诺。"""
+        """委托整链完成落账段调用 → 委托诺践诺。
+
+        见证人不消费事实（评审 M1）：同一次整链完成可同时践多条委托诺
+        （不同见证人），结算全部命中诺而非首条即返；总量受未结上限约束。
+        """
         t = now if now is not None else time.time()
+        msgs: List[str] = []
         for p in PromiseEngine._open_of(char.id):
             if p.kind != "quest":
                 continue
             if p.status == PromiseStatus.ACTIVE and t <= p.deadline:
                 if PromiseEngine._settle(p, PromiseStatus.KEPT, "如约办成连环委托", t, promiser_obj=char):
-                    return f"【践诺】连环委托办成，正应前诺——天道记下此诺已践：功德 +{PROMISE_MERIT_KEPT}。"
+                    msgs.append(
+                        f"【践诺】连环委托办成，正应【{p.promisee_name}】见证之诺"
+                        f"——天道记下此诺已践：功德 +{PROMISE_MERIT_KEPT}。"
+                    )
             else:
                 PromiseEngine._advance(p, t, actor_obj=char)
-        return None
+        return "\n".join(msgs) if msgs else None
 
     @staticmethod
     def note_attack(attacker: Character, defender: Character, now: Optional[float] = None) -> Optional[str]:
@@ -481,7 +508,10 @@ class PromiseEngine:
         for p in PromiseEngine._open_of(attacker.id):
             if p.kind != "no_attack" or p.promisee_id != defender.id:
                 continue
-            if p.status == PromiseStatus.ACTIVE and t > p.deadline:
+            if p.status == PromiseStatus.PENDING:
+                # 待应诺之诺义务未生效，出手不背诺；仅顺带惰性推进（过期/身死消散）
+                PromiseEngine._advance(p, t, actor_obj=attacker)
+            elif p.status == PromiseStatus.ACTIVE and t > p.deadline:
                 PromiseEngine._advance(p, t, actor_obj=attacker)
             elif p.status == PromiseStatus.ACTIVE:
                 if PromiseEngine._settle(p, PromiseStatus.BROKEN, "诺期内率先对受诺人出手", t, promiser_obj=attacker):

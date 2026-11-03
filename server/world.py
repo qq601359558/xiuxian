@@ -1080,7 +1080,7 @@ class World:
                     return {"ok": False, "error": "诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）"}
                 param = parts[3] if len(parts) > 3 else ""
                 res = PromiseEngine.make_promise(char, target, kind, param)
-                if res.get("success"):
+                if res.get("success") or res.get("dirty"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/acceptpromise", "/应诺"):
