@@ -1,4 +1,4 @@
-# 《天道因果录》— AI 主导的文字修仙 MUD（局域网原型）
+# 《天道因果录》— AI 主导的文字修仙 MUD（灰度版 v0.1.0-gray.1）
 
 一个 AI 主导的修仙游戏，功能全程使用 AI 编写。规则引擎裁决一切数值与因果，
 LLM 只负责叙事、NPC 言行与事件提案 — 数值永远由规则落账，AI 不能乱改。
@@ -47,7 +47,10 @@ python server/start.py          # 权威世界服，默认监听 0.0.0.0:8765
 ## AI 配置
 
 正式体验模式（`AI_REQUIRED=1`，默认）下，交谈 / 斗法 / 自由言行等交互必须有可用的 AI 通道。
-在项目根目录建 `.env`（已被 `.gitignore` 排除，不要提交）：
+在项目根目录建 `.env`（已被 `.gitignore` 排除，不要提交）。
+仓库附 `.env.example` 样例，`cp .env.example .env` 后改 Key 即可。
+**开灰度服请先读 [灰度运行手册](docs/gray-runbook.md)**：开服自检、邀请、备份、排障、回滚都在里面；
+版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ```ini
 LLM_API_BASE=https://api.deepseek.com/v1
