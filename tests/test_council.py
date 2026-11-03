@@ -1,8 +1,11 @@
 """F08 长老议政：议题轮转/立场推导/投票/游说/多数决结算幂等/边界/双端/旧档兼容"""
 import os
+import random
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["ALLOW_LOCAL_AI"] = "1"
@@ -35,6 +38,28 @@ from server.world import WORLD
 
 WORLD.stop_tick()
 init_db()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _leave_no_trace():
+    """跨文件耦合防线：共享 DB + 全局随机流下，本文件的残留会被下游逐 NPC
+    随机抽取放大（如 test_qi_pace 对新号随机灵根的绝对阈值断言）。模块结束时：
+    自造角色全部置死（退出 list_all_alive 口径）、清本文件 KV、恢复随机流。"""
+    state = random.getstate()
+    yield
+    random.setstate(state)
+    try:
+        from core.models import CharacterStatus
+
+        for c in CharacterRepository.list_all_alive():
+            if c.user_id.startswith(("council_", "npc_council_")):
+                c.status = CharacterStatus.DEAD
+                CharacterRepository.save(c)
+        for sect_name in (SH, JY, QY, QX):
+            WorldStateRepository.delete(f"sect_council:{sect_name}")
+            WorldStateRepository.delete(f"sect_state:{sect_name}")
+    except Exception:
+        pass
 
 T0 = 1_900_000_000.0  # 注入时刻（确定性时间轴）
 QY = "青云宗"
