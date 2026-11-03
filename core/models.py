@@ -263,6 +263,9 @@ class Character(BaseModel):
     # NPC 委托链（F07）：进行中至多 1 条（见 core/quests.py）；随旧世消散，旧档自动补默认
     active_quest: Optional[QuestChain] = None
     quest_cooldown_until: float = 0.0  # 链了结后的接取冷却截止时间戳
+    # 炼体/炼神双修（F10）：副修层数 0–10（见 core/body_soul.py）；随旧世消散，旧档自动补默认
+    body_level: int = 0  # 炼体层数（战力/寿元微增）
+    soul_level: int = 0  # 炼神层数（有效道心/神识加成）
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

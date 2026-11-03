@@ -58,6 +58,7 @@ from core.pets import PetEngine, active_pet as pet_active, level_for as pet_leve
 from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
 from core.art_slots import ArtSlotEngine
+from core.body_soul import BodySoulEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
 from config import (
@@ -1051,6 +1052,29 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/body", "/炼体", "/soul", "/炼神"):
+                # 炼体/炼神双修（F10）：无参=面板；「修炼 [n]」=逐层精进（闭关不进白名单，天然锁门）
+                track = "body" if action in ("/body", "/炼体") else "soul"
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("修炼", "train"):
+                    times = 1
+                    if len(parts) > 2:
+                        try:
+                            times = int(parts[2])
+                        except Exception:
+                            times = 1
+                    res = (BodySoulEngine.train_body(char, times) if track == "body"
+                           else BodySoulEngine.train_soul(char, times))
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": f"用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数]"}
+                return {
+                    "ok": True,
+                    "text": BodySoulEngine.panel_text(char, track),
+                    "status": self._status_dict(char),
+                }
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
                 if not board:
@@ -2328,6 +2352,7 @@ class World:
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
+            "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
@@ -2381,6 +2406,11 @@ class World:
             "arts": {
                 "main": getattr(c, "main_art", "") or "",
                 "sub": list(getattr(c, "sub_arts", None) or []),
+            },
+            # 炼体/炼神双修（F10）：副修层数（纯新增；走引擎钳制口径，与面板/加成一致）
+            "body_soul": {
+                "body": BodySoulEngine.body_level(c),
+                "soul": BodySoulEngine.soul_level(c),
             },
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),

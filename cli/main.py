@@ -30,6 +30,7 @@ from core.farm import FarmEngine, split_sow_args
 from core.quests import QuestEngine
 from core.council import CouncilEngine
 from core.art_slots import ArtSlotEngine
+from core.body_soul import BodySoulEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
 from core.combat_fate import CombatFateEngine
@@ -199,6 +200,8 @@ def print_help():
   [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
   [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
   [bold yellow]/卸功 <功法名>[/bold yellow]       - 卸下主修或辅修
+  [bold yellow]/炼体 [修炼 [n]][/bold yellow]     - 炼体副修（妖兽内丹+灵石升层：战力+1%/层、寿元+1岁/层，满 10 层）
+  [bold yellow]/炼神 [修炼 [n]][/bold yellow]     - 炼神副修（百年灵芝+灵石升层：有效道心+2/层、神识+3/层，满 10 层）
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
@@ -1297,6 +1300,29 @@ def run_mud():
                     console.print(f"[bold green]{res['message']}[/bold green]")
                 else:
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/炼体", "body", "/炼神", "soul"]:
+                # 炼体/炼神双修（F10）：无参=面板；「修炼 [n]」=逐层精进（闭关白名单不含此指令，天然锁门）
+                track = "body" if action in ["/炼体", "body"] else "soul"
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("修炼", "train"):
+                    times = 1
+                    if len(parts) > 2:
+                        try:
+                            times = int(parts[2])
+                        except Exception:
+                            times = 1
+                    res = (BodySoulEngine.train_body(player, times) if track == "body"
+                           else BodySoulEngine.train_soul(player, times))
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print(f"[red]用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数][/red]")
+                else:
+                    console.print(BodySoulEngine.panel_text(player, track))
 
             elif action in ["/机缘", "event", "/事件", "/推演"]:
                 etype = None

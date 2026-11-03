@@ -84,8 +84,15 @@ class HeartDemonEngine:
             outcome = "wound"
 
         # death 极罕见：仅当 AI 明确 death 且道心极低，才允许；否则降为 fail
+        # （炼神 F10：以有效道心判定，本体 dao_heart 不变）
+        try:
+            from core.body_soul import BodySoulEngine
+
+            _eff_dao_heart = BodySoulEngine.effective_dao_heart(character)
+        except Exception:
+            _eff_dao_heart = character.karma.dao_heart
         if outcome == "death":
-            if character.karma.dao_heart > 20:
+            if _eff_dao_heart > 20:
                 outcome = "fail"
             else:
                 character.status = CharacterStatus.DEAD

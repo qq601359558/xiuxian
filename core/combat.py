@@ -24,6 +24,12 @@ class CombatEngine:
         s_sense = scanner.realm.tier * 100 + scanner.realm.sub_tier * 25
         if scanner.spiritual_root.root_type.value in ["HEAVEN", "MUTANT"]:
             s_sense += 30
+        try:
+            from core.body_soul import BodySoulEngine
+
+            s_sense += BodySoulEngine.sense_bonus(scanner)
+        except Exception:
+            pass
 
         for target in targets:
             if target.id == scanner.id or target.status == CharacterStatus.DEAD:
@@ -102,6 +108,12 @@ class CombatEngine:
             from core.art_slots import ArtSlotEngine
 
             power *= ArtSlotEngine.power_bonus(c)
+        except Exception:
+            pass
+        try:
+            from core.body_soul import BodySoulEngine
+
+            power *= BodySoulEngine.power_bonus(c)
         except Exception:
             pass
         return power
