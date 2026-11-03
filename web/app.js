@@ -100,37 +100,47 @@
     const inv = Array.isArray(st.inventory) ? st.inventory : [];
     const eq = Array.isArray(st.equipped) ? st.equipped : [];
     const arr = Array.isArray(st.arrays) ? st.arrays : [];
-    const eqSet = new Set(eq);
-    // 计数：同名物品合并显示 ×n
+    // 游戏语义：穿戴会把物品移出行囊、卸下才放回（core/loot_equip），两列表互斥，
+    // 已穿戴必须单独成行渲染，否则永远看不见。
+    // 计数：行囊内同名物品合并显示 ×n
     const counts = new Map();
     inv.forEach((n) => counts.set(n, (counts.get(n) || 0) + 1));
-    const total = inv.length + arr.length;
+    const total = inv.length + eq.length + arr.length;
     setText("bagCount", total ? total + " 件" : "");
     list.innerHTML = "";
-    if (!counts.size && !arr.length) {
+    if (!counts.size && !eq.length && !arr.length) {
       list.innerHTML = '<p class="empty">行囊空空</p>';
     }
-    counts.forEach((n, name) => {
+    const mkBtn = (label, cmd) => {
+      const b = document.createElement("button");
+      b.className = "btn-mini";
+      b.textContent = label;
+      b.addEventListener("click", () => { lastCmd = cmd; send(cmd); });
+      return b;
+    };
+    const mkRow = (nameText, btns) => {
       const row = document.createElement("div");
       row.className = "bag-row";
       const nm = document.createElement("span");
       nm.className = "bag-name";
-      nm.textContent = name + (n > 1 ? " ×" + n : "") + (eqSet.has(name) ? "（已穿戴）" : "");
+      nm.textContent = nameText;
       row.appendChild(nm);
-      const acts = document.createElement("span");
-      acts.className = "bag-acts";
-      const mk = (label, cmd) => {
-        const b = document.createElement("button");
-        b.className = "btn-mini";
-        b.textContent = label;
-        b.addEventListener("click", () => { lastCmd = cmd; send(cmd); });
-        return b;
-      };
-      if (eqSet.has(name)) acts.appendChild(mk("卸下", "/卸下 " + name));
-      else acts.appendChild(mk("穿戴", "/穿戴 " + name));
-      acts.appendChild(mk("服用", "/服用 " + name));
-      row.appendChild(acts);
-      list.appendChild(row);
+      if (btns && btns.length) {
+        const acts = document.createElement("span");
+        acts.className = "bag-acts";
+        btns.forEach((b) => acts.appendChild(b));
+        row.appendChild(acts);
+      }
+      return row;
+    };
+    eq.forEach((name) => {
+      list.appendChild(mkRow(name + "（已穿戴）", [mkBtn("卸下", "/卸下 " + name)]));
+    });
+    counts.forEach((n, name) => {
+      list.appendChild(mkRow(name + (n > 1 ? " ×" + n : ""), [
+        mkBtn("穿戴", "/穿戴 " + name),
+        mkBtn("服用", "/服用 " + name),
+      ]));
     });
     arr.forEach((name) => {
       const row = document.createElement("div");

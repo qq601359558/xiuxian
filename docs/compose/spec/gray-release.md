@@ -65,5 +65,9 @@
 - [x] 批次 A（4f632cc）：flaky 修复（复跑 20/20）、`.env.example`、`/health` 运维自检 + 用例
 - [x] 批次 B（740c5cc）：行囊面板 + 血煞/大限标识 + 用例；实服冒烟（无 AI 模式）通过
 - [x] 批次 C 文档：VERSION / CHANGELOG / 灰度运行手册 / README 指引
-- [ ] 门禁验收：全量回归 ×3（结果回填本节）
-- [ ] 独立 Review
+- [x] 门禁验收：全量回归 ×3 — 2026-11-03 三遍各 **243 passed / 0 failed**（基线为 240 用例含 1 flaky）
+- [x] 独立 Review：1 条必须修（行囊已穿戴装备不可见 — 穿戴会移出行囊、旧前端只渲染行囊列表，
+  且旧夹具伪造了重叠状态）已修复：前端单独渲染已穿戴行 + 夹具改真实语义 + 新增 EquipEngine
+  真实流程用例；另修大限阈值 `<`→`<=` 对齐规则侧、手册订正 `ai_available` 仅表「已配置」、
+  事件快照补 arrays/blood_mark_until。修复后全量复跑 **244 passed / 0 failed**。
+- [x] Finalize：合并 main、打 tag `v0.1.0-gray.1`、推送（见 git 记录）

@@ -2116,7 +2116,7 @@ class World:
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),
             "lifespan_warning": c.lifespan.get_remaining_years()
-            < LIFESPAN_WARNING_YEARS,
+            <= LIFESPAN_WARNING_YEARS,
             "meditating": c.status == CharacterStatus.MEDITATING,
             "sect": c.sect or "",
             "rank": c.sect_rank or "",

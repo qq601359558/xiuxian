@@ -13,8 +13,11 @@
    - 单机命令行：`python -m cli.main`
 4. 自检：浏览器或 curl 打开 `http://<房主IP>:8765/health`，应看到
    `"version": "0.1.0-gray.1"`、`"ai_available": true`、`"online": <在线会话数>`。
-   - `ai_available=false` 且 `ai_required=true`：AI 没配好，玩家交谈/斗法会被拒，
-     先别邀人，查 Key / 余额 / 接口地址。
+   - 注意：`ai_available` 只表示「已配置通道」（填了 Key 或接了 CCSwitch），
+     **不代表 Key 有效、接口连通**；填错 Key 时它照样是 true。
+     真正确认连通：进游戏发一句 `/交谈` 或看 `/ailog` 最近调用有无报错。
+   - `ai_available=false` 且 `ai_required=true`：AI 没配，玩家交谈/斗法会被拒，先别邀人。
+   - `allow_local_ai=true` 时即使 `ai_available=false`，交互也会走本地模板降级（仅联调用）。
 
 ## 2. 邀请玩家
 - 玩家与房主连同一局域网；玩家打开 `web/index.html`，在页面里填房主地址
@@ -31,7 +34,7 @@
 ## 4. 排障速查
 | 现象 | 先看 | 处理 |
 |---|---|---|
-| 玩家说「AI 不可用 / 天机未通」 | `/health` 的 `ai_available` | Key 失效、余额不足或接口不通；服务端日志/ailog 页可看最近 AI 调用 |
+| 玩家说「AI 不可用 / 天机未通」 | `/ailog` 最近调用报错、游戏内发一句 `/交谈` 实测 | Key 失效、余额不足或接口不通（`/health` 的 `ai_available` 只看配没配，不验连通） |
 | 玩家进不来 | 房主防火墙、IP 是否同网段 | 放行 8765 端口；确认填的是房主局域网 IP |
 | 数值没变/事件没触发 | 先分清规则与叙事 | 数值永远由规则引擎裁决，AI 只写叙事；把玩家道号+时间+指令记进反馈 |
 | 服卡死/异常 | 终端输出与 `data/` 是否只读 | 重启服即可，会话需玩家重新登录，角色数据不丢 |

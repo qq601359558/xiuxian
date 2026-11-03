@@ -62,7 +62,9 @@ def _state_snapshot(c):
         c.karma.sin_value,
         c.karma.merit_value,
         c.karma.dao_heart,
+        c.karma.blood_mark_until,
         list(c.inventory),
+        list(c.arrays),
         list(c.skills),
     )
 
