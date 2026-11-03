@@ -4,8 +4,10 @@
 """
 from __future__ import annotations
 
+import random
 import time
 import uuid
+import zlib
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,6 +21,14 @@ from config import (
     AUCTION_MIN_INCREMENT,
     AUCTION_SETTLE_FEE_RATE,
     AUCTION_MAX_LOTS,
+    AUCTION_NPC_BID_CHANCE,
+    AUCTION_NPC_CAP_MULT,
+    AUCTION_SYSTEM_INTERVAL_SECONDS,
+    AUCTION_SYSTEM_LEAD_SECONDS,
+    AUCTION_SYSTEM_START_RATE,
+    AUCTION_HOUSE_ID,
+    AUCTION_HOUSE_NAME,
+    AUCTION_SYSTEM_ITEMS,
     NPC_PRICE_FRIENDLY_BUY,
     NPC_PRICE_NEUTRAL_BUY,
     NPC_PRICE_HOSTILE_BUY,
@@ -638,6 +648,7 @@ class NpcShopEngine:
 # ==================== 拍卖行 ====================
 
 class AuctionStatus(str, Enum):
+    PENDING = "PENDING"  # 待开场（F05 系统场次；玩家上拍直接 OPEN）
     OPEN = "OPEN"
     SOLD = "SOLD"
     EXPIRED = "EXPIRED"
@@ -661,6 +672,9 @@ class AuctionLot(BaseModel):
     ends_at: float = 0.0
     created_at: float = 0.0
     status: AuctionStatus = AuctionStatus.OPEN
+    # F05：系统场次待开场与来源（旧档无此二字段，默认值自动兼容；零改表）
+    starts_at: float = 0.0
+    source: str = "player"  # player=玩家上拍 / system=天道宝库系统场次
 
     def is_open(self) -> bool:
         return self.status == AuctionStatus.OPEN
@@ -676,6 +690,15 @@ class AuctionLot(BaseModel):
         return (
             f"#{self.id} 【{self.item_name}】当前 {bid} 灵石（起拍 {self.start_price}{buyout}）"
             f" | 领先 {leader} | 余 {self.remaining_min(now):.0f} 分 | 挂单人 {self.seller_name}"
+        )
+
+    def pending_line(self, now: Optional[float] = None) -> str:
+        t = now if now is not None else time.time()
+        mins = max(0.0, (self.starts_at - t) / 60.0)
+        buyout = f" | 一口价 {self.buyout_price}" if self.buyout_price else ""
+        return (
+            f"#{self.id} 【{self.item_name}】起拍 {self.start_price}{buyout}"
+            f" | {mins:.0f} 分后开场 | 挂单人 {self.seller_name}"
         )
 
 
@@ -701,33 +724,50 @@ class AuctionEngine:
                 continue
             if lot.bid_count <= 0:
                 lot.status = AuctionStatus.EXPIRED
-                seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-                if seller:
-                    _give_item(seller, lot.item_name, 1, lot.kind)
-                    CharacterRepository.save(seller)
-                AuctionLotRepository.save(lot)
-                notes.append(
-                    f"【流拍】#{lot.id}【{lot.item_name}】无人应价，"
-                    + (f"已退回【{lot.seller_name}】。" if seller else "但挂单人已不在，拍品消散于虚空。")
-                )
+                if lot.source == "system":
+                    # F05 系统场次：流拍即宝库收回，物品消散，不回任何人行囊
+                    AuctionLotRepository.save(lot)
+                    notes.append(
+                        f"【流拍】#{lot.id}【{lot.item_name}】无人应价，{AUCTION_HOUSE_NAME}收回，拍品消散于虚空。"
+                    )
+                else:
+                    seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
+                    if seller:
+                        _give_item(seller, lot.item_name, 1, lot.kind)
+                        CharacterRepository.save(seller)
+                    AuctionLotRepository.save(lot)
+                    notes.append(
+                        f"【流拍】#{lot.id}【{lot.item_name}】无人应价，"
+                        + (f"已退回【{lot.seller_name}】。" if seller else "但挂单人已不在，拍品消散于虚空。")
+                    )
             else:
                 lot.status = AuctionStatus.SOLD
                 fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
                 net = lot.current_bid - fee
                 seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
                 leader = _find_by_id_or_user(lot.leader_id or "", lot.leader_user_id or "")
-                if seller:
+                if lot.source == "system":
+                    # F05 系统场次：卖家为宝库伪主体，成交款全额沉淀（不付款、不抽成拆分）
+                    fee = 0
+                    net = 0
+                elif seller:
                     seller.spirit_stones += net
                     CharacterRepository.save(seller)
                 if leader:
                     _give_item(leader, lot.item_name, 1, lot.kind)
                     CharacterRepository.save(leader)
                 AuctionLotRepository.save(lot)
-                notes.append(
-                    f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
-                    f"卖家实收 {net}（手续费 {fee}）。"
-                    + ("" if seller and leader else "（有当事人不在世，账目已尽天道所能）")
-                )
+                if lot.source == "system":
+                    notes.append(
+                        f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】"
+                        f"（系统场次，成交款全额归天道沉淀）。"
+                    )
+                else:
+                    notes.append(
+                        f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
+                        f"卖家实收 {net}（手续费 {fee}）。"
+                        + ("" if seller and leader else "（有当事人不在世，账目已尽天道所能）")
+                    )
                 try:
                     from core import ai_flavor
 
@@ -761,17 +801,241 @@ class AuctionEngine:
                 pass
         return notes
 
+    # ---------- F05：状态机推进（惰性） ----------
+
     @staticmethod
-    def board(now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+    def advance(
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        react: bool = False,
+    ) -> List[str]:
+        """惰性推进拍卖状态机：系统场次排期 → 待开场晋升 → 到期结算 →（react 时）NPC 跟价。
+
+        所有指令入口都先调本函数（react=False 只做排期/晋升/结算，保既有路径行为不变）；
+        看板与世界 tick 以 react=True 调用，NPC 才会在推进点跟价。不新造常驻线程。
+        返回本次推进产生的摘要行（晋升/落槌/流拍/跟价）。
+        """
         t = now if now is not None else time.time()
+        notes: List[str] = []
+        notes += AuctionEngine._seed_system_lot(t)
+        notes += AuctionEngine._promote_pending(t)
+        notes += AuctionEngine.settle_expired(t)
+        if react:
+            for lot in AuctionEngine._load_open():
+                if t < lot.ends_at:
+                    res = AuctionEngine.npc_maybe_bid(lot, now=t, rng=rng)
+                    if res and res.get("success"):
+                        notes.append(res["message_note"])
+        return notes
+
+    @staticmethod
+    def _seed_system_lot(t: float) -> List[str]:
+        """系统场次排期：到期且无在场系统拍品时，生成一张 PENDING 宝库拍品（惰性）"""
+        from storage.db import AuctionLotRepository, WorldStateRepository
+
+        lots = AuctionLotRepository.list_all()
+        if any(
+            l.source == "system" and l.status in (AuctionStatus.PENDING, AuctionStatus.OPEN)
+            for l in lots
+        ):
+            return []
+        next_at = WorldStateRepository.get("auction_next_system_at")
+        if next_at is None:
+            # 首次：只立排期，不立即生成（避免任意一次调用凭空开场）
+            WorldStateRepository.set(
+                "auction_next_system_at", t + AUCTION_SYSTEM_INTERVAL_SECONDS
+            )
+            return []
+        if t < float(next_at):
+            return []
+        seq = int(WorldStateRepository.get("auction_system_seq", 0) or 0)
+        item = AUCTION_SYSTEM_ITEMS[seq % len(AUCTION_SYSTEM_ITEMS)]
+        from core.market import MarketEngine
+
+        price = MarketEngine.market_price(item)
+        start = max(10, int(price * AUCTION_SYSTEM_START_RATE))
+        buyout = max(start + 1, int(price * 1.25))
+        cfg = ITEM_CATALOG.get(item) or {}
+        lot = AuctionLot(
+            seller_id=AUCTION_HOUSE_ID,
+            seller_user_id="",
+            seller_name=AUCTION_HOUSE_NAME,
+            item_name=item,
+            kind=cfg.get("kind", "material"),
+            start_price=start,
+            buyout_price=buyout,
+            current_bid=0,
+            ends_at=0.0,
+            created_at=t,
+            starts_at=t + AUCTION_SYSTEM_LEAD_SECONDS,
+            status=AuctionStatus.PENDING,
+            source="system",
+        )
+        AuctionLotRepository.save(lot)
+        WorldStateRepository.set("auction_next_system_at", t + AUCTION_SYSTEM_INTERVAL_SECONDS)
+        WorldStateRepository.set("auction_system_seq", seq + 1)
+        return [
+            f"【拍卖预告】{AUCTION_HOUSE_NAME}将于 {AUCTION_SYSTEM_LEAD_SECONDS // 60} 分钟后"
+            f"开场拍【{item}】，起拍 {start} 灵石（一口价 {buyout}）。"
+        ]
+
+    @staticmethod
+    def _promote_pending(t: float) -> List[str]:
+        """PENDING 待开场 → OPEN 竞拍中（ends_at 以 starts_at 为锚，久未查看也可能晋升即到期）"""
+        from storage.db import AuctionLotRepository
+
+        notes: List[str] = []
+        for lot in AuctionLotRepository.list_all():
+            if lot.status == AuctionStatus.PENDING and t >= lot.starts_at:
+                lot.status = AuctionStatus.OPEN
+                lot.ends_at = lot.starts_at + AUCTION_DURATION_MIN * 60.0
+                AuctionLotRepository.save(lot)
+                notes.append(
+                    f"【开场】#{lot.id}【{lot.item_name}】竞拍开始，起拍 {lot.start_price} 灵石，"
+                    f"{AUCTION_DURATION_MIN} 分钟后落槌。"
+                )
+        return notes
+
+    @staticmethod
+    def open_lots(now: Optional[float] = None) -> List[AuctionLot]:
+        """当前可出价的 OPEN 拍品（供 /出价 无编号时解析）"""
+        AuctionEngine.advance(now=now, react=False)
+        t = now if now is not None else time.time()
+        return [l for l in AuctionEngine._load_open() if t < l.ends_at]
+
+    # ---------- F05：NPC 规则跟价 ----------
+
+    @staticmethod
+    def floor_price(lot: AuctionLot) -> int:
+        """当前合法最低出价：无出价=起拍价；有出价=现价 + max(最低加价, 5%) 步长"""
+        if not lot.bid_count:
+            return lot.start_price
+        step = max(AUCTION_MIN_INCREMENT, int(lot.current_bid * 0.05))
+        return lot.current_bid + step
+
+    @staticmethod
+    def _apply_bid(lot: AuctionLot, bidder: Character, amount: int) -> Optional[str]:
+        """出价落账单点（玩家 bid 与 NPC 跟价共用）：退上一领先者 → 扣款 → 更新领先 → 落库。
+
+        调用方须已完成全部校验（状态/地板价/余额/身份）。返回上一领先者名（无则 None）。
+        """
+        from storage.db import AuctionLotRepository, CharacterRepository
+
+        prev_name = lot.leader_name
+        if lot.leader_id and lot.bid_count > 0:
+            prev = CharacterRepository.get_by_id(lot.leader_id)
+            if prev:
+                prev.spirit_stones += lot.current_bid
+                CharacterRepository.save(prev)
+        bidder.spirit_stones -= amount
+        lot.current_bid = amount
+        lot.leader_id = bidder.id
+        lot.leader_user_id = bidder.user_id
+        lot.leader_name = bidder.name
+        lot.bid_count += 1
+        AuctionLotRepository.save(lot)
+        CharacterRepository.save(bidder)
+        return prev_name
+
+    @staticmethod
+    def npc_cap(lot: AuctionLot, npc: Character) -> int:
+        """NPC 对该拍品的出价上限：min(自身灵石, 市价 × CAP 倍率 × 确定性意愿系数)。
+
+        意愿系数由 crc32(lot:npc) 导出 ∈ [0.85, 1.24]，同场同 NPC 恒定，不随刷新漂移 → 不会无限抬价。
+        """
+        from core.market import MarketEngine
+
+        base = MarketEngine.market_price(lot.item_name)
+        will = 0.85 + (zlib.crc32(f"{lot.id}:{npc.id}".encode("utf-8")) % 40) / 100.0
+        return min(int(npc.spirit_stones), int(base * AUCTION_NPC_CAP_MULT * will))
+
+    @staticmethod
+    def npc_maybe_bid(
+        lot: AuctionLot,
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """一名 NPC 按规则跟价一口（纯规则，不调 AI；走 NPC 真实灵石账）。
+
+        触发概率 AUCTION_NPC_BID_CHANCE（force=True 跳过概率门，供测试/定向推进）；
+        出价恒为合法地板价（达一口价则直接落槌）；无合格 NPC 或上限不够地板价时返回 None。
+        """
+        t = now if now is not None else time.time()
+        if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
+            return None
+        r = rng if rng is not None else random
+        if not force and r.random() > AUCTION_NPC_BID_CHANCE:
+            return None
+        floor = AuctionEngine.floor_price(lot)
+        from core.npc_mind import _is_npc
+        from storage.db import CharacterRepository
+
+        cands: List[Character] = []
+        for c in CharacterRepository.list_all_alive():
+            if not _is_npc(c):
+                continue
+            if c.id == lot.seller_id or c.id == lot.leader_id:
+                continue
+            if AuctionEngine.npc_cap(lot, c) >= floor:
+                cands.append(c)
+        if not cands:
+            return None
+        npc = r.choice(cands)
+        amount = floor
+        if lot.buyout_price and amount >= lot.buyout_price:
+            amount = lot.buyout_price
+            AuctionEngine._apply_bid(lot, npc, amount)
+            AuctionEngine._settle_buyout(lot, npc)
+            return {
+                "success": True,
+                "npc": npc,
+                "amount": amount,
+                "buyout": True,
+                "message_note": (
+                    f"【NPC 落槌】{npc.name} 以一口价 {amount} 灵石拍下 #{lot.id}【{lot.item_name}】。"
+                ),
+            }
+        AuctionEngine._apply_bid(lot, npc, amount)
+        return {
+            "success": True,
+            "npc": npc,
+            "amount": amount,
+            "buyout": False,
+            "message_note": (
+                f"【NPC 跟价】{npc.name} 出价 {amount} 灵石，暂领先 #{lot.id}【{lot.item_name}】。"
+            ),
+        }
+
+    @staticmethod
+    def board(now: Optional[float] = None, rng: Optional[Any] = None) -> Dict[str, Any]:
+        notes = AuctionEngine.advance(now=now, rng=rng, react=True)
+        t = now if now is not None else time.time()
+        from storage.db import AuctionLotRepository
+
+        all_lots = AuctionLotRepository.list_all()
+        pending = sorted(
+            [l for l in all_lots if l.status == AuctionStatus.PENDING],
+            key=lambda x: x.starts_at,
+        )
         lots = [l for l in AuctionEngine._load_open() if t < l.ends_at]
         lots.sort(key=lambda x: x.ends_at)
-        lines = ["【拍卖行】限时竞价；/拍 <编号> <出价> · /一口 <编号> · /上拍 <货> <底价> [一口价]"]
-        if not lots:
+        lines = [
+            "【拍卖行】限时竞价；/拍 <编号> <出价> · /出价 <金额>（单场直拍）"
+            " · /一口 <编号> · /上拍 <货> <底价> [一口价]"
+        ]
+        for n in notes:
+            lines.append("· " + n)
+        if not pending and not lots:
             lines.append("（当前无进行中的拍品）")
-        for l in lots:
-            lines.append("· " + l.board_line(t))
+        if pending:
+            lines.append("— 待开场 —")
+            for l in pending:
+                lines.append("· " + l.pending_line(t))
+        if lots:
+            lines.append("— 竞拍中 —")
+            for l in lots:
+                lines.append("· " + l.board_line(t))
         return {"success": True, "message": "\n".join(lines), "lots": lots}
 
     @staticmethod
@@ -782,7 +1046,7 @@ class AuctionEngine:
         buyout_price: Optional[int] = None,
         now: Optional[float] = None,
     ) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        AuctionEngine.advance(now=now, react=False)
         t = now if now is not None else time.time()
         ok, reason = can_use_market(seller, t)
         if not ok:
@@ -829,7 +1093,7 @@ class AuctionEngine:
 
     @staticmethod
     def cancel(seller: Character, lot_id: str) -> Dict[str, Any]:
-        AuctionEngine.settle_expired()
+        AuctionEngine.advance(react=False)
         from storage.db import AuctionLotRepository, CharacterRepository
 
         lot = AuctionEngine._find(lot_id)
@@ -849,7 +1113,7 @@ class AuctionEngine:
 
     @staticmethod
     def bid(buyer: Character, lot_id: str, amount: int, now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        AuctionEngine.advance(now=now, react=False)
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -857,6 +1121,8 @@ class AuctionEngine:
         lot = AuctionEngine._find(lot_id)
         if not lot:
             return {"success": False, "message": "拍品编号不存在。"}
+        if lot.status == AuctionStatus.PENDING:
+            return {"success": False, "message": "此拍品尚未开场，请看 /拍卖行 的待开场预告。"}
         if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
             return {"success": False, "message": "此拍品已结束。"}
         if lot.seller_id == buyer.id:
@@ -864,10 +1130,7 @@ class AuctionEngine:
         if lot.leader_id == buyer.id:
             return {"success": False, "message": "你已是领先者。"}
 
-        floor = lot.current_bid if lot.bid_count else lot.start_price
-        if lot.bid_count:
-            step = max(AUCTION_MIN_INCREMENT, int(lot.current_bid * 0.05))
-            floor = lot.current_bid + step
+        floor = AuctionEngine.floor_price(lot)
         if amount < floor:
             return {
                 "success": False,
@@ -876,23 +1139,8 @@ class AuctionEngine:
         if buyer.spirit_stones < amount:
             return {"success": False, "message": f"囊中仅有 {buyer.spirit_stones} 灵石。"}
 
-        from storage.db import AuctionLotRepository, CharacterRepository
-
-        # 退回原领先者
-        if lot.leader_id and lot.bid_count > 0:
-            prev = CharacterRepository.get_by_id(lot.leader_id)
-            if prev:
-                prev.spirit_stones += lot.current_bid
-                CharacterRepository.save(prev)
-
-        buyer.spirit_stones -= amount
-        lot.current_bid = amount
-        lot.leader_id = buyer.id
-        lot.leader_user_id = buyer.user_id
-        lot.leader_name = buyer.name
-        lot.bid_count += 1
-        AuctionLotRepository.save(lot)
-        CharacterRepository.save(buyer)
+        # 落账单点（退上一领先者 → 扣款 → 更新领先 → 落库），与 NPC 跟价共用
+        AuctionEngine._apply_bid(lot, buyer, amount)
 
         # 一口价落槌
         if lot.buyout_price and amount >= lot.buyout_price:
@@ -921,7 +1169,7 @@ class AuctionEngine:
 
     @staticmethod
     def buyout(buyer: Character, lot_id: str, now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        AuctionEngine.advance(now=now, react=False)
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -929,6 +1177,8 @@ class AuctionEngine:
         lot = AuctionEngine._find(lot_id)
         if not lot:
             return {"success": False, "message": "拍品编号不存在。"}
+        if lot.status == AuctionStatus.PENDING:
+            return {"success": False, "message": "此拍品尚未开场，请看 /拍卖行 的待开场预告。"}
         if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
             return {"success": False, "message": "此拍品已结束。"}
         if not lot.buyout_price:

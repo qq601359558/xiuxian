@@ -537,6 +537,16 @@ AUCTION_DURATION_MIN = 120       # 拍卖时长（现实分钟）
 AUCTION_MIN_INCREMENT = 1        # 最低加价（另有 5% 比例步长取大）
 AUCTION_SETTLE_FEE_RATE = 0.05   # 成交后向卖家抽成
 AUCTION_MAX_LOTS = 5             # 单人同时上拍上限
+# F05 拍卖专场：NPC 规则跟价 + 系统场次（详见 docs/compose/spec/auction.md）
+AUCTION_NPC_BID_CHANCE = 0.55    # 每次推进时 OPEN 拍品引来一名 NPC 跟价的概率
+AUCTION_NPC_CAP_MULT = 1.3       # NPC 估值硬顶 = 市价 × 此倍率（再乘确定性意愿系数）
+AUCTION_SYSTEM_INTERVAL_SECONDS = 7200   # 系统场次排期间隔（现实秒，2 小时一场）
+AUCTION_SYSTEM_LEAD_SECONDS = 300        # 系统拍品待开场时长（现实秒，5 分钟）
+AUCTION_SYSTEM_START_RATE = 0.8          # 系统拍品起拍价 = 市价 × 此率
+AUCTION_HOUSE_ID = "auction_house"       # 系统场次挂单伪主体（非角色，成交款全额沉淀）
+AUCTION_HOUSE_NAME = "天道宝库"
+# 系统拍品轮换表（须为 ITEM_CATALOG 真实物品；按 world_state 序号确定性轮换）
+AUCTION_SYSTEM_ITEMS = ["百年灵芝", "青锋剑", "回春露", "玄铁护腕", "筑基丹", "妖兽内丹"]
 
 # ---- 当面交易 ----
 TRADE_TIMEOUT_MIN = 10           # 会话超时（现实分钟）

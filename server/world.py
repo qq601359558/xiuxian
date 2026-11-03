@@ -119,6 +119,13 @@ class World:
                     except Exception:
                         pass
                     NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+                    # F05：拍卖状态机随世界 tick 惰性推进（系统场次排期/NPC 跟价/到期结算）
+                    try:
+                        from core.trade import AuctionEngine
+
+                        AuctionEngine.advance(react=True)
+                    except Exception:
+                        pass
             except Exception:
                 continue
 
@@ -1987,7 +1994,7 @@ class World:
                 return {"ok": res.get("success"), "text": res.get("message", "")}
 
             # ---------------- 拍卖行 ----------------
-            if action in ("/auction", "/拍卖行"):
+            if action in ("/auction", "/拍卖行", "/拍卖"):
                 from core.trade import AuctionEngine
 
                 res = AuctionEngine.board()
@@ -2012,16 +2019,33 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
-            if action in ("/bid", "/拍"):
+            if action in ("/bid", "/拍", "/出价"):
                 from core.trade import AuctionEngine
 
-                if len(parts) < 3:
-                    return {"ok": False, "error": "用法：/拍 <编号> <出价>"}
-                try:
-                    amount = int(parts[2])
-                except ValueError:
-                    return {"ok": False, "error": "出价须为整数"}
-                res = AuctionEngine.bid(char, parts[1], amount)
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/拍 <编号> <出价>，或 /出价 <金额>（单场直拍）"}
+                if len(parts) == 2:
+                    # /出价 <金额>：仅当恰有一张 OPEN 拍品时直拍该件；/拍 仍须带编号
+                    if action != "/出价":
+                        return {"ok": False, "error": "用法：/拍 <编号> <出价>"}
+                    try:
+                        amount = int(parts[1])
+                    except ValueError:
+                        return {"ok": False, "error": "出价须为整数"}
+                    open_now = AuctionEngine.open_lots()
+                    if not open_now:
+                        return {"ok": False, "error": "当前无进行中的拍品。"}
+                    if len(open_now) > 1:
+                        ids = "、".join(f"#{l.id}【{l.item_name}】" for l in open_now)
+                        return {"ok": False, "error": f"当前多件拍品在场：{ids}，请用 /拍 <编号> <出价>。"}
+                    lot_id = open_now[0].id
+                else:
+                    lot_id = parts[1]
+                    try:
+                        amount = int(parts[2])
+                    except ValueError:
+                        return {"ok": False, "error": "出价须为整数"}
+                res = AuctionEngine.bid(char, lot_id, amount)
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
@@ -2203,7 +2227,7 @@ class World:
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
             "/坊市 /行情 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
-            "/拍卖行 /上拍 /拍 /一口 /撤拍 "
+            "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
@@ -2613,7 +2637,7 @@ class World:
             "/寄售 /买寄售 /撤单 | /典当 /赎回 | "
             "/交易 <名> · /交易出 · /交易同意 · /交易拒绝 | "
             "/npc货单 /npc买 /npc卖 | "
-            "/拍卖行 · /上拍 · /拍 · /一口 · /撤拍"
+            "/拍卖行 · /拍卖 · /上拍 · /拍 · /出价 · /一口 · /撤拍"
         )
         return "\n".join(lines)
 

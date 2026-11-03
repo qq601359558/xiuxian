@@ -166,6 +166,12 @@ def print_help():
   [bold yellow]/撤单 <编号>[/bold yellow]           - 撤回自己的寄售
   [bold yellow]/典当 [物品][/bold yellow]           - 无参看当票；带物品名典当 1 件（市价五折，3 天内可赎）
   [bold yellow]/赎回 <物品>[/bold yellow]           - 按典当额+固定息赎回典当物，逾期没收
+  [bold yellow]/拍卖[/bold yellow]                 - 拍卖行看板（含待开场预告与 NPC 跟价）
+  [bold yellow]/上拍 <货物> <底价> [一口价][/bold yellow] - 上拍随身货物（120 分钟落槌，成交抽成 5%）
+  [bold yellow]/拍 <编号> <出价>[/bold yellow]       - 竞价（出价冻结，被超价自动退回）
+  [bold yellow]/出价 <金额>[/bold yellow]           - 仅一场在拍时直拍该件（多场请用 /拍）
+  [bold yellow]/一口 <编号>[/bold yellow]           - 按一口价立即落槌
+  [bold yellow]/撤拍 <编号>[/bold yellow]           - 撤回自己无出价的拍品
   [bold yellow]/服用 <丹药>[/bold yellow]           - 服用囊中丹药
   [bold yellow]/灵宠[/bold yellow]                 - 灵宠面板（遇兽在探险，属局域网游径；存档互通）
   [bold yellow]/契约 <兽名>[/bold yellow]          - 与待契约灵兽结契（耗灵石）
@@ -185,7 +191,7 @@ def print_help():
   [bold yellow]/议程[/bold yellow]                 - 查看 NPC 当前议程一览
   [bold yellow]/自创功法 <理念>[/bold yellow]       - 消耗神识让天道为你自创独门法门（如：/自创功法 噬血炼骨）
   [bold yellow]/大事记[/bold yellow]               - 翻阅天道总账，查看近期全界因果杀戮
-  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /拍卖 /除凶 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
+  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /除凶 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
   [bold yellow]/帮助[/bold yellow]                 - 查看本指令菜单
   [bold yellow]/退出[/bold yellow]                 - 暂离修仙界（若正在闭关，离线期间现实时间照常计时）
 """
@@ -943,6 +949,97 @@ def run_mud():
                     continue
                 PawnTicketRepository.save(ticket)
                 CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/拍卖行", "/拍卖", "auction"]:
+                from core.trade import AuctionEngine
+
+                res = AuctionEngine.board()
+                console.print(res["message"])
+
+            elif action in ["/上拍", "auction_list"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 3:
+                    console.print("[red]用法：/上拍 <货名> <底价> [一口价][/red]")
+                    continue
+                try:
+                    start_price = int(parts[-1])
+                    buyout = None
+                    if len(parts) >= 4:
+                        buyout = int(parts[-1])
+                        start_price = int(parts[-2])
+                        item = "".join(parts[1:-2])
+                    else:
+                        item = "".join(parts[1:-1])
+                except ValueError:
+                    console.print("[red]价格须为整数。用法：/上拍 <货名> <底价> [一口价][/red]")
+                    continue
+                res = AuctionEngine.list_item(player, item, start_price, buyout)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/拍", "/出价", "bid"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/拍 <编号> <出价>，或 /出价 <金额>（单场直拍）[/red]")
+                    continue
+                if len(parts) == 2:
+                    if action != "/出价":
+                        console.print("[red]用法：/拍 <编号> <出价>[/red]")
+                        continue
+                    try:
+                        amount = int(parts[1])
+                    except ValueError:
+                        console.print("[red]出价须为整数[/red]")
+                        continue
+                    open_now = AuctionEngine.open_lots()
+                    if not open_now:
+                        console.print("[bold red]当前无进行中的拍品。[/bold red]")
+                        continue
+                    if len(open_now) > 1:
+                        ids = "、".join(f"#{l.id}【{l.item_name}】" for l in open_now)
+                        console.print(f"[bold red]当前多件拍品在场：{ids}，请用 /拍 <编号> <出价>。[/bold red]")
+                        continue
+                    lot_id = open_now[0].id
+                else:
+                    lot_id = parts[1]
+                    try:
+                        amount = int(parts[2])
+                    except ValueError:
+                        console.print("[red]出价须为整数[/red]")
+                        continue
+                res = AuctionEngine.bid(player, lot_id, amount)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/一口", "buyout"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/一口 <编号>[/red]")
+                    continue
+                res = AuctionEngine.buyout(player, parts[1])
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/撤拍", "auction_cancel"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/撤拍 <编号>[/red]")
+                    continue
+                res = AuctionEngine.cancel(player, parts[1])
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
                 console.print(f"[bold green]{res['message']}[/bold green]")
 
             elif action in ["/服用", "use_pill", "eat"]:
