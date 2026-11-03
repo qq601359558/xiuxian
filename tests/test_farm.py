@@ -55,11 +55,6 @@ class _MaxRng:
         return b
 
 
-class _MinRng:
-    def randint(self, a, b):
-        return a
-
-
 # ---------------- 开辟 ----------------
 
 def test_open_cave_success_cost_and_plots():
@@ -142,7 +137,35 @@ def test_split_sow_args():
     assert split_sow_args(["聚灵草种子"]) == ("聚灵草种子", 1)
     assert split_sow_args(["聚灵草种子", "3"]) == ("聚灵草种子", 3)
     assert split_sow_args(["聚灵草种子", "x"]) == ("聚灵草种子 x", 1)
-    print("✓ 播种参数解析：末尾正整数才拆作数量")
+    assert split_sow_args(["聚灵草种子", "0"]) == ("聚灵草种子 0", 1)  # 0 不拆
+    # Unicode 数字：isdigit 为真但不可 int()，不得抛错（评审 M1 回归）
+    assert split_sow_args(["灵谷种子", "²"]) == ("灵谷种子 ²", 1)
+    assert split_sow_args(["灵谷种子", "①"]) == ("灵谷种子 ①", 1)
+    print("✓ 播种参数解析：末尾正整数才拆作数量，Unicode 数字不崩")
+
+
+def test_sow_ambiguous_hint_rejected():
+    c = _char()
+    _open(c)
+    c.inventory += ["聚灵草种子", "灵谷种子"]
+    res = FarmEngine.sow(c, "种子", now=T0)  # 泛词同时相合两种种子
+    assert not res["success"] and "不止一种" in res["message"]
+    assert c.inventory.count("聚灵草种子") == 1 and c.inventory.count("灵谷种子") == 1
+    assert all(not p.crop for p in c.farm_plots)  # 未误种
+    # 写全名仍可播；单一种子相合的简称可播
+    assert FarmEngine.sow(c, "灵谷种子", now=T0)["success"]
+    print("✓ 播种多义防误种：泛词拒绝并列候选，全名/唯一简称可播")
+
+
+def test_dirty_cave_level_capped():
+    c = _char()
+    c.cave_level = 5  # 脏数据（超封顶）
+    assert plots_capacity(c) == 6
+    assert abs(meditation_mult(c) - 1.05) < 1e-12
+    assert not FarmEngine.upgrade_cave(c, now=T0)["success"]
+    st = FarmEngine.cave_summary(c, now=T0)
+    assert st["plots_total"] == 6
+    print("✓ 脏数据：cave_level 超封顶时容量/加成按 3 级口径钳制")
 
 
 # ---------------- 收获 ----------------

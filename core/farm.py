@@ -55,7 +55,8 @@ def _plots(c: Character) -> List[FarmPlot]:
 def split_sow_args(tokens: List[str]) -> Tuple[str, int]:
     """/播种 参数解析（双端共用）：末 token 为正整数时拆作数量，其余整体为种子名"""
     toks = [t for t in (tokens or []) if t != ""]
-    if len(toks) >= 2 and toks[-1].isdigit() and int(toks[-1]) > 0:
+    # 须限定 ASCII 数字：'²'/'①' 等 Unicode 字符 isdigit() 为 True 但 int() 会抛错
+    if len(toks) >= 2 and toks[-1].isascii() and toks[-1].isdigit() and int(toks[-1]) > 0:
         return " ".join(toks[:-1]), int(toks[-1])
     return " ".join(toks), 1
 
@@ -160,6 +161,14 @@ class FarmEngine:
         candidates = exact or fuzzy
         if not candidates:
             return {"success": False, "message": f"行囊中并无【{hint}】。灵田种子可在 /坊市 购买（灵谷种子/聚灵草种子/灵芝种子）。"}
+        if not exact:
+            # 模糊匹配多义防误种：相合的可种种子多于一种时拒绝并列候选（评审 S1）
+            distinct_seeds = sorted({n for n in fuzzy if n in FARM_CROPS})
+            if len(distinct_seeds) > 1:
+                return {
+                    "success": False,
+                    "message": f"【{hint}】相合的种子不止一种（{'、'.join(distinct_seeds)}），请写全种子名再播。",
+                }
         seed_name = next((n for n in candidates if n in FARM_CROPS), None)
         if seed_name is None:
             return {
@@ -253,7 +262,8 @@ class FarmEngine:
         used = [p for p in plots if p.crop]
         return {
             "level": lv,
-            "plots_total": plots_capacity(c),
+            # 脏数据（地块数超容量）时与引擎实际口径一致，不报小（评审 S2）
+            "plots_total": max(plots_capacity(c), len(plots)),
             "plots_used": len(used),
             "mature": len([p for p in used if p.matures_at <= t]),
         }
@@ -288,7 +298,7 @@ class FarmEngine:
             out = cfg.get("output") or p.crop
             if p.matures_at <= t:
                 if t > p.matures_at + CAVE_WITHER_SECONDS:
-                    lines.append(f"· 田 {i}：【{out}】已成熟 · 过熟（再不收将减产，/收获）")
+                    lines.append(f"· 田 {i}：【{out}】已成熟 · 已过熟（收获减产 1，/收获）")
                 else:
                     lines.append(f"· 田 {i}：【{out}】已成熟（/收获）")
             else:
