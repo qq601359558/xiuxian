@@ -386,6 +386,14 @@ class WorldClock:
             cave_mult = farm_meditation_mult(character)
         except Exception:
             cave_mult = 1.0
+        # 纪元天象加成（F13）：连乘链末端一环；非灵气主题纪元恒为 1.0，与旧行为一致；
+        # 按结算时刻所属纪元推导（纯函数），异常回退中性不阻断结算
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            theme_mult = SeasonThemeEngine.meditation_mult(current_time)
+        except Exception:
+            theme_mult = 1.0
         base_exp_per_hour = 28.0 * (1.0 + character.realm.tier * 0.4)
         raw_gain = (
             base_exp_per_hour
@@ -398,6 +406,7 @@ class WorldClock:
             * cave_mult
             * newbie_mult
             * pill_mult
+            * theme_mult
         )
 
         # 碎石加速结算（按有效时长占比）

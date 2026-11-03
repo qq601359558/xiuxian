@@ -89,10 +89,21 @@ class MarketEngine:
 
     @staticmethod
     def _price_for_region(item_name: str, region: str, day: Optional[str] = None) -> int:
-        """区域市价（价格公式唯一实现点）：标价 × 区域系数，四舍五入，下限 1"""
+        """区域市价（价格公式唯一实现点）：标价 × 区域系数 × 天象价系数，四舍五入，下限 1
+        位序（F03→F13→F09）：区域价在此收敛；纪元天象（F13）按 day 所属纪元推导，
+        非金风纪元恒 ×1.0；F09 主导折扣在成交点对本市价再乘，不进本函数。"""
         cfg = ITEM_CATALOG.get(item_name)
         base = cfg["price"] if cfg else 20
-        return max(1, int(round(base * MarketEngine.regional_factor(item_name, region, day))))
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            theme_mult = SeasonThemeEngine.price_mult_for_day(day)
+        except Exception:
+            theme_mult = 1.0
+        return max(
+            1,
+            int(round(base * MarketEngine.regional_factor(item_name, region, day) * theme_mult)),
+        )
 
     @staticmethod
     def _sell_unit_for_region(item_name: str, region: str, day: Optional[str] = None) -> int:

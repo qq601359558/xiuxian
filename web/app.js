@@ -224,6 +224,10 @@
       setText("stQi", t);
       setText("hudQi", t);
     }
+    // 纪元天象（F13）：命盘一行显示当前纪元主题名
+    if (st.season_theme && st.season_theme.name) {
+      setText("stTheme", st.season_theme.name);
+    }
     if (st.inventory || st.equipped || st.arrays) renderBag(st);
     // 灵宠（F01）：命盘一行显示出战灵宠
     if ("pet" in st || "pets_count" in st) {

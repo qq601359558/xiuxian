@@ -452,6 +452,8 @@ class World:
                     "/goals", "/目标",
                     "/qi", "/灵气",
                     "/season", "/纪元",
+                    # 天象查看（F13：纯只读观照，主题为纪元编号纯函数推导）
+                    "/天象", "/omen",
                     "/agenda", "/议程",
                     "/roster", "/名录",
                     "/bounty", "/告示",
@@ -677,7 +679,33 @@ class World:
             if action in ("/qi", "/灵气"):
                 return {"ok": True, "text": qi_mod.qi_status_text(), "qi": qi_mod.effective_density(1.0)}
             if action in ("/season", "/纪元"):
+                # 纪元查询顺带惰性触发本纪元天象播报（幂等，F13）
+                try:
+                    from core.season_theme import SeasonThemeEngine
+
+                    SeasonThemeEngine.ensure_announced()
+                except Exception:
+                    pass
                 return {"ok": True, "text": season_status_text(), "season": season_info()}
+            if action in ("/omen", "/天象"):
+                # 纪元天象（F13）：当前纪元主题/修正/余天，纯规则推导；
+                # 首次查询惰性播报本纪元天象（world_state 标记防重播）；
+                # 推导异常时降级为静默口径文案，不阻断查询（与 _season_theme_summary 同口径）
+                try:
+                    from core.season_theme import SeasonThemeEngine
+
+                    SeasonThemeEngine.ensure_announced()
+                    return {
+                        "ok": True,
+                        "text": SeasonThemeEngine.panel_text(),
+                        "season_theme": SeasonThemeEngine.summary(),
+                    }
+                except Exception:
+                    return {
+                        "ok": True,
+                        "text": "【天象】天象沉静，天地无言，本纪元无天象加身。",
+                        "season_theme": self._season_theme_summary(),
+                    }
             if action in ("/rumors", "/传闻"):
                 from core.rumors import format_rumor_board
 
@@ -2385,7 +2413,7 @@ class World:
             "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
-            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
+            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /天象 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
@@ -2399,6 +2427,16 @@ class World:
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/ailog(=AI日志) /ai(=AI自检)"
         )
+
+    @staticmethod
+    def _season_theme_summary() -> Dict[str, Any]:
+        """当前纪元天象摘要（F13）；推导异常时回退静默纪元口径，不阻断状态下发"""
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            return SeasonThemeEngine.summary()
+        except Exception:
+            return {"name": "静默纪元", "key": "silence", "effect": "无天象修正", "season_number": 0}
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:
         import time as _t
@@ -2456,6 +2494,8 @@ class World:
                 "inspiration": int(getattr(c, "inspiration", 0) or 0),
                 "prestige": int(getattr(c, "prestige", 0) or 0),
             },
+            # 纪元天象（F13）：当前纪元主题摘要（纯新增；纯函数推导，异常回退静默纪元口径）
+            "season_theme": self._season_theme_summary(),
             # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
             "blood_marked": c.karma.is_blood_marked(),
             "lifespan_warning": c.lifespan.get_remaining_years()

@@ -28,8 +28,16 @@ class EventEngine:
     @staticmethod
     def pick_type(rng: Optional[random.Random] = None) -> str:
         r = rng or random
+        # 纪元天象（F13）：权重经主题修正（副本，不改 config 原表）；
+        # 非事件主题纪元与原表逐值一致，异常回退原表
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            weight_table = SeasonThemeEngine.event_weights()
+        except Exception:
+            weight_table = EVENT_WEIGHTS
         types = list(EVENT_WEIGHTS.keys())
-        weights = [EVENT_WEIGHTS[t] for t in types]
+        weights = [weight_table[t] for t in types]
         return r.choices(types, weights=weights, k=1)[0]
 
     @staticmethod
