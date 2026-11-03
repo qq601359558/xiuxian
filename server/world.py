@@ -54,6 +54,7 @@ from core.combat import CombatEngine
 from core.adventure import AdventureEngine
 from core.loot_equip import DigEngine, EquipEngine
 from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
+from core.farm import FarmEngine, split_sow_args
 from core.art_slots import ArtSlotEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
@@ -232,6 +233,8 @@ class World:
         char.status = CharacterStatus.DEAD
         # 灵宠随主而殁（F01，一世循环）
         PetEngine.on_owner_death(char)
+        # 洞府灵田随旧世荒废（F06，一世循环）
+        FarmEngine.on_owner_death(char)
         if not char.death_cause:
             char.death_cause = cause
         settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
@@ -456,6 +459,8 @@ class World:
                     "/心法", "/xinfa",
                     # 行情查看（F03：只读观照；购买/出售闭关中仍锁门）
                     "/行情",
+                    # 洞府查看（F06：纯只读观照；开辟/播种/收获/升级闭关中仍锁门）
+                    "/洞府", "/cave",
                 )
                 if action not in med_ok:
                     prog = WorldClock.get_meditation_progress(char)
@@ -951,6 +956,35 @@ class World:
                     return {"ok": False, "error": "用法：/放生 <宠名>"}
                 item = command.strip().split(None, 1)[1]
                 res = PetEngine.release(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/cave", "/洞府"):
+                return {
+                    "ok": True,
+                    "text": FarmEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/opencave", "/开辟"):
+                res = FarmEngine.open_cave(char)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/sow", "/播种"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/播种 <种子名> [数量]"}
+                seed_hint, sow_count = split_sow_args(parts[1:])
+                res = FarmEngine.sow(char, seed_hint, sow_count)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/harvest", "/收获"):
+                res = FarmEngine.harvest(char)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/upgradecave", "/升级洞府"):
+                res = FarmEngine.upgrade_cave(char)
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
@@ -2233,6 +2267,7 @@ class World:
             "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
+            "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
@@ -2281,6 +2316,8 @@ class World:
                 else None
             ),
             "pets_count": len([p for p in (c.pets or []) if p.state != "dead"]),
+            # 洞府灵田（F06）：洞府摘要（纯新增，无洞府为 None）
+            "cave": FarmEngine.cave_summary(c),
             # 心法槽位（F02）：当前主修/辅修（纯新增）
             "arts": {
                 "main": getattr(c, "main_art", "") or "",

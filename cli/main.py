@@ -26,6 +26,7 @@ from core.legacy import LegacyEngine, LegacyAccount
 from core.bounty import BountyEngine, BountyStatus, BOUNTY_MIN_REWARD
 from core.market import MarketEngine
 from core.pets import PetEngine
+from core.farm import FarmEngine, split_sow_args
 from core.art_slots import ArtSlotEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
@@ -179,6 +180,11 @@ def print_help():
   [bold yellow]/出战 <宠名>[/bold yellow]          - 令灵宠随行出战（唯一）
   [bold yellow]/休息 <宠名>[/bold yellow]          - 令灵宠退下休息
   [bold yellow]/放生 <宠名>[/bold yellow]          - 放归灵宠于山林
+  [bold yellow]/洞府[/bold yellow]                 - 洞府灵田面板（等级/地块/长势）
+  [bold yellow]/开辟[/bold yellow]                 - 安全区开辟洞府（300 灵石，灵田 2 块）
+  [bold yellow]/播种 <种子名> [数量][/bold yellow] - 灵田播种（种子先在坊市购买）
+  [bold yellow]/收获[/bold yellow]                 - 收获全部成熟作物入行囊
+  [bold yellow]/升级洞府[/bold yellow]             - 升级洞府（扩田 + 闭关加成，最高 3 级）
   [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
   [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
   [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
@@ -269,6 +275,8 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
         player.status = CharacterStatus.DEAD
         # 灵宠随主而殁（F01，一世循环）
         PetEngine.on_owner_death(player)
+        # 洞府灵田随旧世荒废（F06，一世循环）
+        FarmEngine.on_owner_death(player)
         settle = LegacyEngine.settle_death(account, player, death_cause=cause)
         LegacyRepository.save(account)
         CharacterRepository.save(player)
@@ -400,7 +408,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情", "/洞府", "cave"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -1130,6 +1138,45 @@ def run_mud():
                     console.print("[red]用法：/放生 <宠名>[/red]")
                     continue
                 res = PetEngine.release(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/洞府", "cave"]:
+                console.print(FarmEngine.panel_text(player))
+
+            elif action in ["/开辟", "opencave"]:
+                res = FarmEngine.open_cave(player)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/播种", "sow"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/播种 <种子名> [数量][/red]")
+                    continue
+                seed_hint, sow_count = split_sow_args(parts[1:])
+                res = FarmEngine.sow(player, seed_hint, sow_count)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/收获", "harvest"]:
+                res = FarmEngine.harvest(player)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/升级洞府", "upgradecave"]:
+                res = FarmEngine.upgrade_cave(player)
                 if res["success"]:
                     CharacterRepository.save(player)
                     console.print(f"[bold green]{res['message']}[/bold green]")

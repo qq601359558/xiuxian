@@ -378,6 +378,14 @@ class WorldClock:
             slot_mult = ArtSlotEngine.meditation_mult(character)
         except Exception:
             slot_mult = 1.0
+        # 洞府清气加成（F06）：无洞府时恒为 1.0，与旧行为一致；独立封顶 +5%，
+        # 在连乘链中只贡献一个有界因子（位序在心法之后，同属修行环境/法门段）
+        try:
+            from core.farm import meditation_mult as farm_meditation_mult
+
+            cave_mult = farm_meditation_mult(character)
+        except Exception:
+            cave_mult = 1.0
         base_exp_per_hour = 28.0 * (1.0 + character.realm.tier * 0.4)
         raw_gain = (
             base_exp_per_hour
@@ -387,6 +395,7 @@ class WorldClock:
             * qi_mult
             * art_mult
             * slot_mult
+            * cave_mult
             * newbie_mult
             * pill_mult
         )

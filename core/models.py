@@ -168,6 +168,13 @@ class SpiritPet(BaseModel):
     met_at: float = 0.0               # 结契时间戳
 
 
+class FarmPlot(BaseModel):
+    """灵田地块（F06）：一块地一茬作物；成熟只看墙钟时间戳，惰性结算"""
+    crop: str = ""                    # 所种种子名（见 core/farm.py FARM_CROPS），空 = 空地
+    planted_at: float = 0.0           # 播种现实 Unix 时间戳
+    matures_at: float = 0.0           # 成熟现实 Unix 时间戳
+
+
 class MeditationSession(BaseModel):
     """现实闭关会话（现实时间与游戏世界时间严格并行）"""
     is_active: bool = False
@@ -226,6 +233,9 @@ class Character(BaseModel):
     # 灵宠（F01）：本世所养灵宠；待契约灵兽物种名（探险遇兽后写入，空=无）
     pets: List[SpiritPet] = Field(default_factory=list)
     pending_pet_species: str = ""
+    # 洞府灵田（F06）：0 = 无洞府；地块数由等级推导（见 core/farm.py），旧档自动补默认
+    cave_level: int = 0
+    farm_plots: List[FarmPlot] = Field(default_factory=list)
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""
