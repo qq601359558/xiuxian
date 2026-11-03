@@ -155,7 +155,8 @@ def print_help():
   [bold yellow]/接令 <编号>[/bold yellow]           - 揭下告示，接令猎凶（击杀后自动领赏）
   [bold yellow]/因果[/bold yellow]                 - 查看个人仇怨恩义因果链（回访请用 /回访）
   [bold yellow]/回访[/bold yellow]                 - 依事件账触发因果回访（寻仇/旧怨）
-  [bold yellow]/坊市[/bold yellow]                 - 商会货单、金库寄存、玩家寄售
+  [bold yellow]/坊市[/bold yellow]                 - 商会货单（当地市价）、金库寄存、玩家寄售
+  [bold yellow]/行情[/bold yellow]                 - 天下行情：各区域产地价与价差、跑商路线
   [bold yellow]/购买 <名目> [数量][/bold yellow]     - 向商会购货（如：/购买 一阶青木迷踪阵）
   [bold yellow]/出售 <名目> [数量][/bold yellow]     - 回售给商会（约五折）
   [bold yellow]/寄存 <数量>[/bold yellow]           - 灵石存入坊市金库（不可被夺）
@@ -391,7 +392,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -763,6 +764,9 @@ def run_mud():
             elif action in ["/坊市", "market", "/商会"]:
                 open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
                 render_market_panel(player, open_l)
+
+            elif action in ["/行情"]:
+                console.print(MarketEngine.trade_board(player.location))
 
             elif action in ["/购买", "buy"]:
                 if len(parts) < 2:

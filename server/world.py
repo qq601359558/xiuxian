@@ -444,6 +444,8 @@ class World:
                     "/休息", "/petrest",
                     # 心法查看（F02：只读观照；主修/辅修/卸功闭关中仍锁门，防结算前换功）
                     "/心法", "/xinfa",
+                    # 行情查看（F03：只读观照；购买/出售闭关中仍锁门）
+                    "/行情",
                 )
                 if action not in med_ok:
                     prog = WorldClock.get_meditation_progress(char)
@@ -1658,6 +1660,8 @@ class World:
                 return {"ok": True, "text": self._bounty_board()}
             if action in ("/market", "/坊市"):
                 return {"ok": True, "text": self._market(char)}
+            if action in ("/行情",):
+                return {"ok": True, "text": MarketEngine.trade_board(char.location)}
             if action in ("/buy", "/购买"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/购买 <货名> [数量]，先 /坊市 看货单"}
@@ -2166,7 +2170,7 @@ class World:
             "局域网指令：/look /here /who /go <地> /闭关 [h] /出关 /突破 /探查 "
             "/斗法 <名> /交谈 <名> [话] /做 <言行> /自创功法 <理念> /回访 /legacy /转世 [名] [加成] "
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
-            "/坊市 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 "
+            "/坊市 /行情 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
@@ -2532,15 +2536,24 @@ class World:
         return "\n".join(lines)
 
     def _market(self, c: Character) -> str:
-        goods = MarketEngine.catalog()
+        goods = MarketEngine.catalog(c.location)
+        region = MarketEngine.region_of(c.location)
         lines = [
-            f"【坊市】金库 {c.vault_stones} | 随身 {c.spirit_stones}",
-            "商会货单：",
+            f"【坊市 · {region}】金库 {c.vault_stones} | 随身 {c.spirit_stones}",
+            "商会货单（当地市价，回收为市价五折）：",
         ]
         for g in goods:
             grade = f"·{g['grade']}" if g.get("grade") else ""
             slot = f"·{g['slot']}" if g.get("slot") else ""
-            lines.append(f"  · {g['name']}{grade}{slot}  {g['price']} 灵石  {g.get('desc','')}")
+            tag = ""
+            if g.get("origin") == region:
+                tag = " 【产地价】"
+            elif g.get("origin") and (g.get("factor") or 1.0) > 1.001:
+                tag = f"（产{g['origin']}，涨{(g['factor'] - 1.0) * 100:.0f}%）"
+            elif g.get("origin"):
+                tag = f"（产{g['origin']}）"
+            lines.append(f"  · {g['name']}{grade}{slot}  {g['price']} 灵石{tag}  {g.get('desc','')}")
+        lines.append("各地价差见 /行情：产地贱买、远方高价回收，即是跑商。")
         try:
             open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
             if open_l:

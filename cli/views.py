@@ -504,22 +504,24 @@ def render_market_panel(char: Character, listings=None):
         f"[bold]随身阵盘[/bold]：{arr}\n"
         f"[bold]随身杂物[/bold]：{inv}"
     )
+    region = MarketEngine.region_of(char.location)
     console.print(Panel(
         f"{vault_line}\n{bag}",
-        title=f"[bold cyan]◆ 青云坊市 · {char.name} 行囊 ◆[/bold cyan]",
+        title=f"[bold cyan]◆ 坊市 · {region} · {char.name} 行囊 ◆[/bold cyan]",
         border_style="cyan",
     ))
 
-    goods = MarketEngine.catalog()
-    gtable = Table(title="[bold gold1]商会货单（可 /购买 /出售）[/bold gold1]", border_style="gold1")
+    goods = MarketEngine.catalog(char.location)
+    gtable = Table(title="[bold gold1]商会货单（当地市价，可 /购买 /出售；全域价差见 /行情）[/bold gold1]", border_style="gold1")
     gtable.add_column("编号", style="bold")
     gtable.add_column("名目", style="yellow")
     gtable.add_column("类别", style="magenta")
-    gtable.add_column("标价", style="cyan")
+    gtable.add_column("市价", style="cyan")
     gtable.add_column("说明", style="white")
     kind_cn = {"array": "阵盘", "pill": "丹药", "material": "材料"}
     for i, g in enumerate(goods, 1):
-        gtable.add_row(str(i), g["name"], kind_cn.get(g["kind"], g["kind"]), f"{g['price']}", g["desc"])
+        tag = " 【产地价】" if g.get("origin") == region else ""
+        gtable.add_row(str(i), g["name"] + tag, kind_cn.get(g["kind"], g["kind"]), f"{g['price']}", g["desc"])
     console.print(gtable)
 
     if listings:

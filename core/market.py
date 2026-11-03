@@ -1,8 +1,11 @@
 """
 坊市：商会货单、寄存金库、玩家挂单撮合
+F03：商会官价按区域浮动（产地/距离系数 + 每日波动），价格计算单点收敛于本引擎。
 """
+import hashlib
 import time
 import uuid
+from datetime import date as _date
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,6 +18,15 @@ from config import (
     MARKET_SELL_BACK_RATE,
     MARKET_LISTING_FEE_RATE,
     MARKET_MAX_LISTINGS,
+    WORLD_LOCATIONS,
+    TRADE_HUB_REGION,
+    TRADE_ORIGIN_FACTOR,
+    TRADE_DISTANCE_FACTORS,
+    TRADE_DAILY_FLUCTUATION,
+    TRADE_ITEM_ORIGIN,
+    TRADE_REGION_DISTANCE,
+    TRADE_REG_TIERS,
+    TRADE_REG_STATE_PREFIX,
 )
 from core.models import Character, CharacterStatus
 
@@ -43,20 +55,196 @@ class MarketListing(BaseModel):
 class MarketEngine:
     """坊市裁决引擎"""
 
+    # ---------------- 区域价格（F03 跑商，单点收敛） ----------------
+    @staticmethod
+    def region_of(location: Optional[str]) -> str:
+        """地点 → 区域；未知地点回退基准区（系数 1.00，不炸）"""
+        cfg = WORLD_LOCATIONS.get(location or "") or {}
+        return cfg.get("region") or TRADE_HUB_REGION
+
+    @staticmethod
+    def _day_str(day: Optional[str] = None) -> str:
+        return day or _date.today().isoformat()
+
+    @staticmethod
+    def regional_factor(item_name: str, region: str, day: Optional[str] = None) -> float:
+        """区域系数（纯函数，同日同货同区必一致）：
+        基准区恒 1.00；产地 TRADE_ORIGIN_FACTOR；其余按距产地距离查表；
+        非基准区再乘 (日期,区域,货物) 种子决定的每日小幅波动。"""
+        if region == TRADE_HUB_REGION:
+            return 1.0
+        origin = TRADE_ITEM_ORIGIN.get(item_name)
+        if not origin:
+            return 1.0
+        if region == origin:
+            factor = TRADE_ORIGIN_FACTOR
+        else:
+            dist = TRADE_REGION_DISTANCE.get(frozenset((origin, region)))
+            factor = TRADE_DISTANCE_FACTORS.get(dist, 1.0) if dist is not None else 1.0
+        # 每日波动：md5 种子 → [-1, 1]，全服一致可复现，零存储
+        day = MarketEngine._day_str(day)
+        seed = hashlib.md5(f"{day}|{region}|{item_name}".encode("utf-8")).hexdigest()
+        ratio = (int(seed[:8], 16) % 2001) / 1000.0 - 1.0
+        return factor * (1.0 + ratio * TRADE_DAILY_FLUCTUATION)
+
+    @staticmethod
+    def _price_for_region(item_name: str, region: str, day: Optional[str] = None) -> int:
+        """区域市价（价格公式唯一实现点）：标价 × 区域系数，四舍五入，下限 1"""
+        cfg = ITEM_CATALOG.get(item_name)
+        base = cfg["price"] if cfg else 20
+        return max(1, int(round(base * MarketEngine.regional_factor(item_name, region, day))))
+
+    @staticmethod
+    def _sell_unit_for_region(item_name: str, region: str, day: Optional[str] = None) -> int:
+        return max(1, int(MarketEngine._price_for_region(item_name, region, day) * MARKET_SELL_BACK_RATE))
+
+    @staticmethod
+    def market_price(item_name: str, location: Optional[str] = None, day: Optional[str] = None) -> int:
+        """当地市价（商会卖出价）"""
+        return MarketEngine._price_for_region(item_name, MarketEngine.region_of(location), day)
+
+    @staticmethod
+    def sell_unit_base(item_name: str, location: Optional[str] = None, day: Optional[str] = None) -> int:
+        """当地回收单价基准：市价 × 回收率（未含防刷分档压价）"""
+        return MarketEngine._sell_unit_for_region(item_name, MarketEngine.region_of(location), day)
+
+    # ---------------- 防刷：同货同日收购量回归 ----------------
+    @staticmethod
+    def _reg_mult(cum_qty: int) -> float:
+        """第 cum_qty 件（1 起）适用的回收价系数，按 TRADE_REG_TIERS 分档"""
+        for cap, mult in TRADE_REG_TIERS:
+            if cum_qty <= cap:
+                return mult
+        return TRADE_REG_TIERS[-1][1]
+
+    @staticmethod
+    def _reg_state(char_id: str) -> Dict[str, Any]:
+        """读当日收购量状态；读失败/形状损坏/跨日一律降级为空（不阻断交易）"""
+        try:
+            from storage.db import WorldStateRepository
+
+            st = WorldStateRepository.get(TRADE_REG_STATE_PREFIX + str(char_id))
+            if not isinstance(st, dict) or st.get("date") != MarketEngine._day_str():
+                return {}
+            if not isinstance(st.get("vol"), dict):
+                return {}
+            return st
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _reg_volume(char_id: str, item_name: str) -> int:
+        try:
+            return int((MarketEngine._reg_state(char_id).get("vol") or {}).get(item_name) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _reg_record(char_id: str, item_name: str, qty: int) -> None:
+        if qty <= 0:
+            return
+        try:
+            from storage.db import WorldStateRepository
+
+            key = TRADE_REG_STATE_PREFIX + str(char_id)
+            st = MarketEngine._reg_state(char_id)
+            vol = dict(st.get("vol") or {})
+            vol[item_name] = int(vol.get(item_name) or 0) + qty
+            WorldStateRepository.set(key, {"date": MarketEngine._day_str(), "vol": vol})
+        except Exception:
+            pass  # 状态写失败降级为无回归，不阻断交易
+
     # ---------------- 商会货单 ----------------
     @staticmethod
-    def catalog() -> List[Dict[str, Any]]:
+    def _rows_for_region(region: Optional[str], day: Optional[str] = None) -> List[Dict[str, Any]]:
+        """货单行；region 为 None 时是标价原样，否则附区域市价字段"""
         out = []
         for name, cfg in ITEM_CATALOG.items():
-            out.append({
+            row = {
                 "name": name,
                 "kind": cfg["kind"],
                 "price": cfg["price"],
                 "desc": cfg["desc"],
-            })
-        # 高价在后
+            }
+            if region is not None:
+                factor = MarketEngine.regional_factor(name, region, day)
+                row.update({
+                    "price": MarketEngine._price_for_region(name, region, day),
+                    "base_price": cfg["price"],
+                    "origin": TRADE_ITEM_ORIGIN.get(name, ""),
+                    "factor": round(factor, 3),
+                    "sell_price": MarketEngine._sell_unit_for_region(name, region, day),
+                })
+            out.append(row)
         out.sort(key=lambda x: x["price"])
         return out
+
+    @staticmethod
+    def catalog(location: Optional[str] = None) -> List[Dict[str, Any]]:
+        """货单；不传地点与旧行为一致（标价），传地点时 price 为当地市价"""
+        if location is None:
+            return MarketEngine._rows_for_region(None)
+        return MarketEngine._rows_for_region(MarketEngine.region_of(location))
+
+    @staticmethod
+    def all_regions() -> List[str]:
+        """全部区域（基准区在首），按 WORLD_LOCATIONS 出现顺序"""
+        regions: List[str] = []
+        for cfg in WORLD_LOCATIONS.values():
+            r = cfg.get("region")
+            if r and r not in regions:
+                regions.append(r)
+        if TRADE_HUB_REGION in regions:
+            regions.remove(TRADE_HUB_REGION)
+            regions.insert(0, TRADE_HUB_REGION)
+        return regions
+
+    @staticmethod
+    def trade_board(location: Optional[str] = None, day: Optional[str] = None) -> str:
+        """【天下行情】文本：逐区域产地货与贵货官价 + 跑商路线提示（本地模板，零 AI）"""
+        day = MarketEngine._day_str(day)
+        cur_region = MarketEngine.region_of(location) if location else None
+        lines = [
+            f"【天下行情】{day} · 商会官价（买入 / 回收，回收为市价五折）",
+            f"基准区【{TRADE_HUB_REGION}】标价为纲：产地贱、远方贵，每日微澜。",
+        ]
+        for region in MarketEngine.all_regions():
+            mark = "（你在此）" if region == cur_region else ""
+            lines.append(f"◆ {region}{mark}")
+            rows = MarketEngine._rows_for_region(region, day)
+            origin_rows = [g for g in rows if g.get("origin") == region]
+            shown = {g["name"] for g in origin_rows}
+            for g in origin_rows:
+                pct = (g["factor"] - 1.0) * 100
+                lines.append(f"  · {g['name']} 买{g['price']} / 回收{g['sell_price']} 【产地 {pct:+.0f}%】")
+            imports = [g for g in rows if g["name"] not in shown]
+            imports.sort(key=lambda x: -x["factor"])
+            for g in imports[:2]:
+                pct = (g["factor"] - 1.0) * 100
+                lines.append(
+                    f"  · {g['name']} 买{g['price']} / 回收{g['sell_price']}"
+                    f"（产{g['origin']}，价系数 {g['factor']:.2f}，{pct:+.0f}%）"
+                )
+        lines.append("跑商路线（产地贱买 → 远方高价回收，单程毛利已被商会五折与收购配额封顶）：")
+        samples: Dict[str, str] = {}
+        for name, origin in TRADE_ITEM_ORIGIN.items():
+            samples.setdefault(origin, name)
+        for origin, sample in samples.items():
+            if origin == TRADE_HUB_REGION:
+                continue
+            dests = [
+                r for r in MarketEngine.all_regions()
+                if r != origin and frozenset((origin, r)) in TRADE_REGION_DISTANCE
+            ]
+            if not dests:
+                continue
+            dest = max(dests, key=lambda r: TRADE_REGION_DISTANCE[frozenset((origin, r))])
+            sell = TRADE_DISTANCE_FACTORS[TRADE_REGION_DISTANCE[frozenset((origin, dest))]] * MARKET_SELL_BACK_RATE
+            margin = sell / TRADE_ORIGIN_FACTOR - 1.0
+            if margin > 0:
+                lines.append(f"  · {origin} 产【{sample}】→ 运往【{dest}】回收，毛利约 {int(margin * 100)}%")
+        lines.append("注：同一修士同货同日收购逾额，商会将分档压价（行情回归），莫想一日刷空商会。")
+        return "\n".join(lines)
 
     @staticmethod
     def buy_from_guild(buyer: Character, item_name: str, qty: int = 1) -> Dict[str, Any]:
@@ -66,7 +254,8 @@ class MarketEngine:
         if qty < 1:
             return {"success": False, "message": "购买数量至少为 1。"}
 
-        unit = cfg["price"]
+        # F03：按买家所在地市价计价（基准区即标价）
+        unit = MarketEngine.market_price(item_name, buyer.location)
         total = unit * qty
         if buyer.spirit_stones < total:
             return {
@@ -103,6 +292,13 @@ class MarketEngine:
         except Exception:
             shout = ""
         msg = f"【商会成交】购入【{item_name}】×{qty}，付灵石 {total}。\n{applied_msg}"
+        # F03：非基准价时注明当地行情（基准区消息与旧版逐字一致）
+        region = MarketEngine.region_of(buyer.location)
+        factor = MarketEngine.regional_factor(item_name, region)
+        if abs(factor - 1.0) > 1e-9:
+            origin = TRADE_ITEM_ORIGIN.get(item_name, "")
+            tag = "产地直供价" if origin == region else f"产地 {origin}"
+            msg += f"\n（{region}市价 {unit} 灵石/件，{tag}；基准区标价 {cfg['price']}。）"
         if shout:
             msg += f"\n伙计：「{shout}」"
         return {
@@ -115,8 +311,12 @@ class MarketEngine:
 
     @staticmethod
     def sell_to_guild(seller: Character, item_name: str, qty: int = 1) -> Dict[str, Any]:
+        if qty < 1:
+            return {"success": False, "message": "出售数量至少为 1。"}
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
-        unit_back = max(1, int(cfg["price"] * MARKET_SELL_BACK_RATE))
+        # F03：回收基准价 = 当地市价 × 回收率（基准区即旧口径 标价×50%）
+        region = MarketEngine.region_of(seller.location)
+        unit_back = MarketEngine.sell_unit_base(item_name, seller.location)
 
         # 优先卖随身杂物，其次阵盘
         have_inv = seller.inventory.count(item_name)
@@ -128,6 +328,16 @@ class MarketEngine:
                 "message": f"随身并无足够的【{item_name}】（有 {have_inv + have_arr} 件）。",
             }
 
+        # F03 防刷：先计价（读当日已收购量、分档逐件），后扣货记量——计价异常不伤库存
+        vol0 = MarketEngine._reg_volume(seller.id, item_name)
+        gain = 0
+        decayed = False
+        for i in range(qty):
+            mult = MarketEngine._reg_mult(vol0 + i + 1)
+            if mult < 1.0:
+                decayed = True
+            gain += max(1, int(unit_back * mult))
+
         left = qty
         # 先扣 inventory
         while left > 0 and item_name in seller.inventory:
@@ -138,15 +348,26 @@ class MarketEngine:
             seller.arrays.remove(item_name)
             left -= 1
 
-        gain = unit_back * qty
+        MarketEngine._reg_record(seller.id, item_name, qty)
         seller.spirit_stones += gain
+        msg = (
+            f"【商会回收】售出【{item_name}】×{qty}，得灵石 {gain}"
+            f"（回收价约为标价 {int(MARKET_SELL_BACK_RATE * 100)}%）。"
+        )
+        if region != TRADE_HUB_REGION:
+            msg = (
+                f"【商会回收】售出【{item_name}】×{qty}，得灵石 {gain}"
+                f"（{region}市价 {MarketEngine.market_price(item_name, seller.location)} 灵石，回收五折）。"
+            )
+        if decayed:
+            msg += "\n（商会今日收购此货渐饱，回收价已分档下浮——行情回归。）"
         return {
             "success": True,
             "gain": gain,
-            "message": (
-                f"【商会回收】售出【{item_name}】×{qty}，得灵石 {gain}"
-                f"（回收价约为标价 {int(MARKET_SELL_BACK_RATE * 100)}%）。"
-            ),
+            "unit_back": unit_back,
+            "avg_unit": gain // qty,
+            "decayed": decayed,
+            "message": msg,
         }
 
     @staticmethod
