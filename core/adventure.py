@@ -393,6 +393,13 @@ class AdventureEngine:
                 sync_ring(c, "explore", now=t)
             except Exception:
                 pass
+            # 委托链（F07）：除妖环计数——只认探险规则成功，与宗门环同落账段、同一对象
+            try:
+                from core.quests import QuestEngine
+
+                QuestEngine.note_adventure_win(c)
+            except Exception:
+                pass
 
         lines = [
             travel_note + narrative if travel_note else narrative,

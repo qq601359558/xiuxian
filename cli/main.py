@@ -27,6 +27,7 @@ from core.bounty import BountyEngine, BountyStatus, BOUNTY_MIN_REWARD
 from core.market import MarketEngine
 from core.pets import PetEngine
 from core.farm import FarmEngine, split_sow_args
+from core.quests import QuestEngine
 from core.art_slots import ArtSlotEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
@@ -185,6 +186,10 @@ def print_help():
   [bold yellow]/播种 <种子名> [数量][/bold yellow] - 灵田播种（种子先在坊市购买）
   [bold yellow]/收获[/bold yellow]                 - 收获全部成熟作物入行囊
   [bold yellow]/升级洞府[/bold yellow]             - 升级洞府（扩田 + 闭关加成，最高 3 级）
+  [bold yellow]/委托[/bold yellow]                 - NPC 委托面板（可接/进行中）
+  [bold yellow]/接委托 <NPC名|编号>[/bold yellow] - 接取一条委托链（2–4 环，同时限 1 条）
+  [bold yellow]/交付[/bold yellow]                 - 向交付对象当面交付当前环
+  [bold yellow]/弃委托[/bold yellow]               - 放弃进行中委托（无惩罚）
   [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
   [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
   [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
@@ -277,6 +282,8 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
         PetEngine.on_owner_death(player)
         # 洞府灵田随旧世荒废（F06，一世循环）
         FarmEngine.on_owner_death(player)
+        # 委托链随旧世而散（F07，一世循环）
+        QuestEngine.on_owner_death(player)
         settle = LegacyEngine.settle_death(account, player, death_cause=cause)
         LegacyRepository.save(account)
         CharacterRepository.save(player)
@@ -1179,6 +1186,41 @@ def run_mud():
                 res = FarmEngine.upgrade_cave(player)
                 if res["success"]:
                     CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/委托", "quests"]:
+                if QuestEngine.settle_expired(player):
+                    CharacterRepository.save(player)
+                console.print(QuestEngine.panel_text(player))
+
+            elif action in ["/接委托", "acceptquest"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/接委托 <NPC名或编号>（先 /委托 查看）[/red]")
+                    continue
+                res = QuestEngine.accept(player, " ".join(parts[1:]))
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/交付", "deliver"]:
+                res = QuestEngine.deliver(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/弃委托", "abandonquest"]:
+                res = QuestEngine.abandon(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
                     console.print(f"[bold green]{res['message']}[/bold green]")
                 else:
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")

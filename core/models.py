@@ -175,6 +175,30 @@ class FarmPlot(BaseModel):
     matures_at: float = 0.0           # 成熟现实 Unix 时间戳
 
 
+class QuestRing(BaseModel):
+    """委托链一环（F07）：核验只认既有事实（当面交付/行囊物品/探险计数）"""
+    kind: str                         # deliver 送信 / fetch 寻物 / slay 除妖
+    desc: str = ""                    # 规则模板文案（发布时写死）
+    deliver_npc_id: str = ""          # 交付对象：送信=收信人，寻物/除妖=发布者本人
+    deliver_npc_name: str = ""
+    item_name: str = ""               # fetch 目标物品名
+    need: int = 1                     # slay 需成功探险次数；fetch 恒 1
+    progress: int = 0                 # slay 已计数（探险落账钩子写入）
+
+
+class QuestChain(BaseModel):
+    """NPC 委托链（F07）：奖励在成链时定价写死，完成时一次发放"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    publisher_id: str
+    publisher_name: str
+    rings: List[QuestRing] = Field(default_factory=list)
+    ring_index: int = 0               # 当前环下标（0 起）
+    accepted_at: float = 0.0          # 接取前为 0（offers 预览态）
+    expires_at: float = 0.0
+    reward_stones: int = 0
+    reward_merit: int = 0
+
+
 class MeditationSession(BaseModel):
     """现实闭关会话（现实时间与游戏世界时间严格并行）"""
     is_active: bool = False
@@ -236,6 +260,9 @@ class Character(BaseModel):
     # 洞府灵田（F06）：0 = 无洞府；地块数由等级推导（见 core/farm.py），旧档自动补默认
     cave_level: int = 0
     farm_plots: List[FarmPlot] = Field(default_factory=list)
+    # NPC 委托链（F07）：进行中至多 1 条（见 core/quests.py）；随旧世消散，旧档自动补默认
+    active_quest: Optional[QuestChain] = None
+    quest_cooldown_until: float = 0.0  # 链了结后的接取冷却截止时间戳
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

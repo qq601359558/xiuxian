@@ -55,6 +55,7 @@ from core.adventure import AdventureEngine
 from core.loot_equip import DigEngine, EquipEngine
 from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
 from core.farm import FarmEngine, split_sow_args
+from core.quests import QuestEngine
 from core.art_slots import ArtSlotEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
@@ -235,6 +236,8 @@ class World:
         PetEngine.on_owner_death(char)
         # 洞府灵田随旧世荒废（F06，一世循环）
         FarmEngine.on_owner_death(char)
+        # 委托链随旧世而散（F07，一世循环）
+        QuestEngine.on_owner_death(char)
         if not char.death_cause:
             char.death_cause = cause
         settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
@@ -986,6 +989,33 @@ class World:
             if action in ("/upgradecave", "/升级洞府"):
                 res = FarmEngine.upgrade_cave(char)
                 if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/quests", "/委托"):
+                changed = QuestEngine.settle_expired(char)
+                if changed:
+                    CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": QuestEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/acceptquest", "/接委托"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/接委托 <NPC名或编号>（先 /委托 查看）"}
+                hint = command.strip().split(None, 1)[1]
+                res = QuestEngine.accept(char, hint.strip())
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/deliver", "/交付"):
+                res = QuestEngine.deliver(char)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/abandonquest", "/弃委托"):
+                res = QuestEngine.abandon(char)
+                if res.get("success") or res.get("dirty"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/xinfa", "/心法"):
@@ -2268,6 +2298,7 @@ class World:
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
+            "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
@@ -2335,6 +2366,19 @@ class World:
             "protect": ProtectionEngine.status_text(c),
             "conflict_zone": is_conflict_zone(c.location),
             "qi_mult": round(qi_mod.global_qi_multiplier(), 3),
+            # 委托链摘要（F07，纯新增）：None 或 {publisher, ring: "x/y", kind}
+            "quest": (
+                {
+                    "publisher": c.active_quest.publisher_name,
+                    "ring": f"{min(c.active_quest.ring_index + 1, len(c.active_quest.rings))}/{len(c.active_quest.rings)}",
+                    "kind": (
+                        c.active_quest.rings[min(c.active_quest.ring_index, len(c.active_quest.rings) - 1)].kind
+                        if c.active_quest.rings else ""
+                    ),
+                }
+                if getattr(c, "active_quest", None)
+                else None
+            ),
         }
 
     def _look(self, c: Character) -> str:
