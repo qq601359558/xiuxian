@@ -190,6 +190,15 @@ def get_order(target_id: str) -> Optional[Dict[str, Any]]:
     return dict(o) if o else None
 
 
+def _unregister_from_order(hunter_id: str, target_id: str) -> None:
+    """把猎手从某令的登记册摘除（换接他令/弃令共用）。"""
+    orders = _load_orders()
+    order = orders.get(target_id)
+    if order and order.get("status") == ORDER_OPEN and hunter_id in (order.get("hunters") or {}):
+        order["hunters"].pop(hunter_id, None)
+        _save_orders(orders)
+
+
 def format_board(limit: int = 12) -> str:
     now = time.time()
     _purge_expired(now)
@@ -233,6 +242,11 @@ def accept(hunter: Character, target_name: str) -> Dict[str, Any]:
             "success": False,
             "message": f"【{target.name}】未染血煞，天道不允私刑。",
         }
+    # F15：换接他令时先摘除旧令登记（一人一令在令侧同样成立，防协剿误发/白占名额）
+    prev = d.get(hunter.id)
+    prev_tid = prev.get("target_id") if isinstance(prev, dict) else prev
+    if prev_tid and prev_tid != target.id:
+        _unregister_from_order(hunter.id, prev_tid)
     # F15：令侧登记（满员拒绝；已在令中者不重复占位）
     order = ensure_order(target, now)
     if order and order.get("status") == ORDER_OPEN:
@@ -338,12 +352,14 @@ def track(hunter: Character, now: Optional[float] = None) -> Dict[str, Any]:
     age_min = max(0, int((t - intel_at) // 60))
     left_h = max(0.0, float(live.get("expires_at") or 0) - t) / 3600.0
     n_hunters = len(live.get("hunters") or {})
+    in_roster = hunter.id in (live.get("hunters") or {})
+    roster_line = "你已登记令册（协剿位）" if in_roster else "你未在令册（旧记录接令，协剿不计；可 /弃令 后重接）"
     mark = "血煞" if target.karma.is_blood_marked(t) else "重业"
     msg = (
         f"【追凶】{target.name}（{target.realm.name}·{mark}·业力{target.karma.sin_value}）\n"
         f"· 情报区域：{live.get('intel_region') or '未知'}（{age_min} 分钟前探得，"
         f"每 {int(TRACK_REFRESH_SECONDS // 60)} 分钟刷新；天道只示区域，不泄确切行踪）\n"
-        f"· 令状态：进行中 · 接令 {n_hunters}/{ORDER_MAX_HUNTERS} 人 · 余 {left_h:.1f}h\n"
+        f"· 令状态：进行中 · 接令 {n_hunters}/{ORDER_MAX_HUNTERS} 人 · 余 {left_h:.1f}h · {roster_line}\n"
         "· 同场接令者协剿得功德；亲手诛之者全功。前往该区域后 /同场 寻其踪迹。"
     )
     return {
@@ -433,40 +449,55 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
         orders = _load_orders()
         order = orders.get(victim.id)
         if order and order.get("status") == ORDER_OPEN:
-            for hid in list((order.get("hunters") or {}).keys()):
-                if hid in (hunter.id, victim.id):
-                    continue
-                c = CharacterRepository.get_by_id(hid)  # 现读现存，防陈旧对象
-                if not c or c.status == CharacterStatus.DEAD:
-                    continue
-                if c.location != victim.location:
-                    continue
-                c.karma.add_merit(ASSIST_MERIT)
-                CharacterRepository.save(c)
-                assists.append({"name": c.name, "merit": ASSIST_MERIT})
-            order["status"] = ORDER_SETTLED
-            order["settled_by"] = hunter.id
-            order["settled_at"] = now
-            order["closed_at"] = now
-            orders[victim.id] = order
-            _save_orders(orders)
-            _clear_hunter_records(victim.id)
-            if assists:
-                try:
-                    from core.world_channel import WorldChannel
+            if now > float(order.get("expires_at") or 0):
+                # 结算点同样推进过期：过期令按 EXPIRED 终结，无协剿（击杀者旧赏已在上方按旧口径发放）
+                _close_order(order, ORDER_EXPIRED, now)
+                orders[victim.id] = order
+                _save_orders(orders)
+            else:
+                live_hunts = _load()
+                for hid in list((order.get("hunters") or {}).keys()):
+                    if hid in (hunter.id, victim.id):
+                        continue
+                    # 协剿资格回验：该猎手当前猎手记录须仍指向 victim（防换令后的陈旧登记）
+                    rec = live_hunts.get(hid)
+                    rec_tid = rec.get("target_id") if isinstance(rec, dict) else rec
+                    if rec_tid != victim.id:
+                        continue
+                    try:
+                        c = CharacterRepository.get_by_id(hid)  # 现读现存，防陈旧对象
+                        if not c or c.status == CharacterStatus.DEAD:
+                            continue
+                        if c.location != victim.location:
+                            continue
+                        c.karma.add_merit(ASSIST_MERIT)
+                        CharacterRepository.save(c)
+                        assists.append({"name": c.name, "merit": ASSIST_MERIT})
+                    except Exception:
+                        continue  # 逐人容错：已发名单保留，不因个别人失败清零
+                order["status"] = ORDER_SETTLED
+                order["settled_by"] = hunter.id
+                order["settled_at"] = now
+                order["closed_at"] = now
+                orders[victim.id] = order
+                _save_orders(orders)
+                _clear_hunter_records(victim.id)
+                if assists:
+                    try:
+                        from core.world_channel import WorldChannel
 
-                    names = "、".join(a["name"] for a in assists)
-                    WorldChannel.post(
-                        "hunt",
-                        f"【协剿】{names} 同场助 {hunter.name} 诛 {victim.name}，各得功德 {ASSIST_MERIT}。",
-                        level="major",
-                        actor=hunter.name,
-                        location=victim.location,
-                    )
-                except Exception:
-                    pass
+                        names = "、".join(a["name"] for a in assists)
+                        WorldChannel.post(
+                            "hunt",
+                            f"【协剿】{names} 同场助 {hunter.name} 诛 {victim.name}，各得功德 {ASSIST_MERIT}。",
+                            level="major",
+                            actor=hunter.name,
+                            location=victim.location,
+                        )
+                    except Exception:
+                        pass
     except Exception:
-        assists = []
+        pass  # 令层异常不炸旧口径结算；assists 保留已实际发放名单
     return {"merit": 40, "sin_reduced": 20, "assists": assists}
 
 

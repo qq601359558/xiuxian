@@ -785,10 +785,8 @@ def run_mud():
                 )
                 console.print(f"[bold gold1]{res['message']}[/bold gold1]")
 
-            elif action in ["/接令", "claim_bounty"]:
-                if len(parts) < 2 or not parts[1].isdigit():
-                    console.print("[red]用法：/接令 <告示编号>（先输入 /告示 查看）[/red]")
-                    continue
+            # /接令 消歧：纯数字编号走悬赏板（既有）；非数字道号落到下方 F15 除凶接令
+            elif action in ["/接令", "claim_bounty"] and len(parts) >= 2 and parts[1].isdigit():
                 idx = int(parts[1]) - 1
                 board = BountyEngine.list_board(BountyRepository.list_all())
                 if idx < 0 or idx >= len(board):
@@ -1343,7 +1341,7 @@ def run_mud():
                 from core import hunt as _hunt
 
                 if len(parts) < 2:
-                    console.print("[red]用法：/接令 <道号>[/red]")
+                    console.print("[red]用法：/接令 <凶犯道号>（纯数字编号为悬赏板接令）[/red]")
                     continue
                 res = _hunt.accept(player, "".join(parts[1:]))
                 if res.get("success"):

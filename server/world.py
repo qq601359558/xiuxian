@@ -1576,11 +1576,13 @@ class World:
                 t = my_target(char)
                 extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
                 return {"ok": True, "text": format_board() + extra}
-            if action in ("/接除凶", "/接令"):
+            # /接令 消歧：纯数字编号是悬赏板既有接令（下方 handler），非数字道号才是除凶接令
+            _is_bounty_claim = action == "/接令" and len(parts) >= 2 and parts[1].isdigit()
+            if action in ("/接除凶", "/接令") and not _is_bounty_claim:
                 from core.hunt import accept
 
                 if len(parts) < 2:
-                    return {"ok": False, "error": "用法：/接令 <道号>"}
+                    return {"ok": False, "error": "用法：/接令 <凶犯道号>（纯数字编号为悬赏板接令）"}
                 res = accept(char, "".join(parts[1:]))
                 if res.get("success"):
                     try:

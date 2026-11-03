@@ -409,3 +409,102 @@ def test_cli_source_parity():
     for token in ('"/除凶"', '"/接令"', '"/追凶"', '"/弃令"', "_hunt.accept", "_hunt.track", "_hunt.abandon", "_hunt.format_board"):
         assert token in src, token
     print("✓ CLI 源码对齐：四指令同引擎")
+
+
+# ---------------- 评审整改回归：M1 消歧 / M2 换令 / M3 过期结算 ----------------
+
+def test_server_claim_disambiguation_bounty_vs_hunt():
+    """M1：/接令 <纯数字> 仍走悬赏板；/接令 <道号> 走除凶。双端同名不再互相遮蔽。"""
+    import sqlite3
+
+    from config import DB_PATH
+    from storage.db import BountyRepository
+
+    r = WORLD.join(f"消歧服客{_tag()}")
+    tok = r["token"]
+    char = WORLD.get_char(tok)
+    issuer = _char("消歧苦主")
+    issuer.spirit_stones = 2000
+    CharacterRepository.save(issuer)
+    b_target = _char("消歧赏犯")
+    h_target = _char("消歧凶犯", loc=char.location, sin=200)
+    bounty_id = None
+    try:
+        placed = BountyEngine.place_bounty(
+            CharacterRepository.get_by_id(issuer.id),
+            CharacterRepository.get_by_id(b_target.id),
+            300,
+        )
+        assert placed["success"], placed
+        bounty = placed["bounty"]
+        bounty_id = bounty.id
+        BountyRepository.save(bounty)
+        board = BountyEngine.list_board(BountyRepository.list_all())
+        idx = next(i for i, b in enumerate(board) if b.id == bounty_id)
+        res = WORLD.handle(tok, f"/接令 {idx + 1}")
+        assert res["ok"], res
+        saved = next(b for b in BountyRepository.list_all() if b.id == bounty_id)
+        assert saved.hunter_id == char.id, "数字编号应落到悬赏板接令"
+        assert hunt._load().get(char.id) is None, "悬赏接令不得写除凶记录"
+        # 道号走除凶
+        res = WORLD.handle(tok, f"/接令 {h_target.name}")
+        assert res["ok"], res
+        assert hunt._load().get(char.id, {}).get("target_id") == h_target.id
+        print("✓ M1 消歧：数字→悬赏、道号→除凶")
+    finally:
+        if bounty_id:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("DELETE FROM bounties WHERE id = ?", (bounty_id,))
+            conn.commit()
+            conn.close()
+        live = WORLD.get_char(tok)
+        _cleanup(live, issuer, b_target, h_target)
+
+
+def test_accept_switch_target_unregisters_old_order():
+    """M2：换接他令须摘除旧令登记，旧令结算时不得误发协剿。"""
+    a_target = _char("甲凶", loc=LOC_A, sin=200)
+    b_target = _char("乙凶", loc=LOC_A, sin=200)
+    switcher = _char("换令客", loc=LOC_A)
+    killer = _char("甲主诛", loc=LOC_A)
+    try:
+        assert hunt.accept(CharacterRepository.get_by_id(switcher.id), a_target.name)["success"]
+        assert switcher.id in hunt.get_order(a_target.id)["hunters"]
+        assert hunt.accept(CharacterRepository.get_by_id(switcher.id), b_target.name)["success"]
+        assert switcher.id not in (hunt.get_order(a_target.id)["hunters"] or {})
+        assert switcher.id in hunt.get_order(b_target.id)["hunters"]
+        # 甲凶被他人击杀：换令客同场也不得协剿（其当前令为乙凶）
+        assert hunt.accept(CharacterRepository.get_by_id(killer.id), a_target.name)["success"]
+        m0 = _merit(switcher.id)
+        res = hunt.settle_kill(
+            CharacterRepository.get_by_id(killer.id),
+            CharacterRepository.get_by_id(a_target.id),
+        )
+        assert res is not None and res["assists"] == [], res
+        assert _merit(switcher.id) == m0
+        print("✓ M2 换令摘除旧登记、协剿回验当前记录")
+    finally:
+        _cleanup(a_target, b_target, switcher, killer)
+
+
+def test_settle_expired_order_no_assist():
+    """M3：令已过期时结算点推进 EXPIRED，协剿无份；击杀者旧赏仍按旧口径。"""
+    target = _char("过期结算凶", loc=LOC_A, sin=200)
+    killer = _char("过期主诛", loc=LOC_A)
+    assist = _char("过期协剿", loc=LOC_A)
+    try:
+        assert hunt.accept(CharacterRepository.get_by_id(killer.id), target.name)["success"]
+        assert hunt.accept(CharacterRepository.get_by_id(assist.id), target.name)["success"]
+        _force_order_expiry(target.id)  # 只过期令，猎手记录本身仍在有效期
+        k0, a0 = _merit(killer.id), _merit(assist.id)
+        res = hunt.settle_kill(
+            CharacterRepository.get_by_id(killer.id),
+            CharacterRepository.get_by_id(target.id),
+        )
+        assert res is not None and res["merit"] == 40 and res["assists"] == [], res
+        assert _merit(killer.id) == k0 + 40
+        assert _merit(assist.id) == a0
+        assert hunt.get_order(target.id)["status"] == hunt.ORDER_EXPIRED
+        print("✓ M3 过期令结算：EXPIRED 终态、无协剿、旧赏不变")
+    finally:
+        _cleanup(target, killer, assist)
