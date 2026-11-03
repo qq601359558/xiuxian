@@ -325,14 +325,11 @@ class MarketEngine:
     def sell_to_guild(seller: Character, item_name: str, qty: int = 1) -> Dict[str, Any]:
         if qty < 1:
             return {"success": False, "message": "出售数量至少为 1。"}
-        # 著书立说（F11）：亲笔手稿只许寄售流通/赠予，商会不回收（保书目绑定一致）
-        try:
-            from core.books import BOOK_ITEM
+        # 著书立说（F11）：亲笔手稿只许寄售流通/赠予，商会不回收（保书目绑定一致；直导入 fail-closed）
+        from core.books import BOOK_ITEM
 
-            if item_name == BOOK_ITEM:
-                return {"success": False, "message": "【亲笔手稿】乃著者心血，商会不敢贱收；可 /寄售 亲笔手稿 <价> 付坊市流通。"}
-        except Exception:
-            pass
+        if item_name == BOOK_ITEM:
+            return {"success": False, "message": "【亲笔手稿】乃著者心血，商会不敢贱收；可 /寄售 亲笔手稿 <价> 付坊市流通。"}
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
         # F03：回收基准价 = 当地市价 × 回收率（基准区即旧口径 标价×50%）
         region = MarketEngine.region_of(seller.location)

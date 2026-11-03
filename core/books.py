@@ -10,6 +10,7 @@
 - 数值全规则：品质按境界 tier 定，研读收益/声望按品质常量表；AI 只起名/写序言，
   离线或不合格即降级本地模板。
 """
+import logging
 import random
 import time
 import uuid
@@ -17,7 +18,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from config import SECONDS_PER_GAME_YEAR
 from core.models import Character, CharacterStatus
+
+_log = logging.getLogger(__name__)
 
 # ---------------- 常量（数值归规则） ----------------
 BOOK_ITEM = "亲笔手稿"
@@ -72,6 +76,7 @@ class Book(BaseModel):
     listing_id: str = ""         # state=listed 时的寄售单 id
     readers: List[str] = Field(default_factory=list)  # 已受益读者 char id（幂等锚）
     prestige_paid: int = 0       # 本书已结算给作者的声望累计（封顶锚）
+    prestige_pending: int = 0    # 已入账待结作者的声望（作者落库失败时留待补结，评审 M2）
 
 
 def quality_for_tier(tier: int) -> str:
@@ -124,11 +129,15 @@ class BookEngine:
         return None
 
     @staticmethod
-    def _save(book: Book) -> None:
-        try:
-            BookEngine._repo().save(book)
-        except Exception:
-            pass
+    def _save(book: Book) -> bool:
+        """书目落库：失败重试一次并记日志，返回成败（评审 M2：禁止静默吞异常）。"""
+        for attempt in range(2):
+            try:
+                BookEngine._repo().save(book)
+                return True
+            except Exception:
+                _log.exception("著书书目落库失败（第 %s 次）book=%s", attempt + 1, book.id)
+        return False
 
     # ---------------- 书名/序言（AI 只叙事，规则先定品质） ----------------
     @staticmethod
@@ -225,7 +234,12 @@ class BookEngine:
             holder_name=char.name,
             state="held",
         )
-        BookEngine._save(book)
+        if not BookEngine._save(book):
+            # 天道录册失败：全额回滚（评审 M2——著书失败零变更）
+            char.inventory.remove(BOOK_ITEM)
+            char.inspiration = inspiration
+            char.lifespan.death_timestamp += BOOK_LIFESPAN_COST_YEARS * SECONDS_PER_GAME_YEAR
+            return {"success": False, "message": "天道录册忽有滞涩，此卷未能留档——灵感与寿元已如数退还，请稍后再试。"}
         return {
             "success": True,
             "book": book,
@@ -236,6 +250,34 @@ class BookEngine:
                 "手稿已收入行囊：可 /寄售 亲笔手稿 <价> 付坊市流通，他人阅读受益，你亦随之扬名。"
             ),
         }
+
+    @staticmethod
+    def _settle_pending_prestige(book: Book) -> int:
+        """把 prestige_pending 结给作者：成功清零并落库，返回本次实结数。
+        作者已不在世 → 待结作废清零（声望随人消散，已结锚 prestige_paid 不动）；
+        作者落库失败 → pending 留账，待下次研读补结（不丢不重）。"""
+        pending = int(book.prestige_pending or 0)
+        if pending <= 0:
+            return 0
+        try:
+            from storage.db import CharacterRepository
+
+            author = CharacterRepository.get_by_id(book.author_id)
+        except Exception:
+            return 0
+        if author is None:
+            book.prestige_pending = 0
+            BookEngine._save(book)
+            return 0
+        author.prestige = int(getattr(author, "prestige", 0) or 0) + pending
+        try:
+            CharacterRepository.save(author)
+        except Exception:
+            _log.exception("著书声望补结落库失败，pending 留账 book=%s", book.id)
+            return 0
+        book.prestige_pending = 0
+        BookEngine._save(book)
+        return pending
 
     # ---------------- 研读 ----------------
     @staticmethod
@@ -273,6 +315,21 @@ class BookEngine:
                     "message": head + "\n此卷已研读过，心得不再重复。"}
 
         reward = READ_REWARDS.get(book.quality, READ_REWARDS["下品"])
+        # 结算顺序（评审 M2 原子性）：先把幂等锚（readers/prestige_paid/pending）落库，
+        # 落库失败则回滚内存锚并整单失败——读者收益尚未入账，零副作用可重试；
+        # 作者声望经 prestige_pending 补结：本次结不出也留账，下次研读时一并结清，不丢不重。
+        per = int(PRESTIGE_PER_READ.get(book.quality, 0))
+        due = min(per, BOOK_PRESTIGE_CAP - book.prestige_paid) if book.prestige_paid < BOOK_PRESTIGE_CAP else 0
+        book.readers.append(char.id)
+        book.prestige_paid += due
+        book.prestige_pending += due
+        if not BookEngine._save(book):
+            book.readers.remove(char.id)
+            book.prestige_paid -= due
+            book.prestige_pending -= due
+            return {"success": False, "message": "天道录册忽有滞涩，此卷研读未能留档，请稍后再试。"}
+        settled = BookEngine._settle_pending_prestige(book)
+        # 锚已落库，此后才给读者入账（调用方仅在 success 时保存读者角色）
         before_exp = char.realm.current_exp
         char.realm.current_exp = max(
             0, min(char.realm.max_exp, before_exp + int(reward["exp"]))
@@ -281,25 +338,7 @@ class BookEngine:
         dh_before = char.karma.dao_heart
         char.karma.dao_heart = max(0, min(100, dh_before + int(reward["dao_heart"])))
         dh_gain = char.karma.dao_heart - dh_before
-
-        # 幂等锚先落：读者入册 + 声望额度累加，再结算作者（作者不在世则跳过）
-        book.readers.append(char.id)
-        prestige_gain = 0
-        per = int(PRESTIGE_PER_READ.get(book.quality, 0))
-        if book.prestige_paid < BOOK_PRESTIGE_CAP:
-            prestige_gain = min(per, BOOK_PRESTIGE_CAP - book.prestige_paid)
-        if prestige_gain > 0:
-            book.prestige_paid += prestige_gain
-            try:
-                from storage.db import CharacterRepository
-
-                author = CharacterRepository.get_by_id(book.author_id)
-                if author is not None and author.id != char.id:
-                    author.prestige = int(getattr(author, "prestige", 0) or 0) + prestige_gain
-                    CharacterRepository.save(author)
-            except Exception:
-                pass
-        BookEngine._save(book)
+        prestige_gain = settled
         try:
             import core.jianghu as jianghu
 

@@ -66,6 +66,15 @@ def _write(author, seed=7):
     return res["book"]
 
 
+@pytest.fixture(autouse=True)
+def _no_real_ai(monkeypatch):
+    """S2 隔离：本模块所有用例默认屏蔽真 AI 通道（个别用例自行打桩验证 AI 路径）。"""
+    import ai.gateway as gw
+
+    monkeypatch.setattr(gw, "ai_available", lambda: False)
+    monkeypatch.setattr(gw, "_chat_text", lambda *a, **k: None)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _cleanup():
     yield
@@ -506,3 +515,130 @@ def test_server_handle_books_flow():
             except Exception:
                 pass
     print("✓ World.handle 全链路：著书/自读/寄售/买入/研读/声望/status.books/闭关锁门")
+
+
+# ---------------- 评审整改：M1 通道遗漏 / M2 原子性 / S3 专柜 ----------------
+
+def test_trade_and_donate_reject_book():
+    """M1：当面交易报价与宗门上交均拒绝手稿（扣物之前），物品不丢、作者不砖化"""
+    import core.trade as tr
+    from core.sect_contrib import donate_item
+    from core.trade import TradeEngine
+
+    a = _char(tier=1, inspiration=20)
+    _write(a)
+    b = _char()
+    a.location = b.location = "青云坊市客栈"
+    CharacterRepository.save(a)
+    CharacterRepository.save(b)
+    tr._trade_sessions.clear()
+    tr._trade_by_user.clear()
+    try:
+        res = TradeEngine.open_trade(a, b.name)
+        assert res["success"], res
+        out = TradeEngine.set_offer(a, 0, [BOOK_ITEM])
+        assert not out["success"] and BOOK_ITEM in a.inventory, out
+    finally:
+        tr._trade_sessions.clear()
+        tr._trade_by_user.clear()
+    # 宗门上交（含模糊名「手稿」）
+    a.sect = "青云宗"
+    contrib0 = a.sect_contribution
+    out = donate_item(a, BOOK_ITEM)
+    assert not out["success"] and BOOK_ITEM in a.inventory and a.sect_contribution == contrib0, out
+    out = donate_item(a, "手稿")
+    assert not out["success"] and BOOK_ITEM in a.inventory, out
+    # 作者未砖化：流通后仍可再著书（把书寄售出清后灵感足够即可再写）
+    print("✓ M1：/交易 报价与 /上交 均拒绝亲笔手稿，物品不丢")
+
+
+def test_npc_shop_sell_rejects_book():
+    """S3：NPC 专柜回收拒绝手稿（扣物之前）"""
+    from core.trade import NpcShopEngine
+
+    a = _char(tier=1, inspiration=20)
+    _write(a)
+    npc = _char(name="书肆掌柜")
+    npc.sect_rank = "坊市掌柜"
+    npc.location = a.location
+    CharacterRepository.save(npc)
+    stones0 = a.spirit_stones
+    out = NpcShopEngine.sell(a, npc.name, BOOK_ITEM, 1)
+    assert not out["success"] and BOOK_ITEM in a.inventory and a.spirit_stones == stones0, out
+    print("✓ S3：NPC 专柜回收拒绝亲笔手稿")
+
+
+def test_write_rollback_when_book_save_fails(monkeypatch):
+    """M2：书目落库失败 → 著书全额回滚（灵感/寿元/物品零变更）"""
+    a = _char(tier=2, inspiration=30, years=30.0)
+    dt0 = a.lifespan.death_timestamp
+
+    def _boom(book):
+        raise RuntimeError("db locked")
+
+    monkeypatch.setattr(BookRepository, "save", staticmethod(_boom))
+    res = BookEngine.write_book(a, rng=random.Random(1))
+    assert not res["success"], res
+    assert a.inspiration == 30 and a.lifespan.death_timestamp == dt0
+    assert BOOK_ITEM not in a.inventory
+    print("✓ M2：著书落库失败全额回滚")
+
+
+def test_read_anchor_failure_no_gain_then_retry(monkeypatch):
+    """M2：研读锚落库失败 → 整单失败零收益；恢复后重试恰结一次"""
+    a = _char(tier=2, inspiration=20)
+    _write(a)
+    r = _char()
+    _give_book_to(a, r)
+    exp0 = r.realm.current_exp
+
+    def _boom(book):
+        raise RuntimeError("db locked")
+
+    monkeypatch.setattr(BookRepository, "save", staticmethod(_boom))
+    res = BookEngine.read_book(r)
+    assert not res["success"], res
+    assert r.realm.current_exp == exp0  # 读者收益未入账
+    monkeypatch.undo()
+    res = BookEngine.read_book(r)
+    assert res["success"] and res["gained"], res
+    assert r.realm.current_exp == exp0 + READ_REWARDS["中品"]["exp"]
+    res2 = BookEngine.read_book(r)
+    assert not res2["gained"]
+    print("✓ M2：研读锚落库失败零收益可重试，重试恰结一次")
+
+
+def test_prestige_pending_settled_on_next_read(monkeypatch):
+    """M2：作者声望落库失败 → pending 留账不丢；下位读者研读时补结，不重不漏"""
+    a = _char(tier=2, inspiration=20)  # 中品：声望 3/人
+    book = _write(a)
+    r1 = _char()
+    _give_book_to(a, r1)
+    orig_save = CharacterRepository.save
+
+    def _fail_author(character):
+        if character.id == a.id:
+            raise RuntimeError("author row locked")
+        return orig_save(character)
+
+    monkeypatch.setattr(CharacterRepository, "save", staticmethod(_fail_author))
+    res = BookEngine.read_book(r1)
+    assert res["success"] and res["gained"], res  # 读者收益不受影响
+    assert res["prestige_gain"] == 0
+    saved = [b for b in BookRepository.list_all() if b.id == book.id][0]
+    assert saved.prestige_pending == PRESTIGE_PER_READ["中品"] and saved.prestige_paid == PRESTIGE_PER_READ["中品"]
+    assert CharacterRepository.get_by_id(a.id).prestige == 0
+    monkeypatch.undo()
+    # r1 把书转给 r2，r2 研读 → 补结 pending 3 + 本次 3
+    r2 = _char()
+    listing = _list_book(r1)
+    r2.spirit_stones = 999
+    assert MarketEngine.buy_listing(r2, listing)["success"]
+    BookEngine.on_listing_sold(listing.id, r2)
+    MarketListingRepository.save(listing)
+    res = BookEngine.read_book(r2)
+    assert res["gained"] and res["prestige_gain"] == 2 * PRESTIGE_PER_READ["中品"], res
+    assert CharacterRepository.get_by_id(a.id).prestige == 2 * PRESTIGE_PER_READ["中品"]
+    saved = [b for b in BookRepository.list_all() if b.id == book.id][0]
+    assert saved.prestige_pending == 0
+    print("✓ M2：声望 pending 留账，下次研读补结（不丢不重）")

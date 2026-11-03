@@ -1340,7 +1340,7 @@ def run_mud():
                 else:
                     console.print(BodySoulEngine.panel_text(player, track))
 
-            elif action in ["/著书", "write_book"]:
+            elif action in ["/著书", "write_book", "/write_book"]:
                 # 著书立说（F11）：无参=面板；「写」=燃寿著书（与 server 同引擎同口径）
                 sub = parts[1] if len(parts) > 1 else ""
                 if sub in ("写", "write"):
@@ -1355,7 +1355,7 @@ def run_mud():
                 else:
                     console.print(BookEngine.panel_text(player))
 
-            elif action in ["/研读", "read_book"]:
+            elif action in ["/研读", "read_book", "/read_book"]:
                 # 研读（F11）：展卷所持手稿；首次研读结算收益与作者声望（引擎内幂等）
                 hint = cmd.strip().split(None, 1)[1] if len(cmd.strip().split(None, 1)) > 1 else ""
                 res = BookEngine.read_book(player, hint.strip())
