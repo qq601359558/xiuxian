@@ -163,6 +163,7 @@ def print_help():
   [bold yellow]/回访[/bold yellow]                 - 依事件账触发因果回访（寻仇/旧怨）
   [bold yellow]/坊市[/bold yellow]                 - 商会货单（当地市价）、金库寄存、玩家寄售
   [bold yellow]/行情[/bold yellow]                 - 天下行情：各区域产地价与价差、跑商路线
+  [bold yellow]/版图 [区域][/bold yellow]           - 宗门势力版图：各区域主导宗门与本宗影响力
   [bold yellow]/购买 <名目> [数量][/bold yellow]     - 向商会购货（如：/购买 一阶青木迷踪阵）
   [bold yellow]/出售 <名目> [数量][/bold yellow]     - 回售给商会（约五折）
   [bold yellow]/寄存 <数量>[/bold yellow]           - 灵石存入坊市金库（不可被夺）
@@ -419,7 +420,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情", "/洞府", "cave"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情", "/版图", "/atlas", "/洞府", "cave"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -794,6 +795,11 @@ def run_mud():
 
             elif action in ["/行情"]:
                 console.print(MarketEngine.trade_board(player.location))
+
+            elif action in ["/版图", "/atlas"]:
+                from core.atlas import AtlasEngine
+
+                console.print(AtlasEngine.panel_text(player, parts[1] if len(parts) > 1 else None))
 
             elif action in ["/购买", "buy"]:
                 if len(parts) < 2:

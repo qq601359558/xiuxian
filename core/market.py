@@ -256,11 +256,21 @@ class MarketEngine:
 
         # F03：按买家所在地市价计价（基准区即标价）
         unit = MarketEngine.market_price(item_name, buyer.location)
-        total = unit * qty
+        region = MarketEngine.region_of(buyer.location)
+        # F09 版图：主导宗门成员在本区域购货九五折——成交点修饰（市价单点不动，
+        # 与卖出侧防刷分档同例）；判定异常降级原价，绝不阻断交易
+        atlas_unit = unit
+        try:
+            from core.atlas import AtlasEngine
+
+            atlas_unit = AtlasEngine.discount_unit(unit, buyer.sect, region)
+        except Exception:
+            atlas_unit = unit
+        total = atlas_unit * qty
         if buyer.spirit_stones < total:
             return {
                 "success": False,
-                "message": f"【{item_name}】单价 {unit} 灵石，买 {qty} 件需 {total}，囊中仅有 {buyer.spirit_stones}。",
+                "message": f"【{item_name}】单价 {atlas_unit} 灵石，买 {qty} 件需 {total}，囊中仅有 {buyer.spirit_stones}。",
             }
 
         if buyer.status == CharacterStatus.DEAD:
@@ -292,8 +302,10 @@ class MarketEngine:
         except Exception:
             shout = ""
         msg = f"【商会成交】购入【{item_name}】×{qty}，付灵石 {total}。\n{applied_msg}"
+        # F09：主导折扣注脚（无折扣时消息与旧版逐字一致）
+        if atlas_unit < unit:
+            msg += f"\n（本宗【{buyer.sect}】主导{region}，商会买价九五折：单价 {atlas_unit} 灵石。）"
         # F03：非基准价时注明当地行情（基准区消息与旧版逐字一致）
-        region = MarketEngine.region_of(buyer.location)
         factor = MarketEngine.regional_factor(item_name, region)
         if abs(factor - 1.0) > 1e-9:
             origin = TRADE_ITEM_ORIGIN.get(item_name, "")

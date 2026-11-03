@@ -35,6 +35,7 @@ from core.profile import build_profile, format_profile
 from core.npc_proactive import NpcProactiveEngine
 from core.bounty import BountyEngine, bounty_status_cn
 from core.market import MarketEngine
+from core.atlas import AtlasEngine
 from core.breakthrough import BreakthroughEngine
 from core.protection import ProtectionEngine, is_conflict_zone
 from core.goals import GoalEngine
@@ -462,6 +463,8 @@ class World:
                     "/心法", "/xinfa",
                     # 行情查看（F03：只读观照；购买/出售闭关中仍锁门）
                     "/行情",
+                    # 版图查看（F09：纯只读观照，查询零写盘）
+                    "/版图", "/atlas",
                     # 洞府查看（F06：纯只读观照；开辟/播种/收获/升级闭关中仍锁门）
                     "/洞府", "/cave",
                 )
@@ -1758,6 +1761,9 @@ class World:
                 return {"ok": True, "text": self._market(char)}
             if action in ("/行情",):
                 return {"ok": True, "text": MarketEngine.trade_board(char.location)}
+            if action in ("/atlas", "/版图"):
+                arg = parts[1] if len(parts) > 1 else None
+                return {"ok": True, "text": AtlasEngine.panel_text(char, arg)}
             if action in ("/buy", "/购买"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/购买 <货名> [数量]，先 /坊市 看货单"}
@@ -2314,7 +2320,7 @@ class World:
             "局域网指令：/look /here /who /go <地> /闭关 [h] /出关 /突破 /探查 "
             "/斗法 <名> /交谈 <名> [话] /做 <言行> /自创功法 <理念> /回访 /legacy /转世 [名] [加成] "
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
-            "/坊市 /行情 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
+            "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
@@ -2703,6 +2709,12 @@ class World:
             f"【坊市 · {region}】金库 {c.vault_stones} | 随身 {c.spirit_stones}",
             "商会货单（当地市价，回收为市价五折）：",
         ]
+        # F09：查看者宗门主导当地时注脚（货单价仍为市价单点，折扣只落成交）
+        try:
+            if c.sect and AtlasEngine.dominant_sect(region) == c.sect:
+                lines.append(f"（本宗【{c.sect}】主导此地：向商会购货成交价九五折，货单为市价。）")
+        except Exception:
+            pass
         for g in goods:
             grade = f"·{g['grade']}" if g.get("grade") else ""
             slot = f"·{g['slot']}" if g.get("slot") else ""
