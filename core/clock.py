@@ -468,6 +468,19 @@ class WorldClock:
         if died_in_cave:
             world_rumors = ["洞府石门自此紧闭，再无人见道友出关；数日后同道破门，唯余枯骨与未竟功法。"]
 
+        # F16：闭关结算心魔发作（魔种滋长以上按规则概率；规则内斗裁定；
+        # 无种/蛰伏/坐化恒不触发，与旧行为一致；异常回退不阻断结算）
+        demon_eruption = None
+        if not is_fatal:
+            try:
+                from core.heart_demon_state import DemonStateEngine
+
+                demon_eruption = DemonStateEngine.resolve_meditation_eruption(
+                    character, now=current_time
+                )
+            except Exception:
+                demon_eruption = None
+
         return {
             "success": True,
             "is_interrupted": force_interrupt,
@@ -497,6 +510,8 @@ class WorldClock:
             "is_bottleneck": character.realm.is_full,
             "world_rumors": world_rumors,
             "message": event_desc if is_fatal else "",
+            # F16（纯新增）：闭关心魔发作结果（None = 未发作）
+            "demon_eruption": demon_eruption,
         }
 
     @staticmethod

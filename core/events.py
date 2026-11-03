@@ -232,6 +232,14 @@ class EventEngine:
             source = "local"
 
         summary = EventEngine.apply_effects(character, cleaned["effects"])
+        # F16：血煞反噬落账 → 心魔播种钩子（规则概率，道心压制；失败不影响事件本身）
+        if cleaned.get("title") == "血煞反噬":
+            try:
+                from core.heart_demon_state import DemonStateEngine
+
+                DemonStateEngine.on_blood_backlash(character)
+            except Exception:
+                pass
         return {
             "source": source,
             "type": cleaned["type"],

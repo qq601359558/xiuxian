@@ -269,6 +269,11 @@ class Character(BaseModel):
     # 著书立说（F11）：灵感（探险/委托/突破钩子积攒，著书消耗）与个人声望（著书被研读结算）；旧档自动补默认
     inspiration: int = 0  # 灵感存量（封顶见 core/books.py INSPIRATION_CAP）
     prestige: int = 0     # 个人声望（与宗门声望、功德分账）
+    # 心魔长期状态（F16）：魔念值与惰性推导锚点（阶段纯推导不落库，见 core/heart_demon_state.py）；随旧世消散，旧档自动补默认
+    demon_seed: float = 0.0      # 魔念值：0=无种；阶段阈值 40 滋长 / 90 临发
+    demon_anchor_at: float = 0.0 # 惰性结算锚点时间戳；0=从未同步（首同步只建基线不追溯）
+    demon_sin_seen: int = 0      # 上次同步见过的业力值（杀业增量推导基线）
+    demon_calm_at: float = 0.0   # 上次静坐镇魔时间戳（冷却用）
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

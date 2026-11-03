@@ -134,6 +134,12 @@ def render_meditation_summary(res: dict):
     if a_years < 10:
         near_death_str = "\n[bold red]⚠️【大限将至】寿元不足 10 岁，宜速图突破或寻延寿之宝！[/bold red]"
 
+    # F16：闭关心魔发作（结算 dict 加法键；无发作时不显示，与旧渲染一致）
+    demon_str = ""
+    _de = res.get("demon_eruption")
+    if _de:
+        demon_str = f"\n[bold magenta]🌀【心魔发作】{_de.get('text', '')}（/镇魔 可镇压）[/bold magenta]"
+
     hours_show = res.get("actual_real_hours", res.get("hours", 0.0))
     eff_show = res.get("effective_hours", hours_show)
 
@@ -147,7 +153,7 @@ def render_meditation_summary(res: dict):
    [dim]{res['event_desc']}[/dim]
 
 [bold yellow]🌍 世事沧桑 · 闭关期间外界传闻[/bold yellow]：
-{rumors_text}{idle_str}{near_death_str}{bottleneck_str}
+{rumors_text}{idle_str}{near_death_str}{bottleneck_str}{demon_str}
 """
     panel = Panel(
         content.strip(),

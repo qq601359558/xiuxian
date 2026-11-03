@@ -61,6 +61,7 @@ from core.quests import QuestEngine
 from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
+from core.heart_demon_state import DemonStateEngine
 from core.books import BOOK_ITEM, BookEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
@@ -1148,6 +1149,24 @@ class World:
                     "text": BodySoulEngine.panel_text(char, track),
                     "status": self._status_dict(char),
                 }
+            if action in ("/demon", "/镇魔"):
+                # 心魔长期状态（F16）：无参=面板（打开即惰性结算魔念）；服丹/静坐=镇压（闭关不进白名单，天然锁门）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("服丹", "pill"):
+                    res = DemonStateEngine.suppress_pill(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub in ("静坐", "calm"):
+                    res = DemonStateEngine.suppress_calm(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": "用法：/镇魔 或 /镇魔 服丹 或 /镇魔 静坐"}
+                text = DemonStateEngine.panel_text(char)
+                CharacterRepository.save(char)  # 面板已 sync 魔念，落库锚点
+                return {"ok": True, "text": text, "status": self._status_dict(char)}
             if action in ("/write_book", "/著书"):
                 # 著书立说（F11）：无参=面板；「写」=燃寿著书（闭关不进白名单，天然锁门）
                 sub = parts[1] if len(parts) > 1 else ""
@@ -2468,6 +2487,7 @@ class World:
             "/诺言 /许诺 <对象> 赠物 <物品>|抵达 <地点>|委托|不攻 /应诺 [立诺者名] /毁诺 [受诺人名]（唯指令立诺入账，交谈口头应承不算） "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
+            "/镇魔 [服丹|静坐] "
             "/著书 [写] /研读 [书名] "
             "/榜 /飞升榜 [我|本纪元|道号] /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
@@ -2538,6 +2558,8 @@ class World:
                 "body": BodySoulEngine.body_level(c),
                 "soul": BodySoulEngine.soul_level(c),
             },
+            # 心魔长期状态（F16）：阶段/魔念（纯新增；纯读推导不落库）
+            "heart_demon_state": DemonStateEngine.summary(c),
             # 著书立说（F11）：灵感/声望（纯新增）
             "books": {
                 "inspiration": int(getattr(c, "inspiration", 0) or 0),
@@ -2730,6 +2752,9 @@ class World:
             f"出关：闭关 {res.get('actual_real_hours',0):.1f}h，"
             f"修为+{res.get('exp_gained',0)}，寿元余 {res.get('after_years',0):.1f}"
         ]
+        _de = res.get("demon_eruption")
+        if _de:
+            lines.append(f"【心魔发作】{_de.get('text', '')}（/镇魔 可镇压）")
         dead = False
         if res.get("is_fatal"):
             c.status = CharacterStatus.DEAD

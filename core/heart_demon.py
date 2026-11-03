@@ -24,6 +24,7 @@ class HeartDemonSession(BaseModel):
     created_at: float = 0.0
     resolved: bool = False
     result: Optional[Dict[str, Any]] = None
+    eruption: bool = False  # F16：本场是否为心魔发作场次（魔种滋长以上掷骰；旧场次恒 False）
 
 
 class HeartDemonEngine:
@@ -34,12 +35,21 @@ class HeartDemonEngine:
         if facts is None:
             facts = build_fact_pack(character)
         session_data = AIGateway.generate_heart_demon_session(character, facts=facts)
+        # F16：魔种滋长以上，问心有概率沦为心魔发作场次（纯规则掷骰；无种/蛰伏恒不发作）
+        eruption = False
+        try:
+            from core.heart_demon_state import DemonStateEngine
+
+            eruption = DemonStateEngine.roll_eruption(character, "breakthrough")
+        except Exception:
+            eruption = False
         return HeartDemonSession(
             id=f"hd_{character.id}_{int(time.time()*1000)%1000000}",
             character_id=character.id,
             narrative=session_data["narrative"],
             options=session_data["options"],
             created_at=time.time(),
+            eruption=eruption,
         )
 
     @staticmethod
@@ -99,6 +109,18 @@ class HeartDemonEngine:
                 character.lifespan.death_timestamp = 0.0
                 character.death_cause = character.death_cause or "心魔道消"
 
+        # F16：发作场次追加阶段后果（pass 回落 / wound 滋长 / fail 加重或入魔）；
+        # 非发作场次与死亡结局不追加，与 F16 前行为一致
+        demon_info = None
+        if getattr(session, "eruption", False) and outcome != "death" \
+                and character.status != CharacterStatus.DEAD:
+            try:
+                from core.heart_demon_state import DemonStateEngine
+
+                demon_info = DemonStateEngine.apply_eruption_outcome(character, outcome)
+            except Exception:
+                demon_info = None
+
         session.resolved = True
         session.result = {
             "outcome": outcome,
@@ -108,6 +130,7 @@ class HeartDemonEngine:
             "source": verdict.get("source", "local"),
             "choice": label,
             "is_free_text": is_free,
+            "demon": demon_info,
         }
         return {
             "success": True,
@@ -117,4 +140,5 @@ class HeartDemonEngine:
             "tribulation_mod": tmod,
             "is_fatal": character.status == CharacterStatus.DEAD,
             "source": session.result["source"],
+            "demon": demon_info,
         }

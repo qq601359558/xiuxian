@@ -228,6 +228,13 @@
     if (st.season_theme && st.season_theme.name) {
       setText("stTheme", st.season_theme.name);
     }
+    // 心魔长期状态（F16）：命盘一行显示心魔阶段（无种亦明示）
+    if (st.heart_demon_state) {
+      const hd = st.heart_demon_state;
+      setText("stDemon", hd.stage > 0 ? hd.stage_name + " · 魔念 " + hd.seed : "无种");
+      const dEl = $("stDemon");
+      if (dEl) dEl.style.color = hd.stage >= 3 ? "var(--blood)" : hd.stage === 2 ? "var(--warn, #d97706)" : "";
+    }
     if (st.inventory || st.equipped || st.arrays) renderBag(st);
     // 灵宠（F01）：命盘一行显示出战灵宠
     if ("pet" in st || "pets_count" in st) {
@@ -1044,6 +1051,7 @@
         卸功: "卸下已装配的主修或辅修功法名",
         炼体: "副修面板；「/炼体 修炼 [n]」耗妖兽内丹+灵石升层：战力 +1%/层、寿元 +1 岁/层，满 10 层",
         炼神: "副修面板；「/炼神 修炼 [n]」耗百年灵芝+灵石升层：有效道心 +2/层、神识 +3/层，满 10 层",
+        镇魔: "心魔长卷；「/镇魔 服丹」耗百年灵芝+30 灵石镇压魔念，「/镇魔 静坐」以道心硬抗",
         研读: "可填书名或作者名（可空）：研读所持亲笔手稿，他人之作首次研读得修为/道心",
         购买: "先点「坊市」看货单。示例：聚气丹 / 筑基丹 / 一阶青木迷踪阵",
         出售: "卖给商会，约五折回收。示例：妖兽内丹 1",

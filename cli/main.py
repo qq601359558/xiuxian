@@ -32,6 +32,7 @@ from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
 from core.council import CouncilEngine
 from core.art_slots import ArtSlotEngine
 from core.body_soul import BodySoulEngine
+from core.heart_demon_state import DemonStateEngine
 from core.books import BOOK_ITEM, BookEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
@@ -214,6 +215,7 @@ def print_help():
   [bold yellow]/卸功 <功法名>[/bold yellow]       - 卸下主修或辅修
   [bold yellow]/炼体 [修炼 [n]][/bold yellow]     - 炼体副修（妖兽内丹+灵石升层：战力+1%/层、寿元+1岁/层，满 10 层）
   [bold yellow]/炼神 [修炼 [n]][/bold yellow]     - 炼神副修（百年灵芝+灵石升层：有效道心+2/层、神识+3/层，满 10 层）
+  [bold yellow]/镇魔 [服丹|静坐][/bold yellow]    - 心魔长卷/镇压（魔念由杀业·血煞·反噬滋长，滋长以上会在突破问心/闭关结算时发作）
   [bold yellow]/著书 [写][/bold yellow]           - 著书立说（灵感 10 + 燃寿 1 年成书；无参看面板：灵感/声望/在持手稿）
   [bold yellow]/研读 [书名][/bold yellow]         - 研读所持亲笔手稿（他人之作首次研读得修为/道心，作者得声望）
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
@@ -1459,6 +1461,29 @@ def run_mud():
                     console.print(f"[red]用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数][/red]")
                 else:
                     console.print(BodySoulEngine.panel_text(player, track))
+
+            elif action in ["/镇魔", "demon", "/demon"]:
+                # 心魔长期状态（F16）：无参=面板（打开即惰性结算魔念）；服丹/静坐=镇压（与 server 同引擎同口径）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("服丹", "pill"):
+                    res = DemonStateEngine.suppress_pill(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub in ("静坐", "calm"):
+                    res = DemonStateEngine.suppress_calm(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print("[red]用法：/镇魔 或 /镇魔 服丹 或 /镇魔 静坐[/red]")
+                else:
+                    console.print(DemonStateEngine.panel_text(player))
+                    CharacterRepository.save(player)
 
             elif action in ["/著书", "write_book", "/write_book"]:
                 # 著书立说（F11）：无参=面板；「写」=燃寿著书（与 server 同引擎同口径）
