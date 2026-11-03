@@ -1862,6 +1862,37 @@ class World:
                 CharacterRepository.save(char)
                 return {"ok": True, "text": res["message"]}
 
+            if action in ("/pawn", "/典当"):
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    return {"ok": True, "text": PawnEngine.panel_text(char)}
+                item_name = "".join(parts[1:])
+                ticket, res = PawnEngine.pawn_item(char, item_name)
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "典当失败")}
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(char)
+                ChronicleRepository.record(
+                    "PAWN", char.name,
+                    f"【{char.name}】典当【{item_name}】得 {res['principal']} 灵石。",
+                )
+                return {"ok": True, "text": res["message"]}
+            if action in ("/redeem", "/赎回"):
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/赎回 <物品名>（先 /典当 查看当票）"}
+                item_name = "".join(parts[1:])
+                ticket, res = PawnEngine.redeem_item(char, item_name)
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "赎回失败")}
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(char)
+                return {"ok": True, "text": res["message"]}
+
             # ---------------- 当面交易 ----------------
             if action in ("/trade", "/交易") and len(parts) >= 2:
                 from core.trade import TradeEngine
@@ -2170,7 +2201,7 @@ class World:
             "局域网指令：/look /here /who /go <地> /闭关 [h] /出关 /突破 /探查 "
             "/斗法 <名> /交谈 <名> [话] /做 <言行> /自创功法 <理念> /回访 /legacy /转世 [名] [加成] "
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
-            "/坊市 /行情 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 "
+            "/坊市 /行情 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
@@ -2579,7 +2610,7 @@ class World:
             pass
         lines.append(
             "通道：/购买 /出售 /服用 /寄存 /支取 | "
-            "/寄售 /买寄售 /撤单 | "
+            "/寄售 /买寄售 /撤单 | /典当 /赎回 | "
             "/交易 <名> · /交易出 · /交易同意 · /交易拒绝 | "
             "/npc货单 /npc买 /npc卖 | "
             "/拍卖行 · /上拍 · /拍 · /一口 · /撤拍"

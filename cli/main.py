@@ -164,6 +164,8 @@ def print_help():
   [bold yellow]/寄售 <货物> <价格>[/bold yellow]     - 将随身货物挂上寄售栏
   [bold yellow]/买寄售 <编号>[/bold yellow]         - 买下他人寄售货物
   [bold yellow]/撤单 <编号>[/bold yellow]           - 撤回自己的寄售
+  [bold yellow]/典当 [物品][/bold yellow]           - 无参看当票；带物品名典当 1 件（市价五折，3 天内可赎）
+  [bold yellow]/赎回 <物品>[/bold yellow]           - 按典当额+固定息赎回典当物，逾期没收
   [bold yellow]/服用 <丹药>[/bold yellow]           - 服用囊中丹药
   [bold yellow]/灵宠[/bold yellow]                 - 灵宠面板（遇兽在探险，属局域网游径；存档互通）
   [bold yellow]/契约 <兽名>[/bold yellow]          - 与待契约灵兽结契（耗灵石）
@@ -904,6 +906,42 @@ def run_mud():
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
                     continue
                 MarketListingRepository.save(listing)
+                CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/典当", "pawn"]:
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    console.print(PawnEngine.panel_text(player))
+                    continue
+                item_name = " ".join(parts[1:])
+                ticket, res = PawnEngine.pawn_item(player, item_name)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(player)
+                ChronicleRepository.record(
+                    "PAWN", player.name,
+                    f"【{player.name}】典当【{item_name}】得 {res['principal']} 灵石。"
+                )
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/赎回", "redeem"]:
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/赎回 <物品名>（先 /典当 查看当票）[/red]")
+                    continue
+                item_name = " ".join(parts[1:])
+                ticket, res = PawnEngine.redeem_item(player, item_name)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                PawnTicketRepository.save(ticket)
                 CharacterRepository.save(player)
                 console.print(f"[bold green]{res['message']}[/bold green]")
 

@@ -518,6 +518,20 @@ TRADE_REG_TIERS = [(10, 1.0), (20, 0.8), (30, 0.6), (float("inf"), 0.45)]
 # 收购量状态在 world_state 的 key 前缀（后接角色 id；{date, vol:{货名:件数}}，跨日重置）
 TRADE_REG_STATE_PREFIX = "trade_reg:"
 
+# ==================== 典当行（F04）====================
+# 典当率：当地市价 × 此率 = 典当额。与商会回收率 MARKET_SELL_BACK_RATE 同为五折——
+# 典当的卖点是「可赎回」而非价高；若高于回收率，弃赎将替代出售并绕开 F03 收购回归。
+PAWN_RATE = 0.5
+# 固定息：成票时按典当额一次计清（不按天滚动）；赎回 = 典当额 + 利息，恒高于典当额，防无息套现
+PAWN_INTEREST_RATE = 0.10
+# 当期（现实天）：到期未赎即没收，物品转入坊市寄售栏流通
+PAWN_TERM_DAYS = 3
+# 单人同时在途当票上限（与寄售栏上限 MARKET_MAX_LISTINGS 同值）
+PAWN_MAX_TICKETS = 8
+# 没收寄售的挂单主体（非角色；成交款查无此人自然沉淀销毁）
+PAWN_SHOP_ID = "pawn_shop"
+PAWN_SHOP_NAME = "天道当铺"
+
 # ---- 拍卖行 ----
 AUCTION_DURATION_MIN = 120       # 拍卖时长（现实分钟）
 AUCTION_MIN_INCREMENT = 1        # 最低加价（另有 5% 比例步长取大）
