@@ -400,6 +400,13 @@ class AdventureEngine:
                 QuestEngine.note_adventure_win(c)
             except Exception:
                 pass
+            # 势力版图（F09）：探险成功为本宗在落点区域扬名（区域取引擎内 c.location）
+            try:
+                from core.atlas import AtlasEngine
+
+                AtlasEngine.record_activity(c, "explore")
+            except Exception:
+                pass
 
         lines = [
             travel_note + narrative if travel_note else narrative,

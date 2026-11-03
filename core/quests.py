@@ -336,6 +336,13 @@ class QuestEngine:
             char.inventory.remove(ring.item_name)
         chain.ring_index += 1
         done_desc = ring.desc
+        # 势力版图（F09）：每环交付成功为本宗在交付地扬名（两处成功出口共用此点，恰计一次）
+        try:
+            from core.atlas import AtlasEngine
+
+            AtlasEngine.record_activity(char, "quest")
+        except Exception:
+            pass
         if chain.ring_index < len(chain.rings):
             nxt = chain.rings[chain.ring_index]
             return {

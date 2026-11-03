@@ -177,6 +177,13 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
     hunter.karma.add_merit(40)
     hunter.karma.sin_value = max(0, hunter.karma.sin_value - 20)
     CharacterRepository.save(hunter)
+    # 势力版图（F09）：除凶结算为猎手本宗在事发区域扬名（区域取 victim.location）
+    try:
+        from core.atlas import AtlasEngine
+
+        AtlasEngine.record_activity(hunter, "hunt", location=victim.location)
+    except Exception:
+        pass
     try:
         from core.world_channel import WorldChannel
 

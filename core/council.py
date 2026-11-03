@@ -383,6 +383,15 @@ class CouncilEngine:
             "settled_at": now,
         }
         CouncilEngine._save_session(sect, session)
+        if passed:
+            # 势力版图（F09）：议政通过为本宗总坛区域扬名；引擎内取真实墙钟，
+            # 不透传本结算的注入逻辑时刻（防污染衰减时间基线）
+            try:
+                from core.atlas import AtlasEngine
+
+                AtlasEngine.record_council(sect)
+            except Exception:
+                pass
         CouncilEngine._broadcast(sect, topic, session["result"])
         return session
 
