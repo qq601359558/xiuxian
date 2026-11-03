@@ -402,3 +402,66 @@ def test_old_save_compat():
     rt = QuestChain.model_validate(ch.model_dump())
     assert rt.rings[0].progress == 1 and rt.reward_stones == ch.reward_stones
     print("✓ 旧档反序列化兼容 / 链模型往返")
+
+
+# ---------------- 评审整改回归（M1 / S5） ----------------
+
+def test_unknown_ring_kind_fails_closed():
+    pub = _npc("异环翁", LOC_A)
+    p = _char("异环客", location=LOC_A, stones=300)
+    ring = QuestRing(kind="bogus", desc="未知环", deliver_npc_id=pub.id, deliver_npc_name=pub.name)
+    p.active_quest = _chain(pub, [ring], reward=100)
+    res = QuestEngine.deliver(p)
+    assert not res["success"] and res.get("dirty")
+    assert p.active_quest is None and p.spirit_stones == 300  # 作废不发奖
+    print("✓ 未知环种 fail-closed 作废（评审 M1）")
+
+
+def test_dead_rejections_have_no_side_effects():
+    pub = _npc("死拒翁", LOC_A)
+    p = _char("死拒客", location=LOC_A)
+    ring = QuestRing(kind="fetch", desc="寻物", deliver_npc_id=pub.id,
+                     deliver_npc_name=pub.name, item_name="灵谷", need=1)
+    ch = _chain(pub, [ring])
+    ch.expires_at = time.time() - 5  # 已过期：DEAD 校验须前置于结算，死人指令零副作用
+    p.active_quest = ch
+    p.status = CharacterStatus.DEAD
+    cd0 = p.quest_cooldown_until
+    for res in (QuestEngine.accept(p, pub.name), QuestEngine.deliver(p), QuestEngine.abandon(p)):
+        assert not res["success"] and not res.get("dirty"), res
+    assert p.active_quest is ch and p.quest_cooldown_until == cd0  # 链未被结算动过
+    print("✓ DEAD 前置拒绝且零副作用（accept/deliver/abandon）")
+
+
+def test_server_handle_completes_the_accepted_chain():
+    npc = _npc("全程翁", LOC_A)
+    _npc("全程远客", LOC_B)
+    r = WORLD.join(f"委托全程客{_uniq('')}")
+    tok = r["token"]
+    char = WORLD.get_char(tok)
+    npc.location = char.location
+    CharacterRepository.save(npc)
+    res = WORLD.handle(tok, f"/接委托 {npc.name}")
+    assert res["ok"], res
+    char = WORLD.get_char(tok)
+    reward = char.active_quest.reward_stones
+    stones0 = char.spirit_stones
+    # 不换链：按接到的链逐环构造核验条件，经 handle /交付 真推进到完结
+    for _ in range(6):
+        char = WORLD.get_char(tok)
+        if char.active_quest is None:
+            break
+        ring = char.active_quest.rings[char.active_quest.ring_index]
+        if ring.kind == "fetch":
+            char.inventory.append(ring.item_name)
+        elif ring.kind == "slay":
+            ring.progress = ring.need
+        target = CharacterRepository.get_by_id(ring.deliver_npc_id)
+        char.location = target.location
+        CharacterRepository.save(char)
+        res = WORLD.handle(tok, "/交付")
+        assert res["ok"], res
+    char = WORLD.get_char(tok)
+    assert char.active_quest is None
+    assert char.spirit_stones == stones0 + reward
+    print("✓ server handle 接取的原链全程交付落库")

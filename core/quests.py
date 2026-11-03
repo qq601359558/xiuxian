@@ -65,7 +65,7 @@ def _offers_key(player_id: str) -> str:
 
 
 def reward_stones_for(publisher: Character, ring_count: int) -> int:
-    """链奖励定价公式（成链写死）：环数×30 + 发布者境界×10，封顶 220"""
+    """链奖励定价公式（成链写死）：环数×30 + 发布者境界×10，封顶 QUEST_REWARD_STONES_CAP=200"""
     raw = ring_count * QUEST_REWARD_STONES_PER_RING + publisher.realm.tier * QUEST_REWARD_TIER_BONUS
     return min(QUEST_REWARD_STONES_CAP, raw)
 
@@ -143,41 +143,47 @@ class QuestEngine:
         )
         if not npcs_here:
             return []
-        here_ids = {c.id for c in npcs_here}
         key = _offers_key(player.id)
         cached = None
         try:
             cached = WorldStateRepository.get(key)
         except Exception:
             cached = None
-        if (
-            isinstance(cached, dict)
-            and t - float(cached.get("at") or 0) < QUEST_OFFER_TTL_SECONDS
-            and set((cached.get("offers") or {}).keys()) == here_ids
-        ):
-            out: List[Tuple[Character, QuestChain]] = []
-            by_id = {c.id: c for c in npcs_here}
-            for npc_id, raw in (cached.get("offers") or {}).items():
-                try:
-                    out.append((by_id[npc_id], QuestChain.model_validate(raw)))
-                except Exception:
-                    continue
-            out.sort(key=lambda x: x[0].name)
-            if out:
-                return out
-        # 重生成（deliver 目标池 = 全部存活 NPC 中除发布者外者）
+        # 缓存容错（评审 S4）：at 被写坏成非数值时按过期处理，不抛错
+        cached_offers: Dict[str, Any] = {}
+        cached_at = 0.0
+        if isinstance(cached, dict):
+            try:
+                cached_at = float(cached.get("at") or 0)
+            except (TypeError, ValueError):
+                cached_at = 0.0
+            if isinstance(cached.get("offers"), dict):
+                cached_offers = cached["offers"]
+        fresh = (t - cached_at) < QUEST_OFFER_TTL_SECONDS
+        # 逐 NPC 复用（评审 S2）：缓存新鲜时同场每位 NPC 优先用其既存预览链，
+        # 仅新到场者现生成、已离场者自然剔除——接走一条不会连带其余预览重掷。
         all_npcs = [c for c in alive if _is_npc(c) and _alive(c, t)]
         offers: Dict[str, Any] = {}
-        out = []
+        out: List[Tuple[Character, QuestChain]] = []
+        changed = False
         for npc in npcs_here:
-            others = [c for c in all_npcs if c.id != npc.id]
-            chain = QuestEngine.generate_chain(npc, player, rng=rng, others=others)
+            chain = None
+            if fresh and npc.id in cached_offers:
+                try:
+                    chain = QuestChain.model_validate(cached_offers[npc.id])
+                except Exception:
+                    chain = None
+            if chain is None:
+                others = [c for c in all_npcs if c.id != npc.id]
+                chain = QuestEngine.generate_chain(npc, player, rng=rng, others=others)
+                changed = True
             offers[npc.id] = chain.model_dump()
             out.append((npc, chain))
-        try:
-            WorldStateRepository.set(key, {"at": t, "offers": offers})
-        except Exception:
-            pass
+        if changed or set(offers.keys()) != set(cached_offers.keys()):
+            try:
+                WorldStateRepository.set(key, {"at": t, "offers": offers})
+            except Exception:
+                pass
         return out
 
     @staticmethod
@@ -229,7 +235,8 @@ class QuestEngine:
         if char.status == CharacterStatus.DEAD or char.lifespan.is_dead(t):
             return {"success": False, "message": "身死道消，不可再接人间委托。"}
         dirty = QuestEngine.settle_expired(char, t)
-        if char.active_quest:
+        active_count = 1 if char.active_quest else 0
+        if active_count >= QUEST_MAX_ACTIVE:
             return {"success": False, "dirty": dirty,
                     "message": "已有一条委托在身，先办完或 /弃委托 再接新的。"}
         if t < char.quest_cooldown_until:
@@ -317,6 +324,13 @@ class QuestEngine:
             if ring.progress < ring.need:
                 return {"success": False,
                         "message": f"除妖未毕：已成 {ring.progress}/{ring.need} 次探险除妖，再接再厉。"}
+        elif ring.kind != "deliver":
+            # fail-closed（评审 M1）：未知环种不放行——与下标越界同口径作废清链，
+            # 防改档/未来新环种漏接核验时静默推进发奖。
+            char.active_quest = None
+            char.quest_cooldown_until = max(char.quest_cooldown_until, t + QUEST_ACCEPT_COOLDOWN_SECONDS)
+            return {"success": False, "dirty": True,
+                    "message": "这条委托的环目天道未识，已作废（无赏无罚）。"}
         # 核验通过：落账本环
         if ring.kind == "fetch":
             char.inventory.remove(ring.item_name)
@@ -422,6 +436,9 @@ class QuestEngine:
     @staticmethod
     def panel_text(char: Character, now: Optional[float] = None, rng: Optional[random.Random] = None) -> str:
         t = now if now is not None else time.time()
+        # 惰性结算收引擎内（评审 S1）：直调方也不会看到过期链仍「进行中」；
+        # 是否变更由调用方另行 settle_expired 判断并 save（重复 settle 幂等）。
+        QuestEngine.settle_expired(char, t)
         chain = char.active_quest
         if chain:
             ring = QuestEngine.current_ring(char)
