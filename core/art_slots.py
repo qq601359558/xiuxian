@@ -116,7 +116,8 @@ class ArtSlotEngine:
         skill = found["skill"]
         if (getattr(c, "main_art", "") or "") == skill:
             return _fail(f"【{skill}】已是主修，不可再入辅修（槽位互斥）。")
-        subs = list(getattr(c, "sub_arts", None) or [])
+        # 上限按有效辅修计（与加成口径一致）；成功时顺带把脏条目清洗回写
+        subs = valid_subs(c)
         if skill in subs:
             return _fail(f"【{skill}】已在辅修槽中。")
         if len(subs) >= ART_SUB_MAX:
@@ -192,16 +193,18 @@ class ArtSlotEngine:
     @staticmethod
     def panel_text(c: Character, now: Optional[float] = None) -> str:
         now = time.time() if now is None else now
-        main = getattr(c, "main_art", "") or ""
-        subs = list(getattr(c, "sub_arts", None) or [])
         skills = list(getattr(c, "skills", None) or [])
+        # 展示与加成同口径：只认仍在 skills 中的有效装配（脏数据不宣称加成）
+        raw_main = getattr(c, "main_art", "") or ""
+        main = raw_main if raw_main in skills else ""
+        subs = valid_subs(c)
         lines = ["【心法槽位】主修一门定乾坤，辅修二门助斗法"]
         if main:
             lines.append(f"主修：{main}（闭关修为 +{int(ART_MAIN_MEDITATION_BONUS * 100)}%）")
         else:
             lines.append("主修：（空）—— /主修 <功法名> 装配")
         if subs:
-            pct = int(min(ART_SUB_POWER_BONUS_CAP, ART_SUB_POWER_BONUS_EACH * len(valid_subs(c))) * 100)
+            pct = int(min(ART_SUB_POWER_BONUS_CAP, ART_SUB_POWER_BONUS_EACH * len(subs)) * 100)
             lines.append(f"辅修：{'、'.join(subs)}（斗法战力 +{pct}%）")
         else:
             lines.append("辅修：（空）—— /辅修 <功法名> 装配")

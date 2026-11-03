@@ -158,8 +158,8 @@
       const slot = st.arts && typeof st.arts === "object" ? st.arts : null;
       if (sk.length) {
         let label = "法门：" + sk.join("、");
-        if (slot && slot.main) {
-          label += "｜主修：" + slot.main;
+        if (slot) {
+          if (slot.main) label += "｜主修：" + slot.main;
           if (Array.isArray(slot.sub) && slot.sub.length) label += "｜辅修：" + slot.sub.join("、");
         }
         arts.textContent = label;

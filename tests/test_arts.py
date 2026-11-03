@@ -188,7 +188,9 @@ def test_meditation_main_bonus_numeric():
     g1 = _settle_gain(snap, with_main=True)
     assert g0 > 0
     ratio = g1 / g0
-    assert abs(ratio - (1.0 + ART_MAIN_MEDITATION_BONUS)) < 0.02, (g0, g1, ratio)
+    # 结算末端有 int() 截断，绝对增益较小时相对误差放大，故用相对容差带断言
+    assert abs(ratio - (1.0 + ART_MAIN_MEDITATION_BONUS)) < 0.035, (g0, g1, ratio)
+    assert ratio > 1.05
     print(f"✓ 闭关主修加成数值生效：无主修 {g0:.1f} → 主修 {g1:.1f}（×{ratio:.3f}）")
 
 
@@ -233,9 +235,57 @@ def test_world_handle_arts_chain():
     res = w.handle(tok, "/卸功 吐纳术")
     assert res.get("ok"), res
     assert (res.get("status") or {}).get("arts") == {"main": "御剑术", "sub": []}
+    # 拨开冷却后再测未习得拒绝（否则会被冷却拦截掩盖，文案不可区分）
+    char = w.get_char(tok)
+    char.art_slot_changed_at = time.time() - ART_SLOT_COOLDOWN_SECONDS - 5
+    CharacterRepository.save(char)
     res = w.handle(tok, "/主修 不存在的功法")
-    assert not res.get("ok")
+    assert not res.get("ok") and "未习得" in (res.get("text") or res.get("error") or ""), res
     print("✓ World.handle 全链路：面板/主修/冷却/辅修/卸功/status.arts")
+
+
+def test_dirty_data_defenses():
+    """脏数据（外部写坏的槽位）不产生加成：与加成同口径的有效计数"""
+    c = _char()
+    c.main_art = "不存在的主修"
+    assert ArtSlotEngine.meditation_mult(c) == 1.0
+    c.main_art = "吐纳术"
+    c.sub_arts = ["吐纳术", "御剑术", "御剑术", "不存在的辅修"]
+    # 与主修重复、重复条目、未习得各剔除 → 只剩御剑术 1 门有效
+    assert abs(ArtSlotEngine.power_bonus(c) - (1.0 + ART_SUB_POWER_BONUS_EACH)) < 1e-12
+    panel = ArtSlotEngine.panel_text(c)
+    assert "辅修：御剑术" in panel
+    # 脏主修面板不宣称加成
+    c2 = _char()
+    c2.main_art = "不存在的主修"
+    assert "主修：（空）" in ArtSlotEngine.panel_text(c2)
+    # 脏辅修不占上限：两条脏数据时仍可装配两门有效辅修（成功时清洗回写）
+    c3 = _char()
+    c3.sub_arts = ["不存在甲", "不存在乙"]
+    assert ArtSlotEngine.add_sub(c3, "吐纳术", now=T0)["success"]
+    assert c3.sub_arts == ["吐纳术"]
+    print("✓ 脏数据防御：无效条目零加成、不占上限、装配时清洗")
+
+
+def test_world_handle_meditation_arts_gate():
+    from storage.db import init_db, CharacterRepository
+    from server.world import World
+
+    init_db()
+    w = World(auto_tick=False)
+    r = w.join(_uniq("闭关心法客"))
+    tok = r["token"]
+    char = w.get_char(tok)
+    char.status = CharacterStatus.MEDITATING
+    CharacterRepository.save(char)
+    # 闭关中只读观照放行
+    res = w.handle(tok, "/心法")
+    assert res.get("ok"), res
+    # 调整槽位被闭关门禁拦截（防结算前临场换主修）
+    for cmd in ("/主修 御剑术", "/辅修 吐纳术", "/卸功 御剑术"):
+        res = w.handle(tok, cmd)
+        assert not res.get("ok") and "闭关锁门" in (res.get("error") or ""), (cmd, res)
+    print("✓ 闭关态 handle：/心法 放行，主修/辅修/卸功被门禁拦截")
 
 
 def test_cli_engine_chain():
