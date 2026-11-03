@@ -1,13 +1,15 @@
 # 网页版启动
 
-1. 启动局域网服（权威世界 + AI）：
+1. 启动局域网服（权威世界 + AI），在项目根目录执行：
 
 ```powershell
-cd D:\codex\xiuxian
+# Windows
 .\.venv\Scripts\python.exe server\start.py
+# macOS / Linux
+.venv/bin/python server/start.py
 ```
 
-2. 用浏览器打开 `web\index.html`（双击即可，或任意静态服务）。
+2. 用浏览器打开 `web/index.html`（双击即可，或任意静态服务）。
 
 3. 填服务器 `http://127.0.0.1:8765` 与道号，点「入世」。
 
