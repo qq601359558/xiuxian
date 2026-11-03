@@ -381,6 +381,64 @@ def test_world_handle_chain_and_meditation_lock():
     print("✓ World.handle 全链路：看板/单场直拍/多场报错/编号出价/自拍拒/闭关锁门")
 
 
+def test_stale_object_does_not_overwrite_settlement():
+    """评审整改（必须修 1）：同一次 bid 调用内 advance 结算给本人入账，不得被旧对象落库覆盖。
+
+    场景：卖家 S 的拍品 A 被 B 以 100 拍中待结算；S 随即对 D 的拍品 C 出价 50——
+    bid 内的 advance 先结算 A（S 应收 95），再扣 C 的 50 → S 终余额 500+95-50=545。
+    """
+    init_db()
+    _clear_all_lots()
+    _disable_system_seed()
+    s = _char("陈旧卖家", stones=500)
+    b = _char("陈旧买家", stones=500)
+    d = _char("陈旧场主", stones=500)
+    now = time.time()
+    s.inventory.append("百年灵芝")
+    CharacterRepository.save(s)
+    lot_a = AuctionEngine.list_item(s, "百年灵芝", 100, now=now)["lot"]
+    assert AuctionEngine.bid(b, lot_a.id, 100, now=now)["success"] is True
+    d.inventory.append("回春露")
+    CharacterRepository.save(d)
+    lot_c = AuctionEngine.list_item(d, "回春露", 10, now=now)["lot"]
+    # A 到期（直接改时间戳）；S 以「advance 前加载的旧对象」身份出价 C
+    lot_a = AuctionEngine._find(lot_a.id)
+    lot_a.ends_at = now - 1
+    AuctionLotRepository.save(lot_a)
+    s_stale = CharacterRepository.get_by_id(s.id)  # 余额仍是结算前的 500
+    assert s_stale.spirit_stones == 500
+    r = AuctionEngine.bid(s_stale, lot_c.id, 50, now=now)
+    assert r["success"] is True, r
+    assert _stones(s.id) == 545, _stones(s.id)  # 95 结算款未被旧对象覆盖
+    assert "百年灵芝" in CharacterRepository.get_by_id(b.id).inventory
+    print("✓ 陈旧对象不覆盖结算款（545 = 500 + 95 - 50）")
+
+
+def test_system_lot_buyout_sinks_full_price():
+    """评审整改（必须修 2）：系统场一口价走 _settle_buyout 系统分支——全额沉淀、文案不假账"""
+    init_db()
+    _clear_all_lots()
+    now = time.time()
+    WorldStateRepository.set("auction_next_system_at", now - 1)
+    AuctionEngine.advance(now=now, react=False)
+    pend = [l for l in AuctionLotRepository.list_all()
+            if l.source == "system" and l.status == AuctionStatus.PENDING]
+    assert pend
+    lot = pend[0]
+    AuctionEngine.advance(now=lot.starts_at + 1, react=False)
+    lot = AuctionEngine._find(lot.id)
+    assert lot.status == AuctionStatus.OPEN and lot.buyout_price
+    buyer = _char("系统一口买家", stones=100000)
+    r = AuctionEngine.buyout(buyer, lot.id, now=lot.starts_at + 2)
+    assert r["success"] is True, r
+    assert "全额归天道沉淀" in r["message"] and "卖家实收" not in r["message"], r["message"]
+    buyer = CharacterRepository.get_by_id(buyer.id)
+    assert buyer.spirit_stones == 100000 - lot.buyout_price
+    assert lot.item_name in buyer.inventory
+    assert AuctionEngine._find(lot.id).status == AuctionStatus.SOLD
+    print("✓ 系统场一口价全额沉淀，文案明示")
+
+
 def test_cli_source_parity():
     """CLI 对齐源码断言：cli/main.py 含全部拍卖动作分支（与 server 同名同义）"""
     root = Path(__file__).resolve().parent.parent

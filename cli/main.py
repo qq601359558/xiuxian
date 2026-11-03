@@ -952,9 +952,21 @@ def run_mud():
                 console.print(f"[bold green]{res['message']}[/bold green]")
 
             elif action in ["/拍卖行", "/拍卖", "auction"]:
-                from core.trade import AuctionEngine
+                from collections import Counter
 
+                from core.trade import AuctionEngine, _snapshot_assets
+
+                # 看板推进可能以新鲜副本给本人入账/退款（落槌收款、被超价退款）；
+                # CLI 的 player 是长驻对象，只吸收 DB 增量回内存（不整表覆盖，
+                # 防冲掉未落库改动），避免后续指令落库把结算款覆盖掉（F05 评审整改）
+                _before = _snapshot_assets(player.id)
                 res = AuctionEngine.board()
+                _after = _snapshot_assets(player.id)
+                if _before and _after:
+                    player.spirit_stones += _after[0] - _before[0]
+                    for _idx, _attr in ((1, "inventory"), (2, "arrays"), (3, "equipped")):
+                        for _item, _n in (Counter(_after[_idx]) - Counter(_before[_idx])).items():
+                            getattr(player, _attr).extend([_item] * _n)
                 console.print(res["message"])
 
             elif action in ["/上拍", "auction_list"]:

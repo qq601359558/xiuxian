@@ -124,8 +124,11 @@ class World:
                         from core.trade import AuctionEngine
 
                         AuctionEngine.advance(react=True)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        try:
+                            log_event("AUCTION", "advance_error", err=str(e)[:120])
+                        except Exception:
+                            pass
             except Exception:
                 continue
 
@@ -2622,7 +2625,8 @@ class World:
         try:
             from core.trade import AuctionEngine
 
-            board = AuctionEngine.board()
+            # 坊市摘要是只读呈现：只推进排期/结算，不触发 NPC 跟价（react 触发点仅拍卖看板与世界 tick）
+            board = AuctionEngine.board(react=False)
             lots = board.get("lots") or []
             if lots:
                 lines.append("拍卖行：")

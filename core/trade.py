@@ -99,6 +99,40 @@ def _find_by_id_or_user(char_id: str, user_id: str = "") -> Optional[Character]:
     return None
 
 
+def _snapshot_assets(char_id: str):
+    """DB 侧资产快照（灵石 + 三个物品列表），供 advance 前后差分"""
+    from storage.db import CharacterRepository
+
+    fresh = CharacterRepository.get_by_id(char_id)
+    if fresh is None:
+        return None
+    return (
+        fresh.spirit_stones,
+        list(fresh.inventory),
+        list(fresh.arrays),
+        list(fresh.equipped),
+    )
+
+
+def _absorb_advance_delta(c: Character, before, after) -> None:
+    """把 advance 在 DB 侧给本角色造成的资产增量并入调用方对象（评审整改）。
+
+    advance()/settle 以 DB 新鲜副本给当事人入账/退物并落库；若调用方随后用旧对象
+    落库，会把那笔入账整段覆盖。只并入「DB 前后差分」而不整表覆盖，是为了不冲掉
+    调用方尚未落库的合法内存改动（如先 append 行囊再上拍的既有调用方式）。
+    差分来源只有结算入账/退款/退物/得物，均为增量；物品按列表逐项做多重集差。
+    """
+    if before is None or after is None:
+        return
+    from collections import Counter
+
+    c.spirit_stones += after[0] - before[0]
+    for idx, attr in ((1, "inventory"), (2, "arrays"), (3, "equipped")):
+        gained = Counter(after[idx]) - Counter(before[idx])
+        for item, n in gained.items():
+            getattr(c, attr).extend([item] * n)
+
+
 # ==================== 玩家当面交易 ====================
 
 class TradeStatus(str, Enum):
@@ -977,6 +1011,10 @@ class AuctionEngine:
                 continue
             if c.id == lot.seller_id or c.id == lot.leader_id:
                 continue
+            # 与玩家同一口径：死亡/闭关/寿元已尽/资产转移受限者不参与竞价
+            ok, _reason = can_use_market(c, t)
+            if not ok:
+                continue
             if AuctionEngine.npc_cap(lot, c) >= floor:
                 cands.append(c)
         if not cands:
@@ -1008,8 +1046,14 @@ class AuctionEngine:
         }
 
     @staticmethod
-    def board(now: Optional[float] = None, rng: Optional[Any] = None) -> Dict[str, Any]:
-        notes = AuctionEngine.advance(now=now, rng=rng, react=True)
+    def board(
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        react: bool = True,
+    ) -> Dict[str, Any]:
+        """拍卖看板。react=True 时推进点含 NPC 跟价（拍卖看板/世界 tick）；
+        react=False 只做排期/晋升/结算（如坊市摘要的只读呈现，不引 NPC 竞价）。"""
+        notes = AuctionEngine.advance(now=now, rng=rng, react=react)
         t = now if now is not None else time.time()
         from storage.db import AuctionLotRepository
 
@@ -1046,7 +1090,9 @@ class AuctionEngine:
         buyout_price: Optional[int] = None,
         now: Optional[float] = None,
     ) -> Dict[str, Any]:
+        _assets_before = _snapshot_assets(seller.id)
         AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(seller, _assets_before, _snapshot_assets(seller.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(seller, t)
         if not ok:
@@ -1093,7 +1139,9 @@ class AuctionEngine:
 
     @staticmethod
     def cancel(seller: Character, lot_id: str) -> Dict[str, Any]:
+        _assets_before = _snapshot_assets(seller.id)
         AuctionEngine.advance(react=False)
+        _absorb_advance_delta(seller, _assets_before, _snapshot_assets(seller.id))
         from storage.db import AuctionLotRepository, CharacterRepository
 
         lot = AuctionEngine._find(lot_id)
@@ -1113,7 +1161,9 @@ class AuctionEngine:
 
     @staticmethod
     def bid(buyer: Character, lot_id: str, amount: int, now: Optional[float] = None) -> Dict[str, Any]:
+        _assets_before = _snapshot_assets(buyer.id)
         AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(buyer, _assets_before, _snapshot_assets(buyer.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -1169,7 +1219,9 @@ class AuctionEngine:
 
     @staticmethod
     def buyout(buyer: Character, lot_id: str, now: Optional[float] = None) -> Dict[str, Any]:
+        _assets_before = _snapshot_assets(buyer.id)
         AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(buyer, _assets_before, _snapshot_assets(buyer.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -1221,12 +1273,17 @@ class AuctionEngine:
         from storage.db import AuctionLotRepository, CharacterRepository, ChronicleRepository
 
         lot.status = AuctionStatus.SOLD
-        fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
-        net = lot.current_bid - fee
-        seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-        if seller:
-            seller.spirit_stones += net
-            CharacterRepository.save(seller)
+        if lot.source == "system":
+            # F05 系统场次：显式分支（不依赖"卖家查无此人"偶然守恒）——不付款、无抽成，成交款全额沉淀
+            fee = 0
+            net = 0
+        else:
+            fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
+            net = lot.current_bid - fee
+            seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
+            if seller:
+                seller.spirit_stones += net
+                CharacterRepository.save(seller)
         _give_item(buyer, lot.item_name, 1, lot.kind)
         AuctionLotRepository.save(lot)
         CharacterRepository.save(buyer)
@@ -1247,10 +1304,16 @@ class AuctionEngine:
             ) or ""
         except Exception:
             shout = ""
-        msg = (
-            f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你。"
-            f"卖家实收 {net}。"
-        )
+        if lot.source == "system":
+            msg = (
+                f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你"
+                f"（系统场次，成交款全额归天道沉淀）。"
+            )
+        else:
+            msg = (
+                f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你。"
+                f"卖家实收 {net}。"
+            )
         if shout:
             msg += f"\n司仪：「{shout}」"
         return {
