@@ -152,6 +152,19 @@ def test_elder_seats_from_real_chars_and_virtual_fallback():
     print("✓ 席位：NPC 长老口径过滤（弟子/陨者不入席），agenda/性情带入；虚席兜底确定性")
 
 
+def test_elder_seat_without_prebuilt_agenda_mind():
+    # 未预置 agenda/mind 的长老 NPC：ensure 路径自愈，席位与立场推导不崩
+    c = WorldClock.create_new_character(f"npc_council_{_uniq('裸席')}", f"裸席长老{_tag()}")
+    c.sect = SH
+    c.sect_rank = "护法长老"
+    CharacterRepository.save(c)
+    seats = CouncilEngine.elder_seats(SH, chars=[c])
+    assert len(seats) == 1 and seats[0]["virtual"] is False
+    assert isinstance(seats[0]["agenda_type"], str) and isinstance(seats[0]["traits"], dict)
+    assert stance_of("mining", seats[0]) in ("support", "oppose", "neutral")
+    print("✓ 席位容错：无预置 agenda/mind 的长老自愈入席")
+
+
 def test_old_save_defaults_and_state_clamp():
     _reset(JY)
     assert CouncilEngine.get_sect_state(JY) == {"vault": 1000, "prestige": 50, "morale": 50}
@@ -243,9 +256,9 @@ def test_lobby_success_steps_and_cost_escalation():
     s = CouncilEngine.advance(JY, now=T0 + 4)
     assert stance_of("mining", seat, int(s["lobby_steps"]["L1"])) == "support"
     r3 = CouncilEngine.lobby(m, "矿山长老", now=T0 + 5, seats=[seat])
-    assert not r3["success"] and "已然赞同" in r3["message"]
+    assert not r3["success"] and "已被游说" in r3["message"]  # 第三次撞每长老上限（真实累积）
     assert m.spirit_stones == 1000 - COUNCIL_LOBBY_BASE_COST * 3  # 拒绝不扣费
-    print("✓ 游说：位移一档/次、成本 60→120 递增、已支持拒绝不扣费")
+    print("✓ 游说：位移一档/次、成本 60→120 递增、每长老上限真实累积触发且拒绝不扣费")
 
 
 def test_lobby_resist_support_and_virtual():
@@ -269,48 +282,66 @@ def test_lobby_resist_support_and_virtual():
 
 
 def test_lobby_caps_and_insufficient_stones():
+    # 每玩家上限走真实累积：连撬三位长老（各首次游说）后，第四位撞玩家上限
     m = _lobby_setup()
-    seat = _seat("L4", "摇摆长老", "seclusion")
-    s = _force_session(JY, topic_id="mining", opened=T0)
-    s["lobby_attempts"]["L4"] = COUNCIL_LOBBY_MAX_PER_ELDER  # 伪造已达长老上限
-    WorldStateRepository.set(f"sect_council:{JY}", s)
-    r = CouncilEngine.lobby(m, "摇摆长老", now=T0 + 1, seats=[seat])
-    assert not r["success"] and "已被游说" in r["message"]
-    s["lobby_attempts"] = {}
-    s["lobby_by_player"][m.id] = COUNCIL_LOBBY_MAX_PER_PLAYER  # 伪造已达玩家上限
-    WorldStateRepository.set(f"sect_council:{JY}", s)
-    r = CouncilEngine.lobby(m, "摇摆长老", now=T0 + 2, seats=[seat])
+    seats = [
+        _seat("P1", "巡守长老", "patrol"),     # mining: 0 中立可撬
+        _seat("P2", "闭关长老", "seclusion"),  # mining: -1 反对可撬
+        _seat("P3", "记仇长老", "revenge"),    # mining: -1 反对可撬
+        _seat("P4", "巡山长老", "patrol"),     # 第四个目标
+    ]
+    for i, nm in enumerate(["巡守长老", "闭关长老", "记仇长老"]):
+        r = CouncilEngine.lobby(m, nm, now=T0 + 1 + i, seats=seats)
+        assert r["success"], (nm, r)
+    assert m.spirit_stones == 1000 - COUNCIL_LOBBY_BASE_COST * COUNCIL_LOBBY_MAX_PER_PLAYER
+    r = CouncilEngine.lobby(m, "巡山长老", now=T0 + 9, seats=seats)
     assert not r["success"] and "已游说" in r["message"]
+    assert m.spirit_stones == 1000 - COUNCIL_LOBBY_BASE_COST * COUNCIL_LOBBY_MAX_PER_PLAYER
+    # 灵石不足：拒绝不扣费
     poor = _member("清贫客", sect=JY, stones=10)
-    s["lobby_by_player"] = {}
-    WorldStateRepository.set(f"sect_council:{JY}", s)
-    r = CouncilEngine.lobby(poor, "摇摆长老", now=T0 + 3, seats=[seat])
+    r = CouncilEngine.lobby(poor, "巡山长老", now=T0 + 10, seats=seats)
     assert not r["success"] and "不足" in r["message"] and poor.spirit_stones == 10
-    print("✓ 游说：长老上限/玩家上限/灵石不足三道闸，拒绝均不扣费")
+    print("✓ 游说：每玩家上限真实累积触发；灵石不足拒绝不扣费")
 
 
 # ---------------- 结算 ----------------
+
+def _council_broadcasts() -> int:
+    import core.jianghu as jianghu
+
+    return len([
+        e for e in jianghu.list_recent(limit=100, kind="sect_council")
+        if SH in (e.get("summary") or "")
+        and "开矿增收" in (e.get("summary") or "")
+        and "通过" in (e.get("summary") or "")
+    ])
+
 
 def test_settle_pass_effects_and_idempotent():
     _reset(SH)
     _force_session(SH, topic_id="mining", opened=T0)
     s = CouncilEngine.advance(SH, now=T0)
     seats = [_seat("S1", "主矿长老", "treasure")]  # support
+    n_broadcasts = _council_broadcasts()
     out = CouncilEngine.settle(SH, s, now=T0 + 10, seats=seats)
     assert out["result"]["passed"] is True
     assert out["result"]["effects"] == {"vault": 300, "morale": -5}
     st = CouncilEngine.get_sect_state(SH)
     assert st == {"vault": 1300, "prestige": 50, "morale": 45}
+    assert _council_broadcasts() == n_broadcasts + 1  # 播报恰一次
     out2 = CouncilEngine.settle(SH, out, now=T0 + 20, seats=seats)  # 幂等重入
     assert CouncilEngine.get_sect_state(SH) == st
     assert out2["result"] == out["result"]
+    # 另一份独立快照再 settle：靠 KV 复查防双重落账/双重播报
+    stale = dict(out)
+    stale["settled"] = False
+    stale["result"] = None
+    out3 = CouncilEngine.settle(SH, stale, now=T0 + 30, seats=seats)
+    assert out3["settled"] and out3["result"] == out["result"]
     CouncilEngine.advance(SH, now=T0 + COUNCIL_VOTE_WINDOW_SECONDS + 5)  # 惰性再触发
     assert CouncilEngine.get_sect_state(SH) == st
-    import core.jianghu as jianghu
-    hits = [e for e in jianghu.list_recent(limit=50, kind="sect_council")
-            if SH in (e.get("summary") or "") and "开矿增收" in (e.get("summary") or "")]
-    assert hits and "通过" in hits[0]["summary"]
-    print("✓ 结算：通过落账（金库+300/士气-5）、连调幂等、世情播报已入账")
+    assert _council_broadcasts() == n_broadcasts + 1
+    print("✓ 结算：通过落账（金库+300/士气-5）、连调/异快照/KV 复查三重幂等、播报恰一次")
 
 
 def test_settle_fail_and_tie_goes_fail():
@@ -344,6 +375,15 @@ def test_settle_vault_floor_and_player_votes_count():
     assert st == {"vault": 0, "prestige": 62, "morale": 58}  # 金库扣至 0 不为负
     # 快照记实际落账差值：金库仅 100，名义 -150 → 实际 -100
     assert out["result"]["effects"]["vault"] == -100
+    # 合并写：sect_state 中他人写入的额外键不被结算整表覆盖
+    raw = WorldStateRepository.get(f"sect_state:{SH}") or {}
+    raw["future_region_key"] = 7
+    WorldStateRepository.set(f"sect_state:{SH}", raw)
+    _force_session(SH, topic_id="recruit", session_no=3, opened=T0)
+    s2 = CouncilEngine.advance(SH, now=T0)
+    CouncilEngine.settle(SH, s2, now=T0 + 10, seats=[_seat("S9", "纳徒长老", "social")])
+    raw2 = WorldStateRepository.get(f"sect_state:{SH}") or {}
+    assert raw2.get("future_region_key") == 7
     print("✓ 结算：玩家票计入多数决；金库下限 0、声望/士气按表落账")
 
 
@@ -390,4 +430,6 @@ def test_server_handle_flow_and_meditation_lock():
     assert not res["ok"] and "闭关" in (res.get("error") or ""), res
     res = WORLD.handle(tok, "/议政")
     assert not res["ok"] and "闭关" in (res.get("error") or ""), res
-    print("✓ 双端：server handle 议政/投票/改票通路；闭关三指令锁门")
+    res = WORLD.handle(tok, "/游说 丹霞子")
+    assert not res["ok"] and "闭关" in (res.get("error") or ""), res
+    print("✓ 双端：server handle 议政/投票/改票通路；闭关三指令（议政/投票/游说）锁门")

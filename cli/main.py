@@ -1229,10 +1229,10 @@ def run_mud():
                 else:
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
 
-            elif action in ["/议政", "council"]:
+            elif action in ["/议政", "/council", "council"]:
                 console.print(CouncilEngine.panel_text(player))
 
-            elif action in ["/投票", "vote"]:
+            elif action in ["/投票", "/vote", "vote"]:
                 if len(parts) < 2:
                     console.print("[red]用法：/投票 支持|反对[/red]")
                     continue
@@ -1244,7 +1244,7 @@ def run_mud():
                 else:
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
 
-            elif action in ["/游说", "lobby"]:
+            elif action in ["/游说", "/lobby", "lobby"]:
                 if len(parts) < 2:
                     console.print("[red]用法：/游说 <长老名>[/red]")
                     continue

@@ -196,8 +196,12 @@ class CouncilEngine:
 
     @staticmethod
     def _save_sect_state(sect: str, state: Dict[str, int]) -> None:
+        # 合并写：只覆盖三维内务键，保留 KV 中其他键不被整表抹掉
         try:
-            WorldStateRepository.set(_state_key(sect), dict(state))
+            raw = WorldStateRepository.get(_state_key(sect)) or {}
+            merged = dict(raw)
+            merged.update(state)
+            WorldStateRepository.set(_state_key(sect), merged)
         except Exception:
             pass
 
@@ -341,6 +345,13 @@ class CouncilEngine:
         """多数决结算：已 settled 直接返回快照，效果绝不重复落账"""
         if session.get("settled"):
             return session
+        # 复查 KV：同一会话的两份独立快照先后 settle 时，以落盘状态为准防双重落账
+        # （注意 session_no 可为 0，禁用 `or` 哨兵以免 falsy 误判）
+        stored = CouncilEngine._load_session(sect)
+        stored_no = stored.get("session_no") if stored else None
+        this_no = session.get("session_no")
+        if stored is not None and stored.get("settled") and stored_no is not None and stored_no == this_no:
+            return stored
         now = now if now is not None else time.time()
         topic = topic_by_id(session.get("topic_id") or "")
         counts = CouncilEngine.tally(sect, session, seats=seats)
@@ -530,25 +541,28 @@ class CouncilEngine:
         topic_id = session.get("topic_id") or ""
         if seats is None:
             seats = CouncilEngine.elder_seats(char.sect)
-        seat = next((s for s in seats if hint in s["name"] or s["name"] in hint), None)
+        # 精确名优先，子串兜底（防短 hint 误中他人）
+        seat = next((s for s in seats if s["name"] == hint), None)
+        if seat is None:
+            seat = next((s for s in seats if hint in s["name"] or s["name"] in hint), None)
         if seat is None:
             return CouncilEngine._reject(f"本宗长老席中无【{hint}】。/议政 查看席位。", dirty=changed)
         if seat.get("virtual"):
             return CouncilEngine._reject(f"【{seat['name']}】乃值年虚席，无形无迹，无从游说。", dirty=changed)
         steps_map = session.setdefault("lobby_steps", {})
         steps = int(steps_map.get(seat["id"]) or 0)
+        attempts_map = session.setdefault("lobby_attempts", {})
+        attempts = int(attempts_map.get(seat["id"]) or 0)
+        if attempts >= COUNCIL_LOBBY_MAX_PER_ELDER:
+            return CouncilEngine._reject(
+                f"【{seat['name']}】本场已被游说 {attempts} 次，言多必失，不可再扰。", dirty=changed
+            )
         if stance_of(topic_id, seat, steps) == "support":
             return CouncilEngine._reject(f"【{seat['name']}】已然赞同本场议题，不必游说。", dirty=changed)
         base_score = stance_score(topic_id, seat.get("agenda_type") or "", seat.get("traits"))
         if base_score <= COUNCIL_LOBBY_RESIST_SCORE:
             return CouncilEngine._reject(
                 f"【{seat['name']}】对此议铁了心反对，油盐不进——灵石就不收你的了。", dirty=changed
-            )
-        attempts_map = session.setdefault("lobby_attempts", {})
-        attempts = int(attempts_map.get(seat["id"]) or 0)
-        if attempts >= COUNCIL_LOBBY_MAX_PER_ELDER:
-            return CouncilEngine._reject(
-                f"【{seat['name']}】本场已被游说 {attempts} 次，言多必失，不可再扰。", dirty=changed
             )
         by_player = session.setdefault("lobby_by_player", {})
         my_attempts = int(by_player.get(char.id) or 0)
