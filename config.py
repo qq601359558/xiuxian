@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from typing import Dict
 
-# 根目录与数据目录 (全部严格限定在 D 盘)
+# 版本标识（灰度发布）：/health 回显，发布时与 git tag 对齐
+VERSION = "0.1.0-gray.1"
+
+# 根目录与数据目录
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)

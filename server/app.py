@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict
 from urllib.parse import urlparse
 
-from config import LAN_HOST, LAN_PORT
+from config import AI_REQUIRED, ALLOW_LOCAL_AI, LAN_HOST, LAN_PORT, VERSION, ai_available
 from server.world import WORLD
 from server.log import log_event
 
@@ -41,7 +41,20 @@ class GameHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/health":
-            return _json_response(self, 200, {"ok": True, "service": "tiandao-lan"})
+            # 灰度运维自检：版本、AI 通道状态、在线会话数（字段只增不改，兼容旧探针）
+            return _json_response(
+                self,
+                200,
+                {
+                    "ok": True,
+                    "service": "tiandao-lan",
+                    "version": VERSION,
+                    "ai_available": ai_available(),
+                    "ai_required": AI_REQUIRED,
+                    "allow_local_ai": ALLOW_LOCAL_AI,
+                    "online": len(WORLD.sessions),
+                },
+            )
         if path == "/ailog":
             from ai.calllog import tail_ai_calls, AI_LOG_PATH
 
