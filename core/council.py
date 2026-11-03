@@ -353,11 +353,15 @@ class CouncilEngine:
             delta = max(-cap, min(cap, int(delta)))
             if delta == 0:
                 continue
+            before = state[key]
             if key == "vault":
-                state["vault"] = max(0, state["vault"] + delta)
+                state["vault"] = max(0, before + delta)
             else:
-                state[key] = max(0, min(100, state[key] + delta))
-            applied[key] = delta
+                state[key] = max(0, min(100, before + delta))
+            # 快照/播报记实际落账差值（经下限/上限钳制后），不记名义增量
+            actual = state[key] - before
+            if actual:
+                applied[key] = actual
         CouncilEngine._save_sect_state(sect, state)
         session["settled"] = True
         session["result"] = {

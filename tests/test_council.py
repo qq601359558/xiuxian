@@ -342,6 +342,8 @@ def test_settle_vault_floor_and_player_votes_count():
     assert out["result"]["passed"] is True
     st = CouncilEngine.get_sect_state(SH)
     assert st == {"vault": 0, "prestige": 62, "morale": 58}  # 金库扣至 0 不为负
+    # 快照记实际落账差值：金库仅 100，名义 -150 → 实际 -100
+    assert out["result"]["effects"]["vault"] == -100
     print("✓ 结算：玩家票计入多数决；金库下限 0、声望/士气按表落账")
 
 
