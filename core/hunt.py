@@ -12,9 +12,19 @@ from storage.db import CharacterRepository, WorldStateRepository
 
 _HUNT_KEY = "hunts"  # hunter_id -> {target_id, expires_at}
 _COUNTER_KEY = "counter_hunts"  # target_id -> {hunter_id, paid}
+_ORDER_KEY = "hunt_orders"  # target_id -> order dict（F15 令状态机）
 SIN_THRESHOLD = 80
 HUNT_TTL_H = 48.0
 FLEE_CHANCE = 0.25
+
+# ---- F15 除凶令状态机常量（spec: docs/compose/spec/hunt.md）----
+ORDER_OPEN = "OPEN"
+ORDER_SETTLED = "SETTLED"
+ORDER_EXPIRED = "EXPIRED"
+ORDER_DISSOLVED = "DISSOLVED"
+ORDER_MAX_HUNTERS = 5  # 单令接令人数上限
+ASSIST_MERIT = 15  # 协剿功德（同场接令者，≤ EVENT_EFFECT_CAPS["merit"]=40）
+TRACK_REFRESH_SECONDS = 3600.0  # 追凶情报快照刷新间隔
 
 
 def _load() -> Dict[str, Any]:
@@ -62,21 +72,141 @@ def is_marked(c: Character, now: Optional[float] = None) -> bool:
     return c.karma.is_blood_marked(t) or c.karma.sin_value >= SIN_THRESHOLD
 
 
+# ================= F15：除凶令状态机（令实体层） =================
+# 令以凶犯为中心存 hunt_orders（target_id -> order）；hunts KV 继续做猎手侧索引，
+# 旧路径（my_target/siege/settle 旧口径）语义不变。发布/过期/消散全部惰性推进。
+
+def _load_orders() -> Dict[str, Any]:
+    try:
+        d = WorldStateRepository.get(_ORDER_KEY) or {}
+        return {str(k): v for k, v in d.items() if isinstance(v, dict)}
+    except Exception:
+        return {}
+
+
+def _save_orders(d: Dict[str, Any]) -> None:
+    try:
+        WorldStateRepository.set(_ORDER_KEY, d)
+    except Exception:
+        pass
+
+
+def _region_of(location: Optional[str]) -> str:
+    try:
+        from core.market import MarketEngine
+
+        return MarketEngine.region_of(location)
+    except Exception:
+        return location or ""
+
+
+def _clear_hunter_records(target_id: str) -> None:
+    """清除全部指向 target_id 的猎手侧 hunts 记录（令终态时调用）。"""
+    d = _load()
+    changed = False
+    for hid in list(d.keys()):
+        rec = d[hid]
+        tid = rec.get("target_id") if isinstance(rec, dict) else rec
+        if tid == target_id:
+            d.pop(hid, None)
+            changed = True
+    if changed:
+        _save(d)
+
+
+def _close_order(order: Dict[str, Any], status: str, now: float) -> None:
+    order["status"] = status
+    order["closed_at"] = now
+    _clear_hunter_records(str(order.get("target_id") or ""))
+
+
+def ensure_order(target: Character, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """惰性发布/推进某凶犯的除凶令。
+
+    - 已有 OPEN 令：过期→EXPIRED、凶犯已死/洗清→DISSOLVED（均清猎手记录）；
+      过期后凶犯仍在标记中则立即重新发布新令。
+    - 无 OPEN 令且凶犯在标记中：发布新令（同 target 同时至多一 OPEN，结构性去重）。
+    返回当前 OPEN 令（dict 副本）；无令可发时返回既有终态令或 None。
+    """
+    t = now if now is not None else time.time()
+    orders = _load_orders()
+    order = orders.get(target.id)
+    if order and order.get("status") == ORDER_OPEN:
+        if t > float(order.get("expires_at") or 0):
+            _close_order(order, ORDER_EXPIRED, t)
+            orders[target.id] = order
+            order = None  # 落入重新发布判断
+        elif target.status == CharacterStatus.DEAD or not is_marked(target, t):
+            _close_order(order, ORDER_DISSOLVED, t)
+            orders[target.id] = order
+            _save_orders(orders)
+            return dict(order)
+        else:
+            return dict(order)
+    if target.status == CharacterStatus.DEAD or not is_marked(target, t):
+        _save_orders(orders)
+        return dict(order) if order else None
+    fresh = {
+        "order_id": f"hunt_{target.id}_{int(t)}",
+        "target_id": target.id,
+        "target_name": target.name,
+        "issued_at": t,
+        "expires_at": t + HUNT_TTL_H * 3600,
+        "status": ORDER_OPEN,
+        "hunters": {},
+        "intel_region": _region_of(target.location),
+        "intel_at": t,
+        "settled_by": None,
+        "settled_at": 0.0,
+        "closed_at": 0.0,
+    }
+    orders[target.id] = fresh
+    _save_orders(orders)
+    return dict(fresh)
+
+
+def _sweep_orders(now: Optional[float] = None) -> Dict[str, Any]:
+    """惰性推进全部 OPEN 令的过期/消散（看板/追凶等访问点调用）。"""
+    t = now if now is not None else time.time()
+    orders = _load_orders()
+    changed = False
+    for tid, order in orders.items():
+        if order.get("status") != ORDER_OPEN:
+            continue
+        target = CharacterRepository.get_by_id(tid)
+        if t > float(order.get("expires_at") or 0):
+            _close_order(order, ORDER_EXPIRED, t)
+            changed = True
+        elif (not target) or target.status == CharacterStatus.DEAD or not is_marked(target, t):
+            _close_order(order, ORDER_DISSOLVED, t)
+            changed = True
+    if changed:
+        _save_orders(orders)
+    return orders
+
+
+def get_order(target_id: str) -> Optional[Dict[str, Any]]:
+    o = _load_orders().get(target_id)
+    return dict(o) if o else None
+
+
 def format_board(limit: int = 12) -> str:
     now = time.time()
     _purge_expired(now)
+    _sweep_orders(now)
     rows = []
     for c in CharacterRepository.list_all_alive():
         if c.status == CharacterStatus.DEAD:
             continue
         if is_marked(c):
+            ensure_order(c, now)  # F15：看板即发布点（惰性发令）
             rows.append(c)
     rows.sort(key=lambda x: -x.karma.sin_value)
     if not rows:
         return "【除凶榜】天道清朗，暂无血煞缠身之人。"
     lines = [
         f"【除凶榜】血煞或业力≥{SIN_THRESHOLD}者；令限时 {int(HUNT_TTL_H)}h。",
-        "接令：/接除凶 <道号> · /弃除凶 · /围剿 <道号> 宣告 · /反悬赏 防身",
+        "接令：/接令（/接除凶）<道号> · /追凶 查区域情报 · /弃令（/弃除凶）· /围剿 <道号> 宣告 · /反悬赏 防身",
     ]
     hunts = _load()
     for c in rows[:limit]:
@@ -103,6 +233,24 @@ def accept(hunter: Character, target_name: str) -> Dict[str, Any]:
             "success": False,
             "message": f"【{target.name}】未染血煞，天道不允私刑。",
         }
+    # F15：令侧登记（满员拒绝；已在令中者不重复占位）
+    order = ensure_order(target, now)
+    if order and order.get("status") == ORDER_OPEN:
+        hunters = order.get("hunters") or {}
+        if hunter.id not in hunters and len(hunters) >= ORDER_MAX_HUNTERS:
+            return {
+                "success": False,
+                "message": (
+                    f"【{target.name}】的除凶令接令已满 {ORDER_MAX_HUNTERS} 人，"
+                    "天道昭昭，不必拥挤，可另寻凶犯。"
+                ),
+            }
+        if hunter.id not in hunters:
+            orders = _load_orders()
+            live = orders.get(target.id)
+            if live and live.get("status") == ORDER_OPEN:
+                live.setdefault("hunters", {})[hunter.id] = now
+                _save_orders(orders)
     d[hunter.id] = {
         "target_id": target.id,
         "expires_at": now + HUNT_TTL_H * 3600,
@@ -123,7 +271,7 @@ def accept(hunter: Character, target_name: str) -> Dict[str, Any]:
         "target_id": target.id,
         "message": (
             f"【除凶令】已接：诛【{target.name}】（{target.realm.name} @ {target.location}）。\n"
-            f"限时 {int(HUNT_TTL_H)} 现实小时；同场可 /围剿 {target.name} 宣告。"
+            f"限时 {int(HUNT_TTL_H)} 现实小时；/追凶 查其所在区域；同场可 /围剿 {target.name} 宣告。"
         ),
     }
 
@@ -132,9 +280,79 @@ def abandon(hunter: Character) -> Dict[str, Any]:
     d = _load()
     if hunter.id not in d:
         return {"success": False, "message": "你并未接除凶令。"}
-    d.pop(hunter.id, None)
+    rec = d.pop(hunter.id, None)
     _save(d)
+    # F15：同步摘除令侧登记（令本身不因弃令终结）
+    try:
+        tid = rec.get("target_id") if isinstance(rec, dict) else rec
+        if tid:
+            orders = _load_orders()
+            order = orders.get(tid)
+            if order and order.get("status") == ORDER_OPEN and hunter.id in (order.get("hunters") or {}):
+                order["hunters"].pop(hunter.id, None)
+                _save_orders(orders)
+    except Exception:
+        pass
     return {"success": True, "message": "【弃令】放下杀心。"}
+
+
+def track(hunter: Character, now: Optional[float] = None) -> Dict[str, Any]:
+    """F15 追凶：区域级情报快照（刷新间隔 TRACK_REFRESH_SECONDS），不给精确地点。"""
+    t = now if now is not None else time.time()
+    d = _purge_expired(t)
+    rec = d.get(hunter.id)
+    if not rec:
+        return {"success": False, "message": "你未接除凶令。先 /除凶 看榜，再 /接令 <道号>。"}
+    tid = rec.get("target_id") if isinstance(rec, dict) else rec
+    target = CharacterRepository.get_by_id(tid) if tid else None
+    # 惰性推进终态：令过期/消散会连带清掉本猎手记录
+    _sweep_orders(t)
+    if hunter.id not in _load():
+        if target and target.status != CharacterStatus.DEAD and is_marked(target, t):
+            ensure_order(target, t)  # 凶犯仍在标记中：为后来者重发新令
+        return {
+            "success": False,
+            "message": "【追凶】此令已作废（凶犯身死、洗清或令已过期），猎手记录已清，可另接新令。",
+        }
+    if not target or target.status == CharacterStatus.DEAD:
+        d = _load()
+        d.pop(hunter.id, None)
+        _save(d)
+        return {"success": False, "message": "【追凶】目标已身死道消，此令作废。"}
+    order = ensure_order(target, t)
+    if not order or order.get("status") != ORDER_OPEN:
+        d = _load()
+        d.pop(hunter.id, None)
+        _save(d)
+        return {"success": False, "message": "【追凶】此令已终结（过期或凶犯洗清），可另接新令。"}
+    # 情报快照：过刷新间隔才更新为凶犯当前区域
+    orders = _load_orders()
+    live = orders.get(target.id) or order
+    intel_at = float(live.get("intel_at") or 0)
+    if t - intel_at >= TRACK_REFRESH_SECONDS:
+        live["intel_region"] = _region_of(target.location)
+        live["intel_at"] = t
+        orders[target.id] = live
+        _save_orders(orders)
+        intel_at = t
+    age_min = max(0, int((t - intel_at) // 60))
+    left_h = max(0.0, float(live.get("expires_at") or 0) - t) / 3600.0
+    n_hunters = len(live.get("hunters") or {})
+    mark = "血煞" if target.karma.is_blood_marked(t) else "重业"
+    msg = (
+        f"【追凶】{target.name}（{target.realm.name}·{mark}·业力{target.karma.sin_value}）\n"
+        f"· 情报区域：{live.get('intel_region') or '未知'}（{age_min} 分钟前探得，"
+        f"每 {int(TRACK_REFRESH_SECONDS // 60)} 分钟刷新；天道只示区域，不泄确切行踪）\n"
+        f"· 令状态：进行中 · 接令 {n_hunters}/{ORDER_MAX_HUNTERS} 人 · 余 {left_h:.1f}h\n"
+        "· 同场接令者协剿得功德；亲手诛之者全功。前往该区域后 /同场 寻其踪迹。"
+    )
+    return {
+        "success": True,
+        "message": msg,
+        "region": live.get("intel_region"),
+        "target_id": target.id,
+        "hunters": n_hunters,
+    }
 
 
 def my_target(hunter: Character) -> Optional[Character]:
@@ -209,7 +427,47 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
             WorldStateRepository.set(_COUNTER_KEY, cd)
     except Exception:
         pass
-    return {"merit": 40, "sin_reduced": 20}
+    # F15：令终态 + 同场协剿分账（旧口径之上的加法层；无令实体时整段跳过）
+    assists: List[Dict[str, Any]] = []
+    try:
+        orders = _load_orders()
+        order = orders.get(victim.id)
+        if order and order.get("status") == ORDER_OPEN:
+            for hid in list((order.get("hunters") or {}).keys()):
+                if hid in (hunter.id, victim.id):
+                    continue
+                c = CharacterRepository.get_by_id(hid)  # 现读现存，防陈旧对象
+                if not c or c.status == CharacterStatus.DEAD:
+                    continue
+                if c.location != victim.location:
+                    continue
+                c.karma.add_merit(ASSIST_MERIT)
+                CharacterRepository.save(c)
+                assists.append({"name": c.name, "merit": ASSIST_MERIT})
+            order["status"] = ORDER_SETTLED
+            order["settled_by"] = hunter.id
+            order["settled_at"] = now
+            order["closed_at"] = now
+            orders[victim.id] = order
+            _save_orders(orders)
+            _clear_hunter_records(victim.id)
+            if assists:
+                try:
+                    from core.world_channel import WorldChannel
+
+                    names = "、".join(a["name"] for a in assists)
+                    WorldChannel.post(
+                        "hunt",
+                        f"【协剿】{names} 同场助 {hunter.name} 诛 {victim.name}，各得功德 {ASSIST_MERIT}。",
+                        level="major",
+                        actor=hunter.name,
+                        location=victim.location,
+                    )
+                except Exception:
+                    pass
+    except Exception:
+        assists = []
+    return {"merit": 40, "sin_reduced": 20, "assists": assists}
 
 
 def settle_hunter_slain(hunter: Character, killer: Character) -> Optional[Dict[str, Any]]:

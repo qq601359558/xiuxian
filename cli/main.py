@@ -204,6 +204,10 @@ def print_help():
   [bold yellow]/许诺 <对象> <诺目> [参数][/bold yellow] - 立诺：赠物 <物品名>|抵达 <地点>|委托|不攻（对玩家须对方 /应诺 才生效）
   [bold yellow]/应诺 [立诺者名][/bold yellow]     - 应下他人向你立的诺（义务只在立诺者）
   [bold yellow]/毁诺 [受诺人名][/bold yellow]     - 毁弃未结之诺（已生效者按违约记账；待应诺者可无代价撤回）
+  [bold yellow]/除凶[/bold yellow]                 - 除凶榜（血煞/重业者之令，发布→接令→追凶→围剿→结算）
+  [bold yellow]/接令 <道号>[/bold yellow]          - 接除凶令（一人一令，单令上限 5 人；/接除凶 同）
+  [bold yellow]/追凶[/bold yellow]                 - 追凶情报（区域级快照，每小时刷新，不泄确切行踪）
+  [bold yellow]/弃令[/bold yellow]                 - 放弃所接除凶令（/弃除凶 同）
   [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
   [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
   [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
@@ -220,7 +224,7 @@ def print_help():
   [bold yellow]/议程[/bold yellow]                 - 查看 NPC 当前议程一览
   [bold yellow]/自创功法 <理念>[/bold yellow]       - 消耗神识让天道为你自创独门法门（如：/自创功法 噬血炼骨）
   [bold yellow]/大事记[/bold yellow]               - 翻阅天道总账，查看近期全界因果杀戮
-  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /除凶 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
+  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
   [bold yellow]/帮助[/bold yellow]                 - 查看本指令菜单
   [bold yellow]/退出[/bold yellow]                 - 暂离修仙界（若正在闭关，离线期间现实时间照常计时）
 """
@@ -1323,6 +1327,51 @@ def run_mud():
                 if res["success"] or res.get("dirty"):
                     CharacterRepository.save(player)
                 if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            # 除凶令（F15）：与 server 同引擎；闭关白名单不含此组指令，天然锁门（对齐 F07）
+            elif action in ["/除凶", "/hunt", "hunt"]:
+                from core import hunt as _hunt
+
+                t = _hunt.my_target(player)
+                extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
+                console.print(_hunt.format_board() + extra)
+
+            elif action in ["/接令", "/接除凶", "acceptorder"]:
+                from core import hunt as _hunt
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/接令 <道号>[/red]")
+                    continue
+                res = _hunt.accept(player, "".join(parts[1:]))
+                if res.get("success"):
+                    try:
+                        from core.sect_contrib import sync_ring
+
+                        sync_ring(player, "hunt")
+                        CharacterRepository.save(player)
+                    except Exception:
+                        pass
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/追凶", "/track", "track"]:
+                from core import hunt as _hunt
+
+                res = _hunt.track(player)
+                if res.get("success"):
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/弃令", "/弃除凶", "abandonorder"]:
+                from core import hunt as _hunt
+
+                res = _hunt.abandon(player)
+                if res.get("success"):
                     console.print(f"[bold green]{res['message']}[/bold green]")
                 else:
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")

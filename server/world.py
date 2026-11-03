@@ -1576,11 +1576,11 @@ class World:
                 t = my_target(char)
                 extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
                 return {"ok": True, "text": format_board() + extra}
-            if action in ("/接除凶",):
+            if action in ("/接除凶", "/接令"):
                 from core.hunt import accept
 
                 if len(parts) < 2:
-                    return {"ok": False, "error": "用法：/接除凶 <道号>"}
+                    return {"ok": False, "error": "用法：/接令 <道号>"}
                 res = accept(char, "".join(parts[1:]))
                 if res.get("success"):
                     try:
@@ -1590,10 +1590,15 @@ class World:
                     except Exception:
                         pass
                 return {"ok": res.get("success"), "text": res.get("message", "")}
-            if action in ("/弃除凶",):
+            if action in ("/弃除凶", "/弃令"):
                 from core.hunt import abandon
 
                 res = abandon(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/追凶", "/track"):
+                from core.hunt import track
+
+                res = track(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/反悬赏",):
                 from core.hunt import place_counter
@@ -2465,7 +2470,7 @@ class World:
             "/榜 /飞升榜 [我|本纪元|道号] /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接令 /追凶 /弃令 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/ailog(=AI日志) /ai(=AI自检)"
         )
