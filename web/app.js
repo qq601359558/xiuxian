@@ -4,7 +4,7 @@
 
   const $ = (id) => document.getElementById(id);
   const state = {
-    base: localStorage.getItem("td_base") || "http://127.0.0.1:8765",
+    base: localStorage.getItem("td_base") || ((location.protocol === "http:" || location.protocol === "https:") && location.hostname !== "localhost" && location.hostname !== "127.0.0.1" ? location.origin : "http://127.0.0.1:8765"),
     token: localStorage.getItem("td_token") || "",
     name: localStorage.getItem("td_name") || "",
     uid: localStorage.getItem("td_uid") || "",
