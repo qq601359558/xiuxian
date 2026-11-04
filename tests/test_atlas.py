@@ -150,11 +150,15 @@ def test_explore_hook_real_chain():
     import core.adventure as adv
 
     c = _char("探险客", sect=QY, location=HUB_LOC)
-    before = _inf(HUB, QY)
-    with mock.patch.object(random, "random", lambda: 0.0):
-        res = adv.AdventureEngine.explore(c, "野外", use_ai=False)
-    assert res["success"] and res["combat_success"], res.get("message")
-    assert _inf(HUB, QY) == pytest.approx(before + ATLAS_POINTS["explore"])
+    # 密封（活库）：与 test_quest_hook_real_chain 同机制——真实引擎调用
+    # 夹在两次衰减读图之间，冻结墙钟隔离衰减漂移（详见彼处注释）
+    frozen = time.time()
+    with mock.patch("time.time", lambda: frozen):
+        before = _inf(HUB, QY)
+        with mock.patch.object(random, "random", lambda: 0.0):
+            res = adv.AdventureEngine.explore(c, "野外", use_ai=False)
+        assert res["success"] and res["combat_success"], res.get("message")
+        assert _inf(HUB, QY) == pytest.approx(before + ATLAS_POINTS["explore"])
     print("✓ 真实链路：探险成功经钩子为本宗 +4")
 
 
@@ -178,12 +182,18 @@ def test_quest_hook_real_chain():
         rings=[ring(), ring()], ring_index=0,
         accepted_at=now, expires_at=now + 86400, reward_stones=60, reward_merit=5,
     )
-    before = _inf(HUB, QY)
-    r1 = QuestEngine.deliver(c)
-    assert r1["success"] and r1.get("advanced"), r1.get("message")
-    r2 = QuestEngine.deliver(c)
-    assert r2["success"] and r2.get("completed"), r2.get("message")
-    assert _inf(HUB, QY) == pytest.approx(before + 2 * ATLAS_POINTS["quest"])
+    # 密封（活库）：影响力按存储时间戳连续衰减（半衰 7 日 ≈ 每秒 1.146e-6），
+    # 活库下两次交付+读图耗时逾秒，漂移即超 approx 默认容差 1e-6
+    # （实测得 11.9999859 vs 期望 12.0）——冻结墙钟隔离衰减，只验钩子计分
+    # 本身；衰减口径由 test_decay_prune_and_turnover 以注入 now 专项钉死。
+    frozen = time.time()
+    with mock.patch("time.time", lambda: frozen):
+        before = _inf(HUB, QY)
+        r1 = QuestEngine.deliver(c)
+        assert r1["success"] and r1.get("advanced"), r1.get("message")
+        r2 = QuestEngine.deliver(c)
+        assert r2["success"] and r2.get("completed"), r2.get("message")
+        assert _inf(HUB, QY) == pytest.approx(before + 2 * ATLAS_POINTS["quest"])
     print("✓ 真实链路：委托两环交付经钩子各 +6，无重复计数")
 
 
@@ -199,13 +209,16 @@ def test_hunt_hook_real_settle():
     state[hunter.id] = {"target_id": victim.id, "expires_at": time.time() + 3600}
     WorldStateRepository.set("hunts", state)
     try:
-        before = _inf(STAR, QY)
-        res = hunt.settle_kill(hunter, victim)
-        assert res and res.get("merit") == 40
-        assert _inf(STAR, QY) == pytest.approx(before + ATLAS_POINTS["hunt"])
-        # 重入幂等：记录已被 settle_kill 弹出，第二次调用返回 None 且不重复计分
-        assert hunt.settle_kill(hunter, victim) is None
-        assert _inf(STAR, QY) == pytest.approx(before + ATLAS_POINTS["hunt"])
+        # 密封（活库）：同 test_quest_hook_real_chain 机制，冻结墙钟隔离衰减漂移
+        frozen = time.time()
+        with mock.patch("time.time", lambda: frozen):
+            before = _inf(STAR, QY)
+            res = hunt.settle_kill(hunter, victim)
+            assert res and res.get("merit") == 40
+            assert _inf(STAR, QY) == pytest.approx(before + ATLAS_POINTS["hunt"])
+            # 重入幂等：记录已被 settle_kill 弹出，第二次调用返回 None 且不重复计分
+            assert hunt.settle_kill(hunter, victim) is None
+            assert _inf(STAR, QY) == pytest.approx(before + ATLAS_POINTS["hunt"])
     finally:
         if prior is None:
             WorldStateRepository.delete("hunts")
