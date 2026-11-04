@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 # 版本标识（灰度发布）：/health 回显，发布时与 git tag 对齐
-VERSION = "0.2.2-gray.4"
+VERSION = "0.2.3-gray.5"
 
 # 根目录与数据目录
 BASE_DIR = Path(__file__).resolve().parent
