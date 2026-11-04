@@ -115,3 +115,7 @@ def test_forge_fallback_skips_occupied_pill_names():
 
 def test_forge_fallback_skips_occupied_equip_names():
     _assert_forge_skips_occupied("equip")
+
+
+def test_forge_fallback_skips_occupied_monster_names():
+    _assert_forge_skips_occupied("monster")

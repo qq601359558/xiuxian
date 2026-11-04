@@ -191,6 +191,10 @@ def forge(kind: str, hint: str = "") -> Dict[str, Any]:
         return {"success": False, "error": f"造化失败：{label}之名与既有重名，无法落库"}
 
     saved = GeneratedNameRepository.save(name, kind, obj)
+    if not saved:
+        # save 为 ON CONFLICT DO NOTHING：False 即未落库（并发撞名或 DB 异常），
+        # 明确失败，不再假报成功并宣称已落库去重
+        return {"success": False, "error": f"造化失败：{label}「{name}」未能落库"}
     # 并入运行时货单，便于购买/穿戴
     if kind in ("pill", "equip"):
         ITEM_CATALOG[name] = {k: v for k, v in obj.items() if k != "kind"}
