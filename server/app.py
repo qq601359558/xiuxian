@@ -211,6 +211,12 @@ class GameHandler(BaseHTTPRequestHandler):
             lg = acct_login(username, password)
             if not lg.get("ok"):
                 return _json_response(self, 400, lg)
+            # account-death §2.6 行为变更：现世角色已死 → 只报死讯＋钱包，不自动建角；
+            # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
+            dead = WORLD.dead_payload(lg["user_id"], username=username)
+            if dead is not None:
+                log_event("CMD", "login_dead", username=username)
+                return _json_response(self, 200, {"ok": True, "username": username, **dead})
             result = WORLD.join(name, user_id=lg["user_id"])
             log_event("CMD", "login", username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})

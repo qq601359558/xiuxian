@@ -108,10 +108,16 @@ def test_consignment_dead_seller_proceeds():
         assert paid == 300
         CharacterRepository.save(seller_obj)
         assert ITEM in _get(buyer.id).inventory
-        assert _get(seller.id).spirit_stones == dead_before + 300, (
-            "货款恰 +300 落入死者角色行（不丢失、不重复）"
+        # account-death 裁定 1（原“未定②取证”已定案）：死者卖单成交款入账户钱包，不入死行
+        from storage.db import LegacyRepository as _LR
+
+        _acc = _LR.get_or_create(seller.user_id)
+        assert _acc.wallet_stones >= 300
+        assert any(e.kind == "consignment_sale" and e.ref == listing.id for e in _acc.wallet_ledger)
+        assert _get(seller.id).spirit_stones == dead_before, (
+            "货款 +300 入账户钱包，死者角色行分文不动"
         )
-        print("✓ 寄售死亡组合：死者卖单仍可成交，货款 +300 落死者行（未定②取证）")
+        print("✓ 寄售死亡组合：死者卖单仍可成交，货款 +300 入账户钱包（account-death 裁定 1）")
     finally:
         _cleanup(seller, buyer)
 
@@ -136,10 +142,16 @@ def test_auction_dead_bidder_outbid_refund():
         _die(a)
         res2 = AuctionEngine.bid(_get(b.id), lot.id, 200)
         assert res2["success"], res2
-        assert _get(a.id).spirit_stones == a_after_bid + 150, (
-            "死者被超价：冻款 150 恰退回死者角色行"
+        # 评审 M1a（原“未定②取证”已定案）：上一领先者已死，超价退款直接入其账户钱包，不退死行
+        from storage.db import LegacyRepository as _LR
+
+        _acc = _LR.get_or_create(a.user_id)
+        assert _acc.wallet_stones == 150
+        assert any(e.kind == "auction_refund" for e in _acc.wallet_ledger)
+        assert _get(a.id).spirit_stones == a_after_bid, (
+            "死者被超价：冻款 150 入账户钱包，死者角色行分文不动"
         )
-        print("✓ 拍卖死亡组合（超价路）：死者冻款全额退回死者行（未定②取证）")
+        print("✓ 拍卖死亡组合（超价路）：死者冻款全额退入账户钱包（评审 M1a）")
     finally:
         _cleanup(seller, a, b)
 
@@ -156,10 +168,16 @@ def test_auction_dead_leader_wins_item_to_dead_row():
         lot_now = _lot(lot.id)
         AuctionEngine.settle_expired(now=lot_now.ends_at + 10)
         lot_done = _lot(lot.id)
-        assert lot_done.status.value == "SOLD", lot_done
-        assert ITEM in _get(a.id).inventory, "拍品落入死者行囊（现状取证）"
-        assert _get(seller.id).spirit_stones > s_before, "卖家实收（扣费后）照常入账"
-        print("✓ 拍卖死亡组合（落槌路）：死者得拍品入其行囊、卖家照常实收（未定②取证）")
+        # account-death 裁定 2 兜底（原“未定②取证”已定案）：漏扫的死者领先单落槌时
+        # 冻款退钱包、拍品还卖家、单据按流拍计，无钱物双得
+        assert lot_done.status.value == "EXPIRED", lot_done
+        from storage.db import LegacyRepository as _LR
+
+        assert _LR.get_or_create(a.user_id).wallet_stones == 150
+        assert ITEM not in _get(a.id).inventory, "死者不得钱物双得，拍品不交付死者"
+        assert ITEM in _get(seller.id).inventory, "拍品按流拍退回卖家"
+        assert _get(seller.id).spirit_stones == s_before, "未成交，卖家无实收"
+        print("✓ 拍卖死亡组合（落槌兜底）：死者冻款退钱包、拍品还卖家、单据 EXPIRED（account-death 裁定 2）")
     finally:
         _cleanup(seller, a)
 
@@ -172,8 +190,9 @@ def test_auction_dead_seller_no_bid_item_returned():
         AuctionEngine.settle_expired(now=_lot(lot.id).ends_at + 10)
         lot_done = _lot(lot.id)
         assert lot_done.status.value == "EXPIRED", lot_done
-        assert ITEM in _get(seller.id).inventory, "流拍拍品退回死者行囊（现状取证）"
-        print("✓ 拍卖死亡组合（流拍路）：拍品退回死者行囊（未定②取证）")
+        # account-death 裁定 2（原“未定②取证”已定案）：卖家已死，流拍拍品消散，不回死行／新角
+        assert ITEM not in _get(seller.id).inventory, "卖家已死，流拍拍品消散"
+        print("✓ 拍卖死亡组合（流拍路）：卖家已死，拍品消散（account-death 裁定 2）")
     finally:
         _cleanup(seller)
 

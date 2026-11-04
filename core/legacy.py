@@ -35,6 +35,20 @@ class PastLife(BaseModel):
     died_at: float = 0.0
 
 
+class WalletEntry(BaseModel):
+    """账户钱包流水一条（余额为独立字段，不由流水重算）"""
+    ts: float = 0.0
+    kind: str = ""  # death_sweep / consignment_sale / auction_sale / auction_refund / wallet_withdraw
+    amount: int = 0
+    ref: str = ""  # 业务单据 id（寄售单 id／拍品 id／死者角色 id／withdraw:<ts>）
+    note: str = ""
+    # QA-D2：death_sweep 流水的随身／寄存 breakdown（显式字段，唯一主口径）。
+    # 仅 death_sweep（含残差）条目有意义，且须满足 sweep_spirit + sweep_vault == amount；
+    # 旧档（本字段上线前写入）的条目两字段均为 0，见 core/wallet.py 的 note 回退解析。
+    sweep_spirit: int = 0
+    sweep_vault: int = 0
+
+
 class LegacyAccount(BaseModel):
     """账号级元进度（跨一世保留）"""
     user_id: str
@@ -43,6 +57,9 @@ class LegacyAccount(BaseModel):
     total_points_earned: int = 0
     death_times: List[float] = Field(default_factory=list)
     past_lives: List[PastLife] = Field(default_factory=list)
+    # 账户钱包（account-death-rework D1/D2）：余额独立于流水，≥0；旧档无此字段时补 0/[]
+    wallet_stones: int = 0
+    wallet_ledger: List[WalletEntry] = Field(default_factory=list)
 
 
 class LegacyEngine:

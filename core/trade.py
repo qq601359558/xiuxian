@@ -99,6 +99,67 @@ def _find_by_id_or_user(char_id: str, user_id: str = "") -> Optional[Character]:
     return None
 
 
+def _is_alive(c: Optional[Character]) -> bool:
+    """存活判定：行存在、非 DEAD、寿元未尽（account-death 付款路由严格口径，
+    转世后同 user_id 的新角不得承接旧单的钱／物）。"""
+    if c is None:
+        return False
+    if c.status == CharacterStatus.DEAD or c.lifespan.is_dead():
+        return False
+    return True
+
+
+def _credit_wallet_amount(user_id: str, amount: int, kind: str, ref: str, note: str) -> str:
+    """拍卖落账的钱包入账单点（评审 S6：返回值拆开旧 bool 的 False 语义）：
+
+    - "credited"：本次入账；"duplicate"：ref 已存在，已付过，正常（不得双记、不得告警）；
+    - "skipped"：NPC／系统伪主体／空 user_id／金额 ≤0，不建钱包；
+    - "failed"：仓储等异常导致未入账，调用方须记大事记／告警，不得静默。
+    """
+    if not user_id or user_id in ("auction_house", "pawn_shop"):
+        return "skipped"
+    try:
+        from core.wallet import credit_wallet_status, is_npc_user
+        from storage.db import LegacyRepository
+
+        if is_npc_user(user_id):
+            return "skipped"
+        account = LegacyRepository.get_or_create(user_id)
+        status = credit_wallet_status(account, amount, kind, ref, note)
+        LegacyRepository.save(account)
+        return status
+    except Exception:
+        return "failed"
+
+
+def _refund_outbid(lot: "AuctionLot", prev_id: str, prev_user_id: str, amount: int) -> None:
+    """超价退款（_apply_bid／buyout 共用）：旧领先者行仍在且存活 → 退行；
+    行仍在但已死（评审 M1a：sweep 后死行又入账的源头之一）→ 直接退其账户钱包，
+    不退死行；行已不在（已转世覆写）→ 退其账户钱包，防旧行为的钱凭空消失；
+    NPC／系统无钱包可退时沿用旧行为（不退）。"""
+    from storage.db import CharacterRepository
+
+    prev = CharacterRepository.get_by_id(prev_id) if prev_id else None
+    if prev is not None and _is_alive(prev):
+        prev.spirit_stones += amount
+        CharacterRepository.save(prev)
+        return
+    if prev is not None:
+        # 死行：退钱包（ref 沿用 :outbid: 格式，见 spec §2.7）
+        _credit_wallet_amount(
+            prev.user_id or prev_user_id, amount, "auction_refund",
+            f"{lot.id}:outbid:{prev_id or prev_user_id}",
+            f"拍卖超价退款：【{lot.item_name}】",
+        )
+        return
+    if prev_user_id:
+        _credit_wallet_amount(
+            prev_user_id, amount, "auction_refund",
+            f"{lot.id}:outbid:{prev_id or prev_user_id}",
+            f"拍卖超价退款：【{lot.item_name}】",
+        )
+
+
 def _snapshot_assets(char_id: str):
     """DB 侧资产快照（灵石 + 三个物品列表），供 advance 前后差分"""
     from storage.db import CharacterRepository
@@ -237,6 +298,22 @@ def _cancel_session(s: TradeSession, reason: str = "已取消") -> Dict[str, Any
 
 class TradeEngine:
     """玩家当面交易"""
+
+    @staticmethod
+    def cancel_for_death(char_id: str) -> bool:
+        """死亡 sweep：取消该角色参与的全部 OPEN 当面交易会话，锁定资金／物品
+        按 _cancel_session 口径退回双方行（死者侧退回后由归集随身步入钱包）。
+        返回是否取消过会话。"""
+        s = _session_for(char_id)
+        if s is None:
+            # _session_for 只按 user 映射查；再按参与 id 全表扫一次（防映射残留）
+            for cand in list(_trade_sessions.values()):
+                if cand.status == TradeStatus.OPEN and char_id in (cand.a_id, cand.b_id):
+                    _cancel_session(cand, reason="一方身死道消，交易取消")
+                    return True
+            return False
+        _cancel_session(s, reason="一方身死道消，交易取消")
+        return True
 
     @staticmethod
     def open_trade(a: Character, b_name: str, now: Optional[float] = None) -> Dict[str, Any]:
@@ -791,53 +868,103 @@ class AuctionEngine:
                         f"【流拍】#{lot.id}【{lot.item_name}】无人应价，{AUCTION_HOUSE_NAME}收回，拍品消散于虚空。"
                     )
                 else:
-                    seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-                    if seller:
-                        _give_item(seller, lot.item_name, 1, lot.kind)
-                        CharacterRepository.save(seller)
+                    # 卖家死后流拍（T4 配套／裁定 2）：拍品只还存活且 id 一致的卖家；
+                    # 死者／已转世新角一律不回行囊，拍品消散（不回新角）。
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    alive_seller = seller if _is_alive(seller) else None
+                    if alive_seller:
+                        _give_item(alive_seller, lot.item_name, 1, lot.kind)
+                        CharacterRepository.save(alive_seller)
                     AuctionLotRepository.save(lot)
                     notes.append(
                         f"【流拍】#{lot.id}【{lot.item_name}】无人应价，"
-                        + (f"已退回【{lot.seller_name}】。" if seller else "但挂单人已不在，拍品消散于虚空。")
+                        + (f"已退回【{lot.seller_name}】。" if alive_seller else "但挂单人已不在，拍品消散于虚空。")
                     )
             else:
-                lot.status = AuctionStatus.SOLD
-                fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
-                net = lot.current_bid - fee
-                seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-                leader = _find_by_id_or_user(lot.leader_id or "", lot.leader_user_id or "")
-                if lot.source == "system":
-                    # F05 系统场次：卖家为宝库伪主体，成交款全额沉淀（不付款、不抽成拆分）
-                    fee = 0
-                    net = 0
-                elif seller:
-                    seller.spirit_stones += net
-                    CharacterRepository.save(seller)
-                if leader:
-                    _give_item(leader, lot.item_name, 1, lot.kind)
-                    CharacterRepository.save(leader)
-                AuctionLotRepository.save(lot)
-                if lot.source == "system":
+                # 兜底路径（T5／裁定 2）：领先者已死或行已不在（漏扫）→ 冻款退领先者
+                # 钱包，拍品不交付，按流拍计（卖家存活 → 还卖家；否则消散），无钱物双得。
+                leader = CharacterRepository.get_by_id(lot.leader_id or "")
+                if not _is_alive(leader):
+                    lot.status = AuctionStatus.EXPIRED
+                    leader_wallet = lot.leader_user_id or (leader.user_id if leader else "")
+                    _refund_status = _credit_wallet_amount(
+                        leader_wallet, lot.current_bid, "auction_refund",
+                        f"{lot.id}:settle-refund",
+                        f"拍卖落槌兜底退款：【{lot.item_name}】领先者已不在世",
+                    )
+                    if _refund_status == "failed":
+                        ChronicleRepository.record(
+                            "AUCTION_PAY_FAIL", lot.seller_name,
+                            f"拍卖落槌兜底退款失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                            f"{lot.current_bid} 灵石未入领先者账户钱包，账目待查。",
+                        )
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    returned = False
+                    if lot.source != "system" and _is_alive(seller):
+                        _give_item(seller, lot.item_name, 1, lot.kind)
+                        CharacterRepository.save(seller)
+                        returned = True
+                    AuctionLotRepository.save(lot)
                     notes.append(
-                        f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】"
-                        f"（系统场次，成交款全额归天道沉淀）。"
+                        f"【落槌作废】#{lot.id}【{lot.item_name}】领先者已身死道消，"
+                        f"冻款 {lot.current_bid} 灵石已退还其账户钱包，拍品"
+                        + ("已退回卖家。" if returned else "消散于虚空。")
                     )
                 else:
-                    notes.append(
-                        f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
-                        f"卖家实收 {net}（手续费 {fee}）。"
-                        + ("" if seller and leader else "（有当事人不在世，账目已尽天道所能）")
-                    )
-                try:
-                    from core import ai_flavor
+                    lot.status = AuctionStatus.SOLD
+                    fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
+                    net = lot.current_bid - fee
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    _pay_status = ""
+                    if lot.source == "system":
+                        # F05 系统场次：卖家为宝库伪主体，成交款全额沉淀（不付款、不抽成拆分）
+                        fee = 0
+                        net = 0
+                        seller_paid = True
+                    elif _is_alive(seller):
+                        seller.spirit_stones += net
+                        CharacterRepository.save(seller)
+                        seller_paid = True
+                    else:
+                        wallet_user = lot.seller_user_id or (seller.user_id if seller else "")
+                        # S6：duplicate＝已付（正常），failed＝记大事记＋告警（不得静默）
+                        _pay_status = _credit_wallet_amount(
+                            wallet_user, net, "auction_sale", lot.id,
+                            f"拍卖成交净额：【{lot.item_name}】{lot.current_bid} 灵石（手续费 {fee}）",
+                        )
+                        seller_paid = _pay_status in ("credited", "duplicate") or net == 0
+                        if _pay_status == "failed":
+                            ChronicleRepository.record(
+                                "AUCTION_PAY_FAIL", lot.seller_name,
+                                f"拍卖落槌卖家钱包落账失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                                f"净额 {net} 灵石未入卖家账户钱包，账目待查。",
+                            )
+                    _give_item(leader, lot.item_name, 1, lot.kind)
+                    CharacterRepository.save(leader)
+                    AuctionLotRepository.save(lot)
+                if lot.status == AuctionStatus.SOLD:
+                    if lot.source == "system":
+                        notes.append(
+                            f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】"
+                            f"（系统场次，成交款全额归天道沉淀）。"
+                        )
+                    else:
+                        notes.append(
+                            f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
+                            f"卖家实收 {net}（手续费 {fee}）。"
+                            + ("（卖家钱包落账失败，账目待查）" if _pay_status == "failed"
+                               else "" if seller_paid and leader else "（有当事人不在世，账目已尽天道所能）")
+                        )
+                    try:
+                        from core import ai_flavor
 
-                    shout = ai_flavor.polish_auction_settle(
-                        lot.item_name, lot.leader_name or "", lot.current_bid, lot.seller_name, "落槌"
-                    )
-                    if shout:
-                        notes[-1] += f"\n司仪：「{shout}」"
-                except Exception:
-                    pass
+                        shout = ai_flavor.polish_auction_settle(
+                            lot.item_name, lot.leader_name or "", lot.current_bid, lot.seller_name, "落槌"
+                        )
+                        if shout:
+                            notes[-1] += f"\n司仪：「{shout}」"
+                    except Exception:
+                        pass
             try:
                 ChronicleRepository.record("AUCTION", lot.seller_name, notes[-1][:80])
                 from core import rumors
@@ -983,10 +1110,7 @@ class AuctionEngine:
 
         prev_name = lot.leader_name
         if lot.leader_id and lot.bid_count > 0:
-            prev = CharacterRepository.get_by_id(lot.leader_id)
-            if prev:
-                prev.spirit_stones += lot.current_bid
-                CharacterRepository.save(prev)
+            _refund_outbid(lot, lot.leader_id, lot.leader_user_id or "", lot.current_bid)
         bidder.spirit_stones -= amount
         lot.current_bid = amount
         lot.leader_id = bidder.id
@@ -1208,6 +1332,10 @@ class AuctionEngine:
             return {"success": False, "message": "此拍品已结束。"}
         if lot.seller_id == buyer.id:
             return {"success": False, "message": "不可拍自己的货。"}
+        # 评审 M3：同账户新角（seller_id 已是旧世行，seller_user_id 仍是同一账户）
+        # 不得买回自己旧世拍品——物品免费回流违背 spec §2.4 物品类不保留。
+        if lot.seller_user_id and buyer.user_id and lot.seller_user_id == buyer.user_id:
+            return {"success": False, "message": "不可拍自己的货。"}
         if lot.leader_id == buyer.id:
             return {"success": False, "message": "你已是领先者。"}
 
@@ -1268,6 +1396,9 @@ class AuctionEngine:
             return {"success": False, "message": "此拍未设一口价。"}
         if lot.seller_id == buyer.id:
             return {"success": False, "message": "不可买自己的货。"}
+        # 评审 M3：同账户新角不得一口买回自己旧世拍品（与 bid 同口径）。
+        if lot.seller_user_id and buyer.user_id and lot.seller_user_id == buyer.user_id:
+            return {"success": False, "message": "不可买自己的货。"}
 
         from storage.db import CharacterRepository
 
@@ -1287,10 +1418,7 @@ class AuctionEngine:
             if lot.leader_id == buyer.id:
                 buyer.spirit_stones += lot.current_bid
             else:
-                prev = CharacterRepository.get_by_id(lot.leader_id)
-                if prev:
-                    prev.spirit_stones += lot.current_bid
-                    CharacterRepository.save(prev)
+                _refund_outbid(lot, lot.leader_id, lot.leader_user_id or "", lot.current_bid)
         buyer.spirit_stones -= price
         lot.current_bid = price
         lot.leader_id = buyer.id
@@ -1311,10 +1439,23 @@ class AuctionEngine:
         else:
             fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
             net = lot.current_bid - fee
-            seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-            if seller:
+            # 卖家死亡后落槌（T4）：存活且 id 一致 → 行；否则 → 卖家账户钱包
+            seller = CharacterRepository.get_by_id(lot.seller_id)
+            if _is_alive(seller):
                 seller.spirit_stones += net
                 CharacterRepository.save(seller)
+            else:
+                wallet_user = lot.seller_user_id or (seller.user_id if seller else "")
+                # S6 同口径：failed 记大事记，不得静默（duplicate 视为已付）。
+                if _credit_wallet_amount(
+                    wallet_user, net, "auction_sale", lot.id,
+                    f"拍卖成交净额：【{lot.item_name}】{lot.current_bid} 灵石（手续费 {fee}）",
+                ) == "failed":
+                    ChronicleRepository.record(
+                        "AUCTION_PAY_FAIL", lot.seller_name,
+                        f"拍卖一口价卖家钱包落账失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                        f"净额 {net} 灵石未入卖家账户钱包，账目待查。",
+                    )
         _give_item(buyer, lot.item_name, 1, lot.kind)
         AuctionLotRepository.save(lot)
         CharacterRepository.save(buyer)

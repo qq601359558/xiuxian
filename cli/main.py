@@ -195,6 +195,8 @@ def print_help():
   [bold yellow]/出售 <名目> [数量][/bold yellow]     - 回售给商会（约五折）
   [bold yellow]/寄存 <数量>[/bold yellow]           - 灵石存入坊市金库（不可被夺）
   [bold yellow]/支取 <数量>[/bold yellow]           - 自金库取出灵石
+  [bold yellow]/钱包[/bold yellow]                 - 账户钱包：余额与最近流水（死亡归集款项挂账户名下）
+  [bold yellow]/钱包提取 <金额>[/bold yellow]       - 自账户钱包提取灵石到随身（零手续费）
   [bold yellow]/寄售 <货物> <价格>[/bold yellow]     - 将随身货物挂上寄售栏
   [bold yellow]/买寄售 <编号>[/bold yellow]         - 买下他人寄售货物
   [bold yellow]/撤单 <编号>[/bold yellow]           - 撤回自己的寄售
@@ -280,6 +282,11 @@ def _parse_boost_keys(raw: str):
 
 def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
     """交互式转世降生（可选道统加成）。返回新角色。"""
+    from core.wallet import wallet_summary as _ws
+
+    console.print(
+        f"[bold gold1]账户钱包 {_ws(account)['balance']} 灵石（户名：{user_id}）[/bold gold1]"
+    )
     console.print("[bold gold1]【真灵入轮回】请选择本世出身……[/bold gold1]")
     name = Prompt.ask("[bold green]请赐予本世道号[/bold green]", default="厉飞雨")
 
@@ -310,6 +317,10 @@ def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
         f"（现余 {player.lifespan.get_remaining_years():.1f} 岁）· 灵根 {player.spiritual_root.display_name()}"
         f" · 道统池剩余 {account.points} 点。[/bold green]\n"
     )
+    console.print(
+        f"[cyan]新角随身 {player.spirit_stones} 灵石；账户钱包可用 /钱包 查看、"
+        f"/钱包提取 <金额> 取用。[/cyan]"
+    )
     return player
 
 
@@ -320,9 +331,21 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
     """
     account = LegacyRepository.get_or_create(user_id)
 
+    from core.wallet import sweep_death_funds, wallet_summary
+
     if not player.death_settled:
         player.death_cause = cause
         player.status = CharacterStatus.DEAD
+        # 资金归集（§2.3 步骤 1–4，server _settle_if_needed 同款）：在钩子与道统结算之前
+        sweep = sweep_death_funds(player, account)
+        LegacyRepository.save(account)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", player.name,
+                f"【{player.name}】死亡资金归集部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
         # 灵宠随主而殁（F01，一世循环）
         PetEngine.on_owner_death(player)
         # 洞府灵田随旧世荒废（F06，一世循环）
@@ -340,10 +363,35 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
         ChronicleRepository.record(
             "LEGACY_SETTLE",
             player.name,
-            f"修士【{player.name}】{cause}，盖棺定论，结转道统 {settle['points_gained']} 点。",
+            f"修士【{player.name}】{cause}，盖棺定论，结转道统 {settle['points_gained']} 点；"
+            f"资金归集 {sweep['total']} 灵石，钱包余额 {account.wallet_stones}。",
         )
-        render_legacy_settlement(settle)
+        render_legacy_settlement(settle, sweep=sweep, wallet=wallet_summary(account))
     else:
+        # 迁移补扫（§5.2）：旧规则已结算行，钱包无 death_sweep 流水时补归集（幂等）
+        # 评审 M1b：与 server 守卫同语义——sweep 内部处理残差，本分支恒跑 sweep。
+        # QA-D1：是否打印【资金补扫】按与 server 同口径的真实变化判定
+        # （sweep_has_real_change），不再按毛额 total／退款列表打印，崩溃重放不报补扫。
+        from core.wallet import sweep_has_real_change as _real_change
+        from core.wallet import wallet_panel_text as _wpt
+
+        sweep = sweep_death_funds(player, account)
+        LegacyRepository.save(account)
+        CharacterRepository.save(player)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", player.name,
+                f"【{player.name}】死亡资金补扫部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
+        if _real_change(sweep):
+            console.print(
+                f"[bold gold1]【资金补扫】死亡归集 {sweep['total']} 灵石，"
+                f"账户钱包余额 {account.wallet_stones} 灵石。[/bold gold1]"
+            )
+        # 评审 S5：已结算 else 分支同样打印钱包面板（无归集时也不缺钱包展示）。
+        console.print(f"[bold gold1]{_wpt(account, user_id)}[/bold gold1]")
         console.print("[dim]本世业已结算，真灵尚在轮回边缘徘徊。[/dim]")
 
     ok, gate_msg = LegacyEngine.check_reincarnate_gate(account)
@@ -478,6 +526,30 @@ def run_mud():
             elif action in ["/道统", "legacy", "/前世"]:
                 account = LegacyRepository.get_or_create(USER_ID)
                 render_legacy_panel(account)
+
+            elif action in ["/钱包", "wallet"]:
+                from core.wallet import wallet_panel_text
+
+                account = LegacyRepository.get_or_create(USER_ID)
+                console.print(f"[bold gold1]{wallet_panel_text(account, USER_ID)}[/bold gold1]")
+
+            elif action in ["/钱包提取", "wallet_withdraw"]:
+                from core.wallet import withdraw_to_character
+
+                if player.status == CharacterStatus.DEAD or player.lifespan.is_dead():
+                    console.print("[red]身死道消，钱包须转世重生后方可提取。[/red]")
+                    continue
+                if len(parts) < 2 or not parts[1].isdigit():
+                    console.print("[red]用法：/钱包提取 <金额>（正整数，不超过钱包余额）[/red]")
+                    continue
+                account = LegacyRepository.get_or_create(USER_ID)
+                res = withdraw_to_character(account, player, int(parts[1]))
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                LegacyRepository.save(account)
+                CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
 
             elif action in ["/地图", "map", "/舆图"]:
                 render_world_map(player.location)

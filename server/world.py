@@ -191,9 +191,16 @@ class World:
                         char = by_name
                         uid = uid_n
                         resumed = True
+            # 评审 M2（总管裁定，spec §2.6）：带 user_id 的 /join 且角色已死时，
+            # 不再自动建角绕过 T11，返回与 /login 同款 dead:true payload；
+            # 建角须玩家显式 /转世。无 user_id 的匿名 /join 保持自动建角（见下）。
+            if uid and char is not None and (
+                char.status == CharacterStatus.DEAD or char.lifespan.is_dead()
+            ):
+                return self.dead_payload(uid)
             is_new_life = False
             if not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
-                # 已死：结算道统（若尚未结算），再新一世
+                # 已死（仅匿名路径到此）：结算道统（若尚未结算），再新一世
                 if char is not None:
                     self._settle_if_needed(char, cause=char.death_cause or "身死道消")
                 if not uid:
@@ -233,11 +240,51 @@ class World:
             }
 
     def _settle_if_needed(self, char: Character, cause: str = "身死道消") -> Optional[Dict[str, Any]]:
-        """死亡后一次性道统结算"""
+        """死亡后一次性道统结算（account-death：资金归集步在钩子与道统结算之前，
+        双入口 CLI/server 共用同一 sweep 实现；已结算行走迁移补扫 §5.2）。"""
+        from core.wallet import (
+            is_npc_user,
+            sweep_death_funds,
+            sweep_has_real_change,
+            wallet_summary,
+        )
+
         if getattr(char, "death_settled", False):
-            return None
+            # 迁移补扫（评审 M1b：以 server 守卫为准，与 CLI 双入口语义统一）：
+            # 已结算行不再因“death_sweep ref 已存在”直接返回——sweep 内部处理
+            # 残差（ref 已存在但行内仍有余额时以残差 ref 入账，见 core/wallet.py），
+            # 故此处恒跑 sweep；仅当 sweep 确无真实变化（实际入账／作废／没收，
+            # 见 sweep_has_real_change）时返回 None，步骤异常只记 PARTIAL 大事记。
+            if is_npc_user(char.user_id or ""):
+                return None
+            account = LegacyRepository.get_or_create(char.user_id)
+            details = sweep_death_funds(char, account)
+            LegacyRepository.save(account)
+            CharacterRepository.save(char)
+            if details.get("errors"):
+                ChronicleRepository.record(
+                    "WALLET_SWEEP_PARTIAL", char.name,
+                    f"【{char.name}】死亡资金补扫部分完成（WALLET_SWEEP_PARTIAL）："
+                    + "；".join(f"{e.get('step')}:{e.get('error')}" for e in details["errors"])
+                    + f"；钱包余额 {account.wallet_stones}。",
+                )
+            # QA-D1：changed 只认真实变化（实际入账／作废／没收），与 CLI 同口径
+            # （core.wallet.sweep_has_real_change）。毛额退款／崩溃重放不再触发
+            # backfilled 与 WALLET_SWEEP 大事记；步骤异常仍另记 PARTIAL 大事记，
+            # 但不单独触发 backfilled。
+            changed = sweep_has_real_change(details)
+            if not changed:
+                return None
+            ChronicleRepository.record(
+                "WALLET_SWEEP", char.name,
+                f"【{char.name}】死亡资金补扫归集 {details['total']} 灵石，钱包余额 {account.wallet_stones}。",
+            )
+            return {"backfilled": True, "sweep": details, "wallet": wallet_summary(account)}
         account = LegacyRepository.get_or_create(char.user_id)
         char.status = CharacterStatus.DEAD
+        # 资金归集（§2.3 步骤 1–4）：随身＋寄存、拍卖退款回起拍、议政票作废、当票没收
+        sweep = sweep_death_funds(char, account)
+        LegacyRepository.save(account)
         # 灵宠随主而殁（F01，一世循环）
         PetEngine.on_owner_death(char)
         # 洞府灵田随旧世荒废（F06，一世循环）
@@ -254,11 +301,83 @@ class World:
         settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
         LegacyRepository.save(account)
         CharacterRepository.save(char)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", char.name,
+                f"【{char.name}】死亡资金归集部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
         ChronicleRepository.record(
             "LEGACY_SETTLE", char.name,
-            f"【{char.name}】{char.death_cause}，结转道统 {settle['points_gained']} 点。",
+            f"【{char.name}】{char.death_cause}，结转道统 {settle['points_gained']} 点；"
+            f"资金归集 {sweep['total']} 灵石，钱包余额 {account.wallet_stones}。",
         )
+        settle["sweep"] = sweep
+        settle["wallet"] = wallet_summary(account)
         return settle
+
+    def dead_payload(self, user_id: str, username: str = "") -> Optional[Dict[str, Any]]:
+        """Web /login 死者分支（§2.6 行为变更）：登录只报死讯＋钱包，不自动建角。
+
+        返回 None 表示现世角色存活或无角色（调用方走正常 join 流程）。
+        会话 token 保持有效且可用于 /转世（session.character_id 指向死行）。"""
+        with self.lock:
+            char = CharacterRepository.get_by_user_id(user_id)
+            if char is None or (char.status != CharacterStatus.DEAD and not char.lifespan.is_dead()):
+                return None
+            settle = self._settle_if_needed(char, cause=char.death_cause or "身死道消")
+            account = LegacyRepository.get_or_create(user_id)
+            token = uuid.uuid4().hex
+            self.sessions[token] = Session(token, user_id, char.id)
+            try:
+                AuthSessionRepository.save(token, user_id, char.id, char.name)
+            except Exception:
+                pass
+            from core.legacy import LegacyEngine as _LE
+            from core.wallet import wallet_summary as _ws
+
+            # S3：寄售在售单数（按 seller_user_id／seller_id 计 OPEN 单；取数失败置 0）
+            try:
+                from storage.db import MarketListingRepository as _MLR
+
+                _open_count = sum(
+                    1
+                    for _lst in _MLR.list_all()
+                    if _lst.is_open()
+                    and ((_lst.seller_user_id or "") == user_id or _lst.seller_id == char.id)
+                )
+            except Exception:
+                _open_count = 0
+            # S4：最近一世享寿（settle 后 past_lives 末世即本世；已结算行同理）
+            _last_life = account.past_lives[-1] if account.past_lives else None
+            return {
+                "ok": True,
+                "dead": True,
+                "token": token,
+                "user_id": user_id,
+                "username": username,
+                "character_id": char.id,
+                "name": char.name,
+                # 旧前端兼容（只增字段）：死者行仍有境界／位置／寿元余量可读
+                "realm": char.realm.name,
+                "location": char.location,
+                "rem_years": round(char.lifespan.get_remaining_years(), 2),
+                "legacy_points": account.points,
+                "lives": account.total_lives,
+                "is_new_life": False,
+                "resumed": False,
+                "death_cause": char.death_cause,
+                "legacy": {
+                    "points": account.points,
+                    "lives": account.total_lives,
+                    "boosts": _LE.list_boosts(),
+                    "lifespan_lived": _last_life.lifespan_lived if _last_life else None,
+                },
+                "wallet": _ws(account),
+                "settlement": (settle or {}).get("sweep") if settle else None,
+                "consignment_open_count": _open_count,
+            }
 
     def legacy_info(self, token: str) -> Dict[str, Any]:
         char = self.get_char(token)
@@ -311,6 +430,13 @@ class World:
             LegacyRepository.save(account)
             CharacterRepository.save(char)
             session.character_id = char.id
+            try:
+                AuthSessionRepository.save(token, session.user_id, char.id, char.name)
+            except Exception:
+                pass
+            from core.wallet import wallet_summary as _ws
+
+            wallet_block = _ws(account)
             ChronicleRepository.record(
                 "REINCARNATE", char.name,
                 f"真灵转世，【{char.name}】重踏仙途。"
@@ -322,7 +448,9 @@ class World:
                     f"【真灵转世】{char.name} · {char.realm.name} · {char.location}\n"
                     f"自然寿元 {char.lifespan.birth_base:.0f} 岁\n"
                     f"{boost_res.get('message', '')}\n"
-                    f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）"
+                    f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）\n"
+                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 150 灵石不变）；"
+                    f"入世后用 /钱包提取 <金额> 取用账户金额。"
                 ),
                 "settle": {
                     "points_gained": (settle or {}).get("points_gained", 0),
@@ -332,6 +460,8 @@ class World:
                 } if settle else None,
                 "boosts_applied": boost_res.get("applied") or [],
                 "legacy_points": account.points,
+                "wallet": wallet_block,
+                "sweep": (settle or {}).get("sweep"),
                 "name": char.name,
                 "realm": char.realm.name,
                 "location": char.location,
@@ -402,9 +532,9 @@ class World:
                     CharacterRepository.save(char)
                     session.pending_heart_demon = None
                     text = self._fmt_hd(res)
-                    # 心魔致死
+                    # 心魔致死（评审 S2：局内死亡响应带 sweep 与 death_cause）
                     if res.get("is_fatal") or char.status == CharacterStatus.DEAD:
-                        self._settle_if_needed(char, cause="心魔道消")
+                        _settle = self._settle_if_needed(char, cause="心魔道消")
                         return {
                             "ok": True,
                             "text": text,
@@ -412,6 +542,8 @@ class World:
                             "death": True,
                             "status": self._status_dict(char),
                             "legacy": self.legacy_info_id(char.user_id),
+                            "sweep": (_settle or {}).get("sweep") if _settle else None,
+                            "death_cause": char.death_cause,
                         }
                     # 心魔过关且未死 → 继续天劫
                     if not res.get("is_fatal") and char.realm.is_full and char.status != CharacterStatus.DEAD:
@@ -425,8 +557,9 @@ class World:
                                 GoalEngine.on_breakthrough_major(char)
                             except Exception:
                                 pass
+                        _trib_settle = None
                         if trib_dead:
-                            self._settle_if_needed(char, cause="渡劫陨落")
+                            _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
                         return {
                             "ok": True,
                             "text": text,
@@ -434,6 +567,8 @@ class World:
                             "death": trib_dead,
                             "status": self._status_dict(char),
                             "legacy": self.legacy_info_id(char.user_id) if trib_dead else None,
+                            "sweep": (_trib_settle or {}).get("sweep") if _trib_settle else None,
+                            "death_cause": char.death_cause if trib_dead else None,
                             "tribulation": {
                                 "success": trib.get("success"),
                                 "fatal": trib_dead,
@@ -536,6 +671,29 @@ class World:
                         lines.append(f"  {p['name']} {p['realm']} · {p['cause']} +{p['points']}点")
                 info["text"] = "\n".join(lines)
                 return info
+            if action in ("/wallet", "/钱包"):
+                from core.wallet import wallet_panel_text
+                from storage.db import AccountRepository as _AR
+
+                account = LegacyRepository.get_or_create(char.user_id)
+                text = wallet_panel_text(account, _AR.get_username(char.user_id))
+                return {"ok": True, "text": text, "status": self._status_dict(char),
+                        "wallet": self._status_dict(char)["wallet"]}
+            if action in ("/wallet_withdraw", "/钱包提取"):
+                if char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
+                    return {"ok": False, "error": "身死道消，钱包须转世重生后方可提取。"}
+                if len(parts) < 2 or not parts[1].isdigit():
+                    return {"ok": False, "error": "用法：/钱包提取 <金额>（正整数，不超过钱包余额）"}
+                from core.wallet import withdraw_to_character
+
+                account = LegacyRepository.get_or_create(char.user_id)
+                res = withdraw_to_character(account, char, int(parts[1]))
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "提取失败")}
+                LegacyRepository.save(account)
+                CharacterRepository.save(char)
+                return {"ok": True, "text": res["message"], "status": self._status_dict(char),
+                        "wallet": self._status_dict(char)["wallet"]}
             if action in ("/reborn", "/转世"):
                 boosts: List[str] = []
                 new_name = None
@@ -2477,7 +2635,7 @@ class World:
             "局域网指令：/look /here /who /go <地> /闭关 [h] /出关 /突破 /探查 "
             "/斗法 <名> /交谈 <名> [话] /做 <言行> /自创功法 <理念> /回访 /legacy /转世 [名] [加成] "
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
-            "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 "
+            "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 /钱包 /钱包提取 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
             "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /天象 /探险 [野外|秘境] "
@@ -2513,12 +2671,25 @@ class World:
         prot_left = 0.0
         if prot:
             prot_left = max(0.0, c.newbie_protect_until() - _t.time())
+        # 账户钱包块（§2.8 命盘钱包行）：只读，不建行；NPC／无账户行为空钱包
+        try:
+            from core.wallet import wallet_summary as _ws
+
+            _acc = LegacyRepository.get(c.user_id)
+            _wallet_block = _ws(_acc) if _acc is not None else {"balance": 0, "entries": [], "ledger": []}
+            from storage.db import AccountRepository as _AR
+
+            _wallet_block = dict(_wallet_block)
+            _wallet_block["username"] = _AR.get_username(c.user_id)
+        except Exception:
+            _wallet_block = {"balance": 0, "entries": [], "ledger": [], "username": ""}
         return {
             "name": c.name,
             "realm": c.realm.name,
             "location": c.location,
             "stones": c.spirit_stones,
             "vault": c.vault_stones,
+            "wallet": _wallet_block,
             "sin": c.karma.sin_value,
             "merit": c.karma.merit_value,
             "exp": f"{c.realm.current_exp}/{c.realm.max_exp}",
@@ -2756,18 +2927,21 @@ class World:
         if _de:
             lines.append(f"【心魔发作】{_de.get('text', '')}（/镇魔 可镇压）")
         dead = False
+        _emerge_settle = None
         if res.get("is_fatal"):
             c.status = CharacterStatus.DEAD
             CharacterRepository.save(c)
             lines.append("寿尽坐化。")
             dead = True
-            self._settle_if_needed(c, cause="洞府坐化")
+            _emerge_settle = self._settle_if_needed(c, cause="洞府坐化")
         return {
             "ok": True,
             "text": "\n".join(lines),
             "death": dead,
             "status": self._status_dict(c),
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
+            "sweep": (_emerge_settle or {}).get("sweep") if _emerge_settle else None,
+            "death_cause": c.death_cause if dead else None,
         }
 
     def legacy_info_id(self, user_id: str) -> Dict[str, Any]:
@@ -2814,8 +2988,9 @@ class World:
                 CharacterRepository.save(c)
             except Exception:
                 pass
+        _bt_settle = None
         if dead:
-            self._settle_if_needed(c, cause="渡劫陨落")
+            _bt_settle = self._settle_if_needed(c, cause="渡劫陨落")
         return {
             "ok": True,
             "text": res.get("message", ""),
@@ -2824,6 +2999,8 @@ class World:
             "death": dead,
             "status": self._status_dict(c),
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
+            "sweep": (_bt_settle or {}).get("sweep") if _bt_settle else None,
+            "death_cause": c.death_cause if dead else None,
         }
 
     def _fight(self, c: Character, target_name: str) -> Dict[str, Any]:

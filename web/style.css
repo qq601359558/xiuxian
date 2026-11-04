@@ -936,6 +936,84 @@ a:focus-visible {
 .death-actions .btn-primary { width: auto; flex: 1 1 120px; }
 .death-actions .btn-ghost { flex: 0 0 auto; padding: 10px 14px; }
 
+/* 账户钱包与死亡结算（account-death T13）：沿用现有配色/字体，不另起主题 */
+.settle-box {
+  font-size: 13px;
+  color: var(--paper);
+  margin-bottom: 14px;
+  line-height: 1.7;
+  border-left: 2px solid var(--gold);
+  padding-left: 12px;
+}
+.settle-box h3 {
+  font-family: var(--serif);
+  color: var(--gold-soft);
+  letter-spacing: 0.12em;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.settle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding: 3px 0;
+}
+.settle-row:last-child { border-bottom: 0; }
+.settle-row .amt { text-align: right; font-weight: 500; white-space: nowrap; }
+.settle-row.total { font-weight: 600; color: var(--gold-soft); }
+.settle-note { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 6px; }
+.guide-box {
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(212, 175, 55, 0.06);
+}
+.guide-box b { color: var(--gold-soft); }
+.wallet-box {
+  border-top: 1px solid var(--line);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.modal-card .wallet-box { border-top: 0; margin-top: 0; padding-top: 0; margin-bottom: 14px; }
+.wallet-top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--paper); }
+.wallet-top b { color: var(--gold-soft); }
+.wallet-box details { margin-top: 6px; }
+.wallet-box summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.wallet-entries { margin-top: 6px; }
+.wallet-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  padding: 3px 0;
+}
+.wallet-row:last-child { border-bottom: 0; }
+.wallet-row .amt { text-align: right; font-weight: 500; white-space: nowrap; }
+.wallet-form { display: flex; gap: 8px; margin-top: 8px; }
+.wallet-form input {
+  flex: 1 1 120px;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  color: var(--paper);
+  padding: 8px 10px;
+  outline: none;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.wallet-form input:focus { border-color: var(--line-strong); }
+.wallet-msg { font-size: 12px; line-height: 1.6; margin-top: 6px; }
+.wallet-msg.err { color: var(--blood); }
+
 /* ========== 响应式 ========== */
 @media (max-width: 1100px) {
   .shell { grid-template-columns: 220px minmax(0, 1fr); }

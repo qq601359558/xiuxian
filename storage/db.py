@@ -527,6 +527,21 @@ class LegacyRepository:
         conn.close()
 
     @staticmethod
+    def get(user_id: str) -> Optional[LegacyAccount]:
+        """只读取账户行（account-death：_status_dict 钱包块用，不建行、无写盘副作用）。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM player_legacy WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            try:
+                return LegacyAccount.model_validate_json(row[0])
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
     def get_or_create(user_id: str) -> LegacyAccount:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -1362,6 +1377,16 @@ class AccountRepository:
             "password_hash": row[2],
             "salt": row[3],
         }
+
+    @staticmethod
+    def get_username(user_id: str) -> str:
+        """按 user_id 取账户名（account-death：钱包块户名展示；无此账户时返回空串）。"""
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT username FROM accounts WHERE user_id = ?", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else ""
 
     @staticmethod
     def touch_login(user_id: str):

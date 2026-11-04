@@ -41,6 +41,7 @@ class MarketListing(BaseModel):
     """玩家寄售挂单（天道契约担保）"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     seller_id: str
+    seller_user_id: str = ""  # account-death：与 AuctionLot 同口径；旧单默认 ""，见 §5 回填规则
     seller_name: str
     item_name: str
     kind: str = "material"
@@ -506,6 +507,41 @@ class MarketEngine:
 
     # ---------------- 玩家挂单 ----------------
     @staticmethod
+    def resolve_sale_route(listing: MarketListing) -> Dict[str, Any]:
+        """成交款路由预检（spec §5.3，买前调用，纯读不写盘）：
+
+        - seller_user_id 可用 → 放行（现世角色存活且 id 与单据一致 → 角色行，
+          否则 → 该账户钱包）；
+        - seller_id 命中现世存活角色 → 角色行；命中死行 → 该行账户钱包；
+        - 当铺伪主体（pawn_shop）→ 当铺沉淀（既有口径，付款不入任何钱包）；
+        - 三者皆无 → 不可考，拒售。
+        返回 {"route": "character"|"wallet"|"shop"|"unresolvable", "user_id": ...}。
+        """
+        from storage.db import CharacterRepository
+
+        if listing.seller_id == "pawn_shop":
+            return {"route": "shop", "user_id": ""}
+        if listing.seller_user_id:
+            char = CharacterRepository.get_by_user_id(listing.seller_user_id)
+            if char is not None and char.id == listing.seller_id and char.status != CharacterStatus.DEAD and not char.lifespan.is_dead():
+                return {"route": "character", "user_id": listing.seller_user_id}
+            return {"route": "wallet", "user_id": listing.seller_user_id}
+        if listing.seller_id:
+            char = CharacterRepository.get_by_id(listing.seller_id)
+            if char is not None:
+                if char.status != CharacterStatus.DEAD and not char.lifespan.is_dead():
+                    return {"route": "character", "user_id": char.user_id}
+                return {"route": "wallet", "user_id": char.user_id}
+        if listing.seller_name:
+            char = CharacterRepository.get_by_name(listing.seller_name)
+            if char is not None and char.status != CharacterStatus.DEAD and not char.lifespan.is_dead():
+                # 仅当卖家名解析到的存活角色与单据 seller_id 一致时才算生前旧口径；
+                # id 不一致（转世同名等）不以名兜底，防错付他人。
+                if char.id == listing.seller_id:
+                    return {"route": "character", "user_id": char.user_id}
+        return {"route": "unresolvable", "user_id": ""}
+
+    @staticmethod
     def list_item(
         seller: Character,
         item_name: str,
@@ -514,6 +550,8 @@ class MarketEngine:
     ) -> Tuple[Optional[MarketListing], Dict[str, Any]]:
         if price <= 0:
             return None, {"success": False, "message": "挂单价格必须为正。"}
+        if not (seller.user_id or ""):
+            return None, {"success": False, "message": "卖家无账户标识，无法挂单。"}
 
         cfg = ITEM_CATALOG.get(item_name)
         kind = cfg["kind"] if cfg else (kind_hint or "material")
@@ -545,6 +583,7 @@ class MarketEngine:
         seller.spirit_stones -= fee
         listing = MarketListing(
             seller_id=seller.id,
+            seller_user_id=seller.user_id,
             seller_name=seller.name,
             item_name=item_name,
             kind=kind,
@@ -588,6 +627,26 @@ class MarketEngine:
             return {"success": False, "message": "此单已不在售。"}
         if listing.seller_id == buyer.id:
             return {"success": False, "message": "不可买回自己的挂单。"}
+        # 评审 M3：同账户新角不得买回自己旧世寄售单——卖家 user_id 取单据
+        # seller_user_id，或按 seller_id 反查现世／死行；命中即拒绝（物品免费回流
+        # 违背 spec §2.4 物品类不保留）。不可考旧单由下方路由预检拒售。
+        if buyer.user_id:
+            seller_uid = listing.seller_user_id or ""
+            if not seller_uid and listing.seller_id:
+                from storage.db import CharacterRepository as _CR
+
+                _row = _CR.get_by_id(listing.seller_id)
+                if _row is not None:
+                    seller_uid = _row.user_id or ""
+            if seller_uid and seller_uid == buyer.user_id:
+                return {"success": False, "message": "不可买回自己旧世的挂单。"}
+        # §5.3 买前路由预检（扣款之前）：不可考旧单拒售，买家分文不动
+        route = MarketEngine.resolve_sale_route(listing)
+        if route["route"] == "unresolvable":
+            return {
+                "success": False,
+                "message": "此单卖家已不可考，天道暂封此单，买家未扣款。",
+            }
         if buyer.spirit_stones < listing.price:
             return {
                 "success": False,
@@ -615,12 +674,66 @@ class MarketEngine:
 
     @staticmethod
     def complete_sale_payment(listing: MarketListing, seller: Optional[Character]) -> Optional[int]:
-        """把货款付给卖家（卖家可能已不在场，调用方处理）"""
+        """把货款付给卖家（spec 裁定 1：按 seller_user_id 路由）。
+
+        - 传入卖家对象存活且 id 与单据一致 → 付角色行（生前成交旧口径，含纯内存测试）；
+        - 否则按单据路由：seller_user_id 可用 → 该账户钱包（consignment_sale，
+          ref=寄售单 id，幂等）；死行 → 其账户钱包；当铺 → 沉淀（返回标价，不入账）；
+        - 路由不可考 → 返回 None，不付款（买前预检本应已拒售，此为第二道防线）。
+        调用方负责保存钱包行／卖家行（钱包入账后由本函数即保存账户行）。
+        """
         if listing.status != ListingStatus.SOLD:
             return None
-        if seller is not None:
+        if (
+            seller is not None
+            and seller.id == listing.seller_id
+            and seller.status != CharacterStatus.DEAD
+            and not seller.lifespan.is_dead()
+        ):
+            # 评审 M4：成交时把解析到的 seller_user_id 写回旧单（调用方保存单据时落盘）。
+            if not listing.seller_user_id and seller.user_id:
+                listing.seller_user_id = seller.user_id
             seller.spirit_stones += listing.price
-        return listing.price
+            return listing.price
+        route = MarketEngine.resolve_sale_route(listing)
+        # 评审 M4：成交路径把路由解析到的 seller_user_id 持久化写回旧单；
+        # resolve_sale_route 本身保持纯读预检，不写盘（写回只在此成交路径）。
+        if not listing.seller_user_id and route.get("user_id"):
+            listing.seller_user_id = route["user_id"]
+            try:
+                from storage.db import MarketListingRepository as _MLR
+
+                _MLR.save(listing)
+            except Exception:
+                pass
+        if route["route"] == "shop":
+            return listing.price
+        if route["route"] == "wallet" and route["user_id"]:
+            from core.wallet import credit_wallet, is_npc_user
+            from storage.db import LegacyRepository
+
+            if is_npc_user(route["user_id"]):
+                return listing.price
+            account = LegacyRepository.get_or_create(route["user_id"])
+            credit_wallet(
+                account,
+                listing.price,
+                "consignment_sale",
+                listing.id,
+                f"寄售成交：【{listing.item_name}】{listing.price} 灵石",
+            )
+            LegacyRepository.save(account)
+            return listing.price
+        if route["route"] == "character":
+            # 路由判定为角色行但调用方未传入匹配对象时，按 id 重读后付款
+            from storage.db import CharacterRepository
+
+            target = CharacterRepository.get_by_id(listing.seller_id)
+            if target is not None:
+                target.spirit_stones += listing.price
+                CharacterRepository.save(target)
+                return listing.price
+        return None
 
     @staticmethod
     def open_listings(all_listings: List[MarketListing]) -> List[MarketListing]:

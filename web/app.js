@@ -93,6 +93,64 @@
     if (wrap) wrap.classList.toggle("low", !!low);
   }
 
+  // ---------- 账户钱包（account-death T13） ----------
+  // 后端字段名原样使用：wallet{username,balance,entries[],ledger[]}，
+  // entry{ts,kind,amount,ref,note}；不改名、不捏造。
+  const WALLET_KIND_CN = {
+    death_sweep: "死亡归集",
+    consignment_sale: "寄售成交",
+    auction_sale: "拍卖成交",
+    auction_refund: "拍卖退款",
+    wallet_withdraw: "钱包提取",
+  };
+  function walletKindCn(kind) {
+    return WALLET_KIND_CN[kind] || kind || "流水";
+  }
+  function fmtWalletTs(ts) {
+    if (!ts) return "";
+    try {
+      const d = new Date(ts * 1000);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    } catch (_) {
+      return "";
+    }
+  }
+  function walletEntriesHtml(wallet) {
+    const entries = (wallet && (wallet.entries || wallet.ledger)) || [];
+    if (!entries.length) return '<p class="empty">暂无流水。</p>';
+    return entries
+      .map((e) => {
+        const amt = Number(e.amount) || 0;
+        const sign = amt >= 0 ? "+" : "";
+        const note = e.note || e.ref || "";
+        const ts = fmtWalletTs(e.ts);
+        return `<div class="wallet-row"><span>${esc(walletKindCn(e.kind))}${ts ? " · " + esc(ts) : ""}${note ? `<span class="muted">（${esc(note)}）</span>` : ""}</span><span class="amt">${sign}${amt} 灵石</span></div>`;
+      })
+      .join("");
+  }
+  // 命盘钱包行：户名＋余额＋最近流水（可展开）＋提取入口的显示层。
+  // 提取本身走 /钱包提取 命令，失败时后端不改余额，本函数只做只读渲染。
+  function renderWallet(wallet) {
+    if (!wallet) return;
+    const bal = wallet.balance != null ? wallet.balance : 0;
+    setText("stWallet", bal + " 灵石");
+    setText("walletBalance", bal + " 灵石");
+    const userEl = $("walletUser");
+    if (userEl) {
+      const name = wallet.username || state.username || "";
+      userEl.textContent = name ? "户名：" + name : "户名：—";
+    }
+    const box = $("walletEntries");
+    if (box) box.innerHTML = walletEntriesHtml(wallet);
+  }
+  function setWalletMsg(text, isErr) {
+    const el = $("walletMsg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("err", !!isErr);
+  }
+
   // ---------- 行囊（灰度批次 B） ----------
   function renderBag(st) {
     const list = $("bagList");
@@ -203,6 +261,8 @@
       setText("hudStones", st.stones);
     }
     if (st.vault != null) setText("stVault", st.vault);
+    // 账户钱包行（T13-2）：status.wallet 由后端 _status_dict 下发
+    if (st.wallet) renderWallet(st.wallet);
     if (st.rem_years != null) {
       const y = Number(st.rem_years);
       const label = (Math.round(y * 10) / 10) + " 岁";
@@ -468,8 +528,10 @@
     try {
       const data = await api("/action", { token: state.token, command: c });
       handleResult(data);
+      return data;
     } catch (e) {
       log("失败：" + e.message, "err");
+      return null;
     } finally {
       setBusy(false);
       if (state.composerOpen) {
@@ -731,7 +793,21 @@
     if (data.death || (data.fatal && data.legacy)) {
       const legacy = data.legacy || {};
       state.lastLegacy = legacy;
-      showDeath(text, legacy);
+      // 死亡结算页（T13-1）：钱包取 status.wallet，归集明细取 sweep/settlement。
+      // 评审 S2：局内死亡后端下发 sweep 与 death_cause；settlement==null 时按
+      // in_game 文案（“明细未随响应下发”），与恢复会话的“此前已结算”区分。
+      const _sweep = data.sweep || data.settlement || null;
+      if (data.death_cause) legacy.death_cause = data.death_cause;
+      showDeath(text, legacy, {
+        wallet: data.status && data.status.wallet,
+        settlement: _sweep,
+        username: state.username,
+        death_context: "in_game",
+        consignment_open_count:
+          (_sweep && _sweep.consignment_open_count) != null
+            ? _sweep.consignment_open_count
+            : data.consignment_open_count,
+      });
       return;
     }
 
@@ -743,9 +819,28 @@
         location: data.location,
         rem_years: data.rem_years,
       });
+      if (data.wallet) renderWallet(data.wallet);
       hideDeath();
+      // 建角引导（T13-3）：转世成功后在天道录再展示一次三要素
+      showRebirthGuide(data);
       refreshSoft(true);
       return;
+    }
+
+    // 钱包命令反馈（T13-2）：/钱包提取 失败时后端返回 ok:false 且余额不变，
+    // 此处只显示 error 文案，绝不改动已渲染的余额；成功则刷新钱包行。
+    if (lastCmd === "/钱包" || lastCmd.indexOf("/钱包提取") === 0 || lastCmd.indexOf("/wallet") === 0) {
+      const w = data.wallet || (data.status && data.status.wallet);
+      if (w) renderWallet(w);
+      if (lastCmd.indexOf("/钱包提取") === 0 || lastCmd.indexOf("/wallet_withdraw") === 0) {
+        if (data.ok) {
+          setWalletMsg(data.text || "提取成功。", false);
+          const inp = $("walletAmount");
+          if (inp) inp.value = "";
+        } else {
+          setWalletMsg(data.error || "提取失败，余额不变。", true);
+        }
+      }
     }
 
     const needRefresh =
@@ -837,14 +932,152 @@
   }
 
   // ---------- death / rebirth ----------
-  function showDeath(text, legacy) {
+  // 金额右对齐、单位统一「灵石」；零项不隐藏、显示「—」（spec §2.8）。
+  function settleAmt(v) {
+    const n = Number(v) || 0;
+    return n ? n + " 灵石" : "—";
+  }
+  function settleRow(label, amtHtml) {
+    return `<div class="settle-row"><span>${esc(label)}</span><span class="amt">${amtHtml}</span></div>`;
+  }
+  // 死亡结算明细表（T13-1，spec §2.8 顺序）：
+  // 随身／寄存／拍卖退款逐单／当票没收／议政作废／寄售待结提示／合计。
+  // 合计行＝随身＋寄存＋拍卖退款（后端 sweep.total，S1），与明细加总一致。
+  // 评审 S2：settlement==null 时按场景区分文案——恢复会话／登录死者是“此前已结算”，
+  // 局内新死（后端本应下发 sweep）是“明细未随响应下发”，不得混用。
+  // 评审 S3：在售单数取 sweep/dead_payload 的 consignment_open_count，不编造。
+  function renderDeathSettle(settlement, wallet, consignmentCount, deathContext) {
+    const box = $("deathSettle");
+    if (!box) return;
+    const openCount =
+      consignmentCount != null
+        ? consignmentCount
+        : settlement && settlement.consignment_open_count != null
+        ? settlement.consignment_open_count
+        : null;
+    let html = "<h3>资金归集明细</h3>";
+    if (!settlement) {
+      if (deathContext === "in_game") {
+        html +=
+          '<div class="settle-note">局内新死：本次死亡刚结算，但归集明细未随响应下发，' +
+          "请以账户钱包最近流水为准。</div>";
+      } else {
+        html +=
+          '<div class="settle-note">本次登录未产生新的资金归集（此前已结算）。' +
+          "归集金额已在账户钱包中，明细见下方钱包最近流水。</div>";
+      }
+    } else {
+      html += settleRow("随身灵石", settleAmt(settlement.spirit));
+      html += settleRow("寄存灵石", settleAmt(settlement.vault));
+      const refunds = Array.isArray(settlement.auction_refunds) ? settlement.auction_refunds : [];
+      if (refunds.length) {
+        refunds.forEach((r) => {
+          html += settleRow("拍卖退款 · " + (r.item || r.lot_id || "拍品"), "+" + (Number(r.amount) || 0) + " 灵石");
+        });
+      } else {
+        html += settleRow("拍卖退款", "—");
+      }
+      const forfeits = Array.isArray(settlement.pawn_forfeits) ? settlement.pawn_forfeits : [];
+      if (forfeits.length) {
+        forfeits.forEach((t) => {
+          html += settleRow("当票没收 · " + (t.item || t.ticket_id || "典当物"), "赎回价 " + (Number(t.redeem) || 0) + " 灵石");
+        });
+        html += '<div class="settle-note">当票没收：物品入当铺寄售；本金已在随身灵石中，不重复记账。</div>';
+      } else {
+        html += settleRow("当票没收", "—");
+      }
+      const voided = Number(settlement.council_voided) || 0;
+      html += settleRow("议政票作废", voided ? voided + " 票" : "—");
+      if (settlement.trade_cancelled) {
+        html += '<div class="settle-note">当面交易会话已取消，锁定财货已解锁。</div>';
+      }
+      html += `<div class="settle-row total"><span>归集合计</span><span class="amt">${(Number(settlement.total) || 0)} 灵石</span></div>`;
+    }
+    html +=
+      openCount != null
+        ? `<div class="settle-note">寄售待结：在售 ${openCount} 单，留单待售，成交后货款入账户钱包；新角不得撤旧世单。</div>`
+        : '<div class="settle-note">寄售待结：在售寄售单留单待售，成交后货款入账户钱包；新角不得撤旧世单。</div>';
+    box.innerHTML = html;
+    // 结算页钱包余额行：户名＋余额＋最近流水
+    const wbox = $("deathWallet");
+    if (wbox) {
+      if (wallet) {
+        const bal = wallet.balance != null ? wallet.balance : 0;
+        const name = wallet.username || state.username || "";
+        wbox.innerHTML =
+          `<div class="wallet-top"><span>账户钱包${name ? "（户名：" + esc(name) + "）" : ""}</span><b>${bal} 灵石</b></div>` +
+          `<div class="wallet-entries">${walletEntriesHtml(wallet)}</div>`;
+      } else {
+        wbox.innerHTML = "";
+      }
+    }
+  }
+  // 建角引导三要素（T13-3，spec §2.8）：①钱包余额与户名 ②新角随身 150 不变
+  // ③/钱包提取 指引；明确「钱包不会自动划转」，不暗示自动划转。
+  function rebirthGuideHtml(username, balance) {
+    const name = username || state.username || "";
+    const bal = balance != null ? balance : "—";
+    return (
+      `<div>① 钱还在你的账户名下：${name ? "户名 " + esc(name) + " · " : ""}账户钱包 <b>${bal} 灵石</b>。</div>` +
+      `<div>② 新角出生随身 <b>150 灵石</b>不变（道统灵石加成另计）；钱包不会自动划转入随身。</div>` +
+      `<div>③ 入世后用 <b>/钱包提取 &lt;金额&gt;</b> 取用账户金额（钱包 −n，随身 ＋n）。</div>`
+    );
+  }
+  function showRebirthGuide(data) {
+    const box = $("log");
+    if (!box) return;
+    const bal = data.wallet ? data.wallet.balance : null;
+    const el = document.createElement("div");
+    el.className = "line ok";
+    el.innerHTML = "【转世指引】<br/>" + rebirthGuideHtml(state.username, bal);
+    box.appendChild(el);
+    while (box.children.length > 400) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function showDeath(text, legacy, extra) {
+    extra = extra || {};
     $("deathModal").classList.remove("hidden");
-    const cause = legacy.death_cause || "身死道消";
+    const cause = legacy.death_cause || extra.death_cause || "身死道消";
+    // 评审 S4：死亡页首行渲染死因与享寿。享寿取 dead_payload legacy.lifespan_lived，
+    // 会话恢复路径取 /legacy 的 past_lives 末世 lived（同字段两种名字，兼容）。
+    const lastLife =
+      legacy.past_lives && legacy.past_lives.length
+        ? legacy.past_lives[legacy.past_lives.length - 1]
+        : null;
+    const lived =
+      legacy.lifespan_lived != null
+        ? legacy.lifespan_lived
+        : lastLife != null
+        ? lastLife.lifespan_lived != null
+          ? lastLife.lifespan_lived
+          : lastLife.lived
+        : null;
     $("deathText").textContent =
-      "本世道途已终（" + cause + "）。真灵可携道统重入轮回。";
+      "本世道途已终（" +
+      cause +
+      (lived != null ? "，享寿 " + lived + " 岁" : "") +
+      "）。真灵可携道统重入轮回。";
     $("deathLegacy").innerHTML =
       `道统点 <b>${legacy.points ?? 0}</b> · 已历 <b>${legacy.lives ?? 0}</b> 世<br/>` +
       `可选出身加成（至多 ${legacy.max_boosts ?? 3} 项）`;
+    // 结算明细＋钱包余额在建角表单之前（spec §2.8 结构顺序）
+    renderDeathSettle(
+      extra.settlement || null,
+      extra.wallet || null,
+      extra.consignment_open_count,
+      extra.death_context
+    );
+    const guide = $("deathGuide");
+    if (guide) {
+      const bal = extra.wallet ? extra.wallet.balance : null;
+      guide.innerHTML = rebirthGuideHtml(extra.username || extra.wallet && extra.wallet.username, bal);
+    }
+    const errEl = $("deathError");
+    if (errEl) {
+      errEl.textContent = "";
+      errEl.classList.add("hide");
+    }
 
     const box = $("boostBox");
     box.innerHTML = "";
@@ -877,13 +1110,27 @@
   }
 
   async function doReborn() {
+    const btn = $("btnReborn");
     const name = $("rebornName").value.trim();
     let cmd = "/转世";
     if (name) cmd += " " + name;
     if (state.selectedBoosts.length) cmd += " " + state.selectedBoosts.join(" ");
-    hideDeath();
+    // 提交后按钮置灰防重复提交；失败时保留已填道号与已选加成，不清空重填。
+    if (btn) btn.disabled = true;
     lastCmd = cmd;
-    await send(cmd);
+    const data = await send(cmd);
+    if (btn) btn.disabled = false;
+    if (!data || !data.ok) {
+      // 失败： modal 保持打开（道号与加成原样保留），错误就地显示。
+      $("deathModal").classList.remove("hidden");
+      const errEl = $("deathError");
+      if (errEl) {
+        errEl.textContent = (data && data.error) || "转世失败，请重试。";
+        errEl.classList.remove("hide");
+      }
+      return;
+    }
+    // 成功：handleResult 已 hideDeath 并展示转世指引。
   }
 
   // ---------- join / register / login ----------
@@ -943,6 +1190,42 @@
         password: pass,
         name: charName,
       });
+      // 死者登录（account-death §2.6 行为变更）：显式处理 dead:true 分支，
+      // 只展示死亡结算页，绝不静默建角；建角须玩家在结算页显式 /转世。
+      if (data.dead === true) {
+        state.token = data.token;
+        localStorage.setItem("td_token", data.token);
+        if (data.user_id) {
+          state.uid = data.user_id;
+          localStorage.setItem("td_uid", data.user_id);
+        }
+        if (data.username) {
+          state.username = data.username;
+          localStorage.setItem("td_user", data.username);
+        }
+        if (data.name) {
+          state.name = data.name;
+          localStorage.setItem("td_name", data.name);
+        }
+        $("gateMsg").textContent = "";
+        $("gate").classList.add("hidden");
+        $("app").classList.remove("hidden");
+        log(`【死讯】${data.name} · ${data.death_cause || "身死道消"}`, "sys");
+        const deadLegacy = Object.assign({}, data.legacy || {}, {
+          death_cause: data.death_cause,
+          max_boosts: (data.legacy && data.legacy.max_boosts) || 3,
+        });
+        state.lastLegacy = deadLegacy;
+        showDeath("", deadLegacy, {
+          wallet: data.wallet || null,
+          settlement: data.settlement || null,
+          username: data.username,
+          death_context: "login",
+          consignment_open_count: data.consignment_open_count,
+        });
+        ensureToggle();
+        return;
+      }
       enterWorld(
         data,
         isReg
@@ -1061,6 +1344,7 @@
         出战: "宠名，同时仅一宠出战助战",
         休息: "宠名，令出战灵宠退下",
         放生: "宠名，放归山林，不可挽回",
+        钱包提取: "从账户钱包取出灵石到随身：钱包 −n，随身 ＋n；金额不得超过钱包余额",
         播种: "种子名 [数量]：种子先在坊市购买，如：聚灵草种子 2",
         接委托: "同场 NPC 名或 /委托 面板中的编号；同时只能持一条委托链",
       };
@@ -1135,8 +1419,25 @@
   $("btnReborn").addEventListener("click", doReborn);
   $("btnLater").addEventListener("click", () => {
     hideDeath();
-    log("真灵暂驻轮回。下次「入世」将自动转世。", "sys");
+    // §2.6：登录不再自动建角；暂不转世后，下次登录回到此页，或直接用 /转世 建角。
+    log("真灵暂驻轮回。下次登录时可回到此页转世，或在敕令栏输入「/转世 新道号 [加成…]」。", "sys");
   });
+
+  // 命盘钱包提取入口（T13-2）：只发命令、不预改余额；结果反馈见 handleResult。
+  const walletForm = $("walletForm");
+  if (walletForm) {
+    walletForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const v = ($("walletAmount").value || "").trim();
+      if (!/^\d+$/.test(v)) {
+        setWalletMsg("请输入正整数金额。", true);
+        return;
+      }
+      setWalletMsg("", false);
+      lastCmd = "/钱包提取 " + v;
+      send(lastCmd);
+    });
+  }
 
   $("btnLogout").addEventListener("click", async () => {
     if (!state.token) return;
@@ -1313,7 +1614,16 @@
       else parseLookFallback(look.text || "");
       if (look.status && look.status.dead) {
         const lg = await api("/action", { token: token, command: "/legacy" });
-        if (lg.ok) showDeath(look.text || "", lg);
+        if (lg.ok) {
+          // 会话恢复的死者入口：钱包取 /look 的 status.wallet，归集明细本次
+          // 不下发则结算区显示「此前已结算」＋钱包流水，不捏造明细。
+          showDeath(look.text || "", lg, {
+            wallet: look.status.wallet || null,
+            settlement: null,
+            username: state.username,
+            death_context: "restore",
+          });
+        }
       } else {
         refreshSoft(true);
         startPolling();

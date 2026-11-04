@@ -180,6 +180,7 @@
             <div><dt>位置</dt><dd id="stLoc">—</dd></div>
             <div><dt>随身</dt><dd id="stStones">—</dd></div>
             <div><dt>金库</dt><dd id="stVault">—</dd></div>
+            <div><dt>账户钱包</dt><dd id="stWallet">—</dd></div>
             <div><dt>业 / 德</dt><dd id="stKarma">—</dd></div>
             <div><dt>灵气</dt><dd id="stQi">—</dd></div>
             <div><dt>天象</dt><dd id="stTheme">—</dd></div>
@@ -187,6 +188,19 @@
             <div><dt>灵宠</dt><dd id="stPet">—</dd></div>
           </dl>
           <div id="stProtRow" class="note hide"></div>
+          <div class="wallet-box" id="walletBox">
+            <div class="wallet-top"><span>账户钱包</span><b id="walletBalance">—</b></div>
+            <div class="muted" id="walletUser">户名：—</div>
+            <details id="walletDetails">
+              <summary>最近流水（最多 5 条）</summary>
+              <div id="walletEntries" class="wallet-entries"><p class="empty">暂无流水。</p></div>
+            </details>
+            <form id="walletForm" class="wallet-form" autocomplete="off">
+              <input id="walletAmount" type="text" inputmode="numeric" placeholder="提取金额" spellcheck="false" />
+              <button type="submit" class="btn-mini">提取</button>
+            </form>
+            <div id="walletMsg" class="wallet-msg muted">提取：/钱包提取 &lt;金额&gt;（钱包 −n，随身 ＋n）</div>
+          </div>
         </section>
 
         <section class="card">
@@ -354,6 +368,8 @@
             <button class="btn-soft" data-prompt="游说" data-cmd-prefix="/游说" data-placeholder="长老名，如：丹霞子">游说…</button>
             <button class="btn-soft" data-prompt="传功" data-cmd-prefix="/传功" data-placeholder="弟子道号">传功…</button>
             <button class="btn-soft" data-cmd="/坊市">坊市</button>
+            <button class="btn-soft" data-cmd="/钱包">钱包</button>
+            <button class="btn-soft" data-prompt="钱包提取" data-cmd-prefix="/钱包提取" data-placeholder="金额，如：100" data-num="1">钱包提取…</button>
             <button class="btn-soft" data-cmd="/行情">行情</button>
             <button class="btn-soft" data-prompt="购买" data-cmd-prefix="/购买" data-placeholder="货名 [数量]">购买…</button>
             <button class="btn-soft" data-prompt="出售" data-cmd-prefix="/出售" data-placeholder="货名 [数量]">出售…</button>
@@ -461,12 +477,16 @@
       <h2>一世终结 · 真灵归寂</h2>
       <p id="deathText" class="demon-text"></p>
       <div id="deathLegacy" class="legacy-box"></div>
-      <div id="boostBox" class="boost-box"></div>
+      <div id="deathSettle" class="settle-box"></div>
+      <div id="deathWallet" class="wallet-box"></div>
+      <div id="deathGuide" class="guide-box"></div>
+      <div class="boost-box" id="boostBox"></div>
       <div class="death-actions">
-        <input id="rebornName" type="text" placeholder="新道号（可选）" maxlength="12" />
-        <button id="btnReborn" class="btn-primary">真灵转世</button>
-        <button id="btnLater" class="btn-ghost">暂驻轮回</button>
+        <input id="rebornName" type="text" placeholder="新道号（可选，留空沿用旧名）" maxlength="12" />
+        <button id="btnReborn" class="btn-primary">以此道号重入轮回</button>
+        <button id="btnLater" class="btn-ghost">暂不转世</button>
       </div>
+      <p id="deathError" class="wallet-msg err hide"></p>
     </div>
   </div>
 

@@ -104,18 +104,43 @@ class PawnEngine:
         for ticket in tickets:
             if not ticket.is_open() or t < ticket.due_at:
                 continue
-            ticket.status = PawnStatus.FORFEITED
-            listing = MarketListing(
-                seller_id=PAWN_SHOP_ID,
-                seller_name=PAWN_SHOP_NAME,
-                item_name=ticket.item_name,
-                kind=ticket.kind,
-                price=ticket.redeem_cost(),
-                status=ListingStatus.OPEN,
-                created_at=t,
-            )
-            MarketListingRepository.save(listing)
-            PawnTicketRepository.save(ticket)
+            PawnEngine._forfeit_ticket(ticket, t)
+            settled.append(ticket)
+        return settled
+
+    @staticmethod
+    def _forfeit_ticket(ticket: PawnTicket, t: float) -> None:
+        """单票没收落库（逾期结算与死亡没收共用口径）：票 → FORFEITED，
+        物品以赎回价挂当铺寄售（卖家为当铺伪主体，买家付款沉淀当铺，不入任何钱包）。"""
+        from storage.db import MarketListingRepository, PawnTicketRepository
+
+        ticket.status = PawnStatus.FORFEITED
+        listing = MarketListing(
+            seller_id=PAWN_SHOP_ID,
+            seller_name=PAWN_SHOP_NAME,
+            item_name=ticket.item_name,
+            kind=ticket.kind,
+            price=ticket.redeem_cost(),
+            status=ListingStatus.OPEN,
+            created_at=t,
+        )
+        MarketListingRepository.save(listing)
+        PawnTicketRepository.save(ticket)
+
+    @staticmethod
+    def forfeit_all(owner_id: str, now: Optional[float] = None) -> List[PawnTicket]:
+        """死亡 sweep：无条件没收该主全部 OPEN 当票（不论是否到期，逾期口径）。
+
+        本金不另记——典当时本金已付入随身灵石，由死亡归集随身步一并入钱包，
+        此处只处理物品侧。返回本次没收的票据。"""
+        from storage.db import PawnTicketRepository
+
+        t = now if now is not None else time.time()
+        settled: List[PawnTicket] = []
+        for ticket in PawnTicketRepository.list_by_owner(owner_id):
+            if not ticket.is_open():
+                continue
+            PawnEngine._forfeit_ticket(ticket, t)
             settled.append(ticket)
         return settled
 

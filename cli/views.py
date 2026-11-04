@@ -324,8 +324,9 @@ def render_sect_panel(char: Character):
     console.print("[dim]拜入宗门：前往各派总坛山门（如输入 [/dim][bold green]/前往 青云宗外门山门[/bold green][dim]），输入 [/dim][bold green]/拜入 青云宗[/bold green][dim] 叩关。[/dim]\n")
 
 
-def render_legacy_settlement(settle: dict):
-    """一世终结 · 转世结算面板"""
+def render_legacy_settlement(settle: dict, sweep: dict | None = None, wallet: dict | None = None):
+    """一世终结 · 转世结算面板（account-death：sweep/wallet 传入时展示资金归集明细表
+    与账户钱包余额；不传时与旧版逐字一致）。"""
     past = settle.get("past_life")
     bd = settle.get("breakdown", {})
     lines = [
@@ -355,6 +356,32 @@ def render_legacy_settlement(settle: dict):
         f"  [bold gold1]道统池：{settle.get('account_points', 0)} 点"
         f"（累计 {settle.get('total_lives', 0)} 世）[/bold gold1]"
     )
+    if sweep is not None:
+        lines.append("")
+        lines.append("[bold cyan]【资金归集】[/bold cyan]")
+        lines.append(f"  随身灵石 {sweep.get('spirit', 0)} 灵石")
+        lines.append(f"  寄存灵石 {sweep.get('vault', 0)} 灵石")
+        refunds = sweep.get("auction_refunds") or []
+        if refunds:
+            for r in refunds:
+                lines.append(f"  拍卖退款【{r.get('item', '')}】＋{r.get('amount', 0)} 灵石")
+        else:
+            lines.append("  拍卖退款 —")
+        forfeits = sweep.get("pawn_forfeits") or []
+        if forfeits:
+            for t in forfeits:
+                lines.append(f"  当票没收【{t.get('item', '')}】（赎回价 {t.get('redeem', 0)} 灵石，物品入当铺寄售）")
+        else:
+            lines.append("  当票没收 —")
+        if sweep.get("council_voided"):
+            lines.append(f"  议政票作废 {sweep.get('council_voided')} 票（未结算场次）")
+        else:
+            lines.append("  议政票作废 —")
+        lines.append("  寄售在售单保留待售，成交后货款入账户钱包")
+        if wallet is not None:
+            lines.append(
+                f"  [bold gold1]账户钱包余额 {wallet.get('balance', 0)} 灵石[/bold gold1]"
+            )
     lines.append("")
     lines.append("[dim]道统点可于转世降生时兑换出身优势；亦可输入 /道统 查看前世与兑换目录。[/dim]")
 

@@ -530,6 +530,26 @@ class CouncilEngine:
         }
 
     @staticmethod
+    def void_dead_votes(char: Character) -> int:
+        """死亡 sweep：清除死者所属宗门未结算场次 votes 中键为死者角色 id 的票。
+
+        已结算场次快照不动（spec 裁定 3）；游说位移与已付费用沉没不退。
+        返回清除票数（0/1；无宗门或无场次时为 0）。
+        """
+        if not getattr(char, "sect", None):
+            return 0
+        session = CouncilEngine._load_session(char.sect)
+        if not session or session.get("settled"):
+            return 0
+        votes = session.get("votes") or {}
+        if char.id not in votes:
+            return 0
+        del votes[char.id]
+        session["votes"] = votes
+        CouncilEngine._save_session(char.sect, session)
+        return 1
+
+    @staticmethod
     def lobby(
         char: Character,
         hint: str,
