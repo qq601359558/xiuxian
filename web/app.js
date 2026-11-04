@@ -16,6 +16,8 @@
     lastLegacy: null,
     composerOpen: false,
     chatEnded: false,
+    lastTrigger: null,
+    lastFocus: null,
   };
   let lastCmd = "";
 
@@ -143,6 +145,30 @@
     }
     const box = $("walletEntries");
     if (box) box.innerHTML = walletEntriesHtml(wallet);
+    // 钱包恢复可用（U12 降级反向：此前因缺失被禁用的提取表单重新启用）
+    const amt = $("walletAmount");
+    if (amt) amt.disabled = false;
+    const form = $("walletForm");
+    if (form) {
+      const btn = form.querySelector("button[type=submit]");
+      if (btn) btn.disabled = false;
+    }
+  }
+  // U12 降级：wallet 缺失时显示 — 且禁用提取表单（不是隐藏余额后仍可提交）
+  function renderWalletMissing() {
+    setText("stWallet", "—");
+    setText("walletBalance", "—");
+    const userEl = $("walletUser");
+    if (userEl) userEl.textContent = "户名：—";
+    const box = $("walletEntries");
+    if (box) box.innerHTML = '<p class="empty">暂无流水。</p>';
+    const amt = $("walletAmount");
+    if (amt) amt.disabled = true;
+    const form = $("walletForm");
+    if (form) {
+      const btn = form.querySelector("button[type=submit]");
+      if (btn) btn.disabled = true;
+    }
   }
   function setWalletMsg(text, isErr) {
     const el = $("walletMsg");
@@ -223,7 +249,9 @@
         arts.textContent = label;
         arts.classList.remove("hide");
       } else {
-        arts.classList.add("hide");
+        // U13：空法门亦须文字空态，不得空白一片
+        arts.textContent = "法门：暂无";
+        arts.classList.remove("hide");
       }
     }
   }
@@ -247,6 +275,10 @@
         const cur = +m[1], max = +m[2] || 1;
         setBar("stExpBar", (cur / max) * 100);
         setBar("hudExpBar", (cur / max) * 100);
+      } else {
+        // U08/G5：解析失败只显示原文，不画条、不显示 0%
+        setBar("stExpBar", 0);
+        setBar("hudExpBar", 0);
       }
     }
     if (st.location) {
@@ -257,47 +289,109 @@
     }
     if (st.root) setText("stRoot", st.root);
     if (st.stones != null) {
-      setText("stStones", st.stones);
-      setText("hudStones", st.stones);
+      setText("stStones", st.stones + " 灵石");
+      setText("hudStones", st.stones + " 灵石");
     }
-    if (st.vault != null) setText("stVault", st.vault);
+    if (st.vault != null) setText("stVault", st.vault + " 灵石");
     // 账户钱包行（T13-2）：status.wallet 由后端 _status_dict 下发
+    // MF3：降级守卫统一为 == null——缺键时 st.wallet 为 undefined，== null 为真，
+    // 故缺键亦触发降级，不再残留旧钱包；其余假值（不应出现）不渲染也不降级。
     if (st.wallet) renderWallet(st.wallet);
+    else if (st.wallet == null) renderWalletMissing();
     if (st.rem_years != null) {
       const y = Number(st.rem_years);
       const label = (Math.round(y * 10) / 10) + " 岁";
       setText("stLife", label);
       setText("hudLife", label);
-      // 出生寿元约 70–100，用 100 做满槽
+      // 出生寿元约 70–100，用 100 做满槽；条只作相对长度，不得标注百分比含义（U05/G1）
       const pct = Math.max(0, Math.min(100, (y / 100) * 100));
-      setBar("stLifeBar", pct, y < 10);
-      setBar("hudLifeBar", pct, y < 10);
+      // 大限态唯一可信阈值：lifespan_warning 或 rem_years < 10（U05/D4）
+      const lifeWarn = !!(st.lifespan_warning || y < 10);
+      setBar("stLifeBar", pct, lifeWarn);
+      setBar("hudLifeBar", pct, lifeWarn);
       const lifeEl = $("stLife");
-      if (lifeEl) lifeEl.style.color = y < 10 ? "var(--blood)" : "";
+      if (lifeEl) lifeEl.style.color = lifeWarn ? "var(--blood)" : "";
+      const hudLifeState = $("hudLifeState");
+      if (hudLifeState) {
+        hudLifeState.textContent = lifeWarn ? "大限将至" : "";
+        hudLifeState.classList.toggle("hide", !lifeWarn);
+      }
+    } else if (st.rem_years == null) {
+      // U05 降级：缺失时两处均显示 —、条宽 0、不标红、不报错
+      // MF3：原 "rem_years" in st 守卫在缺键时不触发、旧值残留；改为 == null（null/缺键均触发）
+      setText("stLife", "—");
+      setText("hudLife", "—");
+      setBar("stLifeBar", 0, false);
+      setBar("hudLifeBar", 0, false);
+      const hudLifeState = $("hudLifeState");
+      if (hudLifeState) hudLifeState.classList.add("hide");
     }
     if (st.sin != null || st.merit != null) {
-      setText("stKarma", (st.sin || 0) + " / " + (st.merit || 0));
+      // U06：任一缺失该数字位显示 — 不写 0；血煞时在因果区加血色文字标志（不只靠颜色）
+      const sinT = st.sin != null ? st.sin : "—";
+      const merT = st.merit != null ? st.merit : "—";
+      setText("stKarma", "业 " + sinT + " / 德 " + merT + (st.blood_marked ? " · 血煞缠身" : ""));
     }
     if (st.qi_mult != null) {
       const q = Number(st.qi_mult);
-      const t = q.toFixed(2) + "x";
+      const t = "×" + q.toFixed(2);
       setText("stQi", t);
       setText("hudQi", t);
+    } else if (st.qi_mult == null) {
+      // MF3：原 "qi_mult" in st 守卫缺键不触发、旧值残留；改为 == null
+      setText("stQi", "—");
+      setText("hudQi", "—");
+    }
+    // U06：道心单独 0–100 条并钳制，缺失则整条隐藏（不显示 0 或假值）
+    const daoRow = $("daoHeartRow");
+    if (st.dao_heart != null) {
+      const dh = Math.max(0, Math.min(100, Number(st.dao_heart)));
+      setText("stDaoHeart", dh + "");
+      setBar("stDaoHeartBar", dh, false);
+      if (daoRow) daoRow.classList.remove("hide");
+    } else if (st.dao_heart == null) {
+      // MF3：原 "dao_heart" in st 守卫缺键不触发、旧条残留；改为 == null
+      if (daoRow) daoRow.classList.add("hide");
+    }
+    // U07：势力只呈现归属（宗门 + 职阶）；空宗门写散修，空职阶只写宗门，不写假职阶
+    // MF3：原 "sect"/"rank" in st 守卫缺键不触发、旧值残留；改为无条件按空处理
+    // （null/undefined/空串一律按空宗门→散修、空职阶→只写宗门，与 §5 缺失口径一致）。
+    // 注意瞬时闪烁：转世/登录的合成局部对象不含 sect/rank，本行会瞬时显示“散修”，
+    // 其后紧跟的 refreshSoft(true) 全量刷新立即纠正为真实归属（见转世/enterWorld 调用点）。
+    {
+      let sectText = st.sect ? st.sect : "散修";
+      if (st.rank) sectText += " · " + st.rank;
+      setText("stSect", sectText);
     }
     // 纪元天象（F13）：命盘一行显示当前纪元主题名
     if (st.season_theme && st.season_theme.name) {
       setText("stTheme", st.season_theme.name);
+    } else {
+      // MF3：原 "season_theme" in st 守卫在缺键或有对象无 name 时不触发、旧值残留；
+      // 改为无条件降级（null/缺键/无 name 一律显示 —，与 §5 缺失口径一致）。
+      // 瞬时闪烁：转世/登录局部对象不含本键，会瞬时显示 —，其后 refreshSoft 全量刷新纠正。
+      setText("stTheme", "—");
     }
-    // 心魔长期状态（F16）：命盘一行显示心魔阶段（无种亦明示）
+    // 心魔长期状态（F16）：命盘一行显示心魔阶段
     if (st.heart_demon_state) {
       const hd = st.heart_demon_state;
       setText("stDemon", hd.stage > 0 ? hd.stage_name + " · 魔念 " + hd.seed : "无种");
       const dEl = $("stDemon");
       if (dEl) dEl.style.color = hd.stage >= 3 ? "var(--blood)" : hd.stage === 2 ? "var(--warn, #d97706)" : "";
+    } else {
+      // U06 降级：缺失不得写「无种」（无种以 stage==0 为准），显示 —
+      // MF3：原 "heart_demon_state" in st 守卫缺键不触发、旧值残留；改为无条件降级。
+      // 瞬时闪烁：转世/登录局部对象不含本键，会瞬时显示 —，其后 refreshSoft 全量刷新纠正。
+      setText("stDemon", "—");
+      const dEl = $("stDemon");
+      if (dEl) dEl.style.color = "";
     }
     if (st.inventory || st.equipped || st.arrays) renderBag(st);
     // 灵宠（F01）：命盘一行显示出战灵宠
-    if ("pet" in st || "pets_count" in st) {
+    // MF3：原 "pet"/"pets_count" in st 守卫缺键不触发、旧值残留；改为无条件按空处理
+    // （null/缺键/无宠一律显示 —，与 §5 缺失口径一致）。
+    // 瞬时闪烁：转世/登录局部对象不含本键，会瞬时显示 —，其后 refreshSoft 全量刷新纠正。
+    {
       if (st.pet) {
         setText("stPet", st.pet.name + " · " + (st.pet.level || 1) + "级");
       } else if (st.pets_count) {
@@ -306,7 +400,6 @@
         setText("stPet", "—");
       }
     }
-
     // 庇护 / 冲突区 / 闭关
     const labels = [];
     let warn = false;
@@ -335,7 +428,9 @@
       if (labels.length) {
         pill.textContent = labels[0];
         pill.classList.remove("hide");
-        pill.classList.toggle("warn", warn);
+        // U09 状态色统一：血煞用血色 danger，大限/冲突用橙色 warn，其余用玉色默认
+        pill.classList.toggle("danger", !!st.blood_marked);
+        pill.classList.toggle("warn", warn && !st.blood_marked);
       } else {
         pill.classList.add("hide");
       }
@@ -350,7 +445,8 @@
       }
     }
 
-    // 地点安全标签
+    // 地点标签（U09/G4）：只分闭关 / 凶域 / 中性三态；无 is_safe 字段时
+    // 不得断言「安全」，中性态只写地点名或 —（旧「安全」文案已删除）
     const zone = $("zoneTag");
     if (zone) {
       if (st.meditating || st.status === "MEDITATING") {
@@ -360,8 +456,11 @@
         zone.textContent = "凶域";
         zone.className = "tag danger";
       } else if (st.location) {
-        zone.textContent = "安全";
-        zone.className = "tag safe";
+        zone.textContent = st.location;
+        zone.className = "tag neutral";
+      } else {
+        zone.textContent = "—";
+        zone.className = "tag neutral";
       }
     }
 
@@ -403,11 +502,11 @@
       setText("sceneChip", l);
     }
     if (stones) {
-      setText("stStones", stones);
-      setText("hudStones", stones);
+      setText("stStones", stones + " 灵石");
+      setText("hudStones", stones + " 灵石");
     }
-    if (vault) setText("stVault", vault);
-    if (sin) setText("stKarma", sin + " / —");
+    if (vault) setText("stVault", vault + " 灵石");
+    if (sin) setText("stKarma", "业 " + sin + " / 德 —");
     if (life) {
       const y = Number(life);
       setText("stLife", life + " 岁");
@@ -509,6 +608,19 @@
   }
 
   // ---------- send ----------
+  // U15：捕获阶段记录本次触发控件（按钮 / 表单提交按钮），send() 在请求期间
+  // 将其 disabled + .is-loading，二次触发不发请求；成功/失败后一律恢复。
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t && t.closest) {
+      const b = t.closest("button, a.btn-icon, .boost-item");
+      if (b) state.lastTrigger = b;
+    }
+  }, true);
+  document.addEventListener("submit", (e) => {
+    state.lastTrigger = e.submitter || document.activeElement;
+  }, true);
+
   async function send(cmd) {
     if (!state.token) {
       log("尚未入世，请先登录。", "err");
@@ -525,6 +637,12 @@
     log("» " + c, "cmd");
     switchTab("feed");
     setBusy(true);
+    const trig = state.lastTrigger && state.lastTrigger instanceof HTMLElement ? state.lastTrigger : null;
+    if (trig && !trig.disabled) {
+      trig.disabled = true;
+      trig.classList.add("is-loading");
+      trig.setAttribute("aria-busy", "true");
+    }
     try {
       const data = await api("/action", { token: state.token, command: c });
       handleResult(data);
@@ -533,6 +651,11 @@
       log("失败：" + e.message, "err");
       return null;
     } finally {
+      if (trig) {
+        trig.disabled = false;
+        trig.classList.remove("is-loading");
+        trig.removeAttribute("aria-busy");
+      }
       setBusy(false);
       if (state.composerOpen) {
         const input = $("cmdInput");
@@ -555,6 +678,7 @@
   function openChat(npcName) {
     const m = chatEl();
     if (!m) return;
+    state.lastFocus = document.activeElement;
     m.classList.remove("hidden");
     m.setAttribute("aria-hidden", "false");
     state.chatEnded = false;
@@ -590,6 +714,8 @@
     m.setAttribute("aria-hidden", "true");
     state.chatEnded = false;
     setChatInputEnabled(true);
+    // U25：关闭后焦点回到触发点附近
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
   }
   function handleChatPayload(data, text) {
     if (data.chat_open) {
@@ -627,6 +753,7 @@
   function openOmen(title) {
     const m = $("omenModal");
     if (!m) return;
+    state.lastFocus = document.activeElement;
     m.classList.remove("hidden");
     m.setAttribute("aria-hidden", "false");
     if ($("omenTitle") && title) $("omenTitle").textContent = "奇遇 · " + title;
@@ -640,6 +767,7 @@
     m.setAttribute("aria-hidden", "true");
     const chips = $("omenChips");
     if (chips) chips.innerHTML = "";
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
   }
   function parseOmenChoices(text) {
     const m = /选项：(.+)/.exec(text || "");
@@ -697,15 +825,21 @@
     const inp = $("chatInput");
     const btn = $("chatClose");
     if (form && inp) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener("submit", async (e) => {
         e.preventDefault();
         if (state.chatEnded) return;
         const v = (inp.value || "").trim();
         if (!v) return;
-        inp.value = "";
+        // U15：失败保留输入——成功后才清空；失败时草稿留在输入框内
         chatAppend("你", v, "me");
         lastCmd = "/说";
-        send("/说 " + v);
+        const data = await send("/说 " + v);
+        if (data && data.ok !== false) inp.value = "";
+        // MF8/U15：send() busy 早返返回 undefined（已在 feed 记“天道正在裁决，稍候…”），
+        // 属稍候而非失败：不追加失败行、不记失败，输入保留待重试；仅 data 为 null
+        // （网络/请求异常）或 ok===false 时才追加失败行。
+        else if (data === undefined) { /* 稍候，草稿保留，不记失败 */ }
+        else chatAppend("", "发送失败，草稿已保留。", "sys");
       });
     }
     if (btn) {
@@ -724,14 +858,19 @@
     const inp = $("omenInput");
     const btn = $("omenClose");
     if (form && inp) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const v = (inp.value || "").trim();
         if (!v) return;
-        inp.value = "";
+        // U15：失败保留输入——成功后才清空
         omenAppend("你", v, "me");
         lastCmd = "/奇遇说";
-        send("/奇遇说 " + v);
+        const data = await send("/奇遇说 " + v);
+        if (data && data.ok !== false) inp.value = "";
+        // MF8/U15：同聊天提交——send() busy 早返（undefined）只表示稍候，
+        // feed 已记“天道正在裁决，稍候…”，不追加失败行、不记失败，输入保留。
+        else if (data === undefined) { /* 稍候，草稿保留，不记失败 */ }
+        else omenAppend("", "发送失败，草稿已保留。", "sys");
       });
     }
     if (btn) {
@@ -813,6 +952,9 @@
 
     if (data.ok && data.boosts_applied !== undefined && data.settle !== undefined) {
       log(data.text || "转世完成", "ok");
+      // MF3：合成局部对象（仅 4 键）——缺失键的降级行（钱包/势力/天象/心魔/灵宠）
+      // 会瞬时显示降级态，下方 refreshSoft(true) 全量刷新立即纠正；非局部键的旧值
+      // 亦只保留到该次刷新，不作最终呈现。
       applyStatus({
         name: data.name,
         realm: data.realm,
@@ -863,6 +1005,7 @@
   let promptCfg = null;
   function openPrompt(title, hint, prefix, placeholder, numeric) {
     promptCfg = { prefix: prefix || "", numeric: !!numeric };
+    state.lastFocus = document.activeElement;
     $("promptTitle").textContent = title || "输入";
     $("promptHint").textContent = hint || "";
     const inp = $("promptInput");
@@ -875,27 +1018,45 @@
   function closePrompt() {
     $("promptModal").classList.add("hidden");
     promptCfg = null;
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
   }
-  function confirmPrompt() {
+  async function confirmPrompt() {
     if (!promptCfg) return;
+    if (state.busy) {
+      $("promptHint").textContent = "天道正在裁决，稍候…";
+      return;
+    }
     const v = $("promptInput").value.trim();
     if (!v) {
       $("promptInput").focus();
       return;
     }
-    if (promptCfg.numeric && !/^\d+$/.test(v)) {
+    if (promptCfg.numeric && !/^[1-9]\d*$/.test(v)) {
       $("promptHint").textContent = "请输入正整数";
       return;
     }
     const cmd = (promptCfg.prefix + " " + v).trim();
-    closePrompt();
+    // U15/U16：失败时弹层保持打开、输入保留、错误就地显示；成功后才关闭
+    state.lastTrigger = $("promptOk");
     lastCmd = cmd;
-    send(cmd);
+    const data = await send(cmd);
+    if (!data || data.ok === false) {
+      $("promptHint").textContent = (data && data.error) || "发送失败，请重试。";
+      $("promptInput").focus();
+      return;
+    }
+    closePrompt();
   }
 
   // ---------- demon ----------
   function showDemon(fullText, options) {
-    $("demonModal").classList.remove("hidden");
+    // MF6 残留：仅在弹层由隐藏变显示时保存一次 lastFocus，关闭时恢复（U25）。
+    // 同会话多轮重弹时弹层本已显示，不再覆盖：上一轮刚被点击的选项按钮
+    // 随即被下方 innerHTML 清空，覆盖后的 lastFocus 会使 hideDemon 的
+    // contains 守卫失败、焦点落到 body；保留首轮焦点才能正确恢复。
+    const demonModal = $("demonModal");
+    if (demonModal.classList.contains("hidden")) state.lastFocus = document.activeElement;
+    demonModal.classList.remove("hidden");
     let narrative = fullText || "";
     const idx = narrative.indexOf("【心魔问心】");
     if (idx >= 0) narrative = narrative.slice(idx + 6);
@@ -908,27 +1069,33 @@
     (options || []).forEach((o, i) => {
       const b = document.createElement("button");
       b.textContent = `${i + 1}. ${o.label}${o.style ? "（" + o.style + "）" : ""}`;
-      b.onclick = () => {
-        hideDemon();
+      b.onclick = async () => {
+        // U15：选择先发请求；成功且非新一轮问心时关窗，失败时弹层保持打开
         lastCmd = "心魔选择";
-        send(String(i + 1));
+        const data = await send(String(i + 1));
+        if (data && data.ok !== false && !data.pending_heart_demon) hideDemon();
       };
       box.appendChild(b);
     });
     if (!options || !options.length) {
       const b = document.createElement("button");
       b.textContent = "暂避锋芒";
-      b.onclick = () => {
-        hideDemon();
-        send("yield");
+      b.onclick = async () => {
+        lastCmd = "心魔选择";
+        const data = await send("yield");
+        if (data && data.ok !== false && !data.pending_heart_demon) hideDemon();
       };
       box.appendChild(b);
     }
+    const firstOpt = box.querySelector("button");
+    if (firstOpt) firstOpt.focus();
   }
 
   function hideDemon() {
     $("demonModal").classList.add("hidden");
     $("demonFree").value = "";
+    // MF6：关闭后焦点回到触发点附近（同 closeChat 模式）
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
   }
 
   // ---------- death / rebirth ----------
@@ -1037,6 +1204,8 @@
 
   function showDeath(text, legacy, extra) {
     extra = extra || {};
+    // MF6：照聊天 modal 模式保存 lastFocus（须在下方 rebornName.focus() 之前），关闭时恢复（U25）
+    state.lastFocus = document.activeElement;
     $("deathModal").classList.remove("hidden");
     const cause = legacy.death_cause || extra.death_cause || "身死道消";
     // 评审 S4：死亡页首行渲染死因与享寿。享寿取 dead_payload legacy.lifespan_lived，
@@ -1093,6 +1262,12 @@
           el.classList.remove("selected");
         } else {
           if (state.selectedBoosts.length >= max) {
+            // U14：超限就地提示（deathError 内）且不选中，不只记 feed
+            const errEl = $("deathError");
+            if (errEl) {
+              errEl.textContent = `至多选 ${max} 项出身加成`;
+              errEl.classList.remove("hide");
+            }
             log(`至多选 ${max} 项出身加成`, "err");
             return;
           }
@@ -1103,23 +1278,50 @@
       box.appendChild(el);
     });
     $("rebornName").value = "";
+    // U25：死亡结算打开时焦点进入 modal（新道号输入框）
+    const rn = $("rebornName");
+    if (rn) rn.focus();
   }
 
   function hideDeath() {
     $("deathModal").classList.add("hidden");
+    // MF6：关闭后焦点回到触发点附近（同 closeChat 模式）
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
   }
 
   async function doReborn() {
+    // MF8 残留：照 confirmPrompt 加 busy 前置守卫。send() 的 busy 早返返回
+    // undefined（仅在 feed 记“天道正在裁决，稍候…”且不发请求），若不守卫，
+    // 下方 if (!data || !data.ok) 会将其误判为失败并在 deathError 写出
+    // “转世失败，请重试。”。busy 时只就地提示稍候并返回，不写失败、不动按钮态。
+    if (state.busy) {
+      const errEl = $("deathError");
+      if (errEl) {
+        errEl.textContent = "天道正在裁决，稍候…";
+        errEl.classList.remove("hide");
+      }
+      return;
+    }
     const btn = $("btnReborn");
     const name = $("rebornName").value.trim();
     let cmd = "/转世";
     if (name) cmd += " " + name;
     if (state.selectedBoosts.length) cmd += " " + state.selectedBoosts.join(" ");
     // 提交后按钮置灰防重复提交；失败时保留已填道号与已选加成，不清空重填。
-    if (btn) btn.disabled = true;
+    // MF4：主操作另补文案切换（触屏上不依赖等待光标即可辨识请求中态），结束后恢复原文案。
+    const btnText = btn ? btn.textContent : "";
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("is-loading");
+      btn.textContent = "转世中…";
+    }
     lastCmd = cmd;
     const data = await send(cmd);
-    if (btn) btn.disabled = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+      btn.textContent = btnText;
+    }
     if (!data || !data.ok) {
       // 失败： modal 保持打开（道号与加成原样保留），错误就地显示。
       $("deathModal").classList.remove("hidden");
@@ -1156,6 +1358,8 @@
       log(`自然寿元约 ${data.rem_years} 岁 · 道统池 ${data.legacy_points || 0} 点`, "sys");
     }
     if (data.newbie_feed) log(data.newbie_feed, "ok");
+    // MF3：合成局部对象（仅 4 键）——缺失键的降级行会瞬时显示降级态；
+    // authJoin 在 enterWorld 返回后 await refreshSoft(true) 全量刷新纠正，见该处。
     applyStatus({
       name: data.name,
       realm: data.realm,
@@ -1182,6 +1386,11 @@
       return;
     }
     $("gateMsg").textContent = isReg ? "注册中…" : "登录中…";
+    const joinBtn = $("btnJoin");
+    if (joinBtn) {
+      joinBtn.textContent = isReg ? "注册中…" : "登录中…";
+      joinBtn.classList.add("is-loading");
+    }
     setBusy(true);
     try {
       const path = isReg ? "/register" : "/login";
@@ -1246,6 +1455,10 @@
     } catch (e) {
       $("gateMsg").textContent = e.message || "认证失败";
     } finally {
+      // U11：请求结束恢复主按钮文案与可用态（setAuthMode 同步登录/注册文案）
+      const joinBtn = $("btnJoin");
+      if (joinBtn) joinBtn.classList.remove("is-loading");
+      setAuthMode(state.authMode);
       setBusy(false);
     }
   }
@@ -1281,12 +1494,13 @@
     });
   }
 
-  $("cmdForm").addEventListener("submit", (e) => {
+  $("cmdForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const v = $("cmdInput").value;
     lastCmd = v;
-    $("cmdInput").value = "";
-    send(v);
+    // U15：失败保留输入——成功后才清空（原行为发送前即清空，失败后草稿不可找回）
+    const data = await send(v);
+    if (data && data.ok !== false) $("cmdInput").value = "";
   });
 
   document.querySelectorAll("[data-cmd]").forEach((btn) => {
@@ -1310,6 +1524,8 @@
       const prefix = btn.getAttribute("data-cmd-prefix") || "";
       const ph = btn.getAttribute("data-placeholder") || "";
       const numeric = btn.getAttribute("data-num") === "1";
+      // U16：按钮自带的 data-hint 优先（两处「接令」借此消歧：世界页先看除凶、
+      // 坊市区先看告示），命令文本与前缀本身一律不动
       const hints = {
         拜入: "须亲至总坛山门。可填：青云宗 / 万剑仙门 / 九幽天魔宗 / 四海散修商会",
         传功: "须同门且境界高于对方",
@@ -1348,7 +1564,7 @@
         播种: "种子名 [数量]：种子先在坊市购买，如：聚灵草种子 2",
         接委托: "同场 NPC 名或 /委托 面板中的编号；同时只能持一条委托链",
       };
-      openPrompt(title, hints[title] || "", prefix, ph, numeric);
+      openPrompt(title, btn.getAttribute("data-hint") || hints[title] || "", prefix, ph, numeric);
     });
   });
 
@@ -1370,6 +1586,33 @@
   });
   $("promptModal").addEventListener("click", (e) => {
     if (e.target === $("promptModal")) closePrompt();
+  });
+
+  // U18：移动端右栏抽屉开关（桌面端按钮隐藏、右栏常显）；U25：Esc 关闭已打开的弹层
+  const railToggle = $("railToggle");
+  if (railToggle) {
+    railToggle.addEventListener("click", () => {
+      const shell = document.querySelector(".shell");
+      if (!shell) return;
+      const open = shell.classList.toggle("rail-open");
+      railToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      railToggle.classList.toggle("active", open);
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!$("promptModal").classList.contains("hidden")) closePrompt();
+    // MF1：Esc 语义须与 × 完全一致，不得绕过 × 的游戏副作用——聊天 × 先
+    // send("/挂断")（chatEnded 时守卫跳过）再关窗，奇遇 × 先 send("/奇遇 弃")
+    // 再关窗；故 Esc 直接触发对应 × 按钮点击，而非直接调 closeChat()/closeOmen()。
+    // 死亡 / 心魔 modal 不设 Esc，保持现状（死亡走「暂不转世」，心魔为阻塞态）。
+    else if (!$("chatModal").classList.contains("hidden")) {
+      const b = $("chatClose");
+      if (b) b.click(); else closeChat();
+    } else if (!$("omenModal").classList.contains("hidden")) {
+      const b = $("omenClose");
+      if (b) b.click(); else closeOmen();
+    }
   });
 
   const hereList = $("hereList");
@@ -1405,12 +1648,14 @@
     });
   }
 
-  $("demonFreeGo").addEventListener("click", () => {
+  $("demonFreeGo").addEventListener("click", async () => {
     const v = $("demonFree").value.trim();
     if (!v) return;
-    hideDemon();
+    // U15：成功且非新一轮问心时关窗；失败时弹层保持打开，输入保留
+    state.lastTrigger = $("demonFreeGo");
     lastCmd = v;
-    send(v);
+    const data = await send(v);
+    if (data && data.ok !== false && !data.pending_heart_demon) hideDemon();
   });
   $("demonFree").addEventListener("keydown", (e) => {
     if (e.key === "Enter") $("demonFreeGo").click();
@@ -1426,16 +1671,17 @@
   // 命盘钱包提取入口（T13-2）：只发命令、不预改余额；结果反馈见 handleResult。
   const walletForm = $("walletForm");
   if (walletForm) {
-    walletForm.addEventListener("submit", (e) => {
+    walletForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const v = ($("walletAmount").value || "").trim();
-      if (!/^\d+$/.test(v)) {
+      if (!/^[1-9]\d*$/.test(v)) {
         setWalletMsg("请输入正整数金额。", true);
         return;
       }
       setWalletMsg("", false);
       lastCmd = "/钱包提取 " + v;
-      send(lastCmd);
+      // U12/U15：成功时 handleResult 清空输入；失败时余额不变、错误进 walletMsg、输入保留
+      await send(lastCmd);
     });
   }
 

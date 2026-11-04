@@ -110,6 +110,7 @@
           <span class="k">寿元</span>
           <b id="hudLife">—</b>
           <div class="bar life"><i id="hudLifeBar"></i></div>
+          <span id="hudLifeState" class="hud-life-state hide"></span>
         </div>
         <div class="stat wide">
           <span class="k">修为</span>
@@ -121,7 +122,7 @@
           <b id="hudStones">—</b>
         </div>
         <div class="stat">
-          <span class="k">灵气</span>
+          <span class="k">全服灵气</span>
           <b id="hudQi">—</b>
         </div>
       </div>
@@ -182,7 +183,9 @@
             <div><dt>金库</dt><dd id="stVault">—</dd></div>
             <div><dt>账户钱包</dt><dd id="stWallet">—</dd></div>
             <div><dt>业 / 德</dt><dd id="stKarma">—</dd></div>
-            <div><dt>灵气</dt><dd id="stQi">—</dd></div>
+            <div id="daoHeartRow"><dt>道心</dt><dd class="dao-dd"><span id="stDaoHeart">—</span><span class="bar dao"><i id="stDaoHeartBar"></i></span></dd></div>
+            <div><dt>势力</dt><dd id="stSect">—</dd></div>
+            <div><dt>全服灵气</dt><dd id="stQi">—</dd></div>
             <div><dt>天象</dt><dd id="stTheme">—</dd></div>
             <div><dt>心魔</dt><dd id="stDemon">—</dd></div>
             <div><dt>灵宠</dt><dd id="stPet">—</dd></div>
@@ -254,6 +257,7 @@
             <button class="tab" data-tab="goals">目标</button>
             <button class="tab" data-tab="world" id="tabWorld">世界<span id="worldBadge" class="badge hidden">0</span></button>
           </div>
+          <button type="button" class="btn-soft rail-toggle" id="railToggle" aria-expanded="false" aria-controls="railRight">场景面板</button>
           <div class="scene-chip" id="sceneChip">—</div>
         </div>
 
@@ -285,7 +289,7 @@
               <button class="btn-soft" data-cmd="/宗门">宗门</button>
               <button class="btn-soft" data-cmd="/告示">告示</button>
               <button class="btn-soft" data-cmd="/除凶">除凶令</button>
-              <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="凶犯道号">接令…</button>
+              <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="凶犯道号" data-hint="先点「除凶」看凶犯道号，再填道号">接令·除凶…</button>
               <button class="btn-soft" data-cmd="/追凶">追凶</button>
               <button class="btn-soft" data-cmd="/弃令">弃令</button>
               <button class="btn-soft" data-cmd="/who">天下</button>
@@ -320,7 +324,7 @@
       </section>
 
       <!-- 右：场景 -->
-      <aside class="rail right">
+      <aside class="rail right" id="railRight">
         <section class="card scene">
           <header class="card-h">
             <h2>此地</h2>
@@ -386,7 +390,7 @@
             <button class="btn-soft" data-prompt="典当" data-cmd-prefix="/典当" data-placeholder="物品名，如：青锋剑">典当…</button>
             <button class="btn-soft" data-prompt="赎回" data-cmd-prefix="/赎回" data-placeholder="物品名">赎回…</button>
             <button class="btn-soft" data-prompt="挂赏" data-cmd-prefix="/挂赏" data-placeholder="道号 赏金 [缘由] [匿]">挂赏…</button>
-            <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="告示编号" data-num="1">接令…</button>
+            <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="告示编号" data-num="1" data-hint="先点「告示」看告示编号，再填编号">接令·告示…</button>
             <button class="btn-soft" data-cmd="/探查">探查</button>
             <button class="btn-soft" data-cmd="/挖宝">挖宝</button>
             <button class="btn-soft" data-cmd="/生成丹药">生成丹药</button>

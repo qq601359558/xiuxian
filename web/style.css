@@ -16,7 +16,11 @@
   --blood-dim: rgba(239, 107, 107, 0.16);
   --paper: #f2e8d0;
   --text: #c9c4b6;
-  --muted: #7d7a70;
+  --muted: #9c968a;
+  --warn: #f0a060;
+  /* MF7/U01：--state-danger/--state-warn 已删除——全站无一处 var(--state-*) 引用，
+     二者只是 --blood/--warn 的重复别名；二选一统一取“删除未用变量”，
+     危险/警告仍以 --blood/--warn 为唯一口径（见下方 U01 对照注释与报告）。 */
   --serif: "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun", serif;
   --sans: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
@@ -58,6 +62,8 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .motes, .orb-ring, .orb-core { animation: none !important; }
+  .bar i { transition: none; }
+  .log { scroll-behavior: auto; }
 }
 
 .hidden { display: none !important; }
@@ -68,6 +74,7 @@ body {
   position: fixed; inset: 0; z-index: 20;
   display: grid; place-items: center;
   padding: 24px;
+  overflow-y: auto;
 }
 .gate-stage {
   width: min(920px, 100%);
@@ -169,6 +176,7 @@ body {
   border-radius: 10px;
   font-size: 13px;
   letter-spacing: 0.15em;
+  min-height: 44px;
 }
 .auth-tabs .tab.active {
   color: var(--gold-soft);
@@ -181,6 +189,7 @@ body {
   border: none;
   border-radius: 12px;
   padding: 12px 20px;
+  min-height: 44px;
   font-family: var(--serif);
   font-size: 15px;
   font-weight: 700;
@@ -194,7 +203,7 @@ body {
 .btn-primary:hover { filter: brightness(1.06); }
 .btn-primary:active { transform: translateY(1px); }
 .btn-primary:disabled { opacity: 0.55; cursor: wait; }
-.btn-primary.sm { padding: 10px 16px; font-size: 13px; letter-spacing: 0.2em; }
+.btn-primary.sm { padding: 10px 16px; font-size: 13px; letter-spacing: 0.2em; min-height: 44px; }
 
 .btn-ghost {
   background: transparent;
@@ -202,23 +211,27 @@ body {
   color: var(--text);
   border-radius: 10px;
   padding: 8px 14px;
+  min-height: 44px;
   font-size: 13px;
   cursor: pointer;
 }
 .btn-ghost:hover { border-color: var(--line-strong); color: var(--paper); }
-.btn-ghost.sm { padding: 8px 12px; font-size: 12px; }
+.btn-ghost:active { background: rgba(212, 175, 55, 0.1); }
+.btn-ghost.sm { padding: 8px 12px; font-size: 12px; min-height: 44px; }
 
 .btn-soft {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.07);
   color: var(--text);
   border-radius: 10px;
-  padding: 9px 10px;
+  padding: 12px 10px;
   font-size: 12.5px;
   cursor: pointer;
   text-align: center;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
-  min-height: 36px;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .btn-soft:hover {
   background: rgba(212, 175, 55, 0.1);
@@ -238,7 +251,7 @@ body {
 
 .btn-icon {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  min-width: 52px;
+  min-width: 52px; min-height: 44px;
   padding: 6px 8px;
   background: transparent;
   border: none;
@@ -250,18 +263,54 @@ body {
 }
 .btn-icon svg { width: 20px; height: 20px; }
 .btn-icon:hover { color: var(--gold-soft); background: rgba(212, 175, 55, 0.08); }
+.btn-icon:active { background: rgba(212, 175, 55, 0.16); }
 
 .chip {
   background: rgba(62, 207, 142, 0.1);
   border: 1px solid rgba(62, 207, 142, 0.28);
   color: #8ef0c0;
   font-size: 12px;
-  padding: 6px 12px;
+  padding: 11px 14px;
   cursor: pointer;
   border-radius: 999px;
-  min-height: 32px;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .chip:hover { background: rgba(62, 207, 142, 0.18); }
+.chip:active { background: rgba(62, 207, 142, 0.28); }
+
+/* 六类控件统一的禁用 / 请求中态（U22）：禁用态不响应点击（原生 disabled），
+   loading 态由 JS 在触发控件上加 .is-loading，文字外另有弱化 + 等待光标示意。
+   MF4：触屏无光标可辨，故另补不依赖光标的转圈示意（复用既有 spin 关键帧，
+   以 currentColor 描边的 ::after 圆环呈现）；主操作另有文案切换兜底
+   （如 btnReborn 请求中改文案为“转世中…”、btnJoin 改为“登录中…/注册中…”）。
+   注意：.btn-primary 本身是 <button>，故被通用的 button.is-loading 规则覆盖，
+   无需亦不得另立 .btn-primary.is-loading 规则（避免两套 loading 样式分叉）；
+   但 .btn-primary:disabled 自带 cursor: wait，会与下方 cursor: wait 一致，无冲突。 */
+button:disabled, .btn-soft:disabled, .btn-mini:disabled, .chip:disabled,
+.btn-icon:disabled, .tab:disabled, .btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.is-loading, .btn-soft.is-loading, .btn-mini.is-loading, .chip.is-loading,
+.btn-icon.is-loading, .tab.is-loading, .btn-ghost.is-loading {
+  opacity: 0.65;
+  cursor: wait;
+}
+button.is-loading::after, .btn-soft.is-loading::after, .btn-mini.is-loading::after,
+.chip.is-loading::after, .btn-icon.is-loading::after, .tab.is-loading::after,
+.btn-ghost.is-loading::after {
+  content: "";
+  flex: none;
+  display: inline-block;
+  width: 12px; height: 12px;
+  margin-left: 6px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
 
 button:focus-visible,
 input:focus-visible,
@@ -269,6 +318,8 @@ a:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+/* U19：文本/密码输入框边框盒同样 ≥44px 高（box-sizing 为 border-box，min-height 即总高） */
+input[type="text"], input[type="password"] { min-height: 44px; }
 
 /* ========== 主布局 ========== */
 .app {
@@ -394,8 +445,13 @@ a:focus-visible {
 }
 .pill.warn {
   background: rgba(239, 150, 80, 0.15);
-  color: #f0a060;
+  color: var(--warn);
   border-color: rgba(239, 150, 80, 0.35);
+}
+.pill.danger {
+  background: var(--blood-dim);
+  color: var(--blood);
+  border-color: rgba(239, 107, 107, 0.4);
 }
 
 .avatar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -433,7 +489,12 @@ a:focus-visible {
   font-size: 12px;
 }
 .kv dt { color: var(--muted); }
-.kv dd { color: var(--paper); text-align: right; font-weight: 500; max-width: 60%; }
+.kv dd { color: var(--paper); text-align: right; font-weight: 500; max-width: 60%; overflow-wrap: anywhere; }
+/* 道心行：数字 + 0–100 条（缺失时整行由 JS 隐藏，不显示假值） */
+.kv dd.dao-dd { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.kv dd.dao-dd .bar { display: block; width: 100px; margin-top: 0; }
+.bar.dao i { background: linear-gradient(90deg, #c9a227, #e8c96a); }
+.hud-life-state { font-size: 10px; color: var(--blood); letter-spacing: 0.08em; }
 
 .note {
   margin-top: 10px;
@@ -483,9 +544,11 @@ a:focus-visible {
   padding: 8px 14px;
   border-radius: 10px;
   cursor: pointer;
-  min-height: 36px;
+  min-height: 44px;
+  min-width: 44px;
 }
 .tab:hover { color: var(--paper); background: rgba(255, 255, 255, 0.04); }
+.tab:active { background: rgba(255, 255, 255, 0.08); }
 .tab.active {
   color: var(--gold-soft);
   background: rgba(212, 175, 55, 0.12);
@@ -533,7 +596,7 @@ a:focus-visible {
 }
 .world-feed .wmsg.system {
   border-left-color: #666;
-  color: #999;
+  color: var(--muted);
 }
 .world-feed .wmsg .ts {
   opacity: 0.55;
@@ -570,7 +633,7 @@ a:focus-visible {
 }
 .chat-modal.hidden { display: none; }
 .chat-box {
-  width: min(440px, 92vw);
+  width: min(440px, calc(100vw - 32px));
   max-height: min(70vh, 560px);
   display: flex; flex-direction: column;
   background: rgba(18, 16, 12, 0.96);
@@ -586,8 +649,10 @@ a:focus-visible {
 }
 .chat-h h3 { margin: 0; font-size: 14px; color: var(--gold-soft, #d4af37); letter-spacing: 0.08em; }
 .chat-close {
-  background: transparent; border: none; color: var(--muted, #999);
+  background: transparent; border: none; color: var(--muted);
   font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
+  min-width: 44px; min-height: 44px;
+  display: inline-grid; place-items: center;
 }
 .chat-log {
   flex: 1; overflow-y: auto; padding: 12px 14px;
@@ -597,7 +662,7 @@ a:focus-visible {
 .chat-log .msg { margin-bottom: 8px; white-space: pre-wrap; }
 .chat-log .msg.me { color: #9ecbff; }
 .chat-log .msg.npc { color: var(--paper, #f0e6d2); }
-.chat-log .msg.sys { color: #999; font-size: 12px; }
+.chat-log .msg.sys { color: var(--muted); font-size: 12px; }
 .chat-input {
   display: flex; gap: 8px; padding: 10px 12px;
   border-top: 1px solid rgba(255,255,255,0.08);
@@ -609,7 +674,7 @@ a:focus-visible {
 .chat-input input:focus { outline: 1px solid rgba(212,175,55,0.4); }
 .omen-box { max-height: min(78vh, 620px); }
 .omen-meta {
-  padding: 6px 14px; font-size: 11px; color: var(--muted, #999);
+  padding: 6px 14px; font-size: 11px; color: var(--muted);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .omen-chips { padding: 6px 12px 0; flex-wrap: wrap; }
@@ -721,12 +786,13 @@ a:focus-visible {
   bottom: 12px;
   z-index: 2;
   font-size: 11px;
-  padding: 4px 10px;
+  padding: 11px 14px;
   border-radius: 999px;
   border: 1px dashed rgba(212, 175, 55, 0.3);
   color: var(--muted);
   background: rgba(10, 13, 18, 0.8);
   cursor: pointer;
+  min-height: 44px; min-width: 44px;
 }
 .toggle-cmd:hover { color: var(--gold-soft); border-color: var(--line-strong); }
 
@@ -738,14 +804,18 @@ a:focus-visible {
   background: rgba(0, 0, 0, 0.22);
   padding: 7px 10px; border-radius: 10px;
 }
-.bag-name { font-size: 13px; color: var(--paper); font-family: var(--serif); }
+.bag-name { font-size: 13px; color: var(--paper); font-family: var(--serif); overflow-wrap: anywhere; min-width: 0; }
+.bag-row { min-width: 0; }
 .bag-acts { display: flex; gap: 6px; flex-shrink: 0; }
 .btn-mini {
-  font-size: 11px; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  font-size: 11px; padding: 10px 12px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--line-strong, rgba(212, 175, 55, 0.35));
   background: transparent; color: var(--gold-soft, #d4af37);
+  min-height: 44px; min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .btn-mini:hover { background: rgba(212, 175, 55, 0.12); }
+.btn-mini:active { background: rgba(212, 175, 55, 0.22); }
 .bag-arts { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; }
 
 /* ========== 同场 ========== */
@@ -771,6 +841,10 @@ a:focus-visible {
   color: var(--paper);
   text-decoration: none;
   border-bottom: 1px dotted rgba(212, 175, 55, 0.4);
+  /* MF5/U19：原只有 min-height:44px，2 字道号约 26px 宽、命中区不足 44×44；
+     补 min-width:44px（边框盒计，inline-flex 下即命中宽），不足处以内边距撑满。 */
+  display: inline-flex; align-items: center; min-height: 44px; min-width: 44px;
+  justify-content: center;
 }
 .here-card .nm-link:hover { color: var(--gold-soft); }
 .here-card .meta { color: var(--muted); font-size: 11px; line-height: 1.55; }
@@ -784,15 +858,16 @@ a:focus-visible {
 }
 .here-card .acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
 .here-card .acts button {
-  font-size: 11px; padding: 5px 10px;
+  font-size: 11px; padding: 11px 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(212, 175, 55, 0.25);
   color: var(--gold-soft);
   border-radius: 8px;
   cursor: pointer;
-  min-height: 28px;
+  min-height: 44px; min-width: 44px;
 }
 .here-card .acts button:hover { background: rgba(212, 175, 55, 0.12); }
+.here-card .acts button:active { background: rgba(212, 175, 55, 0.22); }
 
 .scene-name {
   font-family: var(--serif);
@@ -800,7 +875,11 @@ a:focus-visible {
   font-size: 16px;
   letter-spacing: 0.06em;
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
+/* 移动端右栏抽屉开关（U18）：桌面隐藏，≤1100px 时 1 次点击展开右栏，功能不藏 */
+.rail-toggle { display: none; }
+.shell > * { min-width: 0; }
 .scene-meta { color: var(--muted); font-size: 12px; line-height: 1.6; margin-bottom: 10px; }
 .scene-actions { display: flex; gap: 8px; }
 .scene-actions .btn-soft { flex: 1; }
@@ -811,9 +890,12 @@ a:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--muted);
 }
-.tag.safe { color: var(--jade); border-color: rgba(62, 207, 142, 0.35); background: var(--jade-dim); }
+/* 地点中性态（U09/G4）：无 is_safe 字段时不得断言安全，只写地点名或 — */
+/* MF7：.tag.safe 已删除——JS 只赋值 tag warn/danger/neutral 三态（见 app.js 地点标签），
+   safe 规则无任何赋值引用，属死样式；U09 亦明令不得出现推断式「安全」态。 */
+.tag.neutral { color: var(--text); border-color: rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04); }
 .tag.danger { color: var(--blood); border-color: rgba(239, 107, 107, 0.35); background: var(--blood-dim); }
-.tag.warn { color: #f0a060; border-color: rgba(239, 150, 80, 0.4); background: rgba(239, 150, 80, 0.12); }
+.tag.warn { color: var(--warn); border-color: rgba(239, 150, 80, 0.4); background: rgba(239, 150, 80, 0.12); }
 
 /* ========== 弹层 ========== */
 .modal {
@@ -824,7 +906,9 @@ a:focus-visible {
   backdrop-filter: blur(6px);
 }
 .modal-card {
-  width: min(480px, 100%);
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: #12161e;
   border: 1px solid var(--line-strong);
   padding: 28px 24px;
@@ -984,7 +1068,7 @@ a:focus-visible {
 .wallet-top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--paper); }
 .wallet-top b { color: var(--gold-soft); }
 .wallet-box details { margin-top: 6px; }
-.wallet-box summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.wallet-box summary { font-size: 12px; color: var(--muted); cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 .wallet-entries { margin-top: 6px; }
 .wallet-row {
   display: flex;
@@ -1017,8 +1101,19 @@ a:focus-visible {
 /* ========== 响应式 ========== */
 @media (max-width: 1100px) {
   .shell { grid-template-columns: 220px minmax(0, 1fr); }
+  /* U18：右栏不再 display:none 藏功能；默认收起，点「场景面板」1 次展开，
+     展开后横向排布各卡片，再点任一功能按钮即第 2 次操作到达。HUD 寿元/修为宽格保留。 */
   .rail.right { display: none; }
-  .hud-stats .stat.wide { display: none; }
+  .shell.rail-open .rail.right {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .shell.rail-open .rail.right .card { flex: 1 1 240px; }
+  .rail-toggle { display: inline-flex; }
+  .hud-stats .stat.wide { min-width: 100px; }
 }
 @media (max-width: 780px) {
   .gate-stage { grid-template-columns: 1fr; padding: 28px 20px; }
@@ -1038,4 +1133,9 @@ a:focus-visible {
   .hud { flex-wrap: wrap; }
   .hud-stats { order: 3; width: 100%; justify-content: flex-start; }
   .stat b { max-width: 100px; }
+  /* U18/U20：展开的右栏在窄屏下纵向堆叠；输入字号 ≥16px，避免移动端键盘顶起缩放 */
+  .shell.rail-open .rail.right { flex-direction: column; flex-wrap: nowrap; }
+  .shell.rail-open .rail.right .card { flex: 1 1 auto; }
+  .field input, .composer input, .chat-input input, .prompt-row input,
+  .demon-free input, .wallet-form input, .death-actions input { font-size: 16px; }
 }
