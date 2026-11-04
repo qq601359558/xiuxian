@@ -408,28 +408,43 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
         return None
     d.pop(hunter.id, None)
     _save(d)
-    hunter.karma.add_merit(40)
-    hunter.karma.sin_value = max(0, hunter.karma.sin_value - 20)
-    CharacterRepository.save(hunter)
-    # 势力版图（F09）：除凶结算为猎手本宗在事发区域扬名（区域取 victim.location）
-    try:
-        from core.atlas import AtlasEngine
+    # QA-02 结算前复核（仅当存在 OPEN 令时；无令实体兼容路径不复核、旧口径逐值
+    # 不变，spec 验收 6）：与 _sweep_orders 同口径——过期优先（走下方 EXPIRED
+    # 分支，旧赏照发，M3 口径不变）；未过期但目标已洗清（不再 is_marked）→
+    # 令走 DISSOLVED，且除凶通道旧赏（功德/业力消解）不发——旧赏是「除凶」
+    # 之赏，目标已非凶犯。注意：此处不以 victim.status == DEAD 判消散：
+    # combat_fate 先置 DEAD 再调本函数，DEAD 是「本次击杀致死」的正常结果，
+    # 必须走 SETTLED；「击杀前已死」的消散由看板/追凶/接令访问点的 sweep 负责。
+    orders = _load_orders()
+    order = orders.get(victim.id)
+    order_open = bool(order and order.get("status") == ORDER_OPEN)
+    order_expired = bool(order_open and now > float(order.get("expires_at") or 0))
+    washed = bool(order_open and not order_expired and not is_marked(victim, now))
+    if not washed:
+        # QA-01：功德 +40 经 KarmaLedger.add_merit 入账，其账本语义自带业力
+        # 消解 40//2=20，与 spec「业力 −20」恰一致——不得再叠加显式扣减
+        # （原双路叠加总消解 40，与自报 sin_reduced=20 矛盾）。
+        hunter.karma.add_merit(40)
+        CharacterRepository.save(hunter)
+        # 势力版图（F09）：除凶结算为猎手本宗在事发区域扬名（区域取 victim.location）
+        try:
+            from core.atlas import AtlasEngine
 
-        AtlasEngine.record_activity(hunter, "hunt", location=victim.location)
-    except Exception:
-        pass
-    try:
-        from core.world_channel import WorldChannel
+            AtlasEngine.record_activity(hunter, "hunt", location=victim.location)
+        except Exception:
+            pass
+        try:
+            from core.world_channel import WorldChannel
 
-        WorldChannel.post(
-            "hunt",
-            f"【除凶】{hunter.name} 诛 {victim.name}，天道降功德，血煞稍解。",
-            level="major",
-            actor=hunter.name,
-            location=victim.location,
-        )
-    except Exception:
-        pass
+            WorldChannel.post(
+                "hunt",
+                f"【除凶】{hunter.name} 诛 {victim.name}，天道降功德，血煞稍解。",
+                level="major",
+                actor=hunter.name,
+                location=victim.location,
+            )
+        except Exception:
+            pass
     # 反悬赏结算（键为 hunter_id）
     try:
         cd = WorldStateRepository.get(_COUNTER_KEY) or {}
@@ -443,13 +458,21 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
             WorldStateRepository.set(_COUNTER_KEY, cd)
     except Exception:
         pass
-    # F15：令终态 + 同场协剿分账（旧口径之上的加法层；无令实体时整段跳过）
+    # QA-02：洗清消散——清全部猎手记录、不发协剿；旧赏已在上方按裁定未发，
+    # 返回值如实标注（merit/sin_reduced 均为 0，dissolved=True）。
     assists: List[Dict[str, Any]] = []
+    if washed:
+        try:
+            _close_order(order, ORDER_DISSOLVED, now)
+            orders[victim.id] = order
+            _save_orders(orders)
+        except Exception:
+            pass  # 令层异常不炸主流程；消散裁定已定，返回值如实标注
+        return {"merit": 0, "sin_reduced": 0, "assists": assists, "dissolved": True}
+    # F15：令终态 + 同场协剿分账（旧口径之上的加法层；无令实体时整段跳过）
     try:
-        orders = _load_orders()
-        order = orders.get(victim.id)
-        if order and order.get("status") == ORDER_OPEN:
-            if now > float(order.get("expires_at") or 0):
+        if order_open:
+            if order_expired:
                 # 结算点同样推进过期：过期令按 EXPIRED 终结，无协剿（击杀者旧赏已在上方按旧口径发放）
                 _close_order(order, ORDER_EXPIRED, now)
                 orders[victim.id] = order

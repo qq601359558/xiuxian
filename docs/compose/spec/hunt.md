@@ -63,8 +63,13 @@ OPEN ──凶犯洗清（不再 is_marked）或已被他人击杀──→ DISS
 EXPIRED 可观察性（评审 S3 裁定）：_sweep_orders 推进的 EXPIRED 会落盘保留；ensure_order 在
 同一调用内发现过期且凶犯仍在标记中时，先关旧令再立即重发新令，旧 EXPIRED 被新令覆盖——
 这是「看板即发布点」的预期行为，验收 5 以 sweep 路径与结算点（settle 时过期→EXPIRED 不发
-协剿）为准。结算点只推进过期，不做死亡/洗清判定（combat_fate 先置 DEAD 后调 settle_kill，
-正常击杀必须走 SETTLED）。
+协剿）为准。
+结算点复核（QA-02 裁定，2026-11-04 修订原「结算点不做洗清判定」口径）：存在 OPEN 令时，
+settle_kill 在发放任何除凶奖励前先复核目标状态——过期优先走 EXPIRED（与 _sweep_orders
+同序）；未过期但目标已洗清（不再 `is_marked`）→ DISSOLVED。结算点**只看 is_marked、不看
+status**：combat_fate 先置 DEAD 再调 settle_kill，DEAD 是「本次击杀致死」的正常结果，
+必须走 SETTLED；「击杀前已死」（被他人先行击杀）的消散仍由看板/追凶/接令访问点的
+sweep 负责。无令实体（直写 KV 兼容路径）不做此复核，旧口径逐值不变（验收 6 不变）。
 
 ### 常量（core/hunt.py，既有值不改）
 - 既有：`SIN_THRESHOLD=80`、`HUNT_TTL_H=48.0`、击杀者功德 40 / 业力 −20、反悬赏 50 灵石/功德 20。
@@ -96,6 +101,16 @@ EXPIRED 可观察性（评审 S3 裁定）：_sweep_orders 推进的 EXPIRED 会
 ### 围剿与结算（settle_kill 追加层，旧口径零改动）
 - 旧结算原样：击杀者功德 +40、业力 −20、版图 hunt 钩子、世情播报、反悬赏清理、返回
   `{"merit":40,"sin_reduced":20}`。
+- 业力消解口径（QA-01 裁定）：「业力 −20」由 `KarmaLedger.add_merit(40)` 的账本语义
+  自带消解（40//2=20）实现，**总消解恰 20**，与自报 `sin_reduced=20` 一致；业力不足
+  20 时按账本 max(0,·) 钳制（实际消解 = 当前业力值）。禁止在 add_merit 之外再叠加
+  显式业力扣减（原实现双路叠加总消解 40，已修复并逐值对账，见 tests/test_hunt_qa_fix.py）。
+- 洗清后击杀的主诛旧赏（QA-02 裁定）：OPEN 令的目标在结算前已洗清（不再 is_marked）
+  时，令走 DISSOLVED（清全部猎手记录、不发协剿），且**主诛者的除凶旧赏（功德 +40 与
+  业力消解）不发放**——旧赏是「除凶」之赏，须以击杀时目标仍为凶犯为前提；返回值
+  `{"merit":0,"sin_reduced":0,"assists":[],"dissolved":True}` 如实标注。combat_fate 的
+  代天除凶/杀人夺宝等其他通道结算与本裁定无关、不受影响；版图 hunt 钩子与除凶世情
+  播报在此路径同样不触发（未发生除凶结算）。
 - 追加：若 victim 有 OPEN 令——同场（location == victim.location）、存活、已登记接令、
   非击杀者本人、非 victim 的猎手，各得协剿功德 +`ASSIST_MERIT`（现读现存、逐个落账）；
   令置 SETTLED（记 settled_by/settled_at）；清除**全部**猎手指向 victim 的 `hunts` 记录。
@@ -142,3 +157,8 @@ EXPIRED 可观察性（评审 S3 裁定）：_sweep_orders 推进的 EXPIRED 会
 6. 无令实体兼容路径（直写 hunts KV）结算与旧行为逐值一致（test_atlas/test_wave2 不破）。
 7. 双端四指令可用且闭关锁门；网页有除凶入口；零新增 AI 调用。
 8. 新增 tests/test_hunt_state.py 覆盖上述；全量回归 0 失败。
+9. （QA 复测轮追加）洗清后未经任何访问点直接 settle_kill：令 DISSOLVED、协剿 +0、
+   主诛者除凶功德增量 0、猎手记录全清（tests/test_qa_cross_karma.py +
+   tests/test_hunt_qa_fix.py）；血煞未清（仅业力归零）与先置 DEAD 的正常击杀不被误判。
+10. （QA 复测轮追加）业力总消解逐值对账：sin ∈ {0,5,10,19,20,21,30,39,40,41,100}
+    结算后业力恰为 max(0, sin−20)，功德恰 +40，自报 sin_reduced=20 与落账一致。
