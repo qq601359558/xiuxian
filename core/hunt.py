@@ -399,12 +399,44 @@ def my_target_info(hunter: Character) -> Optional[Dict[str, Any]]:
     return {"target": t, "remain_h": round(left, 1)}
 
 
+def _clear_counter_hunts(victim_id: str) -> None:
+    """反悬赏双向清理（QA2-01 裁定，settle_kill 各路径共用，逻辑同源一份）。
+
+    删除全部与死者相关的 counter_hunts 条目：死者作为猎人的条目
+    （键 == victim_id 或 hunter_id == victim_id，其反杀机会随死消散）与
+    死者作为被反悬赏目标的条目（target_id == victim_id，键在他人名下，
+    目标既死便永不可触发）；与死者无关的条目不动，非 dict 脏条目容错保留。
+    """
+    try:
+        cd = WorldStateRepository.get(_COUNTER_KEY) or {}
+        changed = False
+        for k in list(cd.keys()):
+            rec = cd[k] if isinstance(cd[k], dict) else {}
+            if (
+                k == victim_id
+                or rec.get("hunter_id") == victim_id
+                or rec.get("target_id") == victim_id
+            ):
+                cd.pop(k, None)
+                changed = True
+        if changed:
+            WorldStateRepository.set(_COUNTER_KEY, cd)
+    except Exception:
+        pass
+
+
 def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]]:
     now = time.time()
     d = _purge_expired(now)
     rec = d.get(hunter.id)
     tid = rec.get("target_id") if isinstance(rec, dict) else rec
     if tid != victim.id:
+        # QA2-S3：非接令者击杀路径——settle_kill 仅由 combat_fate 在
+        # outcome == "kill"（受害者已置 DEAD）后调用，故本路径同样确认
+        # 受害者已死：反悬赏双向清理须与主路径同源执行（原实现在此早退，
+        # target 方向条目残留）。此处只清理：不发任何除凶奖励、不动
+        # 猎手记录与订单（订单终态仍走既有惰性 sweep 口径）。
+        _clear_counter_hunts(victim.id)
         return None
     d.pop(hunter.id, None)
     _save(d)
@@ -445,28 +477,10 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
             )
         except Exception:
             pass
-    # 反悬赏清理（键为 hunter_id；QA2-01 裁定：双向全清）——死者相关的
-    # 反悬赏条目一并删除：死者作为猎人的条目（键 == victim.id 或
-    # hunter_id == victim.id，其反杀机会随死消散）与死者作为被反悬赏
-    # 目标的条目（target_id == victim.id，键在他人名下，生前由他人所挂，
-    # 目标既死/消散便永不可触发）。与死者无关的条目不动。本块位于
-    # SETTLED / DISSOLVED（washed）分叉之前，两条结算路径共用。
-    try:
-        cd = WorldStateRepository.get(_COUNTER_KEY) or {}
-        changed = False
-        for k in list(cd.keys()):
-            rec = cd[k] if isinstance(cd[k], dict) else {}
-            if (
-                k == victim.id
-                or rec.get("hunter_id") == victim.id
-                or rec.get("target_id") == victim.id
-            ):
-                cd.pop(k, None)
-                changed = True
-        if changed:
-            WorldStateRepository.set(_COUNTER_KEY, cd)
-    except Exception:
-        pass
+    # 反悬赏清理（QA2-01 裁定：双向全清）：位于 SETTLED / DISSOLVED
+    # （washed）分叉之前，两条结算路径共用 _clear_counter_hunts；
+    # 非接令者击杀的早退路径同样调用（QA2-S3），清理逻辑全局同源一份。
+    _clear_counter_hunts(victim.id)
     # QA-02：洗清消散——清全部猎手记录、不发协剿；旧赏已在上方按裁定未发，
     # 返回值如实标注（merit/sin_reduced 均为 0，dissolved=True）。
     assists: List[Dict[str, Any]] = []

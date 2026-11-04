@@ -119,7 +119,16 @@ sweep 负责。无令实体（直写 KV 兼容路径）不做此复核，旧口�
   原实现只清「死者作为猎人」方向，目标方向条目无界残留，已修复并有回归
   （tests/test_qa2_hunt_spillover.py 两例：SETTLED / DISSOLVED 后 target 方向
   全清；tests/test_qa2_fix_regressions.py 补猎人方向同存全清、无关条目保留、
-  非 dict 脏条目容错）。
+  非 dict 脏条目容错）。清理覆盖非接令者击杀路径（QA2-S3 裁定）：
+  settle_kill 仅由 combat_fate 在击杀确认后调用，当击杀者并非该凶犯的
+  接令猎人（无猎手记录或记录指向他人）而提前 return 时，同样执行与主
+  路径同源的双向清理（清理抽为共用函数 `_clear_counter_hunts`）——该
+  路径只清理、不发任何除凶奖励、不动猎手记录，订单终态仍走既有惰性
+  sweep 口径，不在此提前结算（回归见 tests/test_qa2_s3.py）。备案：
+  combat_fate 序列中 settle_hunter_slain 的命中集是本清理集的子集，
+  故非接令路径清理后反杀功德同样不再触发——与主路径自 QA2-01 起的
+  既有口径一致（主路径本就先清后调、反杀不可达），属口径统一而非新
+  行为，勿重报。
 - 追加：若 victim 有 OPEN 令——同场（location == victim.location）、存活、已登记接令、
   非击杀者本人、非 victim 的猎手，各得协剿功德 +`ASSIST_MERIT`（现读现存、逐个落账）；
   令置 SETTLED（记 settled_by/settled_at）；清除**全部**猎手指向 victim 的 `hunts` 记录。
