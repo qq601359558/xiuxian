@@ -22,7 +22,7 @@
 | 追凶 | 无指令；看板行直接显示凶犯精确 `@地点` | **缺**：无情报指令、无时效口径 |
 | 围剿 | `announce_siege` 仅播报；`siege_multiplier` 同场 ≥2 猎手/玩家时战斗系数 1.15 | **缺**：同场协剿者无分账 |
 | 结算 | `settle_kill`（combat_fate 击杀点调用）：击杀者功德 +40、业力 −20（仅限接了该目标者）；版图 hunt 钩子 +10 在此触发；反悬赏 `settle_hunter_slain`/`place_counter` 独立闭环 | **缺**：令无终态、其他接令者记录不清理、协剿者无份 |
-| 悬赏板 | `core/bounty.py` 完整状态机（OPEN→CLAIMED→COMPLETED/EXPIRED/CANCELLED），玩家出资灵石 + 功德 `BOUNTY_HUNTER_MERIT`，`settle_on_kill` 仅 CLI 击杀路径调用 | 与除凶并行存在，口径不动 |
+| 悬赏板 | `core/bounty.py` 完整状态机（OPEN→CLAIMED→COMPLETED/EXPIRED/CANCELLED），玩家出资灵石 + 功德 `BOUNTY_HUNTER_MERIT`=15，`settle_on_kill` 仅 CLI 击杀路径调用 | 与除凶并行存在，口径不动 |
 | 宗门环 | `sync_ring(char,"hunt")`：**接除凶令成功**即完成当日 hunt 环（贡献+8/功德+2/灵石50） | 计数口径不动 |
 | F07 委托除妖环 | 探险成功计数（AdventureEngine 钩子），与直接击杀无关 | 不叠加、不动 |
 | F14 不攻诺 | combat_fate 出手点 `note_attack` 事实钩子 | 不发钱、不动 |
@@ -111,6 +111,13 @@ sweep 负责。无令实体（直写 KV 兼容路径）不做此复核，旧口�
   `{"merit":0,"sin_reduced":0,"assists":[],"dissolved":True}` 如实标注。combat_fate 的
   代天除凶/杀人夺宝等其他通道结算与本裁定无关、不受影响；版图 hunt 钩子与除凶世情
   播报在此路径同样不触发（未发生除凶结算）。
+- 反悬赏清理语义（QA2-01 裁定）：settle_kill 的反悬赏清理块位于 SETTLED /
+  DISSOLVED 分叉之前、两路共用，删除全部与死者相关的 `counter_hunts` 条目：
+  死者作为猎人的条目（键 == victim.id 或 `hunter_id == victim.id`，其反杀机会
+  随死消散）与死者作为被反悬赏目标的条目（`target_id == victim.id`，键在他人
+  名下，目标既死便永不可触发）；与死者无关的条目（他人之间的反悬赏）不动。
+  原实现只清「死者作为猎人」方向，目标方向条目无界残留，已修复并有回归
+  （tests/test_qa2_hunt_spillover.py 两例：SETTLED / DISSOLVED 后双向全清）。
 - 追加：若 victim 有 OPEN 令——同场（location == victim.location）、存活、已登记接令、
   非击杀者本人、非 victim 的猎手，各得协剿功德 +`ASSIST_MERIT`（现读现存、逐个落账）；
   令置 SETTLED（记 settled_by/settled_at）；清除**全部**猎手指向 victim 的 `hunts` 记录。
@@ -132,7 +139,7 @@ sweep 负责。无令实体（直写 KV 兼容路径）不做此复核，旧口�
 | 通道 | 触发事实 | 奖励 | 与除凶令关系 |
 |---|---|---|---|
 | 除凶令（本项） | 接令者击杀令上凶犯 | 击杀者功德+40/业力−20（既有）；同场接令协剿者功德+15（新增） | 系统功德主通道 |
-| 悬赏板 bounty | 击杀被玩家悬赏者 | 灵石（**玩家出资**）+ 功德 20/令 | 独立资金源，可同杀叠加（既有口径不动） |
+| 悬赏板 bounty | 击杀被玩家悬赏者 | 灵石（**玩家出资**）+ 功德 15/令 | 独立资金源，可同杀叠加（既有口径不动） |
 | combat_fate 代天除凶 | 任何人击杀血煞者 | 功德+60 | 既有口径不动 |
 | 宗门环 hunt | **接除凶令成功**（非击杀） | 贡献+8/功德+2/灵石50（日环） | 接令计数，与击杀结算无关 |
 | F07 委托除妖环 | 探险成功计数 | 链尾一次性灵石/功德/线索 | 与直接击杀无关 |

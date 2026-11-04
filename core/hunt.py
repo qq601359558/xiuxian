@@ -445,16 +445,25 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
             )
         except Exception:
             pass
-    # 反悬赏结算（键为 hunter_id）
+    # 反悬赏清理（键为 hunter_id；QA2-01 裁定：双向全清）——死者相关的
+    # 反悬赏条目一并删除：死者作为猎人的条目（键 == victim.id 或
+    # hunter_id == victim.id，其反杀机会随死消散）与死者作为被反悬赏
+    # 目标的条目（target_id == victim.id，键在他人名下，生前由他人所挂，
+    # 目标既死/消散便永不可触发）。与死者无关的条目不动。本块位于
+    # SETTLED / DISSOLVED（washed）分叉之前，两条结算路径共用。
     try:
         cd = WorldStateRepository.get(_COUNTER_KEY) or {}
-        if victim.id in cd:
-            cd.pop(victim.id, None)
-            WorldStateRepository.set(_COUNTER_KEY, cd)
-        else:
-            for k in list(cd.keys()):
-                if cd[k].get("hunter_id") == victim.id:
-                    cd.pop(k, None)
+        changed = False
+        for k in list(cd.keys()):
+            rec = cd[k] if isinstance(cd[k], dict) else {}
+            if (
+                k == victim.id
+                or rec.get("hunter_id") == victim.id
+                or rec.get("target_id") == victim.id
+            ):
+                cd.pop(k, None)
+                changed = True
+        if changed:
             WorldStateRepository.set(_COUNTER_KEY, cd)
     except Exception:
         pass

@@ -138,6 +138,22 @@ def print_banner():
         console.print("[yellow]⚠ 开发模式：ALLOW_LOCAL_AI=1，使用本地模板降级（非正式体验）[/yellow]\n")
 
 
+# 局域网专有指令（QA2-03）：仅 LAN 服（server/world.py）实现，CLI 本地引擎
+# 无派发。单一事实源——帮助文本的「局域网专有」清单与 run_mud 派发末尾的
+# 专有提示分支共用本集合：输入这些指令得到专有提示而非「未知名敕令」。
+# 既有声明 9 个（/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检）
+# + QA2-03 补入 19 个（web data-cmd 有按钮、server 有处理器、CLI 无本地实现；
+# 逐条核对无异名等价实现，如 /纪元 的 server 实现为纪元面板、CLI /天象 只管
+# 天象主题而非其别名；/榜 为六榜面板，CLI 只有单榜 /飞升榜）。
+LAN_ONLY_COMMANDS = frozenset({
+    "/说", "/释放", "/拜师", "/结拜", "/交易", "/宗门环", "/探险", "/秘境",
+    "/AI自检",
+    "/look", "/who", "/传说", "/传闻", "/公告", "/出隐", "/功法", "/叛门",
+    "/大劫", "/归隐", "/挖宝", "/晋升", "/榜", "/灵气", "/生成丹药",
+    "/生成妖兽", "/生成法宝", "/纪元", "/频道",
+})
+
+
 def print_help():
     help_text = """
 [bold cyan]【天道敕令 · 常用指令】[/bold cyan]
@@ -226,7 +242,7 @@ def print_help():
   [bold yellow]/议程[/bold yellow]                 - 查看 NPC 当前议程一览
   [bold yellow]/自创功法 <理念>[/bold yellow]       - 消耗神识让天道为你自创独门法门（如：/自创功法 噬血炼骨）
   [bold yellow]/大事记[/bold yellow]               - 翻阅天道总账，查看近期全界因果杀戮
-  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
+  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检 /look /who /传说 /传闻 /公告 /出隐 /功法 /叛门 /大劫 /归隐 /挖宝 /晋升 /榜 /灵气 /生成丹药 /生成妖兽 /生成法宝 /纪元 /频道 等，请连 LAN 服使用[/dim]
   [bold yellow]/帮助[/bold yellow]                 - 查看本指令菜单
   [bold yellow]/退出[/bold yellow]                 - 暂离修仙界（若正在闭关，离线期间现实时间照常计时）
 """
@@ -1732,6 +1748,11 @@ def run_mud():
 
             elif action in ["/帮助", "help"]:
                 print_help()
+
+            elif action in LAN_ONLY_COMMANDS:
+                console.print(
+                    f"[yellow]【局域网专有】{action} 仅在局域网服可用，请连 LAN 服使用。[/yellow]"
+                )
 
             else:
                 console.print(f"[red]未知名敕令: {action}，输入 /帮助 查阅天道指引。[/red]")
