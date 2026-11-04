@@ -139,8 +139,10 @@ def print_banner():
 
 
 # 局域网专有指令（QA2-03）：仅 LAN 服（server/world.py）实现，CLI 本地引擎
-# 无派发。单一事实源——帮助文本的「局域网专有」清单与 run_mud 派发末尾的
-# 专有提示分支共用本集合：输入这些指令得到专有提示而非「未知名敕令」。
+# 无派发。run_mud 派发末尾有专有提示分支（输入这些指令得到专有提示而非
+# 「未知名敕令」），成员以本集合为准；帮助文本的「局域网专有」行是另一份
+# 展示字面量，须与本集合保持一致（tests/test_qa2_fix_regressions.py 有
+# 一致性断言防漂移）。
 # 既有声明 9 个（/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检）
 # + QA2-03 补入 19 个（web data-cmd 有按钮、server 有处理器、CLI 无本地实现；
 # 逐条核对无异名等价实现，如 /纪元 的 server 实现为纪元面板、CLI /天象 只管
@@ -152,6 +154,9 @@ LAN_ONLY_COMMANDS = frozenset({
     "/大劫", "/归隐", "/挖宝", "/晋升", "/榜", "/灵气", "/生成丹药",
     "/生成妖兽", "/生成法宝", "/纪元", "/频道",
 })
+# 派发处 action 已被 .lower() 规范化（如 /AI自检 → /ai自检），故另备
+# 小写规范形集合供派发比对（评审 M1：否则 /AI自检 成员永远命中不了）。
+LAN_ONLY_COMMANDS_LOWER = frozenset(c.lower() for c in LAN_ONLY_COMMANDS)
 
 
 def print_help():
@@ -1749,7 +1754,7 @@ def run_mud():
             elif action in ["/帮助", "help"]:
                 print_help()
 
-            elif action in LAN_ONLY_COMMANDS:
+            elif action in LAN_ONLY_COMMANDS_LOWER:
                 console.print(
                     f"[yellow]【局域网专有】{action} 仅在局域网服可用，请连 LAN 服使用。[/yellow]"
                 )

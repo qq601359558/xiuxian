@@ -117,7 +117,9 @@ sweep 负责。无令实体（直写 KV 兼容路径）不做此复核，旧口�
   随死消散）与死者作为被反悬赏目标的条目（`target_id == victim.id`，键在他人
   名下，目标既死便永不可触发）；与死者无关的条目（他人之间的反悬赏）不动。
   原实现只清「死者作为猎人」方向，目标方向条目无界残留，已修复并有回归
-  （tests/test_qa2_hunt_spillover.py 两例：SETTLED / DISSOLVED 后双向全清）。
+  （tests/test_qa2_hunt_spillover.py 两例：SETTLED / DISSOLVED 后 target 方向
+  全清；tests/test_qa2_fix_regressions.py 补猎人方向同存全清、无关条目保留、
+  非 dict 脏条目容错）。
 - 追加：若 victim 有 OPEN 令——同场（location == victim.location）、存活、已登记接令、
   非击杀者本人、非 victim 的猎手，各得协剿功德 +`ASSIST_MERIT`（现读现存、逐个落账）；
   令置 SETTLED（记 settled_by/settled_at）；清除**全部**猎手指向 victim 的 `hunts` 记录。

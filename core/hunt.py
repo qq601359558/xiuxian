@@ -11,7 +11,7 @@ from core.models import Character, CharacterStatus
 from storage.db import CharacterRepository, WorldStateRepository
 
 _HUNT_KEY = "hunts"  # hunter_id -> {target_id, expires_at}
-_COUNTER_KEY = "counter_hunts"  # target_id -> {hunter_id, paid}
+_COUNTER_KEY = "counter_hunts"  # hunter_id -> {target_id, hunter_id, paid}
 _ORDER_KEY = "hunt_orders"  # target_id -> order dict（F15 令状态机）
 SIN_THRESHOLD = 80
 HUNT_TTL_H = 48.0
