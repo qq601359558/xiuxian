@@ -36,6 +36,11 @@ def exclusion_names() -> Set[str]:
     return names
 
 
+# 无名兜底序号扫描上限：banned 有限，正常情况下远在上限前即命中空位；
+# 达上限仍无可用名则抛错，由 forge 明确失败，绝不返回撞名。
+_FALLBACK_SCAN_LIMIT = 100_000
+
+
 def _local_name(kind: str, banned: Set[str]) -> str:
     for _ in range(40):
         if kind == "pill":
@@ -46,7 +51,15 @@ def _local_name(kind: str, banned: Set[str]) -> str:
             n = random.choice(_MON_A) + random.choice(_MON_B) + random.choice(_MON_C)
         if n not in banned:
             return n
-    return f"无名{kind}{random.randint(10,99)}"
+    # 兜底：无名{kind}{序号} 自随机起点顺序扫描首个未占用序号（可越过 99），
+    # 保证返回值必不在 banned 内——旧实现 randint(10,99) 不查 banned，
+    # 90 个槽位随落库累积被占满后必然撞名。
+    start = random.randint(10, 99)
+    for offset in range(_FALLBACK_SCAN_LIMIT):
+        n = f"无名{kind}{start + offset}"
+        if n not in banned:
+            return n
+    raise RuntimeError(f"造化命名枯竭：{kind} 无名序号扫描达上限仍无可用名")
 
 
 def _clamp_pill(data: Dict[str, Any], banned: Set[str]) -> Dict[str, Any]:
@@ -157,18 +170,25 @@ def forge(kind: str, hint: str = "") -> Dict[str, Any]:
                 f"输出 JSON：{schema}\n硬约束：name 不得与禁止列表重复；数值落在括号区间内。"
             )
         data = _chat_json(prompt)
-    if kind == "pill":
-        obj = _clamp_pill(data or {}, banned)
-    elif kind == "equip":
-        obj = _clamp_equip(data or {}, banned)
-    else:
-        obj = _clamp_monster(data or {}, banned)
+    try:
+        if kind == "pill":
+            obj = _clamp_pill(data or {}, banned)
+        elif kind == "equip":
+            obj = _clamp_equip(data or {}, banned)
+        else:
+            obj = _clamp_monster(data or {}, banned)
 
-    name = obj["name"]
-    # 二次撞名
-    if name in banned:
-        obj["name"] = _local_name(kind, banned)
         name = obj["name"]
+        # 二次撞名
+        if name in banned:
+            obj["name"] = _local_name(kind, banned)
+            name = obj["name"]
+    except RuntimeError:
+        return {"success": False, "error": f"造化失败：{label}之名已枯竭，无法生成不重名的名称"}
+
+    # 落库前最终校验：产出名必须不在排除集内，宁可明确失败也不落撞名
+    if name in banned:
+        return {"success": False, "error": f"造化失败：{label}之名与既有重名，无法落库"}
 
     saved = GeneratedNameRepository.save(name, kind, obj)
     # 并入运行时货单，便于购买/穿戴
