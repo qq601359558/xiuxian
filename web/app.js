@@ -558,7 +558,8 @@
 
   // ---------- tabs ----------
   function switchTab(name) {
-    document.querySelectorAll(".tab").forEach((t) => {
+    if (name !== "feed" && name !== "goals" && name !== "world") return;
+    document.querySelectorAll('.tab[data-tab]').forEach((t) => {
       t.classList.toggle("active", t.getAttribute("data-tab") === name);
     });
     document.querySelectorAll(".pane").forEach((p) => {
@@ -1568,7 +1569,7 @@
     });
   });
 
-  document.querySelectorAll(".tab").forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab]').forEach((tab) => {
     tab.addEventListener("click", () => {
       switchTab(tab.getAttribute("data-tab"));
       if (tab.getAttribute("data-tab") === "goals") {
@@ -1802,7 +1803,7 @@
   }
 
   // 打开世界页清零角标
-  document.querySelectorAll(".tab").forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab]').forEach((tab) => {
     tab.addEventListener("click", () => {
       if (tab.getAttribute("data-tab") === "world") {
         wstate.unread = 0;
