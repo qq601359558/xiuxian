@@ -1,0 +1,33 @@
+# 构建上下文排除清单：镜像只带运行所需代码
+# 版本与本地环境
+.git
+.gitignore
+.venv
+.worktrees
+.pytest_cache
+.mimocode
+.cache
+__pycache__
+*.pyc
+
+# 运行时数据与密钥（data/ 由 compose 挂载宿主机目录；.env 由 compose 注入，都不进镜像）
+data
+.env
+
+# 开发/文档/杂项（游戏服运行不需要）
+tests
+docs
+attachments
+scripts
+*.log
+*.rar
+*.md
+requirements_v3.md
+baseline_full.log
+start_game.bat
+web.rar
+
+# Docker 自身文件
+Dockerfile
+docker-compose.yml
+.dockerignore

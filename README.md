@@ -44,6 +44,14 @@ python server/start.py          # 权威世界服，默认监听 0.0.0.0:8765
 然后用浏览器打开 `web/index.html`，填服务器地址（本机 `http://127.0.0.1:8765`，
 局域网其他玩家填主机 IP）和道号，点「入世」。前端只做表现，数值、AI、门禁全在 Python 服。
 
+### 方式三：NAS / Docker 部署（24 小时在线）
+
+仓库带 `Dockerfile` + `docker-compose.yml`：把仓库放到 NAS，填好 `.env`、建个空 `data/`
+文件夹，`docker compose up -d --build` 即可常驻运行（群晖 Container Manager /
+威联通 Container Station 也能图形化导入 compose）。存档挂载在宿主机 `data/`，升级不丢档。
+完整步骤、备份与公网访问（DDNS / Cloudflare Tunnel / Tailscale Funnel）见
+[NAS 部署说明](docs/nas-deploy.md)。
+
 ## AI 配置
 
 正式体验模式（`AI_REQUIRED=1`，默认）下，交谈 / 斗法 / 自由言行等交互必须有可用的 AI 通道。

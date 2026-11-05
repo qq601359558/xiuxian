@@ -1,0 +1,28 @@
+# 《天道因果录》NAS / Docker 一键部署（说明见 docs/nas-deploy.md）
+# 用法：把本文件、Dockerfile、.env（从 .env.example 复制并填好）放在同一目录，
+#       再建一个空的 data/ 文件夹，然后 docker compose up -d --build
+services:
+  tiandao:
+    build: .
+    image: tiandao:latest
+    container_name: tiandao
+    # NAS 重启 / 容器异常退出后自动拉起；手动 docker compose down 停服不受影响
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    # .env 里的 LLM_API_KEY 等以环境变量注入（代码里环境变量优先于 .env 文件本身）
+    env_file:
+      - .env
+    environment:
+      LAN_PORT: "8765"
+    volumes:
+      # 存档持久化：数据库与日志都落在 /app/data（代码按自身所在目录定位 data/，
+      # 与工作目录无关），挂到宿主机 ./data 后，升级/重建镜像不丢档
+      - ./data:/app/data
+    # 首次启动要做开服补算（离线世界结算），可能要几分钟，start_period 给足宽限
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
