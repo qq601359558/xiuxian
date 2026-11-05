@@ -61,6 +61,52 @@ GAME_ENV=production
 2. 把 `docker-compose.yml` 的内容粘贴进去（或用导入文件），应用名称填 `tiandao`，点创建。
 3. 等构建完成、容器状态为运行中即成功。
 
+**飞牛 fnOS（图形界面 / SSH 两条路线）**
+
+fnOS 的 Docker 应用支持 Compose 项目，两种走法任选其一。
+注意：本项目的 compose 用的是 `build: .`（现场按同目录的 Dockerfile 构建镜像），
+所以**不能只导入一个 compose 文件**——必须先把整个项目文件夹备好在 NAS 上。
+
+先说镜像加速（两条路线通用）：首次构建要从 Docker Hub 拉 `python:3.12-slim` 基础镜像，
+国内网络直连可能很慢甚至失败。构建卡住先别急着重试，去飞牛 Docker 的设置里
+配置镜像加速（加速地址按你手头可用的填），再重新构建。
+
+图形界面路线：
+
+1. 把整个项目文件夹（含 `Dockerfile` 与全部源码）通过飞牛文件管理上传到 NAS，
+   放一个目录里（例：`docker/tiandao`）；并在这个文件夹里按第一、二节备好两样东西：
+   复制 `.env.example` 为 `.env` 填好（缺了它构建/启动会因没配置失败）、建空的 `data/` 文件夹。
+2. 打开 Docker → 「项目」→「新增 / 新建项目」，导入该文件夹里的 `docker-compose.yml`
+   （指向文件夹里的 compose 文件），项目名填 `tiandao`，开始构建并启动。
+3. 容器状态变为运行中后，浏览器打开 `http://<NAS的局域网IP>:8765/health`，
+   看到 `{"ok": true, ...}` 即成功；首次启动有开服补算，耐心等 1–3 分钟（见第四节）。
+4. 玩法见第五节：打开项目里的 `web/index.html`，服务器地址填
+   `http://<NAS的局域网IP>:8765`；或用单入口代理（8080）合成一个入口。
+
+SSH 路线（适合想全程命令行的）：
+
+1. 开 SSH：飞牛网页后台 → 设置 → SSH → 打开开关（默认端口 22），
+   用管理员账号密码登录 NAS，再 `sudo -i` 提权到 root。
+2. 选一个放项目的目录，拉代码：
+
+   ```bash
+   git clone https://github.com/qq601359558/xiuxian.git
+   cd xiuxian
+   ```
+
+   仓库是公开的，可直接克隆；若提示没有 `git` 命令，二选一：
+   在电脑上从 GitHub 下载 ZIP、解压后用飞牛文件管理上传整个文件夹，或先装 git 再克隆。
+3. 备配置并建存档目录，然后构建启动：
+
+   ```bash
+   cp .env.example .env   # 按文件里的注释填 AI 密钥等，并把 GAME_ENV 改成 production
+   mkdir -p data
+   docker compose up -d --build
+   ```
+4. 等 1–3 分钟开服补算，浏览器打开 `http://<NAS的局域网IP>:8765/health`
+   看到 ok 即成功；玩法同上（第五节）。常用运维命令见路线 B。
+5. 安全提醒：部署完成后可以把 SSH 开关关掉，日常管理走飞牛网页后台即可。
+
 ### 路线 B：命令行（SSH 登录 NAS 后）
 
 ```bash

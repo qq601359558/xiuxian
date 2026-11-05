@@ -48,7 +48,7 @@ python server/start.py          # 权威世界服，默认监听 0.0.0.0:8765
 
 仓库带 `Dockerfile` + `docker-compose.yml`：把仓库放到 NAS，填好 `.env`、建个空 `data/`
 文件夹，`docker compose up -d --build` 即可常驻运行（群晖 Container Manager /
-威联通 Container Station 也能图形化导入 compose）。存档挂载在宿主机 `data/`，升级不丢档。
+威联通 Container Station / 飞牛 fnOS 也能图形化导入 compose，fnOS 另有专门小节）。存档挂载在宿主机 `data/`，升级不丢档。
 完整步骤、备份与公网访问（DDNS / Cloudflare Tunnel / Tailscale Funnel）见
 [NAS 部署说明](docs/nas-deploy.md)。
 
