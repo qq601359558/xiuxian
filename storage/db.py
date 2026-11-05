@@ -16,6 +16,7 @@ from core.market import MarketListing, ListingStatus
 from core.pawn import PawnTicket
 from core.books import Book
 from core.promises import Promise
+from core.karma_chains import KarmaChain
 from core.trade import AuctionLot, AuctionStatus
 
 
@@ -118,6 +119,18 @@ def init_db():
         status TEXT NOT NULL,
         promiser_id TEXT NOT NULL,
         promisee_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6e. 因果链（karma-event-chains；只加新表：一链一行的延迟兑现账，终态不可逆）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS karma_chains (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        counterparty_id TEXT NOT NULL,
         created_at REAL NOT NULL
     );
     """)
@@ -797,6 +810,125 @@ class PromiseRepository:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM promises WHERE id = ?", (promise_id,))
+        conn.commit()
+        conn.close()
+
+
+class KarmaChainRepository:
+    """因果链仓储（karma-event-chains，照 PromiseRepository 写法）"""
+
+    @staticmethod
+    def save(chain: KarmaChain):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO karma_chains (id, data_json, status, player_id, counterparty_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status,
+            player_id = excluded.player_id,
+            counterparty_id = excluded.counterparty_id;
+        """, (
+            chain.id,
+            chain.model_dump_json(),
+            chain.status,
+            chain.player_id,
+            chain.counterparty_id,
+            chain.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def get(chain_id: str) -> Optional[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM karma_chains WHERE id = ?", (chain_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            try:
+                return KarmaChain.model_validate_json(row[0])
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
+    def list_all() -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM karma_chains ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_player(player_id: str) -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE player_id = ? ORDER BY created_at ASC",
+            (player_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_active() -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE status IN ('latent','fermenting') "
+            "ORDER BY created_at ASC"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_pair(player_id: str, counterparty_id: str) -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE player_id = ? AND counterparty_id = ? "
+            "ORDER BY created_at ASC",
+            (player_id, counterparty_id),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def delete(chain_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM karma_chains WHERE id = ?", (chain_id,))
         conn.commit()
         conn.close()
 

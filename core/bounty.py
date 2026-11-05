@@ -308,6 +308,21 @@ class BountyEngine:
             merit += BOUNTY_HUNTER_MERIT
         killer.karma.add_merit(merit)
 
+        # 因果链 S5（karma-event-chains，R1/MF-2 改写）：悬赏销案在引擎层
+        # 注记——仅续链：同对已有 active 链只续链 +1，无链不新建（原兜底
+        # 新建语义已废弃）；钩子异常不炸结赏主流程。
+        # 注：server _fight 未调 settle_on_kill 的既有分歧另立工单（Spec C-1），
+        # 本钩子只挂引擎层，不顺修 server 战斗结算。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.note_bounty_settled(killer, victim, paid, now=current_time)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "karma chain S5 hook failed", exc_info=True)
+
         names = "、".join(b.issuer_display() for b in paid)
         return {
             "success": True,

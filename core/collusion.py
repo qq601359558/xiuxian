@@ -31,6 +31,20 @@ def ensure_link(
             if note:
                 link.note = f"{link.note}；{note}" if link.note else note
             KarmaLinkRepository.save(link)
+            # 因果链 S2（karma-event-chains）：仇/恩边自增后 strength ≥3 才调
+            # 引擎（达阈起链、之后走续链判断）；钩子异常不炸主流程。
+            if link_type in ("仇", "恩"):
+                try:
+                    from config import KARMA_CHAIN_LINK_MIN
+                    from core.karma_chains import KarmaChainEngine
+
+                    if link.strength >= KARMA_CHAIN_LINK_MIN:
+                        KarmaChainEngine.note_link_strength(link, a, b, now=t)
+                except Exception:
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        "karma chain S2 hook failed", exc_info=True)
             return link
     link = KarmaLink(
         a_id=a.id,

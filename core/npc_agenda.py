@@ -420,6 +420,20 @@ class NpcAgendaEngine:
             rumors.maybe_ambient_tick(chance=0.12)
         except Exception:
             pass
+        # 因果链推进（karma-event-chains §4.1）：挂 tick_world 尾，照既有
+        # 顺带推进先例 try/except 包裹，异常不炸世界 tick。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            for r in KarmaChainEngine.tick_world():
+                if r.get("action") == "resolved" and r.get("text"):
+                    results.append({
+                        "acted": True,
+                        "kind": "karma_chain",
+                        "text": f"【因果链】{r['text']}",
+                    })
+        except Exception:
+            pass
         return results
 
     @staticmethod

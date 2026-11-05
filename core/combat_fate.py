@@ -262,6 +262,18 @@ class CombatFateEngine:
                     pass
             except Exception:
                 pass
+            # 因果链 S4（karma-event-chains）：击杀成立后注记血仇链
+            #（与 cascade_kill 末尾钩子靠幂等键 kill:{victim_id} 合流）；
+            #钩子异常不炸斗法主流程。
+            try:
+                from core.karma_chains import KarmaChainEngine
+
+                KarmaChainEngine.note_kill(attacker, defender)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "karma chain S4 hook (combat_fate) failed", exc_info=True)
 
         elif outcome == "escalate" and proposal.get("spawn"):
             spawn_cfg = proposal["spawn"]

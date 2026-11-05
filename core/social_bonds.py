@@ -226,6 +226,17 @@ def graduate(c: Character) -> Dict[str, Any]:
         l.link_type = "恩"
         l.note = (l.note or "") + "；已出师"
         KarmaLinkRepository.save(l)
+        # 因果链 S2b（karma-event-chains）：出师改型为「恩」后注记起链
+        #（与 S2 同链键 link:{id}:en，不双起）；钩子异常不炸出师主流程。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.note_graduation(l, disc, mast)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "karma chain S2b hook failed", exc_info=True)
         disc.karma.add_merit(10)
         mast.karma.add_merit(10)
         CharacterRepository.save(disc)
