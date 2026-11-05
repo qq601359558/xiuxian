@@ -353,6 +353,32 @@
       // MF3：原 "dao_heart" in st 守卫缺键不触发、旧条残留；改为 == null
       if (daoRow) daoRow.classList.add("hide");
     }
+    // 前世（转世继承）：st.past_life 由后端 _status_dict 下发
+    // {lives,last_name,last_cause,shadow_count}；lives>0 显示「{last_name} · {last_cause}」，
+    // shadow_count>0 时另起小字「因果余绪 {n} 条」。
+    // MF3 口径：缺键时 st.past_life 为 undefined，== null 为真，故键缺失或 lives=0
+    // 一律降级显示 —，不残留旧世信息、不报错。
+    // 瞬时闪烁：转世/登录的合成局部对象不含 past_life，会瞬时显示 —，
+    // 其后紧跟的 refreshSoft(true) 全量刷新立即纠正为真实前世（同势力/天象口径）。
+    {
+      const pastEl = $("stPastLife");
+      if (pastEl) {
+        const pl = st.past_life;
+        if (pl != null && Number(pl.lives) > 0) {
+          const parts = [pl.last_name, pl.last_cause].filter(
+            (x) => x != null && String(x) !== ""
+          );
+          let pastHtml = parts.length ? esc(parts.join(" · ")) : "—";
+          const shadowCount = Number(pl.shadow_count) || 0;
+          if (shadowCount > 0) {
+            pastHtml += `<span class="past-sub">因果余绪 ${shadowCount} 条</span>`;
+          }
+          pastEl.innerHTML = pastHtml;
+        } else {
+          pastEl.textContent = "—";
+        }
+      }
+    }
     // U07：势力只呈现归属（宗门 + 职阶）；空宗门写散修，空职阶只写宗门，不写假职阶
     // MF3：原 "sect"/"rank" in st 守卫缺键不触发、旧值残留；改为无条件按空处理
     // （null/undefined/空串一律按空宗门→散修、空职阶→只写宗门，与 §5 缺失口径一致）。
@@ -1203,6 +1229,69 @@
     box.scrollTop = box.scrollHeight;
   }
 
+  // ---------- 转世继承：前世留痕 / 遗物（reincarnation-inheritance T7） ----------
+  // 态度词口径与 storage set_attitude / ATTITUDE_LABELS 一致（按 value 阈值现算，
+  // 不依赖 shadow 条目自带 label，条目无 label 时亦可渲染）：
+  // >=40 亲近（ally）、>=15 友善、<=-40 仇视、<=-15 戒备、其余 中立。
+  function shadowAttitudeWord(value) {
+    const v = Number(value);
+    if (!Number.isFinite(v)) return "中立";
+    if (v >= 40) return "亲近";
+    if (v >= 15) return "友善";
+    if (v <= -40) return "仇视";
+    if (v <= -15) return "戒备";
+    return "中立";
+  }
+  // trace 取数防御：主口径 legacy.trace（刚逝一世）；会话恢复等路径若后端
+  // 只下发 traces 列表，则取末世兜底。两者皆缺失/为 null 时返回 null，
+  // 调用方整段不渲染（不自造默认值掩盖缺失）。
+  function deathTraceOf(legacy) {
+    if (!legacy) return null;
+    if (legacy.trace) return legacy.trace;
+    if (Array.isArray(legacy.traces) && legacy.traces.length) {
+      return legacy.traces[legacy.traces.length - 1] || null;
+    }
+    return null;
+  }
+  function heirloomBelongingsOf(legacy) {
+    const trace = deathTraceOf(legacy);
+    if (!trace || !Array.isArray(trace.belongings)) return [];
+    return trace.belongings
+      .map((n) => (n == null ? "" : String(n)))
+      .filter((n) => n !== "");
+  }
+  // 「前世留痕」摘要：影子逐条 + 未了之诺条数；trace 为 null 或两类皆空时
+  // 返回空串（整段不渲染）。享寿/死因已在首行渲染，此处不重复。
+  function legacyTraceHtml(trace) {
+    if (!trace) return "";
+    const shadow = Array.isArray(trace.shadow) ? trace.shadow : [];
+    const promises = Array.isArray(trace.open_promises) ? trace.open_promises : [];
+    const lines = [];
+    shadow.forEach((s) => {
+      if (!s || s.npc_name == null || String(s.npc_name) === "") return;
+      const v = s.value != null ? s.value : 0;
+      lines.push(
+        `<div class="trace-line">${esc(s.npc_name)}：前世${esc(shadowAttitudeWord(v))}（${esc(String(v))}）</div>`
+      );
+    });
+    if (promises.length > 0) {
+      lines.push(
+        `<div class="trace-line">未了之诺 ${promises.length} 条，已随旧世消散</div>`
+      );
+    }
+    if (!lines.length) return "";
+    return `<div class="legacy-trace"><div class="trace-title">前世留痕</div>${lines.join("")}</div>`;
+  }
+  function syncHeirloomSelect() {
+    const wrap = $("heirloomWrap");
+    if (!wrap) return;
+    if (state.selectedBoosts.includes("heirloom")) {
+      wrap.classList.remove("hide");
+    } else {
+      wrap.classList.add("hide");
+    }
+  }
+
   function showDeath(text, legacy, extra) {
     extra = extra || {};
     // MF6：照聊天 modal 模式保存 lastFocus（须在下方 rebornName.focus() 之前），关闭时恢复（U25）
@@ -1228,9 +1317,14 @@
       cause +
       (lived != null ? "，享寿 " + lived + " 岁" : "") +
       "）。真灵可携道统重入轮回。";
+    // 前世留痕（T7）：trace 三条进入路径结构不一，统一经 deathTraceOf 防御取数；
+    // trace 为 null/缺失时 legacyTraceHtml 返回空串，整段不渲染、不报错。
+    const deathTrace = deathTraceOf(legacy);
+    const heirloomBelongings = heirloomBelongingsOf(legacy);
     $("deathLegacy").innerHTML =
       `道统点 <b>${legacy.points ?? 0}</b> · 已历 <b>${legacy.lives ?? 0}</b> 世<br/>` +
-      `可选出身加成（至多 ${legacy.max_boosts ?? 3} 项）`;
+      `可选出身加成（至多 ${legacy.max_boosts ?? 3} 项）` +
+      legacyTraceHtml(deathTrace);
     // 结算明细＋钱包余额在建角表单之前（spec §2.8 结构顺序）
     renderDeathSettle(
       extra.settlement || null,
@@ -1252,9 +1346,39 @@
     const box = $("boostBox");
     box.innerHTML = "";
     state.selectedBoosts = [];
+    // 遗物候选下拉（T7）：每次打开死亡页按本世 trace.belongings 重填，
+    // 默认隐藏；仅 heirloom 被选中时由 syncHeirloomSelect 显示。
+    const heirloomSel = $("heirloomSelect");
+    if (heirloomSel) {
+      heirloomSel.innerHTML = "";
+      heirloomBelongings.forEach((itemName) => {
+        const opt = document.createElement("option");
+        opt.value = itemName;
+        opt.textContent = itemName;
+        heirloomSel.appendChild(opt);
+      });
+    }
+    syncHeirloomSelect();
     (legacy.boosts || []).forEach((b) => {
       const el = document.createElement("div");
       el.className = "boost-item";
+      // heirloom 无候选（belongings 为空/无 trace）：置灰不可选并附注，
+      // 不计入 selectedBoosts，亦不占用 max_boosts 名额。
+      const heirloomUnavailable = b.key === "heirloom" && !heirloomBelongings.length;
+      if (heirloomUnavailable) {
+        el.classList.add("disabled");
+        el.setAttribute("aria-disabled", "true");
+        el.innerHTML = `<span>${esc(b.name)}</span><span class="muted">${esc(b.desc)}</span><span class="boost-note">前世无遗物可留</span><span class="cost">${b.cost}点</span>`;
+        el.onclick = () => {
+          const errEl = $("deathError");
+          if (errEl) {
+            errEl.textContent = "前世无遗物可留";
+            errEl.classList.remove("hide");
+          }
+        };
+        box.appendChild(el);
+        return;
+      }
       el.innerHTML = `<span>${esc(b.name)}</span><span class="muted">${esc(b.desc)}</span><span class="cost">${b.cost}点</span>`;
       el.onclick = () => {
         const max = legacy.max_boosts || 3;
@@ -1275,6 +1399,7 @@
           state.selectedBoosts.push(b.key);
           el.classList.add("selected");
         }
+        if (b.key === "heirloom") syncHeirloomSelect();
       };
       box.appendChild(el);
     });
@@ -1307,7 +1432,17 @@
     const name = $("rebornName").value.trim();
     let cmd = "/转世";
     if (name) cmd += " " + name;
-    if (state.selectedBoosts.length) cmd += " " + state.selectedBoosts.join(" ");
+    if (state.selectedBoosts.length) {
+      // heirloom 须拼作 heirloom:<物品名> 一个 token（物品名取下拉当前值）；
+      // 下拉缺失/无值时退回裸 heirloom，交后端报错，不自造物品名。
+      const boostTokens = state.selectedBoosts.map((k) => {
+        if (k !== "heirloom") return k;
+        const sel = $("heirloomSelect");
+        const item = sel && sel.value ? String(sel.value).trim() : "";
+        return item ? "heirloom:" + item : "heirloom";
+      });
+      cmd += " " + boostTokens.join(" ");
+    }
     // 提交后按钮置灰防重复提交；失败时保留已填道号与已选加成，不清空重填。
     // MF4：主操作另补文案切换（触屏上不依赖等待光标即可辨识请求中态），结束后恢复原文案。
     const btnText = btn ? btn.textContent : "";

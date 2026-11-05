@@ -291,14 +291,19 @@ class World:
         FarmEngine.on_owner_death(char)
         # 委托链随旧世而散（F07，一世循环）
         QuestEngine.on_owner_death(char)
-        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约；
+        # 被消散摘要经返回值注入 settle_death 写留痕（诺在 settle 前已消散）
+        dissolved_promises = []
         try:
-            PromiseEngine.on_owner_death(char)
+            dissolved_promises = PromiseEngine.on_owner_death(char) or []
         except Exception:
-            pass
+            dissolved_promises = []
         if not char.death_cause:
             char.death_cause = cause
-        settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
+        settle = LegacyEngine.settle_death(
+            account, char, death_cause=char.death_cause or cause,
+            dissolved_promises=dissolved_promises,
+        )
         LegacyRepository.save(account)
         CharacterRepository.save(char)
         if sweep.get("errors"):
@@ -336,6 +341,7 @@ class World:
                 pass
             from core.legacy import LegacyEngine as _LE
             from core.wallet import wallet_summary as _ws
+            from core.inheritance import trace_summary as _trace_summary
 
             # S3：寄售在售单数（按 seller_user_id／seller_id 计 OPEN 单；取数失败置 0）
             try:
@@ -373,6 +379,18 @@ class World:
                     "lives": account.total_lives,
                     "boosts": _LE.list_boosts(),
                     "lifespan_lived": _last_life.lifespan_lived if _last_life else None,
+                    # 转世继承（只增）：前世列表（同 legacy_info 口径）与刚逝一世留痕摘要
+                    "past_lives": [
+                        {
+                            "name": p.name, "realm": p.realm, "cause": p.cause,
+                            "points": p.points_gained, "lived": p.lifespan_lived,
+                        }
+                        for p in account.past_lives[-8:]
+                    ],
+                    "trace": (
+                        _trace_summary(account.traces[-1])
+                        if account.traces else None
+                    ),
                 },
                 "wallet": _ws(account),
                 "settlement": (settle or {}).get("sweep") if settle else None,
@@ -387,6 +405,8 @@ class World:
         boosts = []
         for k, cfg in LEGACY_BOOSTS.items():
             boosts.append({"key": k, "name": cfg["name"], "cost": cfg["cost"], "desc": cfg["desc"]})
+        from core.inheritance import current_karma_shadow, trace_summary
+
         return {
             "ok": True,
             "points": account.points,
@@ -399,6 +419,9 @@ class World:
                 }
                 for p in account.past_lives[-8:]
             ],
+            # 转世继承（只增）：最近 8 世留痕摘要 + 当前角色本世被施加的影子清单
+            "traces": [trace_summary(t) for t in account.traces[-8:]],
+            "karma_shadow": current_karma_shadow(account),
             "boosts": boosts,
             "max_boosts": LEGACY_MAX_BOOSTS_PER_LIFE,
             "alive": char.status != CharacterStatus.DEAD and not char.lifespan.is_dead(),
@@ -425,8 +448,29 @@ class World:
             if CharacterRepository.get_by_name(new_name) and (not old or CharacterRepository.get_by_name(new_name).id != old.id):
                 new_name = new_name[:8] + "·转"
 
+            # 转世编排（spec §2.3/§2.4）：建角 → boosts → 按 bond_echo 与否选
+            # retention/cap 施加因果影子 → 统一落盘。old_trace 须在 boosts 前
+            # 捕获（settle 刚生成的留痕即 traces[-1]，boosts 不改 traces）。
+            old_trace = account.traces[-1] if account.traces else None
             char = WorldClock.create_new_character(session.user_id, new_name)
-            boost_res = LegacyEngine.apply_birth_boosts(char, account, list(boosts or []))
+            boost_res = LegacyEngine.apply_birth_boosts(
+                char, account, list(boosts or []), old_trace=old_trace,
+            )
+            from config import (
+                BOND_ECHO_CAP,
+                BOND_ECHO_RETENTION,
+                SHADOW_CAP,
+                SHADOW_RETENTION,
+            )
+            from core.inheritance import apply_karma_shadow
+
+            if boost_res.get("bond_echo"):
+                _retention, _cap = BOND_ECHO_RETENTION, BOND_ECHO_CAP
+            else:
+                _retention, _cap = SHADOW_RETENTION, SHADOW_CAP
+            karma_shadow = apply_karma_shadow(
+                account, char, retention=_retention, cap=_cap,
+            )
             LegacyRepository.save(account)
             CharacterRepository.save(char)
             session.character_id = char.id
@@ -442,16 +486,24 @@ class World:
                 f"真灵转世，【{char.name}】重踏仙途。"
                 + (f"道统点化：{'、'.join(boost_res.get('applied') or [])}。" if boost_res.get("applied") else ""),
             )
+            shadow_text = ""
+            if karma_shadow:
+                shadow_lines = "、".join(
+                    f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow
+                )
+                shadow_text = f"因果余绪及身：{shadow_lines}\n"
             return {
                 "ok": True,
                 "text": (
                     f"【真灵转世】{char.name} · {char.realm.name} · {char.location}\n"
                     f"自然寿元 {char.lifespan.birth_base:.0f} 岁\n"
                     f"{boost_res.get('message', '')}\n"
+                    f"{shadow_text}"
                     f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）\n"
                     f"账户钱包 {wallet_block['balance']} 灵石（新角随身 150 灵石不变）；"
                     f"入世后用 /钱包提取 <金额> 取用账户金额。"
                 ),
+                "karma_shadow": karma_shadow,
                 "settle": {
                     "points_gained": (settle or {}).get("points_gained", 0),
                     "cause": (settle or {}).get("cause", ""),
@@ -654,7 +706,7 @@ class World:
                 except Exception:
                     pass
                 return {"ok": True, "text": text, "status": self._status_dict(char)}
-            if action in ("/legacy", "/道统"):
+            if action in ("/legacy", "/道统", "/前世"):
                 info = self.legacy_info(token)
                 if not info.get("ok"):
                     return info
@@ -669,8 +721,28 @@ class World:
                     lines.append("前世：")
                     for p in info["past_lives"]:
                         lines.append(f"  {p['name']} {p['realm']} · {p['cause']} +{p['points']}点")
+                # 前世因果段（转世继承）：无留痕/无因果时整段省略
+                try:
+                    from core.inheritance import causality_text
+
+                    _account = LegacyRepository.get_or_create(char.user_id)
+                    _causality = causality_text(_account)
+                    if _causality:
+                        lines.append(_causality)
+                except Exception:
+                    pass
                 info["text"] = "\n".join(lines)
                 return info
+            if action in ("/墓碑",):
+                # 墓碑查询（转世继承）：引擎同源文本，CLI 同命令同文案
+                from core.inheritance import find_tombstone
+
+                if len(parts) < 2 or not parts[1].strip():
+                    return {"ok": False, "error": "用法：/墓碑 <道号>"}
+                tomb = find_tombstone(parts[1].strip())
+                if tomb is None:
+                    return {"ok": True, "text": "江湖无此碑。"}
+                return {"ok": True, "text": tomb}
             if action in ("/wallet", "/钱包"):
                 from core.wallet import wallet_panel_text
                 from storage.db import AccountRepository as _AR
@@ -700,7 +772,10 @@ class World:
                 # /转世 [道号] [boost...]
                 rest = parts[1:]
                 for tok in rest:
-                    if tok in LEGACY_BOOSTS:
+                    if tok.startswith("heirloom:") and len(tok) > len("heirloom:"):
+                        # 参数式遗物 token：heirloom:<物品名>（物品名无空格，整段透传引擎）
+                        boosts.append(tok)
+                    elif tok in LEGACY_BOOSTS:
                         boosts.append(tok)
                     elif tok.isdigit():
                         # 数字对应 boosts 列表顺序
@@ -2682,7 +2757,28 @@ class World:
             _wallet_block = dict(_wallet_block)
             _wallet_block["username"] = _AR.get_username(c.user_id)
         except Exception:
+            _acc = None
             _wallet_block = {"balance": 0, "entries": [], "ledger": [], "username": ""}
+        # 前世摘要（转世继承，只增键）：留痕优先，旧档回退 past_lives；无前世 lives=0
+        _past_life = {"lives": 0, "last_name": "", "last_cause": "", "shadow_count": 0}
+        try:
+            if _acc is not None:
+                _past_life["lives"] = int(_acc.total_lives or 0)
+                if _acc.traces:
+                    _lt = _acc.traces[-1]
+                    _past_life["last_name"] = _lt.name
+                    _past_life["last_cause"] = _lt.cause
+                    # 观察4：与 causality_text 同口径（applied_shadow_entries），
+                    # 低于 SHADOW_APPLY_MIN、实际未落账的条目不计数
+                    from core.inheritance import applied_shadow_entries as _ase
+
+                    _past_life["shadow_count"] = len(_ase(_acc, _lt))
+                elif _acc.past_lives:
+                    _lp = _acc.past_lives[-1]
+                    _past_life["last_name"] = _lp.name
+                    _past_life["last_cause"] = _lp.cause
+        except Exception:
+            pass
         return {
             "name": c.name,
             "realm": c.realm.name,
@@ -2690,6 +2786,7 @@ class World:
             "stones": c.spirit_stones,
             "vault": c.vault_stones,
             "wallet": _wallet_block,
+            "past_life": _past_life,
             "sin": c.karma.sin_value,
             "merit": c.karma.merit_value,
             "exp": f"{c.realm.current_exp}/{c.realm.max_exp}",
@@ -2950,11 +3047,16 @@ class World:
             {"key": k, "name": cfg["name"], "cost": cfg["cost"], "desc": cfg["desc"]}
             for k, cfg in LEGACY_BOOSTS.items()
         ]
+        from core.inheritance import current_karma_shadow, trace_summary
+
         return {
             "points": account.points,
             "lives": account.total_lives,
             "boosts": boosts,
             "max_boosts": LEGACY_MAX_BOOSTS_PER_LIFE,
+            # 转世继承（只增）：最近 8 世留痕摘要 + 当前角色本世被施加的影子清单
+            "traces": [trace_summary(t) for t in account.traces[-8:]],
+            "karma_shadow": current_karma_shadow(account),
         }
 
     def _breakthrough(self, c: Character, session: Optional[Session]) -> Dict[str, Any]:

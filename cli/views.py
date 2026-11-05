@@ -422,6 +422,20 @@ def render_legacy_panel(account):
     else:
         console.print("[dim]尚无前世记载，此乃第一世。[/dim]")
 
+    # 前世因果段（转世继承）：与 server /道统 同源文本；无留痕/无因果时整段省略
+    try:
+        from core.inheritance import causality_text
+
+        _causality = causality_text(account)
+        if _causality:
+            console.print(Panel(
+                Text(_causality),
+                title="[bold magenta]◆ 前世因果 ◆[/bold magenta]",
+                border_style="magenta",
+            ))
+    except Exception:
+        pass
+
     from core.legacy import LegacyEngine
     boosts = LegacyEngine.list_boosts()
     btable = Table(title="[bold]转世出身兑换目录[/bold]", border_style="green")

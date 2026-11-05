@@ -212,7 +212,18 @@ LEGACY_SUICIDE_THRESHOLD = 3
 LEGACY_SUICIDE_PENALTY = 0.5
 # 每次转世最多购买的加成项数（防滚雪球）
 LEGACY_MAX_BOOSTS_PER_LIFE = 3
+# ==================== 转世继承 · 因果影子（reincarnation-inheritance §2.6） ====================
+SHADOW_MIN_ABS = 30          # 态度快照门槛：|value| 低于此不入痕迹
+SHADOW_MAX_ENTRIES = 6       # 每世影子条数上限
+SHADOW_RETENTION = 0.4       # 基准衰减：转世后态度 = 前世值 × 此系数
+SHADOW_CAP = 25              # 基准施加绝对值顶
+SHADOW_APPLY_MIN = 8         # 施加后绝对值低于此不落账
+BOND_ECHO_RETENTION = 0.75   # 旧缘重续（bond_echo）衰减
+BOND_ECHO_CAP = 50           # 旧缘重续施加绝对值顶
+
 # 转世消费目录（成本/效果）
+# ⚠ 顺序即 /转世 数字序号映射：既有四键顺序与数值严禁变更，
+# 新键只能追加在末尾（reincarnation-inheritance §1.4）。
 LEGACY_BOOSTS = {
     "stones": {
         "name": "出身灵石",
@@ -233,6 +244,21 @@ LEGACY_BOOSTS = {
         "name": "传承功法",
         "cost": 2,
         "desc": "前世道统残篇化入识海，开局自带一门额外法门。",
+    },
+    "heirloom": {
+        "name": "遗物留存",
+        "cost": 5,
+        "desc": "自前世行囊中选 1 件遗物随真灵转世（heirloom:<物品名>），每世限 1 件。",
+    },
+    "art_memory": {
+        "name": "前世心法",
+        "cost": 4,
+        "desc": "唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。",
+    },
+    "bond_echo": {
+        "name": "旧缘重续",
+        "cost": 3,
+        "desc": "本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。",
     },
 }
 
