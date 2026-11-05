@@ -237,7 +237,9 @@ def test_gift_fulfilled_via_real_gift():
     res = do_gift(p, npc, "灵谷", 0)
     assert res["ok"], res
     assert _get(pr.id).status == PromiseStatus.ACTIVE
-    assert attitude_toward(npc, p.id)["value"] == 7  # 赠礼本身态度 +7（与诺无关）
+    # 赠礼态度按 §8.3.1 计价（R1/MF-1）：灵谷目录价 15 → delta = 15//5 = 3
+    #（旧固定 +7 口径已废弃；践诺核验不认 delta，功能不变）
+    assert attitude_toward(npc, p.id)["value"] == 3
     # 真赠诺物 → 践诺
     p = CharacterRepository.get_by_id(p.id)
     p.inventory.append("聚灵草")
@@ -248,10 +250,11 @@ def test_gift_fulfilled_via_real_gift():
     assert _get(pr.id).status == PromiseStatus.KEPT
     pr2 = CharacterRepository.get_by_id(p.id)
     assert pr2.karma.merit_value == merit0 + PROMISE_MERIT_KEPT  # 功德恰 +10
-    # 因果链留痕（诺）+ NPC 态度：两次赠礼各 +7，践诺另 +8，合计 +22
+    # 因果链留痕（诺）+ NPC 态度：赠灵谷 +3（目录价 15//5）、赠聚灵草 +5
+    #（目录价 28//5，§8.3.1 计价），践诺另 +8，合计 +16
     links = _links_between(p.id, npc.id)
     assert len(links) == 1 and links[0].note.startswith("践诺")
-    assert attitude_toward(npc, p.id)["value"] == 7 + 7 + PROMISE_ATTITUDE_DELTA
+    assert attitude_toward(npc, p.id)["value"] == 3 + 5 + PROMISE_ATTITUDE_DELTA
     # 重复赠同物不再重复结算
     p = CharacterRepository.get_by_id(p.id)
     p.inventory.append("聚灵草")

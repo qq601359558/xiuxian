@@ -298,6 +298,16 @@ class World:
             dissolved_promises = PromiseEngine.on_owner_death(char) or []
         except Exception:
             dissolved_promises = []
+        # 因果链随旧世而散（karma-event-chains §7.1）：紧随诺言钩子之后、
+        # settle_death 之前；返回值只记日志，不注入 settle_death（不进留痕）。
+        # 留痕口径（R1/MF-4）：server 侧不另记汇总编年史——latent 消散静默、
+        # fermenting 消散由引擎 _dissipate 经 jianghu public 单记一条。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.on_owner_death(char)
+        except Exception:
+            pass
         if not char.death_cause:
             char.death_cause = cause
         settle = LegacyEngine.settle_death(
@@ -743,6 +753,17 @@ class World:
                 if tomb is None:
                     return {"ok": True, "text": "江湖无此碑。"}
                 return {"ok": True, "text": tomb}
+            if action in ("/因果链", "/karma_chains"):
+                # 因果链面板（AI 天道事件链）：引擎同源文本，CLI 同命令同文案；
+                # 先惰性推进后呈现（照 /诺言 settle_due→panel_text 先例）；
+                # 无参命令，附加词按邻近面板口径忽略不报错
+                from core.karma_chains import KarmaChainEngine
+
+                try:
+                    KarmaChainEngine.advance_for(char)
+                except Exception:
+                    pass
+                return {"ok": True, "text": KarmaChainEngine.panel_text(char)}
             if action in ("/wallet", "/钱包"):
                 from core.wallet import wallet_panel_text
                 from storage.db import AccountRepository as _AR
@@ -2718,6 +2739,7 @@ class World:
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
             "/诺言 /许诺 <对象> 赠物 <物品>|抵达 <地点>|委托|不攻 /应诺 [立诺者名] /毁诺 [受诺人名]（唯指令立诺入账，交谈口头应承不算） "
+            "/因果链 天道事件链面板（恩/仇/诺/血仇的发酵进度与近史；勿与 /因果 混淆：本服 /因果 为回访别名，CLI /因果 为因果关系列表） "
             "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
             "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
             "/镇魔 [服丹|静坐] "
@@ -2779,6 +2801,13 @@ class World:
                     _past_life["last_cause"] = _lp.cause
         except Exception:
             pass
+        # 因果链摘要（karma-event-chains §6.1，只增键）：旧前端忽略即可
+        try:
+            from core.karma_chains import KarmaChainEngine as _KCE
+
+            _karma_chains = _KCE.status_summary(c)
+        except Exception:
+            _karma_chains = {"active": 0, "fermenting": 0, "nearest_mature_game_days": None}
         return {
             "name": c.name,
             "realm": c.realm.name,
@@ -2787,6 +2816,7 @@ class World:
             "vault": c.vault_stones,
             "wallet": _wallet_block,
             "past_life": _past_life,
+            "karma_chains": _karma_chains,
             "sin": c.karma.sin_value,
             "merit": c.karma.merit_value,
             "exp": f"{c.realm.current_exp}/{c.realm.max_exp}",

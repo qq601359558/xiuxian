@@ -664,6 +664,17 @@ class JianghuSimulator:
                 pass
         except Exception as e:
             notes.append(f"级联部分失败:{e}")
+        # 因果链 S4（karma-event-chains）：级联末尾注记血仇链（延迟层记录，
+        # 不重复即时结算；与 combat_fate 钩子靠幂等键 kill:{victim_id} 合流）。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.note_kill(killer, victim, now=t)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "karma chain S4 hook (cascade_kill) failed", exc_info=True)
         return notes
 
     # ---------------- 离线追赶 ----------------

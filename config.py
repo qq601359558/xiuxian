@@ -813,3 +813,47 @@ def ai_unavailable_message() -> str:
         "交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、LLM_MODEL。"
     )
 
+
+# ==================== AI 天道事件链（karma-event-chains §10 配置总表） ====================
+# 时间口径：链计时只认游戏日（SECONDS_PER_GAME_DAY=240 现实秒）；
+# 「每日兑现预算」的「日」为现实日（见 KARMA_CHAIN_DAILY_* 注释）。
+KARMA_CHAIN_ATT_GRACE = 60            # S1 恩跨阈
+KARMA_CHAIN_ATT_HOSTILE = -60         # S1 仇跨阈
+KARMA_CHAIN_LINK_MIN = 3              # S2 关系边 strength 达阈
+KARMA_CHAIN_STRENGTH_CAP = 8          # 单链 strength 钳顶
+KARMA_CHAIN_MAX_ACTIVE_PER_PLAYER = 4
+KARMA_CHAIN_MAX_ACTIVE_PER_NPC = 2
+KARMA_CHAIN_MAX_ACTIVE_GLOBAL = 40
+KARMA_CHAIN_MAX_NODES = 12
+KARMA_CHAIN_PAIR_COOLDOWN_DAYS = 30   # 游戏日：同对同 kind 终态冷却 / 翻转窗口
+KARMA_CHAIN_NPC_START_INTERVAL_DAYS = 10  # 游戏日：单 NPC 新起链间隔
+KARMA_CHAIN_WINDOW_DAYS = 14          # 游戏日：兑现窗口
+KARMA_CHAIN_LIFETIME_DAYS = 90        # 游戏日：链龄硬顶
+KARMA_CHAIN_DAILY_RESOLVE_MAX = 2     # 每玩家每日（现实日）兑现数
+KARMA_CHAIN_DAILY_STONES_MAX = 120    # 每玩家每日（现实日）链灵石所得子顶
+KARMA_CHAIN_TICK_RESOLVE_MAX = 5      # 单轮 tick 兑现预算
+KARMA_CHAIN_TICK_FERMENT_MAX = 10     # 单轮 tick 发酵迁移预算
+KARMA_CHAIN_HISTORY_N = 5             # 面板近史条数（照 PROMISE_HISTORY_N）
+KARMA_CHAIN_TERMINAL_KEEP_PER_PLAYER = 20  # 终态链每玩家保留条数
+# 单链兑现子顶（严于 EVENT_EFFECT_CAPS；lifespan 恒 0 为铁律）
+KARMA_CHAIN_EFFECT_CAPS = {
+    "stones_gain": 60,
+    "stones_lose": 40,
+    "exp_gain": 120,
+    "exp_lose": 60,
+    "sin": 15,
+    "merit": 10,
+    "dao_heart": 5,
+    "attitude": 20,
+    "lifespan": 0,
+}
+# 发酵时长（游戏日）：nuo 按 polarity 分键 nuo+ / nuo-
+KARMA_CHAIN_DURATIONS = {"en": 9, "chou": 15, "nuo+": 6, "nuo-": 9, "xue": 21}
+
+# ==================== 赠礼态度计价（karma-event-chains §8.3.1 / R1-MF-1 路线 A） ====================
+# 赠礼/人情的 attitude 增量按实付灵石 + 所赠物品目录价计价，废弃旧固定增量：
+# 态度从 0 冲到 60 的最低灵石成本恒 ≥300（每笔 delta ≤ 实付/5，见 §8.3.1 证明）。
+GIFT_ATTITUDE_STONES_PER_POINT = 5   # 赠值每 5 灵石（或等价目录价）折 attitude +1
+GIFT_ATTITUDE_MAX_PER_GIFT = 10      # 单笔赠礼 attitude 增量上限
+FAVOR_ATTITUDE_MAX_PER_TRADE = 4     # 人情支单笔 attitude 增量上限（沿旧 +4 上限）
+

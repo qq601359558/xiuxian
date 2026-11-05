@@ -375,6 +375,18 @@ class PromiseEngine:
         elif outcome == PromiseStatus.BROKEN:
             PromiseEngine._apply_effects(p, kept=False, t=t, promiser_obj=promiser_obj)
             PromiseEngine._broadcast_broken(p)
+        # 因果链 S3（karma-event-chains）：诺言终态既有结算全部完成后注记起链
+        #（仅 KEPT/BROKEN 且受诺人为 NPC，引擎侧再校验）；钩子异常不炸结算。
+        if outcome in (PromiseStatus.KEPT, PromiseStatus.BROKEN):
+            try:
+                from core.karma_chains import KarmaChainEngine
+
+                KarmaChainEngine.note_promise_settled(p, outcome, now=t)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "karma chain S3 hook failed", exc_info=True)
         return True
 
     @staticmethod

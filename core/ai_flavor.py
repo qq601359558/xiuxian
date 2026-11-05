@@ -240,6 +240,23 @@ def polish_guild_deal(who: str, action: str, item: str, qty: int, price: int, lo
     return _ask(p, timeout=10.0) or ""
 
 
+def polish_karma_outcome(kind: str, polarity: int, npc_name: str, player_name: str,
+                         outcome_summary: str, personality: str = "") -> Optional[str]:
+    """因果链兑现台词润色：只产文案、不改数值；无 AI/超预算/异常返回 None。
+
+    调用方（KarmaChainEngine._resolve）在 effects 落锚后才调用本函数，
+    返回值只进呈现文本，不回写 resolution.effects、不影响任何判定。
+    """
+    kind_cn = {"en": "恩", "chou": "仇", "nuo": "诺", "xue": "血仇"}.get(kind, kind)
+    tone = f"，口吻合其性格「{personality}」" if personality else ""
+    p = (
+        "写一句因果兑现时当事人说的话，50字内，只输出 JSON {\"line\":\"...\"}。\n"
+        f"因果类型：{kind_cn}（极性 {polarity:+d}）；说话人：{npc_name}；对象：{player_name}{tone}。\n"
+        f"已落账的事实（不得改动、不得另编数值）：{outcome_summary}"
+    )
+    return _ask(p, timeout=10.0)
+
+
 def flavor_ok() -> bool:
     try:
         from ai.gateway import ai_ready

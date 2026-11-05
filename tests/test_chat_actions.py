@@ -76,6 +76,58 @@ def test_trade_catalog_purchase():
     print("✓ 目录购物成交")
 
 
+def test_gift_attitude_priced_by_value():
+    """K-1A（R1/MF-1，Spec §8.3.1）：赠礼/人情态度按实付+目录价计价。
+
+    公式：do_gift delta = min(10, (实付灵石 + 物品目录价) // 5)；
+    人情支 delta = min(4, 实付 // 5)。旧固定增量口径已废弃。
+    """
+    init_db()
+    import uuid as _uuid
+
+    from core.npc_mind import attitude_toward
+
+    def fresh_pair(tag):
+        t = _uuid.uuid4().hex[:6]
+        p = _p(f"价{tag}{t}")
+        n = _p(f"受{tag}{t}")
+        p.spirit_stones = 100000
+        CharacterRepository.save(p)
+        return p, n
+
+    # 纯灵石赠礼边界：paid=1/4 → 0、5 → 1、49 → 9、50 → 10、500 → 10（cap）
+    for paid, want in [(1, 0), (4, 0), (5, 1), (49, 9), (50, 10), (500, 10)]:
+        p, n = fresh_pair(f"石{paid}")
+        out = CA.do_gift(p, n, "", paid)
+        assert out["ok"] is True, out
+        assert out["attitude_delta"] == want, (paid, out)
+        assert attitude_toward(n, p.id)["value"] == want, (paid, "attitude")
+        assert p.spirit_stones == 100000 - paid  # 实付照常扣除，与 delta 解耦
+    # 赠聚气丹（目录价 40、paid=0）→ delta 8
+    p, n = fresh_pair("丹")
+    p.inventory.append("聚气丹")
+    CharacterRepository.save(p)
+    out = CA.do_gift(p, n, "聚气丹", 0)
+    assert out["ok"] is True and out["attitude_delta"] == 8, out
+    assert attitude_toward(n, p.id)["value"] == 8
+    # 非目录物品计 0：paid=0 赠无名杂物 → delta 0（物品转移本身不变）
+    p, n = fresh_pair("杂")
+    p.inventory.append("无名杂物")
+    CharacterRepository.save(p)
+    out = CA.do_gift(p, n, "无名杂物", 0)
+    assert out["ok"] is True and out["attitude_delta"] == 0, out
+    assert "无名杂物" not in p.inventory
+    assert attitude_toward(n, p.id)["value"] == 0
+    # 人情支边界：paid=1 → 0、19 → 3、20 → 4、100 → 4（cap）
+    for paid, want in [(1, 0), (19, 3), (20, 4), (100, 4)]:
+        p, n = fresh_pair(f"情{paid}")
+        out = CA.do_trade(p, n, "", paid)
+        assert out["ok"] is True, out
+        assert out["attitude_delta"] == want, (paid, out)
+        assert attitude_toward(n, p.id)["value"] == want, (paid, "favor attitude")
+    print("✓ K-1A 赠礼/人情计价公式边界（§8.3.1）")
+
+
 def test_steal_safe_zone_blocked():
     init_db()
     p = _p("窃客", loc="青云坊市客栈")
@@ -177,6 +229,7 @@ def test_kidnap_willingness_path():
 
 if __name__ == "__main__":
     test_classify_local_intents()
+    test_gift_attitude_priced_by_value()
     test_gift_transfers_item_and_attitude()
     test_gift_missing_item_rejected()
     test_trade_catalog_purchase()

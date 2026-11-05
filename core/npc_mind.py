@@ -99,6 +99,20 @@ def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") 
             )
         except Exception:
             pass
+    # 因果链 S1（karma-event-chains）：态度跨 ±60 阈才调引擎起链；
+    # reason 以「因果链」开头的是链自身落账，跳过防自激。钩子异常不炸主流程。
+    if not (reason or "").startswith("因果链"):
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.note_attitude_cross(
+                npc, other_id, int(cur), int(result.get("value", new_v)), reason=reason,
+            )
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "karma chain S1 hook failed", exc_info=True)
     return result
 
 

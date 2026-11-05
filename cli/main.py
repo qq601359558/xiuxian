@@ -184,8 +184,9 @@ def print_help():
   [bold yellow]/告示[/bold yellow]                 - 查阅坊市悬赏告示榜
   [bold yellow]/挂赏 <道号> <赏金> [缘由][/bold yellow]- 花灵石挂血仇悬赏（句末加「匿」可匿名）
   [bold yellow]/接令 <编号>[/bold yellow]           - 揭下告示，接令猎凶（击杀后自动领赏）
-  [bold yellow]/因果[/bold yellow]                 - 查看个人仇怨恩义因果链（回访请用 /回访）
+  [bold yellow]/因果[/bold yellow]                 - 查看因果关系列表（KarmaLink 仇/恩/师徒/宗门边；回访请用 /回访；server 端 /因果 为回访别名）
   [bold yellow]/回访[/bold yellow]                 - 依事件账触发因果回访（寻仇/旧怨）
+  [bold yellow]/因果链[/bold yellow]               - 天道事件链面板（恩/仇/诺/血仇的发酵进度与近史；与 /因果 关系列表不同）
   [bold yellow]/坊市[/bold yellow]                 - 商会货单（当地市价）、金库寄存、玩家寄售
   [bold yellow]/行情[/bold yellow]                 - 天下行情：各区域产地价与价差、跑商路线
   [bold yellow]/版图 [区域][/bold yellow]           - 宗门势力版图：各区域主导宗门与本宗影响力
@@ -414,6 +415,14 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
             dissolved_promises = PromiseEngine.on_owner_death(player) or []
         except Exception:
             dissolved_promises = []
+        # 因果链随旧世而散（karma-event-chains §7.1）：紧随诺言钩子之后、
+        # settle_death 之前；返回值不注入 settle_death（不进留痕）。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.on_owner_death(player)
+        except Exception:
+            pass
         settle = LegacyEngine.settle_death(
             account, player, death_cause=cause,
             dissolved_promises=dissolved_promises,
@@ -599,6 +608,17 @@ def run_mud():
                     console.print("江湖无此碑。")
                 else:
                     console.print(tomb)
+
+            elif action in ["/因果链", "/karma_chains"]:
+                # 因果链面板（AI 天道事件链）：与 server 同命令同文案（引擎同源）；
+                # 先惰性推进后呈现（照 /诺言 settle_due→panel_text 先例）
+                from core.karma_chains import KarmaChainEngine
+
+                try:
+                    KarmaChainEngine.advance_for(player)
+                except Exception:
+                    pass
+                console.print(KarmaChainEngine.panel_text(player))
 
             elif action in ["/钱包", "wallet"]:
                 from core.wallet import wallet_panel_text
