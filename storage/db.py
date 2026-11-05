@@ -1231,6 +1231,33 @@ class NpcMindRepository:
         return {"personality": row[0], "traits": traits, "attitudes": attitudes}
 
     @staticmethod
+    def list_all() -> List[dict]:
+        """全量心智行（转世留痕态度快照用）：[{npc_id, personality, traits, attitudes}]"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT npc_id, personality, traits_json, attitudes_json FROM npc_minds"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out = []
+        for npc_id, personality, traits_json, attitudes_json in rows:
+            traits, attitudes = {}, {}
+            try:
+                traits = json.loads(traits_json or "{}")
+            except Exception:
+                pass
+            try:
+                attitudes = json.loads(attitudes_json or "{}")
+            except Exception:
+                pass
+            out.append({
+                "npc_id": npc_id, "personality": personality,
+                "traits": traits, "attitudes": attitudes,
+            })
+        return out
+
+    @staticmethod
     def set_attitude(npc_id: str, other_id: str, value: int, label: str = ""):
         """value: -100 仇视 ~ 0 中立 ~ +100 友善"""
         value = max(-100, min(100, int(value)))

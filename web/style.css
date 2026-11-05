@@ -1007,6 +1007,26 @@ input[type="text"], input[type="password"] { min-height: 44px; }
   color: var(--paper);
 }
 .boost-item .cost { color: var(--gold-soft); margin-left: auto; }
+/* 转世继承（T7）：前世留痕 / 遗物下拉 / 命盘前世小字——只补新元素必需样式，复用既有配色 */
+.legacy-trace { margin-top: 8px; font-size: 12.5px; line-height: 1.65; }
+.legacy-trace .trace-title { font-family: var(--serif); color: var(--gold-soft); letter-spacing: 0.12em; font-size: 12.5px; margin-bottom: 2px; }
+.legacy-trace .trace-line { color: var(--text); overflow-wrap: anywhere; }
+.boost-item.disabled { opacity: 0.45; cursor: not-allowed; }
+.boost-item .boost-note { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.heirloom-box { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.heirloom-label { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+.heirloom-select {
+  width: 100%; min-height: 44px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--paper);
+  font-size: 14px;
+  outline: none;
+}
+.heirloom-select:focus { border-color: var(--line-strong); }
+.kv dd .past-sub { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; }
 .death-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .death-actions input {
   flex: 1 1 140px;

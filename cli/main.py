@@ -257,25 +257,37 @@ def print_help():
 
 
 def _parse_boost_keys(raw: str):
-    """把 '1 2' / 'stones lifespan' 解析为 boost key 列表"""
+    """把 '1 2' / 'stones lifespan' 解析为 boost key 列表。
+
+    转世继承：heirloom 可带参数 token（heirloom:<物品名>）整段保留；
+    其余新键（art_memory/bond_echo）随 LEGACY_BOOSTS 目录自然支持编号/键名/中文名。
+    """
     if not raw or not raw.strip():
         return []
     boosts = LegacyEngine.list_boosts()
     keys = [b["key"] for b in boosts]
     names = [b["name"] for b in boosts]
     picked = []
+    picked_bases = []
     for token in raw.replace(",", " ").split():
         t = token.strip()
-        if t.isdigit():
+        if t.startswith("heirloom:") and len(t) > len("heirloom:"):
+            if "heirloom" not in picked_bases:
+                picked.append(t)
+                picked_bases.append("heirloom")
+        elif t.isdigit():
             idx = int(t) - 1
-            if 0 <= idx < len(keys) and keys[idx] not in picked:
+            if 0 <= idx < len(keys) and keys[idx] not in picked_bases:
                 picked.append(keys[idx])
-        elif t in keys and t not in picked:
+                picked_bases.append(keys[idx])
+        elif t in keys and t not in picked_bases:
             picked.append(t)
+            picked_bases.append(t)
         else:
             for i, name in enumerate(names):
-                if t in name and keys[i] not in picked:
+                if t in name and keys[i] not in picked_bases:
                     picked.append(keys[i])
+                    picked_bases.append(keys[i])
                     break
     return picked
 
@@ -300,10 +312,53 @@ def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
         )
         boost_keys = _parse_boost_keys(raw)
 
+    # 前世留痕（转世继承）：boosts 前捕获，覆写旧角后不可恢复
+    old_trace = account.traces[-1] if account.traces else None
+
+    # 遗物留存：选了裸 heirloom（编号/键名）而未带物品参数时，列前世行囊让玩家选件；
+    # 无候选则明示跳过该项（不静默吞掉）
+    if "heirloom" in boost_keys:
+        if old_trace is not None and old_trace.belongings:
+            console.print("[bold cyan]【遗物留存】前世行囊尚存：[/bold cyan]")
+            for i, item in enumerate(old_trace.belongings, 1):
+                console.print(f"  {i}. {item}")
+            pick = Prompt.ask(
+                "[bold cyan]选一件随真灵转世（输入编号或物品名，回车取第 1 件）[/bold cyan]",
+                default="1",
+            ).strip()
+            chosen = None
+            if pick.isdigit():
+                idx = int(pick) - 1
+                if 0 <= idx < len(old_trace.belongings):
+                    chosen = old_trace.belongings[idx]
+            elif pick in old_trace.belongings:
+                chosen = pick
+            if chosen is None:
+                chosen = old_trace.belongings[0]
+                console.print(f"[yellow]未识别所选，默认取第 1 件遗物：【{chosen}】[/yellow]")
+            boost_keys = [
+                f"heirloom:{chosen}" if k == "heirloom" else k for k in boost_keys
+            ]
+        else:
+            console.print("[yellow]【遗物留存】前世无遗物可承（行囊为空或无留痕），跳过此项。[/yellow]")
+            boost_keys = [k for k in boost_keys if k != "heirloom"]
+
     player = WorldClock.create_new_character(user_id, name)
-    boost_res = LegacyEngine.apply_birth_boosts(player, account, boost_keys)
+    boost_res = LegacyEngine.apply_birth_boosts(player, account, boost_keys, old_trace=old_trace)
     if boost_keys:
         render_birth_boost_result(boost_res)
+    # 因果影子（转世继承）：按 bond_echo 与否选 retention/cap 施加，落盘前完成
+    from config import BOND_ECHO_CAP, BOND_ECHO_RETENTION, SHADOW_CAP, SHADOW_RETENTION
+    from core.inheritance import apply_karma_shadow
+
+    if boost_res.get("bond_echo"):
+        _retention, _cap = BOND_ECHO_RETENTION, BOND_ECHO_CAP
+    else:
+        _retention, _cap = SHADOW_RETENTION, SHADOW_CAP
+    karma_shadow = apply_karma_shadow(account, player, retention=_retention, cap=_cap)
+    if karma_shadow:
+        shadow_lines = "、".join(f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow)
+        console.print(f"[bold magenta]【因果余绪】前世余绪及身：{shadow_lines}[/bold magenta]")
     LegacyRepository.save(account)
     CharacterRepository.save(player)
     ChronicleRepository.record(
@@ -352,12 +407,17 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
         FarmEngine.on_owner_death(player)
         # 委托链随旧世而散（F07，一世循环）
         QuestEngine.on_owner_death(player)
-        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约；
+        # 被消散摘要经返回值注入 settle_death 写留痕（诺在 settle 前已消散）
+        dissolved_promises = []
         try:
-            PromiseEngine.on_owner_death(player)
+            dissolved_promises = PromiseEngine.on_owner_death(player) or []
         except Exception:
-            pass
-        settle = LegacyEngine.settle_death(account, player, death_cause=cause)
+            dissolved_promises = []
+        settle = LegacyEngine.settle_death(
+            account, player, death_cause=cause,
+            dissolved_promises=dissolved_promises,
+        )
         LegacyRepository.save(account)
         CharacterRepository.save(player)
         ChronicleRepository.record(
@@ -526,6 +586,19 @@ def run_mud():
             elif action in ["/道统", "legacy", "/前世"]:
                 account = LegacyRepository.get_or_create(USER_ID)
                 render_legacy_panel(account)
+
+            elif action in ["/墓碑"]:
+                # 墓碑查询（转世继承）：与 server 同命令同文案（引擎同源）
+                from core.inheritance import find_tombstone
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/墓碑 <道号>[/red]")
+                    continue
+                tomb = find_tombstone(parts[1])
+                if tomb is None:
+                    console.print("江湖无此碑。")
+                else:
+                    console.print(tomb)
 
             elif action in ["/钱包", "wallet"]:
                 from core.wallet import wallet_panel_text

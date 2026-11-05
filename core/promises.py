@@ -523,13 +523,30 @@ class PromiseEngine:
 
     # ---------------- 死亡钩子 ----------------
     @staticmethod
-    def on_owner_death(char: Character, now: Optional[float] = None) -> None:
-        """任一方身死：其未结诺全部消散（不判违约、无功无过），随旧世而散。"""
+    def on_owner_death(char: Character, now: Optional[float] = None) -> List[Dict[str, Any]]:
+        """任一方身死：其未结诺全部消散（不判违约、无功无过），随旧世而散。
+
+        行为不变，仅多返回被消散的未结诺摘要
+        [{other_name, desc, kind, role}]，供转世留痕（LifeTrace.open_promises）
+        经调用方注入 LegacyEngine.settle_death（诺在 settle 前已被消散，
+        settle_death 内部无从再查未结态，故须由此回传）。"""
         t = now if now is not None else time.time()
+        dissolved: List[Dict[str, Any]] = []
         for p in PromiseEngine._involving(char.id):
             if p.status.value in TERMINAL_STATUSES:
                 continue
+            if p.promiser_id == char.id:
+                other_name, role = p.promisee_name, "我许诺"
+            else:
+                other_name, role = p.promiser_name, "诺于我"
+            dissolved.append({
+                "other_name": other_name,
+                "desc": p.desc,
+                "kind": p.kind,
+                "role": role,
+            })
             PromiseEngine._settle(p, PromiseStatus.DISSOLVED, "立诺人或受诺人已身死道消，诺随旧世而散", t)
+        return dissolved
 
     # ---------------- 面板 ----------------
     @staticmethod
