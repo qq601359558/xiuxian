@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import (
     DIRECTIVE_TO_ARC,
+    LLM_TIMEOUT_SECONDS,
     SEASON_WARN_DAYS,
     SECRET_REALMS,
     WORLD_ARC_ESCALATE_SEC,
@@ -118,6 +119,32 @@ def _clamp_loc(loc: str) -> str:
     return loc
 
 
+def _fresh_alive_target(c):
+    """MF-1：目标投射前重读当前行（与 core/world_director._fresh_alive_target
+    同款）。list_all_alive() 的快照可能在读出后已被改过；直接对快照施加
+    机缘再整行 save 会把旧状态写回（死者复活、位置灵石回滚）。只在最新行
+    仍存活时返回 (该行, 该行 updated_at)，否则返回 None 跳过；updated_at
+    供 save_if_unchanged 做原子乐观并发校验（堵住重读与保存之间的 TOCTOU 窗口）。"""
+    try:
+        from core.models import CharacterStatus
+        from storage.db import CharacterRepository
+
+        char_id = getattr(c, "id", None)
+        if not char_id:
+            return None
+        fresh, updated_at = CharacterRepository.get_by_id_with_meta(char_id)
+    except Exception:
+        return None
+    if fresh is None or updated_at is None or fresh.status == CharacterStatus.DEAD:
+        return None
+    try:
+        if fresh.lifespan.is_dead():
+            return None
+    except Exception:
+        return None
+    return fresh, updated_at
+
+
 def spawn_from_directive(
     directive: Dict[str, Any],
     *,
@@ -186,12 +213,21 @@ def spawn_from_directive(
                 continue
             if c.status == CharacterStatus.DEAD:
                 continue
+            # MF-1：对快照施加机缘前重读当前行，死亡/已变角色跳过；
+            # 写回用 save_if_unchanged（原子乐观并发），重读后又被改过则丢弃
+            target = _fresh_alive_target(c)
+            if target is None:
+                continue
+            fresh, _row_updated_at = target
             GoalEngine.add_opportunity(
-                c,
+                fresh,
                 f"世弧·{title}",
                 f"世间异动：{narrative}" + (f"（可前往 {loc}）" if loc else ""),
             )
-            CharacterRepository.save(c)
+            try:
+                CharacterRepository.save_if_unchanged(fresh, _row_updated_at)
+            except Exception:
+                pass
             break  # 预兆只提示一人即可，决算再广播
     except Exception:
         pass
@@ -388,7 +424,7 @@ def _ai_stage_text(arc: Dict[str, Any], stage: str, template_text: str) -> str:
             "template": template_text,
             "participants": arc.get("participants") or [],
         }
-        r = invoke("world_arc_stage", payload=payload, actor_id=arc.get("id") or "arc", timeout=15.0)
+        r = invoke("world_arc_stage", payload=payload, actor_id=arc.get("id") or "arc", timeout=LLM_TIMEOUT_SECONDS)
         if r.get("ok") and isinstance(r.get("data"), dict):
             line = str(r["data"].get("narrative") or r["data"].get("text") or "").strip()
             if line:

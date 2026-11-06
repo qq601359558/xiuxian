@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import (
     DIRECTOR_GOAL_FANOUT,
+    LLM_TIMEOUT_SECONDS,
     DIRECTOR_MAX_ACTIVE,
     DIRECTOR_MIN_INTERVAL_SECONDS,
     DIRECTOR_STRIP_EFFECT_KEYS,
@@ -596,7 +597,7 @@ def _ai_propose(
             "world_director",
             payload=payload,
             actor_id="world_director",
-            timeout=25.0,
+            timeout=LLM_TIMEOUT_SECONDS,
         )
         if not r.get("ok"):
             err = str(r.get("error") or "ai_failed")
@@ -956,6 +957,32 @@ def note_player_event(
     return WorldDirector.run_cycle(trigger=trigger, force=force_run or marked or sin >= 120, now=t)
 
 
+def _fresh_alive_target(c: Any) -> Optional[Tuple[Any, float]]:
+    """MF-1：目标投射前重读当前行。
+
+    list_all_alive() 的快照可能在读出后已被改过（死亡 / 移位 / 灵石变动）；
+    直接对快照施加机缘再整行 save 会把旧状态写回（死者复活、位置灵石
+    回滚）。只在最新行仍存活时返回 (该行, 该行 updated_at)，否则返回 None
+    跳过；updated_at 供 save_if_unchanged 做原子乐观并发校验（堵住重读
+    与保存之间的 TOCTOU 窗口）。
+    """
+    try:
+        char_id = getattr(c, "id", None)
+        if not char_id:
+            return None
+        fresh, updated_at = CharacterRepository.get_by_id_with_meta(char_id)
+    except Exception:
+        return None
+    if fresh is None or updated_at is None or fresh.status == CharacterStatus.DEAD:
+        return None
+    try:
+        if fresh.lifespan.is_dead():
+            return None
+    except Exception:
+        return None
+    return fresh, updated_at
+
+
 def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[str, Any]:
     """规则侧落账：频道 / 目标 / 秘境开启 / 态势标记（态势由 world_modifiers 消费）"""
     t = _now(now)
@@ -1041,21 +1068,31 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
                 f"{narrative[:80]}"
             )
             n_goal = 0
+            n_stale = 0
             for c in CharacterRepository.list_all_alive():
                 uid = str(getattr(c, "user_id", "") or "")
                 if uid.startswith("npc_") or uid.startswith("ai_npc_"):
                     continue
                 if c.status == CharacterStatus.DEAD:
                     continue
-                if GoalEngine.add_opportunity(c, f"大劫预兆·{title}", g_detail).get("success"):
-                    n_goal += 1
+                # MF-1：对快照施加机缘前重读当前行，死亡/已变角色跳过；
+                # 写回用 save_if_unchanged（原子乐观并发），重读后又被改过则丢弃
+                target = _fresh_alive_target(c)
+                if target is None:
+                    n_stale += 1
+                    continue
+                fresh, _row_updated_at = target
+                if GoalEngine.add_opportunity(fresh, f"大劫预兆·{title}", g_detail).get("success"):
                     try:
-                        CharacterRepository.save(c)
+                        if CharacterRepository.save_if_unchanged(fresh, _row_updated_at):
+                            n_goal += 1
                     except Exception:
                         pass
                 if n_goal >= DIRECTOR_GOAL_FANOUT:
                     break
             applied["goals"] = int(applied.get("goals") or 0) + n_goal
+            if n_stale:
+                applied["flags"].append(f"goal_stale_skipped:{n_stale}")
         except Exception:
             pass
     if dtype == "faction_order":
@@ -1101,6 +1138,7 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
             g_title = str(effects.get("goal_title") or f"秘境风声·{rid or title}")[:40]
             g_detail = str(effects.get("goal_detail") or narrative)[:200]
         n = 0
+        n_stale = 0
         try:
             from core.goals import GoalEngine
 
@@ -1115,14 +1153,23 @@ def apply_directive(d: Dict[str, Any], *, now: Optional[float] = None) -> Dict[s
                 if len(targets) >= DIRECTOR_GOAL_FANOUT:
                     break
             for c in targets:
-                res = GoalEngine.add_opportunity(c, g_title, g_detail)
+                # MF-1：对快照施加机缘前重读当前行，死亡/已变角色跳过；
+                # 写回用 save_if_unchanged（原子乐观并发），重读后又被改过则丢弃
+                target = _fresh_alive_target(c)
+                if target is None:
+                    n_stale += 1
+                    continue
+                fresh, _row_updated_at = target
+                res = GoalEngine.add_opportunity(fresh, g_title, g_detail)
                 if res.get("success"):
-                    n += 1
                     try:
-                        CharacterRepository.save(c)
+                        if CharacterRepository.save_if_unchanged(fresh, _row_updated_at):
+                            n += 1
                     except Exception:
                         pass
             applied["goals"] = n
+            if n_stale:
+                applied["flags"].append(f"goal_stale_skipped:{n_stale}")
         except Exception as e:
             applied["flags"].append(f"goal_err:{type(e).__name__}")
 

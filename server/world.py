@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 import uuid
@@ -29,7 +30,7 @@ from core.free_action import FreeActionEngine
 from core.memory import RevengeEngine
 from core.npc_agenda import NpcAgendaEngine
 from core.npc_mind import NpcDialogueEngine
-from core.legacy import LegacyEngine
+from core.legacy import LegacyAccount, LegacyEngine
 from core.here import list_here, format_here
 from core.profile import build_profile, format_profile
 from core.npc_proactive import NpcProactiveEngine
@@ -89,12 +90,40 @@ class Session:
         self.pending_heart_demon: Optional[str] = None  # session id
 
 
+# login-latency-fix §2.2.4（修订 R1）：有界获取 + 锁外回退。
+# 登录/注册路径上 World.lock 的每一次获取都以 2 秒为界，禁止无界 with self.lock。
+# 2 秒总界从进入 join/dead_payload 起算，含锁等待 + 锁外 DB 快照读 + 组装；
+# _LOCK_SNAPSHOT_RESERVE_SECONDS 是给锁外快照读与组装预留的余量，取锁等待
+# 到达 deadline-余量即放弃，保证整体仍在 2 秒内返回。余量取 0.3 秒：除快
+# 照读外，还要覆盖 HTTP 层验密（PBKDF2）与响应开销造成的墙钟抖动。
+LOCK_ACQUIRE_TIMEOUT_SECONDS = 2.0
+_LOCK_SNAPSHOT_RESERVE_SECONDS = 0.3
+
+SERVER_BUSY_MESSAGE = "世界正在演化，请稍后重试"
+
+
+class WorldBusyError(Exception):
+    """拿不到 World.lock 且该路径需要写操作（建角/收养/结算/发 token）。
+
+    调用方（HTTP 层）应将其转为 503 SERVER_BUSY 可重试响应，且此前
+    不得发生任何写操作（“繁忙即未写”，客户端原样重试安全）。
+    读路径拿不到锁时不抛此异常，改为走锁外 DB 快照回退。
+    """
+
+
 class World:
     """进程内权威世界（局域网单服）"""
 
     def __init__(self, auto_tick: bool = True):
         init_db()
         self.lock = threading.RLock()
+        # first-night 异步化（login-latency-fix §2.2.3）：单 flight / 每角色每世
+        # 一次，同一时刻最多 4 个在跑；_first_night_lock 只 guard 这两个结构，
+        # 与 World.lock 是两把不同的锁。
+        self._first_night_lock = threading.Lock()
+        self._first_night_inflight: set = set()
+        self._first_night_status: Dict[str, str] = {}
+        self._first_night_sem = threading.Semaphore(4)
         self.sessions: Dict[str, Session] = {}
         self.hd_sessions: Dict[str, Any] = {}  # HeartDemonSession
         self._stop_tick = False
@@ -120,61 +149,100 @@ class World:
         while not self._stop_tick:
             try:
                 time.sleep(NPC_TICK_INTERVAL_SECONDS)
-                with self.lock:
-                    try:
-                        from core.jianghu_sim import JianghuSimulator
-
-                        JianghuSimulator.simulate_offline()
-                    except Exception:
-                        pass
-                    NpcAgendaEngine.tick_world(max_npcs=3, force=False)
-                    # 天道导演：AI 主导走向（冷却在 run_cycle 内）
-                    try:
-                        from core.world_director import WorldDirector
-
-                        WorldDirector.run_cycle(trigger="timer", force=False)
-                    except Exception:
-                        pass
-                    # M2 世界弧推进
-                    try:
-                        from core import world_arc
-
-                        world_arc.tick_world(max_advance=2)
-                    except Exception:
-                        pass
-                    # M3 势力：关系衰减 + 自动令/围剿
-                    try:
-                        from core import faction
-
-                        faction.tick_world()
-                    except Exception:
-                        pass
-                    # M4：玩家回写衰减
-                    try:
-                        from core import player_echo
-
-                        player_echo.decay_echoes()
-                    except Exception:
-                        pass
-                    # M5：纪元回流 tick
-                    try:
-                        from core import era_reentry
-
-                        era_reentry.tick()
-                    except Exception:
-                        pass
-                    # F05：拍卖状态机随世界 tick 惰性推进（系统场次排期/NPC 跟价/到期结算）
-                    try:
-                        from core.trade import AuctionEngine
-
-                        AuctionEngine.advance(react=True)
-                    except Exception as e:
-                        try:
-                            log_event("AUCTION", "advance_error", err=str(e)[:120])
-                        except Exception:
-                            pass
+                self._tick_once()
             except Exception:
                 continue
+
+    def _tick_once(self):
+        """一轮 tick：整轮持锁（本轮 O1 不动），分阶段计时记 TICK 日志。
+
+        下一轮“tick 内 AI 移出临界区”重构的定量输入即 phases 字段。
+        单阶段异常仍按现状 swallow，但记带阶段名的错误行。
+        """
+        t_start = time.time()
+        self._tick_count = getattr(self, "_tick_count", 0) + 1
+        try:
+            log_event("TICK", "tick_start", tick_no=self._tick_count)
+        except Exception:
+            pass
+        phases: Dict[str, int] = {}
+
+        def _run_phase(name: str, fn) -> None:
+            t0 = time.time()
+            try:
+                fn()
+            except Exception as e:
+                try:
+                    log_event("TICK", "tick_phase_error", phase=name, err=str(e)[:120])
+                except Exception:
+                    pass
+            phases[name] = int((time.time() - t0) * 1000)
+
+        with self.lock:
+            def _jianghu():
+                from core.jianghu_sim import JianghuSimulator
+
+                JianghuSimulator.simulate_offline()
+
+            _run_phase("jianghu", _jianghu)
+
+            def _agenda():
+                NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+
+            _run_phase("agenda", _agenda)
+
+            def _director():
+                from core.world_director import WorldDirector
+
+                WorldDirector.run_cycle(trigger="timer", force=False)
+
+            _run_phase("director", _director)
+
+            def _world_arc():
+                from core import world_arc
+
+                world_arc.tick_world(max_advance=2)
+
+            _run_phase("world_arc", _world_arc)
+
+            def _faction():
+                from core import faction
+
+                faction.tick_world()
+
+            _run_phase("faction", _faction)
+
+            def _player_echo():
+                from core import player_echo
+
+                player_echo.decay_echoes()
+
+            _run_phase("player_echo", _player_echo)
+
+            def _era_reentry():
+                from core import era_reentry
+
+                era_reentry.tick()
+
+            _run_phase("era_reentry", _era_reentry)
+
+            def _auction():
+                from core.trade import AuctionEngine
+
+                try:
+                    AuctionEngine.advance(react=True)
+                except Exception as e:
+                    try:
+                        log_event("AUCTION", "advance_error", err=str(e)[:120])
+                    except Exception:
+                        pass
+
+            _run_phase("auction", _auction)
+        hold_ms = int((time.time() - t_start) * 1000)
+        try:
+            log_event("TICK", "tick_end", tick_no=self._tick_count, hold_ms=hold_ms, phases=phases)
+        except Exception:
+            pass
 
     def stop_tick(self):
         self._stop_tick = True
@@ -210,7 +278,8 @@ class World:
                 pass
 
     # ---------------- 会话 ----------------
-    def join(self, name: str, user_id: Optional[str] = None, *, auto_rebirth: bool = False) -> Dict[str, Any]:
+    def join(self, name: str, user_id: Optional[str] = None, *, auto_rebirth: bool = False,
+             _deadline: Optional[float] = None) -> Dict[str, Any]:
         """入世双轨（合并裁定）：
 
         - 显式 user_id（已认证）：严格按 uid 恢复本账户角色，绝不按道号收养
@@ -223,16 +292,133 @@ class World:
         与 main 约二十处 join(name) 匿名调用点同形冲突，不可兼得——取 main
         匿名语义，分支的显式-uid 严格性在 uid 路径内完整保留；HTTP 层裸
         user_id 入口另由 app.py 的 AUTH_REQUIRED 门禁封堵（PROX-9 不回退）。
+
+        login-latency-fix §2.2.1：同步路径只在短临界区内持锁（纯 DB 读写，
+        无 AI/网络调用）。临界区内完成：按名收养判定、死亡结算、建角落盘、
+        会话 token 登记、道统行读取；任务板格式化与 first-night 在锁外。
+        死者分支走 dead_payload（锁内结算 + 锁外快照）；若快照间隙角色
+        已被转世（dead_payload 返回 None），重走正常入世流程。
         """
         if not isinstance(name, str) or not name.strip():
             raise ValueError("join requires a non-empty name")
         name = name.strip()
         if user_id is not None and (not isinstance(user_id, str) or not user_id.strip()):
             raise ValueError("join requires an authenticated user_id")
-        with self.lock:
+        if _deadline is None:
+            _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        return self._join_inner(name, user_id, auto_rebirth=auto_rebirth, _deadline=_deadline)
+
+    def _acquire_bounded(self, deadline: float) -> bool:
+        """以 deadline 为界尝试取 World.lock（§2.2.4）。
+
+        预留快照余量后仍无剩余时间即直接放弃，不取锁。同一线程已持锁
+        时 RLock 立即返回 True（重入），不等待。
+        """
+        remaining = deadline - time.monotonic() - _LOCK_SNAPSHOT_RESERVE_SECONDS
+        if remaining <= 0:
+            return False
+        return self.lock.acquire(timeout=remaining)
+
+    @contextlib.contextmanager
+    def _bounded_lock(self, deadline: float):
+        """有界临界区：拿不到锁时抛 WorldBusyError，调用方走回退/503。
+
+        登录/注册路径禁止无界 with self.lock，一律走这里。
+        """
+        if not self._acquire_bounded(deadline):
+            raise WorldBusyError(SERVER_BUSY_MESSAGE)
+        try:
+            yield
+        finally:
+            self.lock.release()
+
+    def _live_fallback_snapshot(self, char, uid: str, *, resumed: bool) -> Dict[str, Any]:
+        """活角色锁外回退快照（§2.2.4）：纯 DB 单查询读，不写任何数据、不发 token。
+
+        道统行只读（LegacyRepository.get，缺行时用内存默认值，绝不创建）；
+        读到的数据可能比 tick 写入滞后一个 tick（可接受的 transient staleness）。
+        """
+        account = LegacyRepository.get(uid)
+        if account is None:
+            account = LegacyAccount(user_id=uid)
+        return {
+            "token": None,
+            "user_id": uid,
+            "character_id": char.id,
+            "name": char.name,
+            "realm": char.realm.name,
+            "location": char.location,
+            "rem_years": round(char.lifespan.get_remaining_years(), 2),
+            "legacy_points": account.points,
+            "lives": account.total_lives,
+            "is_new_life": False,
+            "resumed": resumed,
+            "newbie_feed": "",
+            "first_night": None,
+            "lock_fallback": True,
+            "session_issued": False,
+        }
+
+    def _join_fallback(self, name: str, user_id, *, auto_rebirth: bool,
+                       deadline: float) -> Dict[str, Any]:
+        """拿不到锁时的 join 出口（§2.2.1 修订表）：读路径回退快照，写路径繁忙。
+
+        判定本身只做锁外 DB 读，不写任何数据。死者走 dead_payload（其内部
+        同样有界：能拿到锁则正常结算，不能则回退未结算快照）；活角色返回
+        只读快照；无角色/需建角/需收养/需转世（auto_rebirth）一律抛
+        WorldBusyError——建角、收养、发 token 一律要求持锁，锁外绝不创建角色。
+        """
+        uid = user_id.strip() if isinstance(user_id, str) else ""
+        if uid:
+            char = CharacterRepository.get_by_user_id(uid)
+            if char is not None and (char.status == CharacterStatus.DEAD or char.lifespan.is_dead()):
+                if auto_rebirth:
+                    raise WorldBusyError(SERVER_BUSY_MESSAGE)
+                dead = self.dead_payload(uid, _deadline=deadline)
+                if dead is not None:
+                    return dead
+                # 快照间隙角色已被转世：重读一次，活了就回退活快照，否则请重试
+                char2 = CharacterRepository.get_by_user_id(uid)
+                if char2 is not None and not (
+                    char2.status == CharacterStatus.DEAD or char2.lifespan.is_dead()
+                ):
+                    return self._live_fallback_snapshot(char2, uid, resumed=True)
+                raise WorldBusyError(SERVER_BUSY_MESSAGE)
+            if char is not None:
+                return self._live_fallback_snapshot(char, uid, resumed=True)
+            raise WorldBusyError(SERVER_BUSY_MESSAGE)
+        by_name = CharacterRepository.get_by_name(name)
+        if by_name and by_name.status != CharacterStatus.DEAD and not by_name.lifespan.is_dead():
+            uid_n = str(by_name.user_id or "")
+            if uid_n and not (uid_n.startswith("npc_") or uid_n.startswith("ai_npc_")):
+                return self._live_fallback_snapshot(by_name, uid_n, resumed=True)
+        raise WorldBusyError(SERVER_BUSY_MESSAGE)
+
+    def _join_inner(self, name, user_id, *, auto_rebirth=False, _dead_retry=0, _deadline=None):
+        """入世实现体：短临界区（判定/结算/建角/发 token）+ 锁外收尾。
+
+        拿不到锁时不等待、不写操作：读路径走 _join_fallback 锁外快照，
+        写路径抛 WorldBusyError（HTTP 层转 503 SERVER_BUSY）。
+        死者分支在锁外走 dead_payload；若快照间隙角色已被转世
+        （dead_payload 返回 None），递归重入正常入世流程，最多 2 次。
+        """
+        deadline = _deadline if _deadline is not None else time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        try:
+            return self._join_locked(
+                name, user_id, auto_rebirth=auto_rebirth,
+                _dead_retry=_dead_retry, _deadline=deadline,
+            )
+        except WorldBusyError:
+            return self._join_fallback(name, user_id, auto_rebirth=auto_rebirth, deadline=deadline)
+
+    def _join_locked(self, name, user_id, *, auto_rebirth=False, _dead_retry=0, _deadline=None):
+        """入世实现体（持锁部分）：短临界区 + 锁外收尾。仅由 _join_inner 调用。"""
+        deadline = _deadline if _deadline is not None else time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        with self._bounded_lock(deadline):
             uid = user_id.strip() if isinstance(user_id, str) else ""
             char: Optional[Any] = None
             resumed = False
+            dead_uid: Optional[str] = None
             if uid:
                 char = CharacterRepository.get_by_user_id(uid)
                 if (
@@ -240,7 +426,7 @@ class World:
                     and (char.status == CharacterStatus.DEAD or char.lifespan.is_dead())
                     and not auto_rebirth
                 ):
-                    return self.dead_payload(uid)
+                    dead_uid = uid
             else:
                 # 匿名路径：按道号找回仍存活的玩家号（换设备/清缓存）
                 by_name = CharacterRepository.get_by_name(name)
@@ -251,7 +437,9 @@ class World:
                         uid = uid_n
                         resumed = True
             is_new_life = False
-            if not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
+            if dead_uid is not None:
+                pass  # 死者分支：出锁后走 dead_payload，不建角、不发 token
+            elif not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
                 # 已死（匿名路径或 auto_rebirth）：结算道统（若尚未结算），再新一世
                 if char is not None:
                     self._settle_if_needed(char, cause=char.death_cause or "身死道消")
@@ -263,70 +451,170 @@ class World:
                 is_new_life = True
             else:
                 resumed = True
-            newbie_feed = ""
-            first_night = None
-            try:
-                from core.tasks import ensure_tasks, format_task_board
-
-                ensure_tasks(char)
-            except Exception:
-                pass
-            if is_new_life:
-                newbie_feed = (
-                    "【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；"
-                    "每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。"
-                )
-                # 第一晚爽点：天道有感 + 同场有人 + 一件小结果
+            snap: Optional[Dict[str, Any]] = None
+            char_obj: Optional[Any] = None
+            if dead_uid is None:
+                token = uuid.uuid4().hex
+                self.sessions[token] = Session(token, uid, char.id)
                 try:
-                    from core.world_director import WorldDirector
-                    from core.npc_proactive import NpcProactiveEngine
+                    AuthSessionRepository.save(token, uid, char.id, char.name)
+                except Exception:
+                    pass
+                account = LegacyRepository.get_or_create(uid)
+                char_obj = char
+                snap = {
+                    "token": token,
+                    "user_id": uid,
+                    "character_id": char.id,
+                    "name": char.name,
+                    "realm": char.realm.name,
+                    "location": char.location,
+                    "rem_years": round(char.lifespan.get_remaining_years(), 2),
+                    "legacy_points": account.points,
+                    "lives": account.total_lives,
+                    "is_new_life": is_new_life,
+                    "resumed": resumed and not is_new_life,
+                    "lock_fallback": False,
+                    "session_issued": True,
+                }
+        # ---- 锁外：死者分支（dead_payload 内部：锁内结算 + 锁外快照）----
+        if dead_uid is not None:
+            dead = self.dead_payload(dead_uid, _deadline=deadline)
+            if dead is not None:
+                return dead
+            # 快照间隙角色已被转世：重走正常入世流程
+            if _dead_retry >= 2:
+                raise RuntimeError("join failed: dead_payload race did not converge")
+            return self._join_locked(name, user_id, auto_rebirth=auto_rebirth, _dead_retry=_dead_retry + 1, _deadline=deadline)
+        assert snap is not None and char_obj is not None
+        # ---- 锁外：任务板格式化（只读衍生数据，失败静默）----
+        try:
+            from core.tasks import ensure_tasks, format_task_board
 
-                    seed_roster()
-                    dres = WorldDirector.run_cycle(trigger="command", force=True)
-                    pro = NpcProactiveEngine.maybe_engage(char, force=True)
-                    pro_item = {}
-                    if isinstance(pro, list) and pro:
-                        pro_item = pro[0] or {}
-                    elif isinstance(pro, dict):
-                        pro_item = pro
-                    first_night = {
-                        "director": {
-                            "ok": bool(dres.get("ok")),
-                            "count": dres.get("count") or 0,
-                            "hint": dres.get("brief_hint") or "",
-                            "source": dres.get("source") or "",
-                            "text": dres.get("brief_hint") or "",
-                        },
-                        "proactive": pro_item,
-                    }
-                    if pro_item.get("text"):
-                        newbie_feed += "\n【同场】" + str(pro_item.get("text"))[:120]
-                    if dres.get("ok") and dres.get("brief_hint"):
-                        newbie_feed += f"\n【天道】{dres.get('brief_hint')}"
-                except Exception as _fn_ex:
-                    first_night = {"error": str(_fn_ex)[:80]}
-            token = uuid.uuid4().hex
-            self.sessions[token] = Session(token, uid, char.id)
+            ensure_tasks(char_obj)
+        except Exception:
+            pass
+        # ---- 锁外：新号 first-night 异步化（§2.2.3）----
+        newbie_feed = ""
+        first_night = None
+        if is_new_life:
+            newbie_feed = (
+                "【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；"
+                "每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。"
+            )
+            first_night = {"pending": True}
+            # §2.2.3：seed_roster() 调用位置语义不改动——新号建角后、AI 调用前
+            # 同步播种（锁外），只把两次强制 AI 留给后台线程。同步播种保证
+            # join 返回时花名册已落盘，注册后快照不再被后台写盘扰动。
             try:
-                AuthSessionRepository.save(token, uid, char.id, char.name)
+                from core.npc_roster import seed_roster
+
+                seed_roster()
             except Exception:
                 pass
-            account = LegacyRepository.get_or_create(uid)
-            return {
-                "token": token,
-                "user_id": uid,
-                "character_id": char.id,
-                "name": char.name,
-                "realm": char.realm.name,
-                "location": char.location,
-                "rem_years": round(char.lifespan.get_remaining_years(), 2),
-                "legacy_points": account.points,
-                "lives": account.total_lives,
-                "newbie_feed": newbie_feed,
-                "first_night": first_night,
-                "is_new_life": is_new_life,
-                "resumed": resumed and not is_new_life,
-            }
+            self._schedule_first_night(char_obj.id, snap["user_id"], char_obj.name)
+        return {**snap, "newbie_feed": newbie_feed, "first_night": first_night}
+
+    def first_night_status(self, character_id: str) -> Optional[str]:
+        """first-night 异步任务终态查询（测试/运维用）：pending|done|failed。
+
+        pending 只存在于内存（join 返回的 first_night 字段）；done=结果已写
+        入编年史，failed=AI 失败/无内容被静默丢弃。重启后不补跑，未完成
+        的 first-night 在新进程里无记录（可接受降级）。
+        """
+        with self._first_night_lock:
+            return self._first_night_status.get(character_id)
+
+    def _schedule_first_night(self, character_id: str, user_id: str, char_name: str) -> None:
+        """同一角色同一世只跑一次 first-night；超 4 并发时丢弃并记日志。"""
+        with self._first_night_lock:
+            if character_id in self._first_night_inflight:
+                return
+            self._first_night_inflight.add(character_id)
+            self._first_night_status[character_id] = "pending"
+        if not self._first_night_sem.acquire(blocking=False):
+            with self._first_night_lock:
+                self._first_night_inflight.discard(character_id)
+                self._first_night_status[character_id] = "failed"
+            try:
+                log_event("GATE", "first_night_dropped", character_id=character_id, reason="concurrency_limit")
+            except Exception:
+                pass
+            return
+        t = threading.Thread(
+            target=self._run_first_night,
+            args=(character_id, user_id, char_name),
+            daemon=True,
+            name=f"first-night-{character_id[:8]}",
+        )
+        t.start()
+
+    def _run_first_night(self, character_id: str, user_id: str, char_name: str) -> None:
+        """后台 first-night：不持 World.lock 跑两次强制 AI；写回时才取短锁。
+
+        成功：【同场】/【天道】行写入编年史（FIRST_NIGHT），玩家下次
+        /大事记 可见。失败/超时/熔断/无内容：静默丢弃，绝不反写错误进
+        玩家 feed、绝不抛错、绝不影响已建立的会话。
+        """
+        status = "failed"
+        try:
+            char = CharacterRepository.get_by_id(character_id)
+            if char is None or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
+                return
+            dres: Dict[str, Any] = {}
+            pro_item: Dict[str, Any] = {}
+            try:
+                from core.world_director import WorldDirector
+                from core.npc_proactive import NpcProactiveEngine
+
+                dres = WorldDirector.run_cycle(trigger="command", force=True) or {}
+                pro = NpcProactiveEngine.maybe_engage(char, force=True)
+                if isinstance(pro, list) and pro:
+                    pro_item = pro[0] or {}
+                elif isinstance(pro, dict):
+                    pro_item = pro
+            except Exception:
+                dres = {}
+                pro_item = {}
+            lines = []
+            if pro_item.get("text"):
+                lines.append("【同场】" + str(pro_item.get("text"))[:120])
+            if dres.get("ok") and dres.get("brief_hint"):
+                lines.append(f"【天道】{dres.get('brief_hint')}")
+            if lines:
+                # MF-1：写回前重读当前行——AI 耗时期间角色可能已死，死者不写首夜行。
+                # V-2 加固：写回取锁有界，拿不到则跳过本次写回并记 failed，不阻塞。
+                _alive = False
+                try:
+                    _fresh = CharacterRepository.get_by_id(character_id)
+                    _alive = (
+                        _fresh is not None
+                        and _fresh.status != CharacterStatus.DEAD
+                        and not _fresh.lifespan.is_dead()
+                    )
+                except Exception:
+                    _alive = False
+                if _alive:
+                    if self.lock.acquire(timeout=LOCK_ACQUIRE_TIMEOUT_SECONDS):
+                        try:
+                            ChronicleRepository.record("FIRST_NIGHT", char_name, "\n".join(lines))
+                        except Exception:
+                            pass
+                        finally:
+                            self.lock.release()
+                        status = "done"
+                    else:
+                        try:
+                            log_event("GATE", "first_night_write_skipped", character_id=character_id, reason="lock_busy")
+                        except Exception:
+                            pass
+        except Exception:
+            status = "failed"
+        finally:
+            with self._first_night_lock:
+                self._first_night_inflight.discard(character_id)
+                self._first_night_status[character_id] = status
+            self._first_night_sem.release()
 
     def _settle_if_needed(self, char: Character, cause: str = "身死道消") -> Optional[Dict[str, Any]]:
         """死亡后一次性道统结算（account-death：资金归集步在钩子与道统结算之前，
@@ -421,80 +709,136 @@ class World:
         settle["wallet"] = wallet_summary(account)
         return settle
 
-    def dead_payload(self, user_id: str, username: str = "") -> Optional[Dict[str, Any]]:
+    def dead_payload(self, user_id: str, username: str = "", _deadline: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """Web /login 死者分支（§2.6 行为变更）：登录只报死讯＋钱包，不自动建角。
 
         返回 None 表示现世角色存活或无角色（调用方走正常 join 流程）。
-        会话 token 保持有效且可用于 /转世（session.character_id 指向死行）。"""
-        with self.lock:
-            char = CharacterRepository.get_by_user_id(user_id)
-            if char is None or (char.status != CharacterStatus.DEAD and not char.lifespan.is_dead()):
-                return None
-            settle = self._settle_if_needed(char, cause=char.death_cause or "身死道消")
-            account = LegacyRepository.get_or_create(user_id)
-            token = uuid.uuid4().hex
-            self.sessions[token] = Session(token, user_id, char.id)
-            try:
-                AuthSessionRepository.save(token, user_id, char.id, char.name)
-            except Exception:
-                pass
-            from core.legacy import LegacyEngine as _LE
-            from core.wallet import wallet_summary as _ws
-            from core.inheritance import trace_summary as _trace_summary
+        会话 token 保持有效且可用于 /转世（session.character_id 指向死行）。
 
-            # S3：寄售在售单数（按 seller_user_id／seller_id 计 OPEN 单；取数失败置 0）
-            try:
-                from storage.db import MarketListingRepository as _MLR
+        login-latency-fix §2.2.2（修订 R1，三路出口）：先以 2 秒为界尝试取锁——
+        （1）拿到锁：短临界区内结算（_settle_if_needed，含幂等守卫）+ 发 token，
+        结算结果落盘后即释放锁；（2a）随后锁外快照组装，带
+        settlement_pending: false、settled: true；（2b）拿不到锁：锁外回退，
+        直接从 DB 读未结算快照返回，本次不结算，带 settlement_pending: true、
+        settled: false、lock_fallback: true、session_issued: false，不发 token。
+        """
+        deadline = _deadline if _deadline is not None else time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        # ---- 步 1（短临界区）：结算 + 发 token（纯 DB 读写）----
+        try:
+            with self._bounded_lock(deadline):
+                char = CharacterRepository.get_by_user_id(user_id)
+                if char is None or (char.status != CharacterStatus.DEAD and not char.lifespan.is_dead()):
+                    return None
+                settle = self._settle_if_needed(char, cause=char.death_cause or "身死道消")
+                token = uuid.uuid4().hex
+                self.sessions[token] = Session(token, user_id, char.id)
+                try:
+                    AuthSessionRepository.save(token, user_id, char.id, char.name)
+                except Exception:
+                    pass
+                char_id = char.id
+        except WorldBusyError:
+            return self._dead_fallback_snapshot(user_id, username)
+        # ---- 步 2（锁外快照）：重读结算后已落盘的数据 ----
+        char = CharacterRepository.get_by_user_id(user_id)
+        if char is None or char.id != char_id:
+            # 结算与快照间隙角色已被转世：死者快照不再有效，调用方重走 join
+            return None
+        account = LegacyRepository.get_or_create(user_id)
+        return self._dead_payload_dict(
+            char, account, user_id, username,
+            token=token,
+            settlement=(settle or {}).get("sweep") if settle else None,
+            lock_fallback=False, session_issued=True,
+            settlement_pending=False, settled=True,
+        )
 
-                _open_count = sum(
-                    1
-                    for _lst in _MLR.list_all()
-                    if _lst.is_open()
-                    and ((_lst.seller_user_id or "") == user_id or _lst.seller_id == char.id)
-                )
-            except Exception:
-                _open_count = 0
-            # S4：最近一世享寿（settle 后 past_lives 末世即本世；已结算行同理）
-            _last_life = account.past_lives[-1] if account.past_lives else None
-            return {
-                "ok": True,
-                "dead": True,
-                "token": token,
-                "user_id": user_id,
-                "username": username,
-                "character_id": char.id,
-                "name": char.name,
-                # 旧前端兼容（只增字段）：死者行仍有境界／位置／寿元余量可读
-                "realm": char.realm.name,
-                "location": char.location,
-                "rem_years": round(char.lifespan.get_remaining_years(), 2),
-                "legacy_points": account.points,
+    def _dead_fallback_snapshot(self, user_id: str, username: str = "") -> Optional[Dict[str, Any]]:
+        """死者锁外回退快照（§2.2.2 2b）：本次不结算、不发 token、不写任何数据。
+
+        钱包/道统字段取自 DB 当前已落盘值（未结算旧值），不得谎报为结算后值；
+        道统行只读（LegacyRepository.get，缺行时用内存默认值，绝不创建）。
+        活角色/无角色时返回 None（调用方走正常 join 流程）。
+        """
+        char = CharacterRepository.get_by_user_id(user_id)
+        if char is None or (char.status != CharacterStatus.DEAD and not char.lifespan.is_dead()):
+            return None
+        account = LegacyRepository.get(user_id)
+        if account is None:
+            account = LegacyAccount(user_id=user_id)
+        return self._dead_payload_dict(
+            char, account, user_id, username,
+            token=None, settlement=None,
+            lock_fallback=True, session_issued=False,
+            settlement_pending=True, settled=False,
+        )
+
+    def _dead_payload_dict(self, char, account, user_id: str, username: str, *,
+                           token, settlement, lock_fallback: bool,
+                           session_issued: bool, settlement_pending: bool,
+                           settled: bool) -> Dict[str, Any]:
+        """死者 payload 组装（结算路径与锁外回退路径共用，字段一致，仅标记不同）。"""
+        from core.legacy import LegacyEngine as _LE
+        from core.wallet import wallet_summary as _ws
+        from core.inheritance import trace_summary as _trace_summary
+
+        # S3：寄售在售单数（按 seller_user_id／seller_id 计 OPEN 单；取数失败置 0）
+        try:
+            from storage.db import MarketListingRepository as _MLR
+
+            _open_count = sum(
+                1
+                for _lst in _MLR.list_all()
+                if _lst.is_open()
+                and ((_lst.seller_user_id or "") == user_id or _lst.seller_id == char.id)
+            )
+        except Exception:
+            _open_count = 0
+        # S4：最近一世享寿（settle 后 past_lives 末世即本世；已结算行同理）
+        _last_life = account.past_lives[-1] if account.past_lives else None
+        return {
+            "ok": True,
+            "dead": True,
+            "token": token,
+            "user_id": user_id,
+            "username": username,
+            "character_id": char.id,
+            "name": char.name,
+            # 旧前端兼容（只增字段）：死者行仍有境界／位置／寿元余量可读
+            "realm": char.realm.name,
+            "location": char.location,
+            "rem_years": round(char.lifespan.get_remaining_years(), 2),
+            "legacy_points": account.points,
+            "lives": account.total_lives,
+            "is_new_life": False,
+            "resumed": False,
+            "death_cause": char.death_cause,
+            "legacy": {
+                "points": account.points,
                 "lives": account.total_lives,
-                "is_new_life": False,
-                "resumed": False,
-                "death_cause": char.death_cause,
-                "legacy": {
-                    "points": account.points,
-                    "lives": account.total_lives,
-                    "boosts": _LE.list_boosts(),
-                    "lifespan_lived": _last_life.lifespan_lived if _last_life else None,
-                    # 转世继承（只增）：前世列表（同 legacy_info 口径）与刚逝一世留痕摘要
-                    "past_lives": [
-                        {
-                            "name": p.name, "realm": p.realm, "cause": p.cause,
-                            "points": p.points_gained, "lived": p.lifespan_lived,
-                        }
-                        for p in account.past_lives[-8:]
-                    ],
-                    "trace": (
-                        _trace_summary(account.traces[-1])
-                        if account.traces else None
-                    ),
-                },
-                "wallet": _ws(account),
-                "settlement": (settle or {}).get("sweep") if settle else None,
-                "consignment_open_count": _open_count,
-            }
+                "boosts": _LE.list_boosts(),
+                "lifespan_lived": _last_life.lifespan_lived if _last_life else None,
+                # 转世继承（只增）：前世列表（同 legacy_info 口径）与刚逝一世留痕摘要
+                "past_lives": [
+                    {
+                        "name": p.name, "realm": p.realm, "cause": p.cause,
+                        "points": p.points_gained, "lived": p.lifespan_lived,
+                    }
+                    for p in account.past_lives[-8:]
+                ],
+                "trace": (
+                    _trace_summary(account.traces[-1])
+                    if account.traces else None
+                ),
+            },
+            "wallet": _ws(account),
+            "settlement": settlement,
+            "consignment_open_count": _open_count,
+            "lock_fallback": lock_fallback,
+            "session_issued": session_issued,
+            "settlement_pending": settlement_pending,
+            "settled": settled,
+        }
 
     def legacy_info(self, token: str) -> Dict[str, Any]:
         char = self.get_char(token)

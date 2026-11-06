@@ -190,6 +190,8 @@ def try_collude_pair(
                     pb = persona_prompt_block(b) if _is_npc(b) else ""
                 except Exception:
                     pa = pb = ""
+                from config import LLM_TIMEOUT_SECONDS
+
                 data = _chat_json(
                     "你是修仙世界旁白。只输出 JSON。\n"
                     f"两名修士在【{loc}】发生一幕：{kind}。关系：{link.link_type}（{link.note}）。\n"
@@ -197,7 +199,7 @@ def try_collude_pair(
                     + (f"A人设：{pa}\n" if pa else "")
                     + (f"B人设：{pb}\n" if pb else "")
                     + "输出 {\"narrative\":\"80字内\"}。不改数值、不虚构第三人；对白口吻符合各自人设。"
-                    , timeout=15.0
+                    , timeout=LLM_TIMEOUT_SECONDS
                 )
                 if data and data.get("narrative"):
                     narrative = str(data["narrative"])[:200]
