@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="16" skipped="0" tests="23" time="19.190" timestamp="2026-10-29T09:53:40.319734+08:00" hostname="DESKTOP-CD9P998"><testcase classname="tests.test_world_action_regressions" name="test_free_action_resolves_through_world[/\u505a]" time="3.004"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:79: in test_free_action_resolves_through_world
+    result = world.handle(player, f"{action}\t四处张望")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_resolves_through_world[/do]" time="0.286"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:79: in test_free_action_resolves_through_world
+    result = world.handle(player, f"{action}\t四处张望")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_resolves_through_world[/act]" time="0.286"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:79: in test_free_action_resolves_through_world
+    result = world.handle(player, f"{action}\t四处张望")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_resolves_through_world[/\u8a00\u884c]" time="0.264"><failure message="assert False is True">tests\test_world_action_regressions.py:81: in test_free_action_resolves_through_world
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_rejects_creation_without_mutation" time="0.342"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:90: in test_free_action_rejects_creation_without_mutation
+    result = world.handle(player, "/做 我创建一座回归宗门")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_propagates_gate_rejection" time="0.324"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:105: in test_free_action_propagates_gate_rejection
+    result = world.handle(player, "/做 四处张望")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_persists_spawned_character" time="0.303"><failure message="AttributeError: type object 'FreeActionEngine' has no attribute 'execute'">tests\test_world_action_regressions.py:127: in test_free_action_persists_spawned_character
+    result = world.handle(player, "/做 四处张望")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\world.py:1116: in handle
+    res = FreeActionEngine.execute(char, free_text)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: type object 'FreeActionEngine' has no attribute 'execute'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_free_action_preserves_treasure_route" time="0.486" /><testcase classname="tests.test_world_action_regressions" name="test_adventure_accepts_visible_and_legacy_names[\u91ce\u5916\u5c71\u539f]" time="0.295"><failure message="assert False is True">tests\test_world_action_regressions.py:150: in test_adventure_accepts_visible_and_legacy_names
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_adventure_accepts_visible_and_legacy_names[\u91ce\u5916]" time="0.411" /><testcase classname="tests.test_world_action_regressions" name="test_adventure_accepts_visible_and_legacy_names[\u5c71\u91ce]" time="0.426" /><testcase classname="tests.test_world_action_regressions" name="test_adventure_accepts_visible_and_legacy_names[wild]" time="0.412" /><testcase classname="tests.test_world_action_regressions" name="test_adventure_without_target_keeps_board" time="0.257" /><testcase classname="tests.test_world_action_regressions" name="test_adventure_unknown_target_stays_rejected" time="0.280" /><testcase classname="tests.test_world_action_regressions" name="test_dig_returns_actual_stone_gain" time="0.399"><failure message="KeyError: 'stone_gain'">tests\test_world_action_regressions.py:176: in test_dig_returns_actual_stone_gain
+    assert result["stone_gain"] &gt; 0
+           ^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'stone_gain'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_dig_without_reward_returns_zero[False]" time="0.361"><failure message="KeyError: 'stone_gain'">tests\test_world_action_regressions.py:189: in test_dig_without_reward_returns_zero
+    assert result["stone_gain"] == 0
+           ^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'stone_gain'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_dig_without_reward_returns_zero[True]" time="0.385"><failure message="KeyError: 'stone_gain'">tests\test_world_action_regressions.py:189: in test_dig_without_reward_returns_zero
+    assert result["stone_gain"] == 0
+           ^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'stone_gain'</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_bounty_place_claim_kill_pays_once_through_world" time="1.789"><failure message="AssertionError: assert 500 == (500 + 100)&#10; +  where 500 = Character(id='46125aad', user_id='prox8_4807619f6aa3416680cc0425ecc0a727', name='回归猎手', realm=Realm(tier=1, sub_tier=0...cooldown_until=0.0, adventure_cd_until=0.0, has_found_map=False, first_dig_omen_done=False, last_omen_at=0.0, goals=[]).spirit_stones&#10; +    where Character(id='46125aad', user_id='prox8_4807619f6aa3416680cc0425ecc0a727', name='回归猎手', realm=Realm(tier=1, sub_tier=0...cooldown_until=0.0, adventure_cd_until=0.0, has_found_map=False, first_dig_omen_done=False, last_omen_at=0.0, goals=[]) = get_char('a116f565fa7d42c895fa286b5084eea4')&#10; +      where get_char = &lt;server.world.World object at 0x000001E6E1BC64D0&gt;.get_char&#10; +  and   100 = Bounty(id='dd453098', issuer_id='03ec458c', issuer_name='回归苦主', issuer_anonymous=False, target_id='22aeadb3', target_n...nter_id='46125aad', hunter_name='回归猎手', created_at=1793238833.2946773, expires_at=1793498033.2946773, completed_at=0.0).reward">tests\test_world_action_regressions.py:231: in test_bounty_place_claim_kill_pays_once_through_world
+    assert world.get_char(hunter).spirit_stones == before + bounty.reward
+E   AssertionError: assert 500 == (500 + 100)
+E    +  where 500 = Character(id='46125aad', user_id='prox8_4807619f6aa3416680cc0425ecc0a727', name='回归猎手', realm=Realm(tier=1, sub_tier=0...cooldown_until=0.0, adventure_cd_until=0.0, has_found_map=False, first_dig_omen_done=False, last_omen_at=0.0, goals=[]).spirit_stones
+E    +    where Character(id='46125aad', user_id='prox8_4807619f6aa3416680cc0425ecc0a727', name='回归猎手', realm=Realm(tier=1, sub_tier=0...cooldown_until=0.0, adventure_cd_until=0.0, has_found_map=False, first_dig_omen_done=False, last_omen_at=0.0, goals=[]) = get_char('a116f565fa7d42c895fa286b5084eea4')
+E    +      where get_char = &lt;server.world.World object at 0x000001E6E1BC64D0&gt;.get_char
+E    +  and   100 = Bounty(id='dd453098', issuer_id='03ec458c', issuer_name='回归苦主', issuer_anonymous=False, target_id='22aeadb3', target_n...nter_id='46125aad', hunter_name='回归猎手', created_at=1793238833.2946773, expires_at=1793498033.2946773, completed_at=0.0).reward</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_bounty_standoff_does_not_pay" time="0.729" /><testcase classname="tests.test_world_action_regressions" name="test_bounty_expired_does_not_pay" time="1.659"><failure message="AssertionError: assert &lt;BountyStatus...ED: 'CLAIMED'&gt; == &lt;BountyStatus...ED: 'EXPIRED'&gt;&#10;  &#10;  - EXPIRED&#10;  + CLAIMED">tests\test_world_action_regressions.py:261: in test_bounty_expired_does_not_pay
+    assert BountyRepository.list_all()[0].status == BountyStatus.EXPIRED
+E   AssertionError: assert &lt;BountyStatus...ED: 'CLAIMED'&gt; == &lt;BountyStatus...ED: 'EXPIRED'&gt;
+E     
+E     - EXPIRED
+E     + CLAIMED</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_action_unexpected_exception_is_json_and_server_recovers" time="0.586"><failure message="http.client.RemoteDisconnected: Remote end closed connection without response">tests\test_world_action_regressions.py:304: in test_action_unexpected_exception_is_json_and_server_recovers
+    status, result = _post_action(port, player, "/做 私密输入")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_world_action_regressions.py:290: in _post_action
+    response = connection.getresponse()
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1374: in getresponse
+    response.begin()
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:318: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:287: in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+E   http.client.RemoteDisconnected: Remote end closed connection without response</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_action_whitespace_does_not_disconnect" time="0.716"><failure message="http.client.RemoteDisconnected: Remote end closed connection without response">tests\test_world_action_regressions.py:327: in test_action_whitespace_does_not_disconnect
+    status, result = _post_action(port, player, "   ")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_world_action_regressions.py:290: in _post_action
+    response = connection.getresponse()
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1374: in getresponse
+    response.begin()
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:318: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:287: in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+E   http.client.RemoteDisconnected: Remote end closed connection without response</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_action_preserves_input_and_business_error_statuses" time="0.682"><failure message="http.client.RemoteDisconnected: Remote end closed connection without response">tests\test_world_action_regressions.py:339: in test_action_preserves_input_and_business_error_statuses
+    status, result = _post_action(port, player, "/做 我创建一座回归宗门")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_world_action_regressions.py:290: in _post_action
+    response = connection.getresponse()
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1374: in getresponse
+    response.begin()
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:318: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\http\client.py:287: in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+E   http.client.RemoteDisconnected: Remote end closed connection without response</failure></testcase></testsuite></testsuites>

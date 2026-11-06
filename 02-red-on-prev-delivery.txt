@@ -1,0 +1,7 @@
+.........FFF..........F........                                          [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_world_action_regressions.py::test_treasure_free_action_named_items_keep_treasure_priority
+FAILED tests/test_world_action_regressions.py::test_treasure_free_action_text_cannot_change_loot[True]
+FAILED tests/test_world_action_regressions.py::test_treasure_free_action_text_cannot_change_loot[False]
+FAILED tests/test_world_action_regressions.py::test_bounty_payout_refreshes_fight_response_status
+4 failed, 27 passed in 19.01s

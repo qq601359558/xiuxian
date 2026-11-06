@@ -1,0 +1,940 @@
+FFF.F.FFF.F.FFF.....................FFFFFFFFFFFFFFFFFFFFFF..FF....FFFFFF [ 97%]
+FF                                                                       [100%]
+================================== FAILURES ===================================
+________ test_static_rejects_traversal_and_private_files[/web/../.env] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10C782C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_0/world.db'), base='http://127.0.0.1:51307')
+path = '/web/../.env'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+__ test_static_rejects_traversal_and_private_files[/web/../data/tiandao.db] ___
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBCEA0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_1/world.db'), base='http://127.0.0.1:51312')
+path = '/web/../data/tiandao.db'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_______ test_static_rejects_traversal_and_private_files[/web/..%2f.env] _______
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBCD60>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_2/world.db'), base='http://127.0.0.1:51318')
+path = '/web/..%2f.env'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_____ test_static_rejects_traversal_and_private_files[/web/%2e%2e%2f.env] _____
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBCE00>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_4/world.db'), base='http://127.0.0.1:51327')
+path = '/web/%2e%2e%2f.env'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_____ test_static_rejects_traversal_and_private_files[/web/./index.html] ______
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBD120>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_6/world.db'), base='http://127.0.0.1:51338')
+path = '/web/./index.html'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+______ test_static_rejects_traversal_and_private_files[/web//index.html] ______
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBD620>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_7/world.db'), base='http://127.0.0.1:51341')
+path = '/web//index.html'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+__ test_static_rejects_traversal_and_private_files[/web/images//sample.png] ___
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBD1C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_8/world.db'), base='http://127.0.0.1:51347')
+path = '/web/images//sample.png'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_______ test_static_rejects_traversal_and_private_files[/web/..%5c.env] _______
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBD120>, world=<server.world.World object at 0x000001D...ca-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_10/world.db'), base='http://127.0.0.1:51357')
+path = '/web/..%5c.env'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_____ test_static_rejects_traversal_and_private_files[/images/../../.env] _____
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBE020>, world=<server.world.World object at 0x000001D...ca-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_12/world.db'), base='http://127.0.0.1:51366')
+path = '/images/../../.env'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+________ test_static_rejects_traversal_and_private_files[/web/leak.db] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBE0C0>, world=<server.world.World object at 0x000001D...ca-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_13/world.db'), base='http://127.0.0.1:51370')
+path = '/web/leak.db'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_____ test_static_rejects_traversal_and_private_files[/web/index.html%00] _____
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBDA80>, world=<server.world.World object at 0x000001D...ca-task-1138249898/pytest-of-tengf/pytest-6/test_static_rejects_traversal_14/world.db'), base='http://127.0.0.1:51375')
+path = '/web/index.html%00'
+
+    @pytest.mark.parametrize("path", [
+        "/web/../.env", "/web/../data/tiandao.db", "/web/..%2f.env", "/web/....//.env",
+        "/web/%2e%2e%2f.env", "/web/%252e%252e%252f.env",
+        "/web/./index.html", "/web//index.html", "/web/images//sample.png",
+        "/web/%25252e%25252e%25252f.env", "/web/..%5c.env", "/web/..%255c.env",
+        "/images/../../.env", "/web/leak.db", "/web/index.html%00", "/.env", "/config.py",
+    ])
+    def test_static_rejects_traversal_and_private_files(api, path):
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404
+E       assert 200 == 404
+
+tests\test_auth_hardening.py:115: AssertionError
+_ test_resolved_file_cannot_escape_allowed_root[/web/linked.js-web/linked.js] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBD300>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_resolved_file_cannot_esca0/world.db'), base='http://127.0.0.1:51487')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10D6F850>
+path = '/web/linked.js', relative = 'web/linked.js'
+
+    @pytest.mark.parametrize("path, relative", [
+        ("/web/linked.js", "web/linked.js"), ("/images/linked.js", "web/images/linked.js"),
+        ("/workbench.js", "workbench.js"),
+    ])
+    def test_resolved_file_cannot_escape_allowed_root(api, monkeypatch, path, relative):
+        target = api.root / relative
+        if relative == "workbench.js":
+            (api.root / "web" / "workbench.js").unlink()
+        target.write_bytes(b"public-link-placeholder")
+        secret = api.root / "private.js"
+        secret.write_bytes(b"security-test-secret")
+        original_resolve = Path.resolve
+    
+        def resolve(candidate, *args, **kwargs):
+            if candidate == target:
+                return secret
+            return original_resolve(candidate, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, "resolve", resolve)
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404 and b"security-test-secret" not in body
+E       assert (200 == 404)
+
+tests\test_auth_hardening.py:164: AssertionError
+_ test_resolved_file_cannot_escape_allowed_root[/images/linked.js-web/images/linked.js] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBE480>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_resolved_file_cannot_esca1/world.db'), base='http://127.0.0.1:51492')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10D95F10>
+path = '/images/linked.js', relative = 'web/images/linked.js'
+
+    @pytest.mark.parametrize("path, relative", [
+        ("/web/linked.js", "web/linked.js"), ("/images/linked.js", "web/images/linked.js"),
+        ("/workbench.js", "workbench.js"),
+    ])
+    def test_resolved_file_cannot_escape_allowed_root(api, monkeypatch, path, relative):
+        target = api.root / relative
+        if relative == "workbench.js":
+            (api.root / "web" / "workbench.js").unlink()
+        target.write_bytes(b"public-link-placeholder")
+        secret = api.root / "private.js"
+        secret.write_bytes(b"security-test-secret")
+        original_resolve = Path.resolve
+    
+        def resolve(candidate, *args, **kwargs):
+            if candidate == target:
+                return secret
+            return original_resolve(candidate, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, "resolve", resolve)
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404 and b"security-test-secret" not in body
+E       assert (200 == 404)
+
+tests\test_auth_hardening.py:164: AssertionError
+__ test_resolved_file_cannot_escape_allowed_root[/workbench.js-workbench.js] __
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBF1A0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_resolved_file_cannot_esca2/world.db'), base='http://127.0.0.1:51604')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10D84550>
+path = '/workbench.js', relative = 'workbench.js'
+
+    @pytest.mark.parametrize("path, relative", [
+        ("/web/linked.js", "web/linked.js"), ("/images/linked.js", "web/images/linked.js"),
+        ("/workbench.js", "workbench.js"),
+    ])
+    def test_resolved_file_cannot_escape_allowed_root(api, monkeypatch, path, relative):
+        target = api.root / relative
+        if relative == "workbench.js":
+            (api.root / "web" / "workbench.js").unlink()
+        target.write_bytes(b"public-link-placeholder")
+        secret = api.root / "private.js"
+        secret.write_bytes(b"security-test-secret")
+        original_resolve = Path.resolve
+    
+        def resolve(candidate, *args, **kwargs):
+            if candidate == target:
+                return secret
+            return original_resolve(candidate, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, "resolve", resolve)
+        status, body, _content_type = api.request("GET", path)
+>       assert status == 404 and b"security-test-secret" not in body
+E       assert (200 == 404)
+
+tests\test_auth_hardening.py:164: AssertionError
+________ test_join_requires_credentials_without_side_effects[payload0] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10CBF380>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_requires_credentials0/world.db'), base='http://127.0.0.1:51610')
+payload = {}
+
+    @pytest.mark.parametrize("payload", [
+        {}, {"name": "同名修士"}, {"user_id": "victim_uid"},
+        {"name": "同名修士", "user_id": "victim_uid"}, {"token": ""},
+    ])
+    def test_join_requires_credentials_without_side_effects(api, payload):
+        victim = _register(api)
+        payload = dict(payload)
+        if "user_id" in payload:
+            payload["user_id"] = victim["user_id"]
+        before = _snapshot(api)
+        status, result = _post(api, "/join", payload)
+>       assert status == 401 and result["code"] == "AUTH_REQUIRED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:178: AssertionError
+________ test_join_requires_credentials_without_side_effects[payload1] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC0DD69A80>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_requires_credentials1/world.db'), base='http://127.0.0.1:51619')
+payload = {'name': '同名修士'}
+
+    @pytest.mark.parametrize("payload", [
+        {}, {"name": "同名修士"}, {"user_id": "victim_uid"},
+        {"name": "同名修士", "user_id": "victim_uid"}, {"token": ""},
+    ])
+    def test_join_requires_credentials_without_side_effects(api, payload):
+        victim = _register(api)
+        payload = dict(payload)
+        if "user_id" in payload:
+            payload["user_id"] = victim["user_id"]
+        before = _snapshot(api)
+        status, result = _post(api, "/join", payload)
+>       assert status == 401 and result["code"] == "AUTH_REQUIRED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:178: AssertionError
+________ test_join_requires_credentials_without_side_effects[payload2] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D002C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_requires_credentials2/world.db'), base='http://127.0.0.1:51624')
+payload = {'user_id': 'acct_c4b48b2d544a'}
+
+    @pytest.mark.parametrize("payload", [
+        {}, {"name": "同名修士"}, {"user_id": "victim_uid"},
+        {"name": "同名修士", "user_id": "victim_uid"}, {"token": ""},
+    ])
+    def test_join_requires_credentials_without_side_effects(api, payload):
+        victim = _register(api)
+        payload = dict(payload)
+        if "user_id" in payload:
+            payload["user_id"] = victim["user_id"]
+        before = _snapshot(api)
+        status, result = _post(api, "/join", payload)
+>       assert status == 401 and result["code"] == "AUTH_REQUIRED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:178: AssertionError
+________ test_join_requires_credentials_without_side_effects[payload3] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D007C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_requires_credentials3/world.db'), base='http://127.0.0.1:51630')
+payload = {'name': '同名修士', 'user_id': 'acct_d686cac5b42b'}
+
+    @pytest.mark.parametrize("payload", [
+        {}, {"name": "同名修士"}, {"user_id": "victim_uid"},
+        {"name": "同名修士", "user_id": "victim_uid"}, {"token": ""},
+    ])
+    def test_join_requires_credentials_without_side_effects(api, payload):
+        victim = _register(api)
+        payload = dict(payload)
+        if "user_id" in payload:
+            payload["user_id"] = victim["user_id"]
+        before = _snapshot(api)
+        status, result = _post(api, "/join", payload)
+>       assert status == 401 and result["code"] == "AUTH_REQUIRED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:178: AssertionError
+________ test_join_requires_credentials_without_side_effects[payload4] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D005E0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_requires_credentials4/world.db'), base='http://127.0.0.1:51636')
+payload = {'token': ''}
+
+    @pytest.mark.parametrize("payload", [
+        {}, {"name": "同名修士"}, {"user_id": "victim_uid"},
+        {"name": "同名修士", "user_id": "victim_uid"}, {"token": ""},
+    ])
+    def test_join_requires_credentials_without_side_effects(api, payload):
+        victim = _register(api)
+        payload = dict(payload)
+        if "user_id" in payload:
+            payload["user_id"] = victim["user_id"]
+        before = _snapshot(api)
+        status, result = _post(api, "/join", payload)
+>       assert status == 401 and result["code"] == "AUTH_REQUIRED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:178: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials0-/join] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00680>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un0/world.db'), base='http://127.0.0.1:51643')
+path = '/join'
+credentials = {'username': 'security_user', 'password': 'wrong-secret'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials0-/login] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D002C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un1/world.db'), base='http://127.0.0.1:51649')
+path = '/login'
+credentials = {'username': 'security_user', 'password': 'wrong-secret'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials1-/join] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00900>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un2/world.db'), base='http://127.0.0.1:51655')
+path = '/join'
+credentials = {'username': 'missing_user', 'password': 'wrong-secret'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials1-/login] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00B80>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un3/world.db'), base='http://127.0.0.1:51660')
+path = '/login'
+credentials = {'username': 'missing_user', 'password': 'wrong-secret'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials2-/join] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00E00>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un4/world.db'), base='http://127.0.0.1:51667')
+path = '/join'
+credentials = {'username': 'security_user', 'password': {'invalid': True}}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials2-/login] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00FE0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un5/world.db'), base='http://127.0.0.1:51683')
+path = '/login'
+credentials = {'username': 'security_user', 'password': {'invalid': True}}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials3-/join] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D016C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un6/world.db'), base='http://127.0.0.1:51689')
+path = '/join'
+credentials = {'username': ['security_user'], 'password': 'secret123'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (200 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+_ test_failed_credentials_are_uniform_and_never_create_characters[credentials3-/login] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01760>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_failed_credentials_are_un7/world.db'), base='http://127.0.0.1:51694')
+path = '/login'
+credentials = {'username': ['security_user'], 'password': 'secret123'}
+
+    @pytest.mark.parametrize("path", ["/join", "/login"])
+    @pytest.mark.parametrize("credentials", [
+        {"username": "security_user", "password": "wrong-secret"},
+        {"username": "missing_user", "password": "wrong-secret"},
+        {"username": "security_user", "password": {"invalid": True}},
+        {"username": ["security_user"], "password": "secret123"},
+    ])
+    def test_failed_credentials_are_uniform_and_never_create_characters(api, path, credentials):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, path, {"name": "同名修士", **credentials})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:194: AssertionError
+___________ test_valid_token_resumes_after_memory_clear_and_can_act ___________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D019E0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_valid_token_resumes_after0/world.db'), base='http://127.0.0.1:51700')
+
+    def test_valid_token_resumes_after_memory_clear_and_can_act(api):
+        victim = _register(api)
+        api.world.sessions.clear()
+        status, result = _post(api, "/join", {"token": victim["token"], "user_id": "other_uid"})
+>       assert status == 200 and result["character_id"] == victim["character_id"]
+E       assert (400 == 200)
+
+tests\test_auth_hardening.py:205: AssertionError
+____________ test_invalid_token_does_not_fall_back_to_credentials _____________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01120>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_invalid_token_does_not_fa0/world.db'), base='http://127.0.0.1:51705')
+
+    def test_invalid_token_does_not_fall_back_to_credentials(api):
+        _register(api)
+        before = _snapshot(api)
+        status, result = _post(api, "/join", {
+            "token": "invalid-session-secret", "username": "security_user", "password": "secret123",
+        })
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:218: AssertionError
+____ test_join_credentials_create_for_account_and_resume_on_another_device ____
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01C60>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_join_credentials_create_f0/world.db'), base='http://127.0.0.1:51711')
+
+    def test_join_credentials_create_for_account_and_resume_on_another_device(api):
+        from core.account import register
+        account = register("new_account", "secret123")
+        victim = _register(api)
+        status, first = _post(api, "/join", {
+            "username": "new_account", "password": "secret123", "name": victim["name"],
+            "user_id": victim["user_id"],
+        })
+>       assert status == 200 and first["user_id"] == account["user_id"]
+E       AssertionError: assert (200 == 200 and 'acct_9aeff8956242' == 'acct_0aaf7a6e0959'
+E         
+E         - acct_0aaf7a6e0959
+E         + acct_9aeff8956242)
+
+tests\test_auth_hardening.py:231: AssertionError
+_____ test_registration_with_same_display_name_never_claims_other_account _____
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01E40>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_registration_with_same_di0/world.db'), base='http://127.0.0.1:51719')
+
+    def test_registration_with_same_display_name_never_claims_other_account(api):
+        victim = _register(api)
+        second = _register(api, username="other_account")
+        assert second["name"] == victim["name"]
+>       assert second["user_id"] != victim["user_id"]
+E       AssertionError: assert 'acct_c4ab5cd5652a' != 'acct_c4ab5cd5652a'
+
+tests\test_auth_hardening.py:242: AssertionError
+__________ test_authenticated_dead_character_starts_new_life[token] ___________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D020C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_authenticated_dead_charac0/world.db'), base='http://127.0.0.1:51727')
+mode = 'token'
+
+    @pytest.mark.parametrize("mode", ["token", "credentials"])
+    def test_authenticated_dead_character_starts_new_life(api, mode):
+        from core.models import CharacterStatus
+        from storage.db import CharacterRepository
+        victim = _register(api)
+        character = api.world.get_char(victim["token"])
+        character.status = CharacterStatus.DEAD
+        CharacterRepository.save(character)
+        payload = {"token": victim["token"]} if mode == "token" else {
+            "username": "security_user", "password": "secret123",
+        }
+        status, result = _post(api, "/join", payload)
+>       assert status == 200 and result["user_id"] == victim["user_id"]
+E       assert (400 == 200)
+
+tests\test_auth_hardening.py:258: AssertionError
+_______ test_authenticated_dead_character_starts_new_life[credentials] ________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01D00>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_authenticated_dead_charac1/world.db'), base='http://127.0.0.1:51733')
+mode = 'credentials'
+
+    @pytest.mark.parametrize("mode", ["token", "credentials"])
+    def test_authenticated_dead_character_starts_new_life(api, mode):
+        from core.models import CharacterStatus
+        from storage.db import CharacterRepository
+        victim = _register(api)
+        character = api.world.get_char(victim["token"])
+        character.status = CharacterStatus.DEAD
+        CharacterRepository.save(character)
+        payload = {"token": victim["token"]} if mode == "token" else {
+            "username": "security_user", "password": "secret123",
+        }
+        status, result = _post(api, "/join", payload)
+>       assert status == 200 and result["user_id"] == victim["user_id"]
+E       assert (400 == 200)
+
+tests\test_auth_hardening.py:258: AssertionError
+_ test_briefing_requires_valid_bearer_and_ignores_query_uid[uid-/world/briefing] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D025C0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_briefing_requires_valid_b2/world.db'), base='http://127.0.0.1:51751')
+path = '/world/briefing?uid=acct_cdb52e988730', mode = 'uid'
+
+    @pytest.mark.parametrize("path", ["/world/briefing", "/briefing"])
+    @pytest.mark.parametrize("mode", ["missing", "uid", "invalid", "bare", "valid"])
+    def test_briefing_requires_valid_bearer_and_ignores_query_uid(api, path, mode):
+        victim = _register(api)
+        headers = {}
+        if mode == "uid":
+            path += "?uid=" + victim["user_id"]
+        elif mode in ("invalid", "bare", "valid"):
+            headers["Authorization"] = {
+                "invalid": "Bearer invalid-token", "bare": victim["token"],
+                "valid": "Bearer " + victim["token"],
+            }[mode]
+        status, body, _content_type = api.request("GET", path, headers=headers)
+>       assert status == (200 if mode == "valid" else 401)
+E       assert 200 == 401
+
+tests\test_auth_hardening.py:275: AssertionError
+__ test_briefing_requires_valid_bearer_and_ignores_query_uid[uid-/briefing] ___
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00540>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_briefing_requires_valid_b3/world.db'), base='http://127.0.0.1:51756')
+path = '/briefing?uid=acct_ba8841482fc6', mode = 'uid'
+
+    @pytest.mark.parametrize("path", ["/world/briefing", "/briefing"])
+    @pytest.mark.parametrize("mode", ["missing", "uid", "invalid", "bare", "valid"])
+    def test_briefing_requires_valid_bearer_and_ignores_query_uid(api, path, mode):
+        victim = _register(api)
+        headers = {}
+        if mode == "uid":
+            path += "?uid=" + victim["user_id"]
+        elif mode in ("invalid", "bare", "valid"):
+            headers["Authorization"] = {
+                "invalid": "Bearer invalid-token", "bare": victim["token"],
+                "valid": "Bearer " + victim["token"],
+            }[mode]
+        status, body, _content_type = api.request("GET", path, headers=headers)
+>       assert status == (200 if mode == "valid" else 401)
+E       assert 200 == 401
+
+tests\test_auth_hardening.py:275: AssertionError
+_ test_briefing_requires_valid_bearer_and_ignores_query_uid[valid-/world/briefing] _
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01440>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_briefing_requires_valid_b8/world.db'), base='http://127.0.0.1:51786')
+path = '/world/briefing', mode = 'valid'
+
+    @pytest.mark.parametrize("path", ["/world/briefing", "/briefing"])
+    @pytest.mark.parametrize("mode", ["missing", "uid", "invalid", "bare", "valid"])
+    def test_briefing_requires_valid_bearer_and_ignores_query_uid(api, path, mode):
+        victim = _register(api)
+        headers = {}
+        if mode == "uid":
+            path += "?uid=" + victim["user_id"]
+        elif mode in ("invalid", "bare", "valid"):
+            headers["Authorization"] = {
+                "invalid": "Bearer invalid-token", "bare": victim["token"],
+                "valid": "Bearer " + victim["token"],
+            }[mode]
+        status, body, _content_type = api.request("GET", path, headers=headers)
+>       assert status == (200 if mode == "valid" else 401)
+E       assert 401 == 200
+
+tests\test_auth_hardening.py:275: AssertionError
+_ test_briefing_requires_valid_bearer_and_ignores_query_uid[valid-/briefing] __
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D02160>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_briefing_requires_valid_b9/world.db'), base='http://127.0.0.1:51790')
+path = '/briefing', mode = 'valid'
+
+    @pytest.mark.parametrize("path", ["/world/briefing", "/briefing"])
+    @pytest.mark.parametrize("mode", ["missing", "uid", "invalid", "bare", "valid"])
+    def test_briefing_requires_valid_bearer_and_ignores_query_uid(api, path, mode):
+        victim = _register(api)
+        headers = {}
+        if mode == "uid":
+            path += "?uid=" + victim["user_id"]
+        elif mode in ("invalid", "bare", "valid"):
+            headers["Authorization"] = {
+                "invalid": "Bearer invalid-token", "bare": victim["token"],
+                "valid": "Bearer " + victim["token"],
+            }[mode]
+        status, body, _content_type = api.request("GET", path, headers=headers)
+>       assert status == (200 if mode == "valid" else 401)
+E       assert 401 == 200
+
+tests\test_auth_hardening.py:275: AssertionError
+_____________________ test_logged_out_token_cannot_resume _____________________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D00720>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_logged_out_token_cannot_r0/world.db'), base='http://127.0.0.1:51796')
+
+    def test_logged_out_token_cannot_resume(api):
+        victim = _register(api)
+        assert _post(api, "/logout", {"token": victim["token"]})[0] == 200
+        before = _snapshot(api)
+        status, result = _post(api, "/join", {"token": victim["token"]})
+>       assert status == 401 and result["code"] == "AUTH_FAILED"
+E       assert (400 == 401)
+
+tests\test_auth_hardening.py:285: AssertionError
+________ test_world_join_requires_explicit_nonempty_authenticated_uid _________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D01B20>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_world_join_requires_expli0/world.db'), base='http://127.0.0.1:51803')
+
+    def test_world_join_requires_explicit_nonempty_authenticated_uid(api):
+        before = _snapshot(api)
+>       with pytest.raises(TypeError):
+E       Failed: DID NOT RAISE TypeError
+
+tests\test_auth_hardening.py:291: Failed
+_________ test_cli_join_sends_only_credentials[arguments0-expected0] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10E02FD0>
+arguments = ['join', 'account_name', 'secret123']
+expected = {'username': 'account_name', 'password': 'secret123'}
+
+    @pytest.mark.parametrize("arguments, expected", [
+        (["join", "account_name", "secret123"], {"username": "account_name", "password": "secret123"}),
+        (["join", "--token", "existing-token"], {"token": "existing-token"}),
+    ])
+    def test_cli_join_sends_only_credentials(monkeypatch, arguments, expected):
+        import server.client as client
+        requests = []
+        monkeypatch.setattr(sys, "argv", ["server.client", *arguments])
+        monkeypatch.setattr(client, "_post", lambda path, payload: requests.append((path, payload)) or {"ok": True})
+        client.main()
+>       assert requests == [("/join", expected)]
+E       AssertionError: assert [('/join', {'...count_name'})] == [('/join', {'...'secret123'})]
+E         
+E         At index 0 diff: ('/join', {'name': 'account_name'}) != ('/join', {'username': 'account_name', 'password': 'secret123'})
+E         Use -v to get more diff
+
+tests\test_auth_hardening.py:308: AssertionError
+---------------------------- Captured stdout call -----------------------------
+{
+  "ok": true
+}
+
+保存 token 后：python -m server.client <token> /look
+_________ test_cli_join_sends_only_credentials[arguments1-expected1] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10D998D0>
+arguments = ['join', '--token', 'existing-token']
+expected = {'token': 'existing-token'}
+
+    @pytest.mark.parametrize("arguments, expected", [
+        (["join", "account_name", "secret123"], {"username": "account_name", "password": "secret123"}),
+        (["join", "--token", "existing-token"], {"token": "existing-token"}),
+    ])
+    def test_cli_join_sends_only_credentials(monkeypatch, arguments, expected):
+        import server.client as client
+        requests = []
+        monkeypatch.setattr(sys, "argv", ["server.client", *arguments])
+        monkeypatch.setattr(client, "_post", lambda path, payload: requests.append((path, payload)) or {"ok": True})
+        client.main()
+>       assert requests == [("/join", expected)]
+E       AssertionError: assert [('/join', {'...: '--token'})] == [('/join', {'...ting-token'})]
+E         
+E         At index 0 diff: ('/join', {'name': '--token'}) != ('/join', {'token': 'existing-token'})
+E         Use -v to get more diff
+
+tests\test_auth_hardening.py:308: AssertionError
+---------------------------- Captured stdout call -----------------------------
+{
+  "ok": true
+}
+
+保存 token 后：python -m server.client <token> /look
+_____________________ test_cli_join_prompts_for_password ______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10D640D0>
+
+    def test_cli_join_prompts_for_password(monkeypatch):
+        import getpass
+        import server.client as client
+        requests = []
+        monkeypatch.setattr(sys, "argv", ["server.client", "join", "account_name"])
+        monkeypatch.setattr(getpass, "getpass", lambda prompt: "secret123")
+        monkeypatch.setattr(client, "_post", lambda path, payload: requests.append((path, payload)) or {"ok": True})
+        client.main()
+>       assert requests == [("/join", {"username": "account_name", "password": "secret123"})]
+E       AssertionError: assert [('/join', {'...count_name'})] == [('/join', {'...'secret123'})]
+E         
+E         At index 0 diff: ('/join', {'name': 'account_name'}) != ('/join', {'username': 'account_name', 'password': 'secret123'})
+E         Use -v to get more diff
+
+tests\test_auth_hardening.py:319: AssertionError
+---------------------------- Captured stdout call -----------------------------
+{
+  "ok": true
+}
+
+保存 token 后：python -m server.client <token> /look
+____________________ test_cli_reports_authentication_error ____________________
+
+api = namespace(request=<function api.<locals>.request at 0x000001DC10D031A0>, world=<server.world.World object at 0x000001D...ica-task-1138249898/pytest-of-tengf/pytest-6/test_cli_reports_authenticatio0/world.db'), base='http://127.0.0.1:51806')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001DC10E0C6D0>
+
+    def test_cli_reports_authentication_error(api, monkeypatch):
+        import server.client as client
+        monkeypatch.setattr(client, "BASE", api.base)
+>       result = client._post("/join", {"token": "bad-token"})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_auth_hardening.py:325: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+server\client.py:24: in _post
+    with urllib.request.urlopen(req, timeout=120) as resp:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:216: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:525: in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:634: in http_response
+    response = self.parent.error(
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:563: in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:496: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <urllib.request.HTTPDefaultErrorHandler object at 0x000001DC10E0D990>
+req = <urllib.request.Request object at 0x000001DC10E0DB10>
+fp = <http.client.HTTPResponse object at 0x000001DC10D34940>, code = 400
+msg = 'Bad Request'
+hdrs = <http.client.HTTPMessage object at 0x000001DC10D241D0>
+
+    def http_error_default(self, req, fp, code, msg, hdrs):
+>       raise HTTPError(req.full_url, code, msg, hdrs, fp)
+E       urllib.error.HTTPError: HTTP Error 400: Bad Request
+
+D:\Users\tengf\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:643: HTTPError
+=========================== short test summary info ===========================
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/../.env]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/../data/tiandao.db]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/..%2f.env]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/%2e%2e%2f.env]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/./index.html]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web//index.html]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/images//sample.png]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/..%5c.env]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/images/../../.env]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/leak.db]
+FAILED tests/test_auth_hardening.py::test_static_rejects_traversal_and_private_files[/web/index.html%00]
+FAILED tests/test_auth_hardening.py::test_resolved_file_cannot_escape_allowed_root[/web/linked.js-web/linked.js]
+FAILED tests/test_auth_hardening.py::test_resolved_file_cannot_escape_allowed_root[/images/linked.js-web/images/linked.js]
+FAILED tests/test_auth_hardening.py::test_resolved_file_cannot_escape_allowed_root[/workbench.js-workbench.js]
+FAILED tests/test_auth_hardening.py::test_join_requires_credentials_without_side_effects[payload0]
+FAILED tests/test_auth_hardening.py::test_join_requires_credentials_without_side_effects[payload1]
+FAILED tests/test_auth_hardening.py::test_join_requires_credentials_without_side_effects[payload2]
+FAILED tests/test_auth_hardening.py::test_join_requires_credentials_without_side_effects[payload3]
+FAILED tests/test_auth_hardening.py::test_join_requires_credentials_without_side_effects[payload4]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials0-/join]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials0-/login]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials1-/join]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials1-/login]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials2-/join]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials2-/login]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials3-/join]
+FAILED tests/test_auth_hardening.py::test_failed_credentials_are_uniform_and_never_create_characters[credentials3-/login]
+FAILED tests/test_auth_hardening.py::test_valid_token_resumes_after_memory_clear_and_can_act
+FAILED tests/test_auth_hardening.py::test_invalid_token_does_not_fall_back_to_credentials
+FAILED tests/test_auth_hardening.py::test_join_credentials_create_for_account_and_resume_on_another_device
+FAILED tests/test_auth_hardening.py::test_registration_with_same_display_name_never_claims_other_account
+FAILED tests/test_auth_hardening.py::test_authenticated_dead_character_starts_new_life[token]
+FAILED tests/test_auth_hardening.py::test_authenticated_dead_character_starts_new_life[credentials]
+FAILED tests/test_auth_hardening.py::test_briefing_requires_valid_bearer_and_ignores_query_uid[uid-/world/briefing]
+FAILED tests/test_auth_hardening.py::test_briefing_requires_valid_bearer_and_ignores_query_uid[uid-/briefing]
+FAILED tests/test_auth_hardening.py::test_briefing_requires_valid_bearer_and_ignores_query_uid[valid-/world/briefing]
+FAILED tests/test_auth_hardening.py::test_briefing_requires_valid_bearer_and_ignores_query_uid[valid-/briefing]
+FAILED tests/test_auth_hardening.py::test_logged_out_token_cannot_resume - as...
+FAILED tests/test_auth_hardening.py::test_world_join_requires_explicit_nonempty_authenticated_uid
+FAILED tests/test_auth_hardening.py::test_cli_join_sends_only_credentials[arguments0-expected0]
+FAILED tests/test_auth_hardening.py::test_cli_join_sends_only_credentials[arguments1-expected1]
+FAILED tests/test_auth_hardening.py::test_cli_join_prompts_for_password - Ass...
+FAILED tests/test_auth_hardening.py::test_cli_reports_authentication_error - ...
+43 failed, 31 passed in 54.91s

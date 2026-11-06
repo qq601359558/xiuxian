@@ -1,0 +1,3 @@
+{"ts": 1793259154.8831942, "actor": "37b21175", "kind": "event", "ok": true, "outcome": null, "success": null, "effects": {}, "spawn": false, "narrative_len": 25}
+{"ts": 1793259154.8847306, "actor": "37b21175", "kind": "event", "ok": true, "outcome": null, "success": null, "effects": {}, "spawn": false, "narrative_len": 25}
+{"ts": 1793259154.8955703, "actor": "37b21175", "kind": "free_action", "intent": "observe", "outcome": "observe", "effects": {}, "text_len": 4, "source": "local", "event_id": "ev_43430e272f"}

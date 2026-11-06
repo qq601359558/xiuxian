@@ -1,0 +1,18 @@
+﻿[
+    {
+        "path":  "core/adventure.py",
+        "sha256":  "B30B1B1497A5F49A64B21C3E769E09ABDD21E89AF25A3AE62D0315F5A33D0F12"
+    },
+    {
+        "path":  "server/world.py",
+        "sha256":  "AA0F00BB9DD888CACDF26FB8C2CDFD9E844D0F8B5A2DB78DD67F2781C7686EB5"
+    },
+    {
+        "path":  "server/app.py",
+        "sha256":  "A9373945C6C39197473C24ED96A3B818621DF428AEA8D02146DF42340A76F62A"
+    },
+    {
+        "path":  "tests/test_world_action_regressions.py",
+        "sha256":  "83FCA759740FDAB335641141B624DD036B6F12091CA81BBAC4C85E898624288F"
+    }
+]

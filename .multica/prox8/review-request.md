@@ -1,0 +1,15 @@
+Perform an independent READ-ONLY code review for PROX-8. You are a reviewer subprocess, not the assigned Multica worker. Do not call Multica, post comments, change issue status, delegate, edit files, install anything, start services, or run tests. Do not inspect credentials, .env, real data, or git remotes. Return your findings only.
+
+Scope: the working-tree diff for `core/adventure.py`, `server/world.py`, `server/app.py`; the new `tests/test_world_action_regressions.py`; and the accepted contract in `docs/compose/spec/backend-world-action-repairs.md`. Ignore all pre-existing AGENTS.md/web changes and other untracked files. Relevant existing engines/repositories may be read to verify contracts.
+
+The task is restoration of four reproduced online wiring defects, not a new product design:
+- Free commands /做 /do /act /言行 must share a reachable resolve path, retain name-creation rejection and treasure free-action routing, propagate engine errors, include same-scene facts, and persist spawned NPCs through CharacterRepository.save.
+- Accept the player-visible adventure alias 野外山原 without changing old aliases or the no-argument board behavior.
+- A confirmed online combat kill must invoke the existing bounty settlement, persist affected bounties and the hunter, append the payout message, and not pay on standoff, expiry, or repeated attacks. Preserve existing bounty rules.
+- Dig responses must carry the engine's stone_gain, defaulting to zero when no reward is supplied; do not invent economic rules.
+- Unexpected action-processing failures must produce structured HTTP 500 with a stable code and diagnostic logging without leaking token, raw player input, exception messages or source lines. Existing missing-input HTTP 400 and business-rejection HTTP 200 remain compatible.
+- Retain integrity preconditions and audited CharacterRepository saves. Do not modify models.py, character_integrity.py, authentication, static hosting, or frontend rendering.
+
+Verification already performed in foreground by the implementer: new regressions 23 passed; related regressions 68 passed; forced AI module reload stress 23 passed; full suite 469 passed / 2 unchanged pre-existing failures. The old collection-time test reloads ai.gateway, so mocks deliberately bind to the consuming core module's AIGateway class. New tests exercise World.handle, real domain settlement and temporary SQLite; only AI proposals and unrelated background/omen activity are controlled. HTTP tests use a temporary real ThreadingHTTPServer with foreground teardown. Browser/QA acceptance remains outstanding.
+
+Inspect specification compliance, correctness, regression risk, persistence ordering, API error behavior, and repository conventions. Identify concrete in-scope issues, not speculative unrelated redesigns. Give each actionable finding a severity and workspace-relative file:line reference. If no blocking finding exists, state this explicitly; do not equate code review with QA acceptance. Use a final `Decision: PASS` or `Decision: CHANGES_REQUESTED` and a short rationale.

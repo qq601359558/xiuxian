@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="3.028" timestamp="2026-10-29T10:48:19.599352+08:00" hostname="DESKTOP-CD9P998"><testcase classname="tests.test_world_action_regressions" name="test_action_business_rejection_logs_no_raw_input" time="2.085"><failure message="assert '私密输入' not in '{&quot;ts&quot;: 1793...&quot;: &quot;私密输入&quot;}\n'&#10;  &#10;  '私密输入' is contained here:&#10;    &quot;error&quot;: &quot;私密输入&quot;}&#10;  ?           ++++">tests\test_world_action_regressions.py:351: in test_action_business_rejection_logs_no_raw_input
+    assert "私密输入" not in log_text
+E   assert '私密输入' not in '{"ts": 1793...": "私密输入"}\n'
+E     
+E     '私密输入' is contained here:
+E       "error": "私密输入"}
+E     ?           ++++</failure></testcase></testsuite></testsuites>

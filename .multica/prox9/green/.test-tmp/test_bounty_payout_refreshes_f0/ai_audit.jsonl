@@ -1,0 +1,4 @@
+{"source": "ai.faction", "event": "shift_relation", "pair": "九幽天魔宗|青云宗", "old": -55.0, "new": -67.0, "note": "天道导演·宗门紧张", "ts": 1793259664.404525}
+{"source": "local", "event": "apply", "directive_id": "d_05eda8cd", "type": "sect_tension", "applied": {"channel": true, "goals": 0, "realm": "", "flags": ["sect:青云宗vs九幽天魔宗", "faction_tension_synced"]}, "ts": 1793259664.5962505}
+{"source": "local", "event": "apply", "directive_id": "d_13d62315", "type": "secret_realm_pressure", "applied": {"channel": true, "goals": 3, "realm": "", "flags": []}, "ts": 1793259664.6936345}
+{"source": "ai.player_echo", "event": "kill_echo", "killer": "回归猎手", "victim": "回归凶徒", "location": "落霞山灵泉", "streak": 1, "ts": 1793259664.8492513}

@@ -1,0 +1,73 @@
+=== A. static traversal / private file reads (raw request-target) ===
+PASS traversal /web/../.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/../data/tiandao.db -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/..%2f.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/....//.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/%2e%2e%2f.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/%252e%252e%252f.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/%25252e%25252e%25252f.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/..%5c.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/..%255c.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/..%2F%2E%2E%2F.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /images/../../.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/leak.db -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/index.html%00 -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /.env -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /config.py -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/./index.html -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web//index.html -> 4xx & no secret | status=404 leaked=[]
+PASS traversal /web/images/../images/portrait.jpg -> 4xx & no secret | status=404 leaked=[]
+
+=== B. legit static resources still served with correct MIME ===
+PASS static / -> 200 text/html | status=200 ctype=text/html; charset=utf-8 len=19110
+PASS static /index.html -> 200 text/html | status=200 ctype=text/html; charset=utf-8 len=19110
+PASS static /web -> 200 text/html | status=200 ctype=text/html; charset=utf-8 len=19110
+PASS static /web/ -> 200 text/html | status=200 ctype=text/html; charset=utf-8 len=19110
+PASS static /workbench.css -> 200 text/css | status=200 ctype=text/css; charset=utf-8 len=15337
+PASS static /workbench.js -> 200 text/javascript | status=200 ctype=text/javascript; charset=utf-8 len=367437
+PASS static /app.js -> 200 text/javascript | status=200 ctype=text/javascript; charset=utf-8 len=56592
+PASS static /style.css -> 200 text/css | status=200 ctype=text/css; charset=utf-8 len=30687
+PASS static /web/index.html -> 200 text/html | status=200 ctype=text/html; charset=utf-8 len=19110
+PASS static /web/style.css -> 200 text/css | status=200 ctype=text/css; charset=utf-8 len=30687
+PASS static /images/portrait.jpg -> 200 image/jpeg | status=200 ctype=image/jpeg len=34676
+PASS static /web/images/portrait.jpg -> 200 image/jpeg | status=200 ctype=image/jpeg len=34676
+PASS static /web/images/cultivator_meditating.png -> 200 image/png | status=200 ctype=image/png len=1151032
+PASS static /images/realm_1.jpg -> 200 image/jpeg | status=200 ctype=image/jpeg len=3780
+PASS static query-string form /workbench.css?v=123 -> 200 | status=200
+PASS missing /app.css -> 404 (no phantom file) | status=404
+
+=== C. /join authentication, D-5 / D-5b closure, zero side effects ===
+PASS register -> 200 | (200, {'ok': True, 'username': 'qa_probe_acct', 'token': '3e7f3c13e33d45968a4fe0d01e3cd1f5', 'user_id': 'acct_5b77b86aa95b', 'character_id': 'c7578758', 'name': '探查修士', 'realm': '练气期初期', 'location': '青云坊市客栈', 'rem_years': 90.78, 'legacy_points': 0, 'lives': 0, 'newbie_feed': '【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。', 'first_night': {'error': "name 'seed_roster' is not defined"}, 'is_new_life': True, 'resumed': False})
+PASS D-5b join empty body -> 401 AUTH_REQUIRED, no token, zero side effects | status=401 res={'ok': False, 'code': 'AUTH_REQUIRED', 'error': '需要 token 或账号与密匙'} snapshot_same=True
+PASS D-5b join bare name only -> 401 AUTH_REQUIRED, no token, zero side effects | status=401 res={'ok': False, 'code': 'AUTH_REQUIRED', 'error': '需要 token 或账号与密匙'} snapshot_same=True
+PASS D-5b join client-declared user_id -> 401 AUTH_REQUIRED, no token, zero side effects | status=401 res={'ok': False, 'code': 'AUTH_REQUIRED', 'error': '需要 token 或账号与密匙'} snapshot_same=True
+PASS D-5b join name + client user_id -> 401 AUTH_REQUIRED, no token, zero side effects | status=401 res={'ok': False, 'code': 'AUTH_REQUIRED', 'error': '需要 token 或账号与密匙'} snapshot_same=True
+PASS D-5b join empty token -> 401 AUTH_REQUIRED, no token, zero side effects | status=401 res={'ok': False, 'code': 'AUTH_REQUIRED', 'error': '需要 token 或账号与密匙'} snapshot_same=True
+PASS wrong password on existing account -> 401 AUTH_FAILED, uniform text, no new char/session | status=401 res={'ok': False, 'code': 'AUTH_FAILED', 'error': '账号或密匙有误'} same=True
+PASS unknown account -> 401 AUTH_FAILED (no user enumeration) | status=401 res={'ok': False, 'code': 'AUTH_FAILED', 'error': '账号或密匙有误'}
+PASS invalid token + valid creds -> 401 (no silent downgrade) | status=401 res={'ok': False, 'code': 'AUTH_FAILED', 'error': '账号或密匙有误'}
+PASS token resume -> 200 same character | status=200 res={'ok': True, 'token': 'f5a4628c5c234361a5e966a374b42e42', 'user_id': 'acct_5b77b86aa95b', 'character_id': 'c7578758', 'name': '探查修士', 'realm': '练气期初期', 'location': '青云坊市客栈', 'rem_years': 90.78, 'legacy_points': 0, 'lives': 0, 'newbie_feed': '', 'first_night': None, 'is_new_life': False, 'resumed': True}
+PASS token resume -> /action /look works | {'ok': True, 'text': '【探查修士】练气期初期 | 寿元约90.8岁\n灵根：真灵根 (木·金·水) · 吸收 1.10x · 道心 100\n位置：青云坊市客栈（东荒·青州 · 灵气1.0 · 安全）\n随身灵石 150 | 金库 0 | 业力 0 | 功德 0\n法门：吐纳术、御剑术\n【新手庇护】剩余约 72.0 小时（不可被攻击，亦不可主动伤人）\n灵脉略显稀薄：全服高
+PASS cross-device account login -> same character, name unchanged | status=200 res={'ok': True, 'username': 'qa_probe_acct', 'token': 'ca4ac711c86b4b668bbec6fc2adb4a53', 'user_id': 'acct_5b77b86aa95b', 'character_id': 'c7578758', 'name': '探查修士', 'realm': '练气期初期', 'location': '青云坊市客栈', 'rem_years': 90.78, 'legacy_points': 0, 'lives': 0, 'newbie_feed': '', 'first_night': None, 'is_new_life': False, 'resumed': True}
+PASS client-supplied user_id ignored on credential join | status=200 res={'ok': True, 'username': 'qa_probe_acct', 'token': '88787d9039ea484196959e390a22aa5a', 'user_id': 'acct_5b77b86aa95b', 'character_id': 'c7578758', 'name': '探查修士', 'realm': '练气期初期', 'location': '青云坊市客栈', 'rem_years': 90.78, 'legacy_points': 0, 'lives': 0, 'newbie_feed': '', 'first_night': None, 'is_new_life': False, 'resumed': True}
+PASS same display name, different account -> separate character | (200, {'ok': True, 'username': 'qa_probe_other', 'token': 'db31aa768c9040a984e6f76f6a008728', 'user_id': 'acct_3cc799369db4', 'character_id': '2b0811ab', 'name': '探查修士', 'realm': '练气期初期', 'location': '青云坊市客栈', 'rem_years': 72.72, 'legacy_points': 0, 'lives': 0, 'newbie_feed': '【初入道】打开 /任务：十步学会说话、买卖、
+PASS bare name still cannot claim either same-named character | status=401
+
+=== D. /world/briefing & /briefing Bearer-only (D-4b) ===
+PASS /world/briefing no auth -> 401 | status=401
+PASS /world/briefing ?uid= -> 401 (no query bypass) | status=401
+PASS /world/briefing bare token (no Bearer) -> 401 | status=401
+PASS /world/briefing invalid Bearer -> 401 | status=401
+PASS /world/briefing valid Bearer -> 200 own briefing | status=200
+PASS /briefing no auth -> 401 | status=401
+PASS /briefing ?uid= -> 401 (no query bypass) | status=401
+PASS /briefing bare token (no Bearer) -> 401 | status=401
+PASS /briefing invalid Bearer -> 401 | status=401
+PASS /briefing valid Bearer -> 200 own briefing | status=200
+
+=== E. logout revokes resume ===
+PASS logout -> 200 | status=200
+PASS logged-out token cannot resume -> 401, zero side effects | status=401 same=True
+
+=== SUMMARY ===
+ALL PASS

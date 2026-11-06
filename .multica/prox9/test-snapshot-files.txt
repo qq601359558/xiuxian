@@ -1,0 +1,15 @@
+﻿server/app.py
+server/world.py
+server/client.py
+core/command_catalog.py
+tests/test_lan_smoke.py
+tests/test_account_persist.py
+tests/test_bazaar_interactive.py
+tests/test_cli_parity.py
+tests/test_meditate_lock.py
+tests/test_natural_omen.py
+tests/test_sanctum_facilities.py
+tests/test_talk_command_e2e.py
+tests/test_talk_world_link.py
+tests/test_web_lifecycle.py
+tests/test_auth_hardening.py

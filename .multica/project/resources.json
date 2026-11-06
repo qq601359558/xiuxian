@@ -1,0 +1,23 @@
+{
+  "project_id": "e23928e1-5f9a-4f4e-b803-670c71ba5cf7",
+  "project_title": "AI修仙",
+  "resources": [
+    {
+      "id": "1e88b5df-113f-4d99-a645-65e401cdcfca",
+      "resource_type": "local_directory",
+      "resource_ref": {
+        "label": "xiuxian",
+        "daemon_id": "019ff4d3-a090-7932-87ac-bc5316c6bfd3",
+        "local_path": "D:\\codex\\xiuxian",
+        "execution_mode": "in_place"
+      }
+    },
+    {
+      "id": "1dc858d6-43a5-43f4-afa0-4316424e2d77",
+      "resource_type": "github_repo",
+      "resource_ref": {
+        "url": "https://github.com/qq601359558/xiuxian.git/"
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+[
+  {
+    "attachments": [
+      {
+        "chat_message_id": null,
+        "chat_session_id": null,
+        "comment_id": "01a186b8-7228-7249-9410-85135e523378",
+        "content_type": "application/zip",
+        "created_at": "2026-10-29T08:13:15Z",
+        "download_url": "/api/attachments/01a186b8-6cd9-79f2-9294-678c1652e039/download",
+        "filename": "prox9-auth-hardening-evidence.zip",
+        "id": "01a186b8-6cd9-79f2-9294-678c1652e039",
+        "issue_id": "01a181e2-868b-7a06-bee3-405b14d3b44e",
+        "markdown_url": "https://multica.ai/api/attachments/01a186b8-6cd9-79f2-9294-678c1652e039/download",
+        "size_bytes": 133091,
+        "uploader_id": "328bbaae-ccfa-4705-b22b-93dbcdd32018",
+        "uploader_type": "agent",
+        "url": "https://static.multica.ai/workspaces/65f3fbb6-494e-409d-b248-e3fe922fbb6d/01a186b8-6cd9-79f2-9294-678c1652e039.zip",
+        "workspace_id": "65f3fbb6-494e-409d-b248-e3fe922fbb6d"
+      },
+      {
+        "chat_message_id": null,
+        "chat_session_id": null,
+        "comment_id": "01a186b8-7228-7249-9410-85135e523378",
+        "content_type": "text/plain; charset=utf-8",
+        "created_at": "2026-10-29T08:13:16Z",
+        "download_url": "/api/attachments/01a186b8-702f-79bd-8600-9a27aa870e99/download",
+        "filename": "server-auth-hardening.md",
+        "id": "01a186b8-702f-79bd-8600-9a27aa870e99",
+        "issue_id": "01a181e2-868b-7a06-bee3-405b14d3b44e",
+        "markdown_url": "https://multica.ai/api/attachments/01a186b8-702f-79bd-8600-9a27aa870e99/download",
+        "size_bytes": 6124,
+        "uploader_id": "328bbaae-ccfa-4705-b22b-93dbcdd32018",
+        "uploader_type": "agent",
+        "url": "https://static.multica.ai/workspaces/65f3fbb6-494e-409d-b248-e3fe922fbb6d/01a186b8-702f-79bd-8600-9a27aa870e99.md",
+        "workspace_id": "65f3fbb6-494e-409d-b248-e3fe922fbb6d"
+      },
+      {
+        "chat_message_id": null,
+        "chat_session_id": null,
+        "comment_id": "01a186b8-7228-7249-9410-85135e523378",
+        "content_type": "text/plain; charset=utf-8",
+        "created_at": "2026-10-29T08:13:17Z",
+        "download_url": "/api/attachments/01a186b8-7129-7a38-9f32-d69b46d824bf/download",
+        "filename": "server-auth-hardening.md",
+        "id": "01a186b8-7129-7a38-9f32-d69b46d824bf",
+        "issue_id": "01a181e2-868b-7a06-bee3-405b14d3b44e",
+        "markdown_url": "https://multica.ai/api/attachments/01a186b8-7129-7a38-9f32-d69b46d824bf/download",
+        "size_bytes": 6712,
+        "uploader_id": "328bbaae-ccfa-4705-b22b-93dbcdd32018",
+        "uploader_type": "agent",
+        "url": "https://static.multica.ai/workspaces/65f3fbb6-494e-409d-b248-e3fe922fbb6d/01a186b8-7129-7a38-9f32-d69b46d824bf.md",
+        "workspace_id": "65f3fbb6-494e-409d-b248-e3fe922fbb6d"
+      }
+    ],
+    "author_id": "328bbaae-ccfa-4705-b22b-93dbcdd32018",
+    "author_type": "agent",
+    "content": "后端修复与自测已交付，**待独立 Review / QA，尚未验收**。\n\n- 静态托管收敛白名单并拒绝双重编码穿越；`/join` 只凭 token/账号密匙，删除道号认领、忽略客户端 uid；两个简报入口只接受 Bearer。CLI、帮助、横幅、文档与冒烟同步，道号仍可重名。\n- Windows / Python 3.11.0 / pytest 9.1.1：旧版安全测试 **43 failed…",
+    "content_truncated": true,
+    "created_at": "2026-10-29T08:13:17Z",
+    "id": "01a186b8-7228-7249-9410-85135e523378",
+    "last_activity_at": "2026-10-29T08:50:17Z",
+    "reply_count": 1,
+    "revision": 1,
+    "type": "comment"
+  }
+]

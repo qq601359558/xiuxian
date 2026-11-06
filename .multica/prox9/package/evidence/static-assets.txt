@@ -1,0 +1,7 @@
+﻿/ 200 text/html; charset=utf-8 19110
+/index.html 200 text/html; charset=utf-8 19110
+/workbench.css 200 text/css; charset=utf-8 15337
+/workbench.js 200 text/javascript; charset=utf-8 367437
+/web/images/portrait.jpg 200 image/jpeg 34676
+/images/portrait.jpg 200 image/jpeg 34676
+REAL ARCHIVE STATIC ASSETS OK

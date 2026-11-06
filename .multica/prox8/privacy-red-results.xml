@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="4.241" timestamp="2026-10-29T10:41:40.534493+08:00" hostname="DESKTOP-CD9P998"><testcase classname="tests.test_world_action_regressions" name="test_action_unexpected_exception_is_json_and_server_recovers[/\u505a \u79c1\u5bc6\u8f93\u5165-/\u505a]" time="2.253" /><testcase classname="tests.test_world_action_regressions" name="test_action_unexpected_exception_is_json_and_server_recovers[\u79c1\u5bc6\u8f93\u5165-FREE_TEXT]" time="0.353"><failure message="AssertionError: assert '私密输入' == 'FREE_TEXT'&#10;  &#10;  - FREE_TEXT&#10;  + 私密输入">tests\test_world_action_regressions.py:324: in test_action_unexpected_exception_is_json_and_server_recovers
+    assert errors[-1]["cmd"] == expected_command
+E   AssertionError: assert '私密输入' == 'FREE_TEXT'
+E     
+E     - FREE_TEXT
+E     + 私密输入</failure></testcase><testcase classname="tests.test_world_action_regressions" name="test_action_unexpected_exception_is_json_and_server_recovers[/\u79c1\u5bc6\u8f93\u5165-UNKNOWN_COMMAND]" time="0.621"><failure message="AssertionError: assert '/私密输入' == 'UNKNOWN_COMMAND'&#10;  &#10;  - UNKNOWN_COMMAND&#10;  + /私密输入">tests\test_world_action_regressions.py:324: in test_action_unexpected_exception_is_json_and_server_recovers
+    assert errors[-1]["cmd"] == expected_command
+E   AssertionError: assert '/私密输入' == 'UNKNOWN_COMMAND'
+E     
+E     - UNKNOWN_COMMAND
+E     + /私密输入</failure></testcase></testsuite></testsuites>
