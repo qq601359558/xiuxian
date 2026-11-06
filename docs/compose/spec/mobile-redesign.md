@@ -1,7 +1,7 @@
 # 移动版视觉与体验重做（mobile-redesign）
 
 - 基线：worktree `feat/mobile-redesign`，HEAD `0643434`（`VERSION = "0.3.4-gray.11"`，手机端独立页面刚交付）
-- 状态：**实现完成，待合并发版**——feat/mobile-redesign 分支实现完毕，独立评审首轮 M-1～M-5 已返修销账，复审无新 must-fix，终验 QA 通过（全量回归：改后 8 failed / 1053 passed vs 基线 8 failed / 1047 passed，新增失败 0，失败清单逐项相同，全部 PRE-EXISTING）。
+- 状态：**已发布（v0.3.6-gray.13）**——feat/mobile-redesign 分支实现并已合并 main 发布，独立评审首轮 M-1～M-5 已返修销账，复审无新 must-fix，终验 QA 通过（全量回归：改后 8 failed / 1053 passed vs 基线 8 failed / 1047 passed，新增失败 0，失败清单逐项相同，全部 PRE-EXISTING）。
 - 用户需求原话（Martinez，2026-11-06 晚，看完移动版后）：「你觉得这个手机端做的好么？找个设计师来好好设计下」
 - 相关 Spec：`mobile-web.md`（M-1～M-20，功能与分流契约，本 Spec 不重复、不修改）、`ui-polish.md` / `ui-fix-round2.md`（桌面与手机缺陷史）、`web-static-hosting.md`
 - 改动面（硬约束）：只动 `web/mobile.html`、`web/mobile.css`；`mobile.js` 只许为配合结构/类名调整做最小改动（逻辑零变化）；`server/app.py`、桌面文件（`index.html` / `workbench.js` / `workbench.css`）、`core/` 一律不动；不引入外部字体/CDN；不新增图片文件请求（优先内联 SVG/CSS）。

@@ -1,5 +1,24 @@
 # 更新日志
 
+## v0.3.6-gray.13（2026-11-07）— 移动版视觉与体验重做（设计系统双天象、字阶、组件规范、坞区整治）
+
+定位：移动端视觉重做版，无新玩法、无数值口径变更、无接口变更。上一稳定点 v0.3.5-gray.12（57540c8）。
+
+### 变更
+- 设计系统：双列 token——昼·翡翠宣纸（沿用实际桌面家族）/ 夜·深墨蓝描金（取 `style.css` token）；字阶、间距/圆角、组件规范统一
+- 导航：五图标改为内联 SVG，去除文本符号；选中态金色 + 顶线 + 底色三重信号
+- 门庭仪式感：夜空背景 + 双环印章 + 分段页签；坞区总高预算 ≤164px（导航 56 + 命令坞 ≤60 + 快捷条 ≤48）
+- 根治 M-10 脆弱模式：行内按钮铁律（flex 行内按钮 `flex: none`、`min-width: 76px`），回归断言 R-13
+- `mobile.js` 仅最小结构配合，逻辑零变化；`server/app.py`、桌面三件套、`core/` 零改动；无外部字体/CDN、无新增静态文件、无新增图片请求
+
+### 测试
+- 合并后 main 全量回归（1106 collected，31 分钟）：**1096 passed / 10 failed**；
+  其中 8 项与 v0.3.5 失败清单逐项相同（6 基线 + 2 flaky），另 2 项
+  （`test_settle_pass_effects_and_idempotent`、`test_tick_budget_limits_public_events`）
+  为全量顺序/状态依赖（本轮跑在 lived-DB 工作区），独立重跑通过；新增失败 0
+- 终验 QA（新鲜 DB，worktree）：8 failed / 1053 passed vs 基线 8 failed / 1047 passed，新增失败 0
+- 契约测试：`tests/test_mobile_web.py` + `tests/test_qa2_frontend_contract.py` 16 passed（rebase 后复跑）
+
 ## v0.3.5-gray.12（2026-11-06）— NAS 注册/登录很慢修复（超时收紧、去锁化、计时日志、熔断器）
 
 定位：登录/注册延迟修复版，无新玩法、无数值口径变更。上一稳定点 v0.3.4-gray.11（0643434）。
