@@ -196,7 +196,7 @@
     if (!host) return;
     if (!state.feed.length) {
       host.innerHTML =
-        '<div class="card muted">暂无动态。发一道敕令，或等天道演化。</div>';
+        '<div class="card empty"><div class="empty-seal">录</div><p class="empty-title">暂无动态</p><p class="muted">发一道敕令，或等天道演化</p><button type="button" class="btn primary" data-fill="/look ">观照道身</button></div>';
       return;
     }
     host.innerHTML = state.feed
@@ -205,10 +205,14 @@
         return (
           '<div class="feed-line ' +
           esc(f.kind || "ok") +
-          '"><span class="ts">' +
+          '">' +
+          (f.kind === "ai" ? '<span class="feed-eyebrow">天道演化</span>' : "") +
+          '<span class="ts">' +
           esc(fmtTime(f.ts)) +
           "</span>" +
-          esc(f.text) +
+          (f.kind === "cmd"
+            ? '<span class="cmd-mark">»</span> ' + esc(String(f.text).replace(/^»\s?/, ""))
+            : esc(f.text)) +
           "</div>"
         );
       })
@@ -253,7 +257,7 @@
     var med = st.meditating || st.is_meditating;
     var html = "";
     html +=
-      '<div class="card"><h3>' +
+      '<div class="card"><p class="card-eyebrow">道身</p><h3>' +
       esc(st.name || state.name || "—") +
       " · " +
       esc(st.realm || "—") +
@@ -265,15 +269,31 @@
     );
     if (st.blood_marked) html += kv("血煞", "血煞通缉", "warn");
     html += kv("修为", esc(st.exp || "—"));
-    html += '<div class="bar"><i style="width:' + expPct + '%"></i></div>';
+    html +=
+      '<div class="bar-row"><div class="bar"><i style="width:' +
+      expPct +
+      '%"></i></div><span class="pct">' +
+      expPct +
+      "%</span></div>";
+    html += "</div>";
+    html +=
+      '<div class="card"><p class="card-eyebrow">身家</p><div class="stat-grid">' +
+      '<div class="stat-cell"><span class="num">' +
+      esc(st.stones != null ? st.stones : 0) +
+      '</span><span class="lbl">灵石</span></div>' +
+      '<div class="stat-cell"><span class="num">' +
+      esc(st.vault != null ? st.vault : 0) +
+      '</span><span class="lbl">金库</span></div>' +
+      '<div class="stat-cell"><span class="num">' +
+      esc(wallet.balance != null ? wallet.balance : 0) +
+      '</span><span class="lbl">账户钱包</span></div></div></div>';
+    html += '<div class="card"><p class="card-eyebrow">道途</p>';
     html += kv(
       "寿元",
-      esc(st.rem_years != null ? Number(st.rem_years).toFixed(1) + " 载" : "—"),
+      esc(st.rem_years != null ? Number(st.rem_years).toFixed(1) + " 载" : "—") +
+        (st.lifespan_warning ? " · 告急" : ""),
       st.lifespan_warning ? "warn" : "",
     );
-    html += kv("灵石", esc(st.stones != null ? st.stones : 0));
-    html += kv("金库", esc(st.vault != null ? st.vault : 0));
-    html += kv("账户钱包", esc(wallet.balance != null ? wallet.balance : 0));
     html += kv("道心", esc(st.dao_heart != null ? st.dao_heart : "—"));
     html += kv(
       "因果 / 功德",
@@ -315,6 +335,8 @@
       html += kv("辅修心法", esc(arts.sub.join("、")));
     if (st.skills && st.skills.length)
       html += kv("法门", esc(st.skills.join("、")));
+    html += "</div>";
+    html += '<div class="card"><p class="card-eyebrow">前世因果</p>';
     if (past.lives) {
       html += kv(
         "前世",
@@ -371,6 +393,11 @@
       });
   }
 
+  function tierClass(t) {
+    var m = { 凡品: "tier-1", 人品: "tier-2", 地品: "tier-3", 天品: "tier-4", 仙品: "tier-5" };
+    return m[t] || "tier-0";
+  }
+
   function renderBag() {
     var host = $("bagBody");
     if (!host) return;
@@ -379,12 +406,18 @@
     var equipped = Array.isArray(st.equipped) ? st.equipped : [];
     var html = "";
     html += '<div class="card"><h3>已穿戴（' + equipped.length + "）</h3>";
-    if (!equipped.length) html += '<div class="muted">未穿戴任何法宝。</div>';
+    if (!equipped.length)
+      html +=
+        '<div class="empty"><div class="empty-seal">戒</div><p class="empty-title">未穿戴任何法宝</p><p class="muted">去探险寻宝，或入纳戒挑选</p><button type="button" class="chip ghost" data-cmd="/探险">去探险寻宝</button></div>';
     equipped.forEach(function (eq) {
       html +=
-        '<div class="eq-row"><span>' +
-        esc((eq.slotCn || eq.slot || "法宝") + " · " + eq.name) +
-        '</span><span class="muted">' +
+        '<div class="eq-row"><span><span class="slot">' +
+        esc(eq.slotCn || eq.slot || "法宝") +
+        '</span><span class="nm">' +
+        esc(eq.name) +
+        '</span></span><span class="tg ' +
+        tierClass(eq.tierName) +
+        '">' +
         esc(eq.tierName || "") +
         "</span></div>";
     });
@@ -399,15 +432,22 @@
       }
       merged[it.name].n += 1;
     });
+    var maxSlots = st.max_bag_slots != null ? st.max_bag_slots : 64;
+    var capPct = Math.min(100, Math.round((items.length / maxSlots) * 100));
     html +=
       '<div class="card"><h3>纳戒（' +
       items.length +
       " / " +
-      esc(st.max_bag_slots != null ? st.max_bag_slots : 64) +
-      " 格）</h3>";
+      esc(maxSlots) +
+      " 格）</h3>" +
+      '<div class="cap-bar"><i class="' +
+      (items.length >= 56 ? "full" : "") +
+      '" style="width:' +
+      capPct +
+      '%"></i></div>';
     if (!order.length)
       html +=
-        '<div class="muted">纳戒空空。可 /探险 寻机缘，或去坊市采买。</div>';
+        '<div class="empty"><div class="empty-seal">戒</div><p class="empty-title">纳戒空空</p><p class="muted">可 /探险 寻机缘，或去坊市采买</p><button type="button" class="chip ghost" data-cmd="/探险">去探险</button></div>';
     order.forEach(function (name) {
       var m = merged[name];
       var it = m.item;
@@ -418,25 +458,27 @@
         '" data-bag="' +
         esc(name) +
         '">' +
-        '<span class="tg">' +
+        '<span class="tg ' +
+        tierClass(it.tierName) +
+        '">' +
         esc(it.tierName || "凡品") +
         "</span>" +
         '<span class="nm">' +
         esc(name) +
         "</span>" +
         (m.n > 1 ? '<span class="ct">×' + m.n + "</span>" : "") +
-        '<span class="muted">' +
+        '<span class="kind">' +
         esc(it.kind || "") +
         "</span></button>";
       if (sel) {
         html +=
-          '<div class="card" style="margin:-2px 0 8px"><div class="muted">' +
+          '<div class="card bag-detail"><div class="muted">' +
           esc(it.desc || it.lore || "") +
           "</div>";
         html += '<div class="chiprow" style="margin-top:8px">';
         if (it.kind === "equip")
           html +=
-            '<button type="button" class="chip" data-cmd="/穿戴 ' +
+            '<button type="button" class="chip primary" data-cmd="/穿戴 ' +
             esc(name) +
             '">穿戴</button>' +
             '<button type="button" class="chip" data-cmd="/卸下 ' +
@@ -444,7 +486,7 @@
             '">卸下</button>';
         if (it.kind === "pill" || it.kind === "consumable")
           html +=
-            '<button type="button" class="chip" data-cmd="/服用 ' +
+            '<button type="button" class="chip primary" data-cmd="/服用 ' +
             esc(name) +
             '">服用</button>';
         if (
@@ -453,14 +495,14 @@
           name.indexOf("图") >= 0
         )
           html +=
-            '<button type="button" class="chip" data-cmd="/宝图 ' +
+            '<button type="button" class="chip primary" data-cmd="/宝图 ' +
             esc(name) +
             '">研读宝图</button>' +
             '<button type="button" class="chip" data-cmd="/挖宝 ' +
             esc(name) +
             '">挖宝</button>';
         html +=
-          '<button type="button" class="chip" data-fill="/寄售 ' +
+          '<button type="button" class="chip ghost" data-fill="/寄售 ' +
           esc(name) +
           ' ">寄售</button>';
         html += "</div></div>";
@@ -479,34 +521,34 @@
       w.summary_lines || (w.evolution && w.evolution.summary_lines) || [];
     if (lines.length) {
       html +=
-        '<div class="card"><h3>世界态势</h3>' +
+        '<div class="card"><p class="card-eyebrow">世界态势</p>' +
         lines
           .slice(0, 5)
           .map(function (l) {
-            return (
-              '<div class="kv"><span class="v" style="text-align:left">' +
-              esc(l) +
-              "</span></div>"
-            );
+            return '<p class="world-para' + (/血煞/.test(l) ? " warn" : "") + '">' + esc(l) + "</p>";
           })
           .join("") +
         "</div>";
+    } else {
+      html +=
+        '<div class="card"><p class="card-eyebrow">世界态势</p><p class="world-para">天道暂无活跃态势</p><p class="muted">诸天暂静，可先观照自身命盘，或迁跃他方。</p></div>';
     }
     html += '<div class="card"><h3>同场修士（' + state.here.length + "）</h3>";
     if (!state.here.length)
       html +=
-        '<div class="muted">周遭方圆暂无其他修士。可迁跃前往客栈或宗门。</div>';
+        '<div class="empty"><div class="empty-seal">人</div><p class="empty-title">周遭方圆暂无其他修士</p><p class="muted">可迁跃前往客栈或宗门</p><button type="button" class="chip ghost" data-cmd="/go 青云坊市客栈">迁跃去客栈</button></div>';
     state.here.forEach(function (r) {
       var tag = r.blood_marked
         ? "血煞通缉"
         : !r.is_npc
           ? "同道仙友"
           : r.attitude_cn || "中立";
+      var tagCls = r.blood_marked ? " danger" : !r.is_npc ? " gold" : r.attitude_cn === "友善" ? " friend" : r.attitude_cn === "仇视" ? " danger" : "";
       html +=
         '<div class="person"><div class="row1"><span class="nm">' +
         esc(r.name) +
         '</span><span class="tag' +
-        (r.blood_marked ? " danger" : "") +
+        tagCls +
         '">' +
         esc(tag) +
         "</span></div>" +
@@ -517,13 +559,13 @@
         (r.rank ? " · " + esc(r.rank) : "") +
         "</div>" +
         '<div class="acts">' +
-        '<button type="button" class="btn secondary" data-fill="/交谈 ' +
+        '<button type="button" class="btn primary" data-fill="/交谈 ' +
         esc(r.name) +
         ' ">传音</button>' +
         '<button type="button" class="btn secondary" data-cmd="/交易 ' +
         esc(r.name) +
         '">交易</button>' +
-        '<button type="button" class="btn ghost" data-cmd="/斗法 ' +
+        '<button type="button" class="btn danger" data-cmd="/斗法 ' +
         esc(r.name) +
         '">切磋</button>' +
         "</div></div>";
@@ -536,12 +578,11 @@
       html +=
         '<div class="place-row"><span class="nm">' +
         esc(p.name) +
-        (isCur ? " · 当前所在" : "") +
-        '<br /><span class="tip">' +
+        '<span class="tip">' +
         esc(p.tip) +
         "</span></span>" +
         (isCur
-          ? '<span class="muted">已至</span>'
+          ? '<span class="pill-cur">当前所在</span>'
           : '<button type="button" class="btn secondary" data-cmd="/go ' +
             esc(p.name) +
             '">迁跃</button>') +
@@ -561,7 +602,7 @@
     host.innerHTML =
       '<div class="section-title">高频操作</div>' +
       '<div class="ops-grid">' +
-      '<button type="button" class="btn primary" data-cmd="/突破">突破</button>' +
+      '<button type="button" class="btn primary ops-hero" data-cmd="/突破">突破</button>' +
       '<button type="button" class="btn secondary" data-cmd="/闭关">闭关</button>' +
       '<button type="button" class="btn secondary" data-cmd="/出关">出关</button>' +
       '<button type="button" class="btn secondary" data-cmd="/探险">探险</button>' +
@@ -569,7 +610,7 @@
       '<button type="button" class="btn secondary" data-cmd="/领俸禄">领俸禄</button>' +
       "</div>" +
       '<div class="section-title">传音（与同场修士交谈）</div>' +
-      '<div class="inline-row"><input id="chatName" type="text" placeholder="对方道号" aria-label="对方道号" />' +
+      '<div class="chat-stack"><input id="chatName" type="text" placeholder="对方道号" aria-label="对方道号" />' +
       '<input id="chatText" type="text" placeholder="传音内容" aria-label="传音内容" /></div>' +
       '<button type="button" class="btn secondary block" id="btnChatSend">传音</button>' +
       '<div class="section-title">迁跃</div>' +
@@ -608,12 +649,10 @@
         .join("") +
       '<button type="button" class="chip" data-fill="/灵鹤 ">灵鹤</button>' +
       "</div>" +
-      '<div class="section-title">显示与切换</div>' +
-      '<div class="chiprow">' +
-      '<button type="button" class="chip" data-theme-toggle="1">昼夜天象切换</button>' +
-      '<button type="button" class="chip" data-view-switch="desktop">桌面版</button>' +
-      '<button type="button" class="chip" data-auto-view="1">跟随设备自动选择</button>' +
-      "</div>" +
+      '<div class="card"><p class="card-eyebrow">显示与切换</p>' +
+      '<button type="button" class="display-row" data-theme-toggle="1">昼夜天象切换<span class="arr">›</span></button>' +
+      '<button type="button" class="display-row" data-view-switch="desktop">桌面版<span class="arr">›</span></button>' +
+      '<button type="button" class="display-row" data-auto-view="1">跟随设备自动选择<span class="arr">›</span></button></div>' +
       '<p class="muted">场景操作（秘境推进、挖宝、灵宠出战等）均可直接在下方命令框输入对应命令；服务端裁决为准。</p>';
     $("btnChatSend").addEventListener("click", function () {
       var n = ($("chatName").value || "").trim();

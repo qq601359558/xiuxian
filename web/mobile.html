@@ -37,11 +37,13 @@
 <body>
   <!-- 入世门庭（与桌面同 id 口径；无 #serverUrl，阵枢默认地址走 wb.base） -->
   <div id="gate">
+    <div class="gate-motes" aria-hidden="true"></div>
     <div class="gate-card">
       <div class="gate-hero">
         <div class="gate-seal">道</div>
         <h1>天道因果录</h1>
         <p>修仙模拟 · 灵蕴玄枢</p>
+        <p class="gate-eyebrow">寿元为薪 · 因果为引</p>
       </div>
       <div class="gate-body">
         <div class="gate-tabs">
@@ -64,13 +66,14 @@
           <div id="gateMsg" class="gate-msg" role="alert"></div>
           <div class="gate-actions">
             <button type="submit" class="btn primary block" id="gateSubmit">踏入大千世界</button>
-            <button type="button" class="btn secondary block" id="btnProbe">感应阵枢灵脉</button>
-            <button type="button" class="btn ghost block" id="btnDemo">玄黄镜演（离线演示）</button>
+            <div class="gate-subrow">
+              <button type="button" class="btn secondary" id="btnProbe">感应阵枢灵脉</button>
+              <button type="button" class="btn ghost" id="btnDemo">玄黄镜演（离线演示）</button>
+            </div>
           </div>
         </form>
         <div class="gate-foot">
-          手机版 · 根地址自动进入<br />
-          默认阵枢：<code>mn.20230803.xyz:8765</code><br />
+          手机版 · 默认阵枢 <code>mn.20230803.xyz:8765</code><br />
           <button type="button" class="linklike" data-view-switch="desktop">桌面版</button>
         </div>
       </div>
@@ -92,6 +95,7 @@
     <main id="viewRoot">
       <section class="pane" data-pane="feed" id="pane-feed">
         <h2>动态 · 天道录</h2>
+        <p class="pane-eyebrow">天道演化 · 敕令回响</p>
         <div id="feedLog" aria-live="polite"></div>
       </section>
       <section class="pane" data-pane="sanctum" id="pane-sanctum" hidden>
@@ -136,11 +140,11 @@
 
     <!-- 底部导航：5 分区 -->
     <nav id="bottomNav" aria-label="主导航">
-      <button type="button" data-mview="feed" class="active"><span class="ic">☰</span><span>动态</span></button>
-      <button type="button" data-mview="sanctum"><span class="ic">◆</span><span>命盘</span></button>
-      <button type="button" data-mview="bag"><span class="ic">▣</span><span>行囊</span></button>
-      <button type="button" data-mview="world"><span class="ic">◎</span><span>世界</span></button>
-      <button type="button" data-mview="ops"><span class="ic">✦</span><span>操作</span></button>
+      <button type="button" data-mview="feed" class="active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 9h6M9 13h6"/></svg></span><span>动态</span></button>
+      <button type="button" data-mview="sanctum"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/><path d="M15 9l-1.5 4.5L9 15l1.5-4.5z"/></svg></span><span>命盘</span></button>
+      <button type="button" data-mview="bag"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1.5 11a2 2 0 0 1-2 1.7h-5a2 2 0 0 1-2-1.7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><path d="M9 12h6"/></svg></span><span>行囊</span></button>
+      <button type="button" data-mview="world"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 15l3-4.5 2.5 3.5 2-2.5 3.5 4.5"/><path d="M6 17.5h12"/></svg></span><span>世界</span></button>
+      <button type="button" data-mview="ops"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M10 5l2-2 2 2"/><path d="M8 16h8"/><path d="M12 16v5"/></svg></span><span>操作</span></button>
     </nav>
   </div>
 

@@ -254,3 +254,134 @@ def test_server_whitelist_has_mobile_entries():
     assert _STATIC_PAGES["/"] == ("index.html", "text/html; charset=utf-8")
     assert _STATIC_PAGES["/index.html"] == ("index.html", "text/html; charset=utf-8")
     print("✓ server/app.py 双轨白名单同步含 mobile 三件套，/ 仍是桌面版")
+
+
+# ---- mobile-redesign（R-19）：视觉重做契约断言 ----
+def test_mobile_redesign_tokens_and_no_bare_hex():
+    """R-1：token 双列落地；#7c3aed 全仓零命中；组件规则无裸色值。"""
+    css = (WEB / "mobile.css").read_text(encoding="utf-8")
+    assert ":root {" in css and 'html[data-theme="dark"]' in css, "须有昼夜双列 token"
+    for tok in ("--bg", "--surface", "--line", "--line-gold", "--ink", "--muted",
+                "--placeholder", "--jade-700", "--gold-500", "--gold-700",
+                "--blood", "--warn", "--font-display", "--font-ui"):
+        assert tok in css, f"token 缺失：{tok}"
+    assert "#7c3aed" not in css, "紫色 #7c3aed 须全站删除"
+    assert "#7c3aed" not in (WEB / "mobile.js").read_text(encoding="utf-8")
+    assert "#7c3aed" not in (WEB / "mobile.html").read_text(encoding="utf-8")
+    # 裸色值检查：#[0-9a-f]{3,6} 只许出现在 token 定义行（行首为 --token），
+    # 以及 #id 选择器行（#feedLog 等，非颜色）；mask 遮罩用 black 关键字。
+    bad = []
+    for i, line in enumerate(css.splitlines(), 1):
+        for m in re.finditer(r"#([0-9a-fA-F]{3,6})\b", line):
+            if line.lstrip().startswith("--"):
+                continue
+            if re.match(r"\s*#[A-Za-z_][\w-]*\s*\{", line):
+                continue
+            bad.append(f"L{i}: {line.strip()}")
+    assert not bad, f"组件规则含裸色值：{bad}"
+    assert "dashed" not in css, "虚线分隔须全站废除"
+    print("✓ mobile-redesign token 双列，无裸色值，无 #7c3aed，无 dashed")
+
+
+def test_mobile_redesign_nav_svg_no_text_symbols():
+    """R-6：导航 5 图标均为内联 SVG，文本符号 ☰◆▣◎✦ 零命中。"""
+    html = (WEB / "mobile.html").read_text(encoding="utf-8")
+    nav = re.search(r'<nav id="bottomNav".*?</nav>', html, re.S)
+    assert nav, "缺 #bottomNav"
+    assert nav.group(0).count("<svg") == 5, "导航须恰好 5 个内联 SVG"
+    for sym in ("☰", "◆", "▣", "◎", "✦"):
+        assert sym not in nav.group(0), f"导航仍含文本符号 {sym}"
+    assert 'stroke="currentColor"' in nav.group(0)
+    print("✓ 导航 5 内联 SVG，无文本符号")
+
+
+def test_mobile_redesign_inline_row_iron_rule():
+    """R-13：行内按钮铁律（M-10 根治）写进 CSS。"""
+    css = (WEB / "mobile.css").read_text(encoding="utf-8")
+    m = re.search(r"\.inline-row \.btn \{([^}]*)\}", css)
+    assert m, "缺 .inline-row .btn 规则"
+    body = m.group(1)
+    assert "min-width: 76px" in body and "max-width: 40%" in body
+    assert "flex: 0 0 auto" in body
+    m2 = re.search(r"\.inline-row input, \.inline-row select \{([^}]*)\}", css)
+    assert m2 and "flex: 1 1 auto" in m2.group(1) and "min-width: 0" in m2.group(1)
+    print("✓ .inline-row 铁律：输入 flex:1/min-width:0，按钮 76px/40%")
+
+
+def test_mobile_redesign_gate_copy_and_hooks():
+    """R-12/R-18：门庭眉题文案 + 默认阵枢 + 钩子冻结。"""
+    html = (WEB / "mobile.html").read_text(encoding="utf-8")
+    assert "寿元为薪 · 因果为引" in html, "门庭眉题文案缺失"
+    assert "mn.20230803.xyz:8765" in html, "默认阵枢地址须保留可见"
+    assert "根地址自动进入" not in html, "技术说明文案须移除"
+    for eid in ("gate", "gateForm", "fUser", "fNameWrap", "fName", "fPass",
+                "gateMsg", "gateSubmit", "btnProbe", "btnDemo", "app",
+                "topDaoName", "topDaoRealm", "topLocation", "topStones",
+                "topRemYears", "btnLogoutM", "pane-feed", "pane-sanctum",
+                "pane-bag", "pane-world", "pane-ops", "feedLog", "sanctumBody",
+                "bagBody", "worldBody", "opsBody", "quickBar", "cmdDock",
+                "suggest", "cmdForm", "busyDot", "cmdInput", "cmdGo",
+                "bottomNav", "toasts"):
+        assert f'id="{eid}"' in html, f"冻结 id 缺失：{eid}"
+    js = (WEB / "mobile.js").read_text(encoding="utf-8")
+    for frag in ("feed-eyebrow", "card-eyebrow", "stat-grid", "tierClass",
+                 "ops-hero", "chat-stack", "display-row", "cap-bar",
+                 "pill-cur", 'data-fill="/look "'):
+        assert frag in js, f"重做渲染结构缺失：{frag}"
+    print("✓ 门庭文案/阵枢/冻结 id/新渲染结构齐全")
+
+
+def test_mobile_redesign_rework_m1_m5_qa02_qa03():
+    """返修轮：M-1 命令坞 min-height、M-2 仇视 pill、M-3 道身卡 18px、M-4 数字等宽、M-5 门庭主按钮 52px、QA-02 键盘态 Toast 120px、QA-03 时间戳绝对定位。"""
+    css = (WEB / "mobile.css").read_text(encoding="utf-8")
+    js = (WEB / "mobile.js").read_text(encoding="utf-8")
+    # M-1：固定 height 改 min-height；刘海屏下整叠随 --sab 上移，坞高仍 60，总高仍 164
+    m = re.search(r"#cmdDock \{([^}]*)\}", css)
+    assert m, "缺 #cmdDock 规则"
+    assert "min-height: 60px" in m.group(1), "M-1：#cmdDock 须为 min-height: 60px"
+    assert not re.search(r"(?<!min-)height:\s*60px", m.group(1)), "M-1：#cmdDock 不得再有固定 height: 60px"
+    assert "bottom: calc(56px + var(--sab))" in m.group(1), "M-1：#cmdDock 坞底须随 safe-area 上移"
+    assert "env(safe-area-inset-bottom" not in m.group(1), "M-1：#cmdDock 内边距不再吃 safe-area（改由坞底上移）"
+    assert "--sab: env(safe-area-inset-bottom, 0px)" in css, "M-1：须定义 --sab"
+    mq = re.search(r"#quickBar \{([^}]*)\}", css)
+    assert mq and "bottom: calc(116px + var(--sab))" in mq.group(1), "M-1：#quickBar 须随 safe-area 同量上移（否则增高后的坞盖住芯片）"
+    mt = re.search(r"\n#toasts \{([^}]*)\}", css)
+    assert mt and "bottom: calc(176px + var(--sab))" in mt.group(1), "M-1：#toasts 须随 safe-area 同量上移"
+    assert "padding: 16px 16px calc(176px + var(--sab))" in css, "M-1：#viewRoot 下边距须随 safe-area 同量上移"
+    # M-2：仇视映射 danger；戒备/亲近仍落中性（不映射）
+    assert re.search(r'attitude_cn === "仇视" \? " danger"', js), "M-2：仇视须映射 danger"
+    assert "戒备" not in js.split("tagCls")[1].split(";")[0], "M-2：戒备不得映射（Spec 未知落中性）"
+    # M-3：道身卡 h3 单独 18px，其他卡 h3 仍 15px
+    m3 = re.search(r"#sanctumBody \.card:first-child h3 \{([^}]*)\}", css)
+    assert m3 and "font-size: 18px" in m3.group(1), "M-3：道身卡 h3 须 18px"
+    mg = re.search(r"\.card h3 \{([^}]*)\}", css)
+    assert mg and "font-size: 15px" in mg.group(1), "M-3：通用 .card h3 须保持 15px"
+    # M-4：身家数字等宽
+    m4 = re.search(r"\.stat-cell \.num \{([^}]*)\}", css)
+    assert m4 and ("font-family: var(--font-num)" in m4.group(1)
+                   or "font-variant-numeric: tabular-nums" in m4.group(1)), "M-4：.stat-cell .num 须等宽数字"
+    # M-5：门庭主按钮 52px
+    m5 = re.search(r"#gateSubmit \{([^}]*)\}", css)
+    assert m5 and "min-height: 52px" in m5.group(1), "M-5：#gateSubmit 须 min-height: 52px"
+    # QA-02：键盘态 Toast 底边 120px（60 命令坞 + 48 快捷条 + 12 间隙）
+    mkb = re.search(r"body\.kb-open #toasts \{([^}]*)\}", css)
+    assert mkb and "bottom: 120px" in mkb.group(1), "QA-02：键盘态 Toast 须 bottom: 120px"
+    # QA-03：时间戳绝对定位于首行右上角，右内边距预留防重叠
+    mts = re.search(r"\.feed-line \.ts \{([^}]*)\}", css)
+    assert mts and "position: absolute" in mts.group(1), "QA-03：.feed-line .ts 须绝对定位"
+    assert "float: right" not in mts.group(1), "QA-03：.ts 不得再用 float:right"
+    mfl = re.search(r"\.feed-line \{([^}]*)\}", css)
+    assert mfl and "position: relative" in mfl.group(1), "QA-03：.feed-line 须 position: relative"
+    assert mfl and "padding: 12px 56px 12px 16px" in mfl.group(1), "QA-03：.feed-line 右内边距须预留时间戳位置"
+    print("✓ 返修 M-1/M-2/M-3/M-4/M-5/QA-02 契约断言通过")
+
+
+def test_mobile_redesign_budgets():
+    """R-21：体积预算——CSS ≤20.6KB（返修轮总管一次性豁免，原 20KB；20.6×1024=21094B）；html 净增 ≤60 行；js 净增 ≤40 行。"""
+    css_bytes = (WEB / "mobile.css").stat().st_size
+    assert css_bytes <= int(20.6 * 1024), f"mobile.css {css_bytes}B 超 20.6KB 豁免预算"
+    html_lines = len((WEB / "mobile.html").read_text(encoding="utf-8").splitlines())
+    js_lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
+    assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
+    assert js_lines - 1172 <= 40, f"mobile.js 净增 {js_lines - 1172} 行超 40"
+    print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js +{js_lines - 1172} 行")
