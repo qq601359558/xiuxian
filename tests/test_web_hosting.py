@@ -93,6 +93,16 @@ def test_root_serves_login_page():
     print("✓ GET / 返回登录页且与磁盘一致")
 
 
+def test_login_page_has_no_loopback_default():
+    # 127.0.0.1 在玩家设备上永远指向玩家自己的设备，服不在那里：登录页不得再向
+    # 玩家展示 127.0.0.1:8765（占位/页脚都算），页面从哪打开就连哪。
+    _, _, body = _get("/")
+    text = body.decode("utf-8")
+    assert "127.0.0.1:8765" not in text
+    assert "127.0.0.1" not in text
+    print("✓ 登录页不含 127.0.0.1 默认地址")
+
+
 def test_index_html_path():
     status, headers, body = _get("/index.html")
     assert status == 200

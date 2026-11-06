@@ -4,7 +4,18 @@
 
   const $ = (id) => document.getElementById(id);
   const state = {
-    base: localStorage.getItem("td_base") || ((location.protocol === "http:" || location.protocol === "https:") && location.hostname !== "localhost" && location.hostname !== "127.0.0.1" ? location.origin : "http://127.0.0.1:8765"),
+    // 阵枢地址：页面从哪打开就连哪；远端页面（NAS/公网）上丢弃早年存下的本机回环
+    // 地址——127.0.0.1 在玩家设备上永远指向玩家自己的设备，服不在那里，留着只会
+    // 一直连不上。本机调试（localhost/文件打开）时仍回落到 127.0.0.1:8765。
+    base: (function () {
+      var remote = (location.protocol === "http:" || location.protocol === "https:") && location.hostname !== "localhost" && location.hostname !== "127.0.0.1" ? location.origin : "";
+      var stored = localStorage.getItem("td_base") || "";
+      if (remote && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(stored)) {
+        localStorage.removeItem("td_base");
+        return remote;
+      }
+      return stored || remote || "http://127.0.0.1:8765";
+    })(),
     token: localStorage.getItem("td_token") || "",
     name: localStorage.getItem("td_name") || "",
     uid: localStorage.getItem("td_uid") || "",
