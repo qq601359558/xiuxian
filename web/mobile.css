@@ -287,3 +287,37 @@ body.kb-open #toasts { bottom: 120px; /* QA-02：键盘态 120px = 60 坞 + 48 �
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- 图库接入（gallery-gameplay §3.6/§3.8/§8/§10.4） ---- */
+.gallery-img { object-fit: cover; background: #0b1d16; max-width: 100%; }
+.frame-tier-1 { border: 2px solid #8a7f72; border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-2 { border: 2px solid #b0763a; border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-3 { border: 2px solid #c0c7ce; border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-4 { border: 2px solid #e0b43c; box-shadow: 0 0 12px rgba(224, 180, 60, .55); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-5 { border: 2px solid #a678e8; box-shadow: 0 0 16px rgba(150, 90, 230, .6); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; animation: frameFlowM 3.2s ease-in-out infinite; }
+@keyframes frameFlowM { 0%, 100% { box-shadow: 0 0 9px rgba(150, 90, 230, .45); } 50% { box-shadow: 0 0 20px rgba(224, 180, 60, .75); } }
+@media (prefers-reduced-motion: reduce) { .frame-tier-5 { animation: none; } }
+.portrait-card { display: flex; gap: 12px; align-items: flex-start; }
+.portrait-img { width: 84px; height: 112px; border-radius: 10px; flex: none; }
+.portrait-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.gallery-progress-row { min-height: 44px; text-align: left; background: #f2f8f5; border: 1px solid #c5e2d5; border-radius: 10px; color: #146a59; font-size: 14px; font-weight: 700; padding: 8px 10px; }
+.art-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.art-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: #f2f8f5; border: 1px solid #c5e2d5; border-radius: 999px; padding: 2px 8px 2px 2px; }
+.art-thumb { width: 24px; height: 24px; border-radius: 50%; }
+.bag-thumb, .equip-thumb { width: 40px; height: 40px; display: block; }
+.detail-img { width: 100%; max-height: 180px; display: block; }
+.eq-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.here-avatar { width: 32px; height: 32px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.feed-omen-img { width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 6px; }
+.spirit-block { background: #10332c; color: #e8f3dc; border: 1px solid rgba(197, 155, 39, .5); border-radius: 10px; padding: 10px; margin: 6px 0 10px; font-size: 13px; }
+.spirit-block .muted { color: #cbd5e1; }
+.spirit-head { display: flex; justify-content: space-between; font-weight: 700; color: #f3d982; }
+.spirit-mood { height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; margin: 6px 0 8px; }
+.spirit-mood > i { display: block; height: 100%; background: linear-gradient(90deg, #48927e, #e0b43c); }
+.clue-chain { font-size: 13px; color: #684807; background: rgba(253, 243, 214, .7); border: 1px solid rgba(197, 155, 39, .45); border-radius: 10px; padding: 8px 10px; margin-top: 8px; overflow-wrap: anywhere; }
+.gallery-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 0; border-bottom: 1px dashed #eee8d8; font-size: 14px; }
+.gallery-row:last-of-type { border-bottom: none; }
+.gallery-row .nm { flex: none; font-weight: 700; }
+.gallery-row .muted { flex: 1; min-width: 0; text-align: right; }
+.gallery-thumb { width: 44px; height: 44px; border-radius: 8px; flex: none; }
+.gallery-silhouette { filter: grayscale(1) brightness(.45) contrast(.9); }

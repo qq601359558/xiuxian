@@ -64,6 +64,109 @@
     imgEl.src = INK_FALLBACK_SVG;
   };
 
+  // ==========================================================================
+  // 图库接入（gallery-gameplay §3/§8/§10）：路径一律用后端下发字段
+  // （portrait / items[].img / equipped[].img / art_images /
+  //  spells_catalog[].img / here[].avatar / omen_image），前端不拼不自算；
+  // 唯一例外是图鉴页的 38 键展示表（§10.5 允许持有，分组/文案在前端，
+  // 点亮事实只认后端 status.gallery.unlocked）。
+  // 图片加载失败（onerror）：隐藏图位、保留文字与按钮，绝不破版（§3.8）。
+  // ==========================================================================
+  const GALLERY_REALM_CN = ["练气", "筑基", "金丹", "元婴", "化神", "炼虚"];
+  const GALLERY_REALM_KEYS = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu"];
+  const GALLERY_GROUPS = [
+    { title: "人物", keys: [
+      ...GALLERY_REALM_KEYS.map((r, i) => [`portraits/male-${r}`, `男相·${GALLERY_REALM_CN[i]}`, "定相男后随境界点亮，或同场遇见男修"]),
+      ...GALLERY_REALM_KEYS.map((r, i) => [`portraits/female-${r}`, `女相·${GALLERY_REALM_CN[i]}`, "定相女后随境界点亮，或同场遇见女修"]),
+      ["portraits/npc-laodao", "NPC·老道", "与老道原型 NPC 同场或交谈"],
+      ["portraits/npc-shanggu", "NPC·商贾", "与商贾原型 NPC 同场或交谈"],
+      ["portraits/npc-nvxiu", "NPC·女修", "与女修原型 NPC 同场或交谈"],
+      ["portraits/npc-shaonian", "NPC·少年", "与少年原型 NPC 同场或交谈"],
+    ]},
+    { title: "法宝", keys: [
+      ["artifacts/sword", "法宝·剑", "拥有剑类法宝入纳戒或穿戴"], ["artifacts/cauldron", "法宝·鼎炉", "拥有鼎炉类法宝入纳戒或穿戴"],
+      ["artifacts/banner", "法宝·幡旗", "拥有幡旗类法宝入纳戒或穿戴"], ["artifacts/orb", "法宝·珠戒", "拥有珠戒类法宝入纳戒或穿戴"],
+      ["artifacts/mirror", "法宝·镜", "拥有镜类法宝入纳戒或穿戴"], ["artifacts/bell", "法宝·铃钟", "拥有铃钟类法宝入纳戒或穿戴"],
+      ["artifacts/pagoda", "法宝·塔", "拥有塔类法宝入纳戒或穿戴"], ["artifacts/gourd", "法宝·葫芦", "拥有葫芦类法宝入纳戒或穿戴"],
+      ["artifacts/fan", "法宝·扇", "拥有扇类法宝入纳戒或穿戴"], ["artifacts/seal", "法宝·印玺", "拥有印玺类法宝入纳戒或穿戴"],
+    ]},
+    { title: "功法", keys: [
+      ["arts/metal", "功法·金", "习得金系功法或神通呈现"], ["arts/wood", "功法·木", "习得木系功法或神通呈现"],
+      ["arts/water", "功法·水", "习得水系功法或神通呈现"], ["arts/fire", "功法·火", "习得火系功法或神通呈现"],
+      ["arts/earth", "功法·土", "习得土系功法或神通呈现"], ["arts/thunder", "功法·雷", "习得雷系功法"],
+      ["arts/sword", "功法·剑", "习得剑系功法"], ["arts/ice", "功法·冰", "习得冰系功法"],
+    ]},
+    { title: "藏宝图", keys: [
+      ["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"],
+      ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"],
+    ]},
+  ];
+  const GALLERY_ALL_KEYS = GALLERY_GROUPS.flatMap((g) => g.keys.map((k) => k[0]));
+  const GALLERY_KEY_CN = {};
+  GALLERY_GROUPS.forEach((g) => g.keys.forEach(([k, cn]) => { GALLERY_KEY_CN[k] = cn; }));
+
+  // 图鉴页专用：相对键 → 展示图路径（§10.5 唯一允许前端持有的键表口径）
+  function galleryAssetPath(key) { return "/assets/" + key + ".webp"; }
+
+  // 品阶图框（§3.6）：只认数值 tier，缺失/非法按 1
+  function galleryFrameClass(tier) {
+    let t = parseInt(tier, 10);
+    if (!Number.isFinite(t) || t < 1) t = 1;
+    if (t > 5) t = 5;
+    return "frame-tier-" + t;
+  }
+
+  // 通用图位：无路径不渲染；onerror 隐藏图位（§3.8 兜底红线）
+  function galleryImg(src, cls, alt) {
+    if (!src) return "";
+    return `<img class="gallery-img ${cls || ""}" src="${esc(src)}" alt="${esc(alt || "")}" loading="lazy" onerror="this.style.display='none'" />`;
+  }
+
+  // 器灵块（§6.5）：equipped[].spirit 为 null 时不渲染；有灵才显示四维与入口
+  function spiritHtml(eq) {
+    const sp = eq && eq.spirit;
+    if (!sp) return "";
+    const mood = Number(sp.mood != null ? sp.mood : 0);
+    return `
+    <div class="spirit-block">
+      <div class="spirit-head"><span>器灵 · ${esc(sp.name || "无名灵")}</span><span>${esc(sp.stage_cn || "")}</span></div>
+      <div class="spirit-meta">性格 ${esc(sp.personality_cn || "—")} · 成长 ${esc(sp.growth != null ? sp.growth : 0)} · 心情 ${esc(mood)}${mood < 40 ? "（器灵怠工，加成暂歇）" : ""}${mood < 20 ? " · 心情低落，请温养安抚" : ""}</div>
+      <div class="spirit-mood"><i style="width:${Math.max(0, Math.min(100, mood))}%"></i></div>
+      <div class="spirit-acts">
+        <button type="button" class="btn sm secondary" data-cmd="/器灵">器灵面板</button>
+        <button type="button" class="btn sm secondary" data-cmd="/温养 ${esc(eq.name)}">温养</button>
+        <button type="button" class="btn sm ghost" data-spirit-chat="${esc(eq.name)}" data-spirit-name="${esc(sp.name || "")}">灵语</button>
+      </div>
+    </div>`;
+  }
+
+  // 线索链进度行（§5/§10.1）：items[].clue_chain 摘要，未激活为 null 不渲染
+  function clueChainHtml(it) {
+    const cc = it && it.clue_chain;
+    if (!cc) return `<div class="clue-chain muted">线索链未激活：研读宝图（/宝图）后顺带激活。</div>`;
+    const statusCn = { active: "进行中", awaiting_chest: "线索已尽 · 待开匣", completed: "已完成", abandoned: "已弃链" }[cc.status] || cc.status || "";
+    return `
+    <div class="clue-chain">
+      <span>寻宝线索链：${esc(statusCn)} · 第 ${esc(cc.step != null ? cc.step : 0)}/${esc(cc.total_steps != null ? cc.total_steps : 0)} 步${cc.current_node_name ? " · 当前节点【" + esc(cc.current_node_name) + "】" : ""}</span>
+      <span class="clue-acts">
+        <button type="button" class="btn sm secondary" data-cmd="/寻宝">寻宝进度</button>
+        <button type="button" class="btn sm ghost" data-cmd="/宝图">研读宝图</button>
+      </span>
+    </div>`;
+  }
+
+  // 图鉴新点亮一次性提示（§8.2）：同一批 newly 只提示一次
+  let galleryNewlySeenKey = "";
+  function checkGalleryNewly(st) {
+    const g = st && st.gallery;
+    if (!g || !Array.isArray(g.newly) || !g.newly.length) return;
+    const key = g.newly.slice().sort().join(",") + "|" + (g.count || "");
+    if (key === galleryNewlySeenKey) return;
+    galleryNewlySeenKey = key;
+    const names = g.newly.map((k) => GALLERY_KEY_CN[k] || k).join("、");
+    toast(`图鉴新点亮：${names}（${g.count || g.newly.length}/${g.total || 38}）`, "gold");
+  }
+
   // 十方大荒四大秘境画卷 (Stitch 原生高保真图鉴)
   const WILDERNESS_REALMS = [
     {
@@ -164,7 +267,7 @@
     demo: false,
     chat: { open: false, npc: "", lines: [] },
     // 主界面内联奇遇（由服务端 omen_inline / omen_title / omen_choices 驱动）
-    omen: { open: false, title: "", choices: [], key: "" },
+    omen: { open: false, title: "", choices: [], key: "", image: "" },
     sug: [],
     sugI: 0,
     drawerOpen: false,
@@ -314,6 +417,7 @@
     }
     state.status = Object.assign({}, state.status || {}, st);
     const s = state.status;
+    checkGalleryNewly(st);
 
     // 纳戒数据同步（服务端真实 item_entities 同步到 state.inventory）
     if (Array.isArray(st.items)) {
@@ -405,10 +509,11 @@
     wilderness: "十方大荒",
     inventory: "百宝纳戒",
     bazaar: "九霄坊市",
+    gallery: "天道图鉴",
   };
 
   function setView(v) {
-    const valid = ["sanctum", "sect", "wilderness", "inventory", "bazaar"];
+    const valid = ["sanctum", "sect", "wilderness", "inventory", "bazaar", "gallery"];
     if (!valid.includes(v)) v = "sanctum";
     state.view = v;
     document.querySelectorAll(".nav-tab[data-view]").forEach((b) => {
@@ -439,6 +544,50 @@
     else if (state.view === "wilderness") host.innerHTML = renderWilderness();
     else if (state.view === "inventory") host.innerHTML = renderInventory();
     else if (state.view === "bazaar") host.innerHTML = renderBazaar();
+    else if (state.view === "gallery") host.innerHTML = renderGallery();
+  }
+
+  // ==========================================================================
+  // 图鉴视图（§8.5/§10.3-1）：四类网格，已点亮彩图、未点亮剪影 + 条件文案，
+  // 顶部进度与称号档（10/20/30/38）；点亮事实只认 status.gallery.unlocked
+  // ==========================================================================
+  function renderGallery() {
+    const s = state.status || {};
+    const g = s.gallery || { unlocked: [], count: 0, total: 38, title: "" };
+    const unlocked = new Set(Array.isArray(g.unlocked) ? g.unlocked : []);
+    const count = g.count != null ? g.count : unlocked.size;
+    const total = g.total || 38;
+    const pct = total ? Math.min(100, Math.round((count / total) * 100)) : 0;
+    const tiers = [[10, "初窥门径"], [20, "博览群真"], [30, "洞鉴乾坤"], [38, "图录大成"]]
+      .map(([n, t]) => `<span class="gallery-tier ${count >= n ? "on" : ""}">${n} · ${t}${count >= n ? " ✓" : ""}</span>`).join("");
+    const groups = GALLERY_GROUPS.map((grp) => `
+      <section class="gallery-group">
+        <h3>${esc(grp.title)}（${grp.keys.filter(([k]) => unlocked.has(k)).length}/${grp.keys.length}）</h3>
+        <div class="gallery-grid">
+          ${grp.keys.map(([key, cn, cond]) => {
+            const lit = unlocked.has(key);
+            return `
+            <figure class="gallery-cell ${lit ? "lit" : "unlit"}">
+              ${galleryImg(galleryAssetPath(key), lit ? "" : "gallery-silhouette", cn)}
+              <figcaption>
+                <strong>${esc(cn)}</strong>
+                <span>${lit ? "◆ 已点亮" : "◇ " + esc(cond)}</span>
+              </figcaption>
+            </figure>`;
+          }).join("")}
+        </div>
+      </section>`).join("");
+    return `
+    <div class="w-full flex flex-col gap-5 gallery-view">
+      <div class="jade-panel rounded-2xl p-5 shadow-sm">
+        <h1 class="text-xl font-bold text-jade-950">天道图鉴</h1>
+        <p class="text-xs text-slate-600 mt-1">图鉴只记眼界，不予数值。点亮 ${esc(count)} / ${esc(total)}${g.title ? ` · 当前称号：【${esc(g.title)}】（仅展示）` : " · 尚未得图鉴称号（10 张起）"}</p>
+        <div class="gallery-progress"><i style="width:${pct}%"></i></div>
+        <div class="gallery-tiers">${tiers}</div>
+        <button type="button" class="btn sm secondary" data-cmd="/图鉴">图鉴文本（/图鉴）</button>
+      </div>
+      ${groups}
+    </div>`;
   }
 
   // ==========================================================================
@@ -1515,6 +1664,21 @@
       </div>
     `;
 
+    // 人物立绘与定相（§3.3）：portrait/gender 只认后端下发；未定相显占位 + 引导
+    const portraitHtml = galleryImg(s.portrait, "gallery-portrait", s.name || "人物立绘");
+    const genderHtml = s.gender
+      ? `<span class="text-[11px] text-slate-500">已定${s.gender === "female" ? "女" : "男"}相 · 立绘随境界而变</span>`
+      : `<span class="text-[11px] text-amber-800">尚未定相：当前为既有修行图占位。可用 /定相 男|女 自选相貌（纯外观，随时可改）。</span>`;
+    const galleryLine = s.gallery
+      ? `<button type="button" class="text-[11px] text-jade-700 font-semibold cursor-pointer" data-act="view:gallery">图鉴 ${esc(s.gallery.count != null ? s.gallery.count : 0)}/${esc(s.gallery.total || 38)}${s.gallery.title ? " · " + esc(s.gallery.title) : ""} ›</button>`
+      : "";
+    // 功法图（§3.7/§10.3-2）：art_images 覆盖 skills+custom_arts，spells_catalog[].img 直用
+    const artNames = [...new Set([...(Array.isArray(s.skills) ? s.skills : []), ...((s.custom_arts || []).map((a) => (a && a.name) || "")), (s.arts && s.arts.main) || "", ...((s.arts && s.arts.sub) || [])].filter(Boolean))];
+    const artsHtml = artNames.length ? artNames.map((n) => `
+      <span class="art-chip">${galleryImg((s.art_images || {})[n], "art-thumb", n)}<span>${esc(n)}</span></span>`).join("") : `<span class="text-[11px] text-slate-500">尚未习得功法</span>`;
+    const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => `
+      <span class="art-chip">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")}</span></span>`).join("");
+
     return `
     <div class="w-full flex flex-col gap-6">
       <!-- 沉浸式 2D 洞天仙境视窗 (暗黑水墨原画 + 吐纳冥想法相 + 天道大限罗盘) -->
@@ -1554,10 +1718,10 @@
 
         <!-- 中部核心：五心朝天修士吐纳法相 (2D 灵气粒子律动) -->
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <img src="${ASSETS.cultivator_meditating}"
-               onerror="window.handleImgFallback(this)"
-               class="cultivator-breathing max-h-[320px] object-contain drop-shadow-2xl"
-               alt="修士吐纳法相" />
+          <img src="${esc(s.portrait || ASSETS.cultivator_meditating)}"
+               onerror="this.style.display='none'"
+               class="cultivator-breathing max-h-[320px] object-contain drop-shadow-2xl gallery-portrait-main"
+               alt="修士人物立绘" />
         </div>
 
         <!-- 底部快捷运功盘与境界反馈 -->
@@ -1596,6 +1760,24 @@
                 <span class="text-[10px] text-filigree-700 font-semibold">道阶</span>
                 <span class="text-xs font-bold text-jade-800">${esc((s.realm || "化神").slice(0, 2))}</span>
               </div>
+            </div>
+
+            <!-- 人物立绘 · 定相 · 图鉴进度 · 功法图（图库接入 §3.3/§3.7/§8） -->
+            <div class="gallery-portrait-card">
+              ${portraitHtml}
+              <div class="gallery-portrait-meta">
+                ${genderHtml}
+                <div class="gallery-gender-acts">
+                  <button type="button" class="btn sm ${s.gender === "male" ? "primary" : "secondary"}" data-cmd="/定相 男">定相 · 男</button>
+                  <button type="button" class="btn sm ${s.gender === "female" ? "primary" : "secondary"}" data-cmd="/定相 女">定相 · 女</button>
+                  ${galleryLine}
+                </div>
+              </div>
+            </div>
+            <div class="bg-white/80 rounded-xl p-3 border border-jade-200/80 space-y-2">
+              <div class="text-xs font-bold text-jade-900">功法与神通图录</div>
+              <div class="art-chips">${artsHtml}</div>
+              ${spellsHtml ? `<div class="art-chips">${spellsHtml}</div>` : ""}
             </div>
 
             <!-- 5 大槽位护道法宝装备架 -->
@@ -4340,9 +4522,9 @@
         bodyHtml: `
           <div class="space-y-4" id="treasureStageBox">
             <div class="relative w-full h-40 rounded-xl overflow-hidden bg-slate-900 border border-amber-300 shadow-sm">
-              <img src="${ASSETS.realm_2}"
-                   onerror="window.handleImgFallback(this)"
-                   class="w-full h-full object-cover" alt="古修洞府遗穴" />
+              <img src="${esc(tmap.img || ASSETS.realm_2)}"
+                   onerror="this.style.display='none'"
+                   class="w-full h-full object-cover" alt="藏宝图" />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-black/30"></div>
               <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
                 <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/90 text-amber-200 border border-amber-500/40">${esc(tmap.tierName || '地品')} · ${esc(tmap.slotCn || '天机秘宝图卷')}</span>
@@ -4373,6 +4555,8 @@
                 </p>
               </div>
             </div>
+
+            ${clueChainHtml(tmap)}
 
             <div class="p-3.5 bg-slate-900 text-amber-200 font-mono text-xs rounded-xl border border-amber-400/60 space-y-2">
               <div class="flex items-center gap-2 text-amber-300 font-bold">
@@ -4783,6 +4967,7 @@
         <div class="w-10 h-10 rounded-full ${isSel ? "bg-filigree-400/20 text-filigree-800" : "bg-jade-100/60 text-jade-800"} flex items-center justify-center font-calligraphy text-xl font-bold mt-1 shadow-2xs">
           ${glyph}
         </div>
+        ${it.img ? `<span class="gallery-cell-img ${galleryFrameClass(it.tier)}">${galleryImg(it.img, "bag-thumb", it.name)}</span>` : ""}
         <div class="text-xs font-semibold text-slate-800 truncate w-full mt-2">${esc(it.name)}</div>
       </div>`;
     }).join("");
@@ -4797,8 +4982,8 @@
       inspectorHtml = `
       <div class="space-y-4">
         <div class="relative w-full h-44 rounded-xl overflow-hidden bg-slate-900 border border-filigree-400/40 shadow-sm">
-          <img src="${ASSETS.realm_2}"
-               onerror="window.handleImgFallback(this)"
+          <img src="${esc(sel.img || ASSETS.realm_2)}"
+               onerror="this.style.display='none'"
                class="w-full h-full object-cover" alt="藏宝图卷" />
           <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
           <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-filigree-500/90 text-amber-950 font-bold text-[11px] shadow-sm">
@@ -4833,6 +5018,8 @@
           ${esc(sel.lore)}
         </div>
 
+        ${clueChainHtml(sel)}
+
         ${isAtTarget ? `
           <button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-jade-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md border border-emerald-400 transition cursor-pointer flex items-center justify-center gap-1.5" type="button" data-treasure-act="dig" data-map-name="${esc(sel.name)}">
             <span>⚡</span>
@@ -4862,13 +5049,16 @@
 
         const isEquip = sel && (sel.kind === "equip" || sel.kind === "weapon" || sel.kind === "armor" || sel.kind === "trinket" || !!sel.slot);
         const isPill = sel && (sel.kind === "pill" || sel.kind === "consumable");
+        const selEq = (state.equipped || []).find((e) => e.name === sel.name) || null;
 
         inspectorHtml = `
       <div class="space-y-4">
         <div class="flex items-center gap-3 pb-3 border-b border-jade-200">
+          ${sel.img ? `<span class="gallery-cell-img ${galleryFrameClass(sel.tier)}">${galleryImg(sel.img, "inspector-img", sel.name)}</span>` : `
           <div class="w-12 h-12 rounded-xl bg-jade-800 text-filigree-300 flex items-center justify-center font-calligraphy text-2xl font-bold shadow-2xs">
             ${sel.iconGlyph || sel.name.slice(0, 1)}
-          </div>
+          </div>`}
+          ${selEq && selEq.img && selEq !== sel ? `<span class="gallery-cell-img ${galleryFrameClass(selEq.tier)}">${galleryImg(selEq.img, "inspector-img", selEq.name)}</span>` : ""}
           <div>
             <h4 class="text-base font-bold text-jade-950">${esc(sel.name)}</h4>
             <div class="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
@@ -4884,6 +5074,8 @@
         <div class="text-xs text-slate-600 bg-white/80 p-3 rounded-xl border border-jade-100 leading-relaxed">
           ${esc(sel.lore || "天地造化所钟之奇珍。")}
         </div>
+
+        ${selEq ? spiritHtml(selEq) : ""}
 
         <div class="flex flex-col gap-2 pt-1">
           ${isEquip ? `
@@ -4976,6 +5168,20 @@
               </div>
               ${trinketEquip.name !== "空置灵佩" ? `<button type="button" class="text-xs text-slate-400 hover:text-rose-600 cursor-pointer" data-equip-act="unequip" data-equip-name="${esc(trinketEquip.name)}">卸下</button>` : ""}
             </div>
+
+            <!-- 已穿戴全览：法宝图 + 品阶图框 + 器灵（§3.5/§3.6/§6.5） -->
+            ${eqList.map((eq) => `
+            <div class="p-3 bg-white/90 rounded-xl border border-jade-200 space-y-2">
+              <div class="flex items-center gap-2.5">
+                ${eq.img ? `<span class="gallery-cell-img ${galleryFrameClass(eq.tier)}">${galleryImg(eq.img, "equip-thumb", eq.name)}</span>` : ""}
+                <div>
+                  <h4 class="text-xs font-bold text-jade-950">${esc(eq.name)}</h4>
+                  <div class="text-[10px] text-filigree-700 font-medium">${esc(eq.slotCn || eq.slot || "")} · ${esc(eq.tierName || "")}</div>
+                </div>
+              </div>
+              ${spiritHtml(eq)}
+              ${!eq.spirit && (eq.tier || 0) >= 4 ? `<button type="button" class="btn sm secondary" data-cmd="/器灵 唤 ${esc(eq.name)}">唤灵</button>` : ""}
+            </div>`).join("")}
           </div>
         </div>
 
@@ -5601,6 +5807,7 @@
       <div class="cultivator-item ${isBlood ? "danger-red" : ""}">
         <div class="cultivator-row">
           <div>
+            ${r.avatar ? galleryImg(r.avatar, "here-avatar", r.name) : ""}
             <span class="cultivator-name">${esc(r.name)}</span>
             <span style="font-size:12px;color:var(--ink-500);margin-left:6px">${esc(r.realm || "")}</span>
           </div>
@@ -5621,8 +5828,32 @@
   // ==========================================================================
   // 神识交谈玉简 (Chat Jade Modal)
   // ==========================================================================
+  // 器灵灵语（§10.3-7）：复用 chatModal 容器，消息走 /灵语 命令通道，
+  // 不复用 NPC 会话状态机；头像位 = 该法宝的法宝图（equipped[].img）。
+  function openSpiritChat(itemName, spiritName) {
+    const eq = (state.equipped || []).find((e) => e.name === itemName) || {};
+    state.chat.open = true;
+    state.chat.spiritMode = true;
+    state.chat.isPlayer = false;
+    state.chat.npc = spiritName || (eq.spirit && eq.spirit.name) || "器灵";
+    state.chat.lines = [{ cls: "sys", text: `已与【${itemName}】之器灵【${state.chat.npc}】连通灵犀，在下方直接开口，言语经 /灵语 通道由天道裁决。` }];
+    setText("chatTitle", "器灵灵语 · " + state.chat.npc);
+    setText("chatSub", "器灵栖于法宝之中；温养与成长由规则裁决，灵语只叙情性");
+    const chatAvatarEl = $("chatAvatar");
+    if (chatAvatarEl) {
+      if (eq.img) { chatAvatarEl.src = eq.img; chatAvatarEl.style.display = ""; }
+      else { chatAvatarEl.removeAttribute("src"); chatAvatarEl.style.display = "none"; }
+    }
+    const modal = $("chatModal");
+    if (modal) { modal.classList.remove("hidden"); modal.setAttribute("aria-hidden", "false"); }
+    renderChat(true);
+    const inp = $("chatInput");
+    if (inp) { inp.disabled = false; setTimeout(() => { try { inp.focus(); } catch (_) {} }, 60); }
+  }
+
   function openChat(name, isPlayer) {
     state.chat.open = true;
+    state.chat.spiritMode = false;
     if (name) state.chat.npc = name;
     const who = state.chat.npc || "同道";
 
@@ -5631,6 +5862,21 @@
       if (targetRow) isPlayer = !targetRow.is_npc;
     }
     state.chat.isPlayer = !!isPlayer;
+
+    // 对方头像（§10.3-5）：交谈开启响应未下发 avatar 时，回落同场列表的
+    // here[].avatar（后端下发完整路径）；两者皆无则不显示图位。
+    const chatRow = (state.here || []).find(x => x.name === who);
+    state.chat.avatar = (chatRow && chatRow.avatar) || "";
+    const chatAvatarEl = $("chatAvatar");
+    if (chatAvatarEl) {
+      if (state.chat.avatar) {
+        chatAvatarEl.src = state.chat.avatar;
+        chatAvatarEl.style.display = "";
+      } else {
+        chatAvatarEl.removeAttribute("src");
+        chatAvatarEl.style.display = "none";
+      }
+    }
 
     if (state.chat.isPlayer) {
       setText("chatTitle", "神识传音 · " + who + "（真人同道）");
@@ -5659,7 +5905,9 @@
   }
 
   function closeChat(hangup) {
+    const wasSpirit = !!state.chat.spiritMode;
     state.chat.open = false;
+    state.chat.spiritMode = false;
     state.chat.npc = "";
     state.chat.isPlayer = false;
     setText("cmdTarget", "未锁定同道");
@@ -5671,7 +5919,7 @@
       modal.setAttribute("aria-hidden", "true");
     }
 
-    if (hangup && !state.demo && state.token) {
+    if (hangup && !wasSpirit && !state.demo && state.token) {
       api("/action", { token: state.token, command: "/挂断" }).catch(() => {});
     }
   }
@@ -5698,6 +5946,14 @@
   async function sendChat(text) {
     const c = (text || "").trim();
     if (!c) return;
+    // 器灵灵语分流：走 /灵语 命令，不进 NPC /chat 会话通道
+    if (state.chat.spiritMode) {
+      chatMsg("你", c, "me");
+      const data = await sendCmd("/灵语 " + c);
+      if (data && data.text) chatMsg(state.chat.npc || "器灵", data.text, "npc");
+      else if (data && data.error) chatMsg("", data.error, "sys");
+      return;
+    }
     const isPlayer = !!state.chat.isPlayer;
     if (!isPlayer && checkActionLock("对方神识沉吟中，请稍候再传音…")) return;
     const reqEpoch = ++state.lastEpoch;
@@ -5819,6 +6075,7 @@
     `).join("");
     host.innerHTML = `
       <div class="omen-bar-inner">
+        ${state.omen.image ? galleryImg(state.omen.image, "omen-image", state.omen.title || "奇遇配图") : ""}
         <span class="omen-tag">【机缘 · ${esc(state.omen.title || "奇遇")}】</span>
         <div class="omen-chips">${chips}</div>
         <button type="button" class="omen-chip omen-abandon" data-omen-act="abandon">抽身</button>
@@ -5828,18 +6085,18 @@
     syncOmenInputHint();
   }
 
-  function setInlineOmenBar(title, choices) {
+  function setInlineOmenBar(title, choices, image) {
     const host = $("inlineOmenBar");
     if (!host) return;
-    const key = `${title}||${choices.map((c) => c.id).join(",")}`;
+    const key = `${title}||${choices.map((c) => c.id).join(",")}||${image || ""}`;
     if (state.omen.open && state.omen.key === key && host.innerHTML) return;
-    state.omen = { open: true, title, choices, key };
+    state.omen = { open: true, title, choices, key, image: image || "" };
     renderInlineOmenBar();
   }
 
   function clearInlineOmenBar() {
     const was = state.omen.open;
-    state.omen = { open: false, title: "", choices: [], key: "" };
+    state.omen = { open: false, title: "", choices: [], key: "", image: "" };
     if (was) renderInlineOmenBar();
     syncOmenInputHint();
   }
@@ -5855,8 +6112,13 @@
       const choices = (Array.isArray(data.omen_choices) ? data.omen_choices : [])
         .filter((c) => c && c.id != null)
         .map((c) => ({ id: String(c.id), label: String(c.label || c.id) }));
-      setInlineOmenBar(data.omen_title || "奇遇", choices);
+      // 奇遇配图（§7.2/§10.1）：只增键 omen_image，前端直接用不拼路径
+      setInlineOmenBar(data.omen_title || "奇遇", choices, data.omen_image || "");
       return;
+    }
+    if (data.omen_image && state.omen.open) {
+      state.omen.image = data.omen_image;
+      renderInlineOmenBar();
     }
     if (data.omen_inline === false || data.omen_open === false) clearInlineOmenBar();
   }
@@ -6638,6 +6900,12 @@
       can_promote: false,
       next_rank: "客卿长老",
       promote_req_tier: 3,
+      gender: "male",
+      portrait: "/assets/portraits/male-zhuji.webp",
+      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 38, title: "", newly: [] },
+      art_images: { "吐纳术": "/assets/arts/earth.webp" },
+      skills: ["吐纳术"],
+      spells_catalog: [],
       sect_ring: {
         accepted: null,
         done_today: false,
@@ -6649,9 +6917,9 @@
       },
     };
     state.here = [
-      { name: "柳三娘", realm: "筑基中期", sect: "四海散修盟", rank: "掌柜", is_npc: true, personality: "和气生财", attitude_cn: "友善" },
-      { name: "凌剑心", realm: "筑基圆满", sect: "万剑仙门", rank: "真传", is_npc: true, personality: "剑道痴迷", attitude_cn: "中立" },
-      { name: "幽冥邪尊", realm: "化神期", sect: "九幽天魔宗", rank: "太上长老", is_npc: true, personality: "乖戾狠辣", attitude_cn: "敌视", blood_marked: true },
+      { name: "柳三娘", realm: "筑基中期", sect: "四海散修盟", rank: "掌柜", is_npc: true, personality: "和气生财", attitude_cn: "友善", avatar: "/assets/portraits/npc-nvxiu.webp" },
+      { name: "凌剑心", realm: "筑基圆满", sect: "万剑仙门", rank: "真传", is_npc: true, personality: "剑道痴迷", attitude_cn: "中立", avatar: "/assets/portraits/npc-shaonian.webp" },
+      { name: "幽冥邪尊", realm: "化神期", sect: "九幽天魔宗", rank: "太上长老", is_npc: true, personality: "乖戾狠辣", attitude_cn: "敌视", blood_marked: true, avatar: "/assets/portraits/npc-laodao.webp" },
     ];
     state.feed = [
       { kind: "ai", text: "【天地演化】西荒黑风绝渊赤焰喷涌，世界疤痕显现，隐有上古凶煞降世！", ts: Date.now() / 1000 - 120 },
@@ -6910,6 +7178,13 @@
       const omenActEl = e.target.closest("[data-omen-act]");
       if (omenActEl && omenActEl.getAttribute("data-omen-act") === "abandon") {
         sendCmd("/奇遇 弃");
+        return;
+      }
+
+      // 器灵灵语：复用 chatModal 开器灵会话
+      const spiritEl = e.target.closest("[data-spirit-chat]");
+      if (spiritEl) {
+        openSpiritChat(spiritEl.getAttribute("data-spirit-chat"), spiritEl.getAttribute("data-spirit-name"));
         return;
       }
 
