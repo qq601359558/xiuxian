@@ -12,12 +12,8 @@ from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import urlparse
 
-<<<<<<< HEAD
-from config import LAN_HOST, LAN_PORT
-from core.command_catalog import all_entries
-=======
 from config import AI_REQUIRED, ALLOW_LOCAL_AI, LAN_HOST, LAN_PORT, VERSION, ai_available
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+from core.command_catalog import all_entries
 from server.world import WORLD
 from server.log import log_event
 
@@ -166,11 +162,6 @@ class GameHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/health":
-<<<<<<< HEAD
-            return _json_response(self, 200, {"ok": True, "service": "tiandao-lan"})
-        if self._serve_static(path):
-            return
-=======
             # 灰度运维自检：版本、AI 通道状态、在线会话数（字段只增不改，兼容旧探针）
             return _json_response(
                 self,
@@ -185,7 +176,8 @@ class GameHandler(BaseHTTPRequestHandler):
                     "online": len(WORLD.sessions),
                 },
             )
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+        if self._serve_static(path):
+            return
         if path == "/ailog":
             from ai.calllog import tail_ai_calls, AI_LOG_PATH
 
@@ -301,7 +293,6 @@ class GameHandler(BaseHTTPRequestHandler):
                     "messages": [m.model_dump() for m in msgs],
                 },
             )
-<<<<<<< HEAD
         if path == "/world/director" or path.startswith("/world/director"):
             from core.world_director import director_snapshot
             from core.schedule import build_world_evolution
@@ -337,11 +328,9 @@ class GameHandler(BaseHTTPRequestHandler):
             if q:
                 return _json_response(self, 200, {"ok": True, "query": q, "commands": search_commands(q, limit=limit)})
             return _json_response(self, 200, catalog_json())
-=======
         # Web 静态托管：置于全部 API 路由之后、白名单精确匹配，API 优先级不变
         if _static_response(self, path):
             return
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -379,7 +368,7 @@ class GameHandler(BaseHTTPRequestHandler):
                     log_event("GATE", "authentication_failed", route=path, reason="INVALID_TOKEN")
                     return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
                 name = str(data.get("name") or sess["name"] or "散修").strip()[:12]
-                result = WORLD.join(name, user_id=sess["user_id"])
+                result = WORLD.join(name, user_id=sess["user_id"], auto_rebirth=(path == "/join"))
                 log_event("CMD", "join", ok=True)
                 return _json_response(self, 200, {"ok": True, **result})
 
@@ -392,21 +381,19 @@ class GameHandler(BaseHTTPRequestHandler):
             else:
                 lg = {"ok": False, "error": "INVALID_CREDENTIAL_TYPES"}
             if not lg.get("ok"):
-<<<<<<< HEAD
                 log_event("GATE", "authentication_failed", route=path, reason=lg.get("error"))
                 return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
             username = lg["username"]
             name = str(data.get("name") or username).strip()[:12]
-=======
-                return _json_response(self, 400, lg)
-            # account-death §2.6 行为变更：现世角色已死 → 只报死讯＋钱包，不自动建角；
-            # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
-            dead = WORLD.dead_payload(lg["user_id"], username=username)
-            if dead is not None:
-                log_event("CMD", "login_dead", username=username)
-                return _json_response(self, 200, {"ok": True, "username": username, **dead})
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
-            result = WORLD.join(name, user_id=lg["user_id"])
+            if path == "/login":
+                # account-death §2.6：现世角色已死 → 只报死讯＋钱包，不自动建角；
+                # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
+                # /join 不走此路：凭据入世即转世开新世（分支语义，见下方 join 调用）。
+                dead = WORLD.dead_payload(lg["user_id"], username=username)
+                if dead is not None:
+                    log_event("CMD", "login_dead", username=username)
+                    return _json_response(self, 200, {"ok": True, "username": username, **dead})
+            result = WORLD.join(name, user_id=lg["user_id"], auto_rebirth=(path == "/join"))
             log_event("CMD", path[1:], username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})
 
