@@ -34,14 +34,10 @@ from core.here import list_here, format_here
 from core.profile import build_profile, format_profile
 from core.npc_proactive import NpcProactiveEngine
 from core.bounty import BountyEngine, bounty_status_cn
-<<<<<<< HEAD
 from core.market import MarketEngine, ListingStatus
 from core.items import ItemEntity, ItemKind
-=======
-from core.market import MarketEngine
 from core.atlas import AtlasEngine
 from core.ascension import AscensionEngine
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 from core.breakthrough import BreakthroughEngine
 from core.protection import ProtectionEngine, is_conflict_zone
 from core.goals import GoalEngine
@@ -132,7 +128,6 @@ class World:
                     except Exception:
                         pass
                     NpcAgendaEngine.tick_world(max_npcs=3, force=False)
-<<<<<<< HEAD
                     # 天道导演：AI 主导走向（冷却在 run_cycle 内）
                     try:
                         from core.world_director import WorldDirector
@@ -168,7 +163,6 @@ class World:
                         era_reentry.tick()
                     except Exception:
                         pass
-=======
                     # F05：拍卖状态机随世界 tick 惰性推进（系统场次排期/NPC 跟价/到期结算）
                     try:
                         from core.trade import AuctionEngine
@@ -179,7 +173,6 @@ class World:
                             log_event("AUCTION", "advance_error", err=str(e)[:120])
                         except Exception:
                             pass
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             except Exception:
                 continue
 
@@ -217,21 +210,39 @@ class World:
                 pass
 
     # ---------------- 会话 ----------------
-    def join(self, name: str, *, user_id: str) -> Dict[str, Any]:
-        """以调用方已认证的 uid 恢复角色或开启新一世。"""
-        if not isinstance(user_id, str) or not user_id.strip():
+    def join(self, name: str, user_id: Optional[str] = None, *, auto_rebirth: bool = False) -> Dict[str, Any]:
+        """入世双轨（合并裁定）：
+
+        - 显式 user_id（已认证）：严格按 uid 恢复本账户角色，绝不按道号收养
+          他人同名号（分支账户隔离 / PROX-9）；角色已死时默认返回 dead_payload
+          （main §2.6，建角须显式 /转世），auto_rebirth=True 时直接结算旧世、
+          开启新一世（HTTP /join 凭据/令牌路径的分支语义）。
+        - 无 user_id（匿名局域网，main 口径）：按道号收养仍存活的非 NPC 玩家号
+          （换设备/清缓存），查无则以 lan_ 匿名号开新世。
+        冲突裁定留痕：分支原签名要求 user_id 必传（TypeError 于缺省调用），
+        与 main 约二十处 join(name) 匿名调用点同形冲突，不可兼得——取 main
+        匿名语义，分支的显式-uid 严格性在 uid 路径内完整保留；HTTP 层裸
+        user_id 入口另由 app.py 的 AUTH_REQUIRED 门禁封堵（PROX-9 不回退）。
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("join requires a non-empty name")
+        name = name.strip()
+        if user_id is not None and (not isinstance(user_id, str) or not user_id.strip()):
             raise ValueError("join requires an authenticated user_id")
         with self.lock:
-            uid = user_id.strip()
-            char = CharacterRepository.get_by_user_id(uid)
+            uid = user_id.strip() if isinstance(user_id, str) else ""
+            char: Optional[Any] = None
             resumed = False
-<<<<<<< HEAD
-=======
-            # 1) 浏览器账号 ID
             if uid:
                 char = CharacterRepository.get_by_user_id(uid)
-            # 2) 按道号找回仍存活的玩家号（换设备/清缓存）
-            if (not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead()):
+                if (
+                    char is not None
+                    and (char.status == CharacterStatus.DEAD or char.lifespan.is_dead())
+                    and not auto_rebirth
+                ):
+                    return self.dead_payload(uid)
+            else:
+                # 匿名路径：按道号找回仍存活的玩家号（换设备/清缓存）
                 by_name = CharacterRepository.get_by_name(name)
                 if by_name and by_name.status != CharacterStatus.DEAD and not by_name.lifespan.is_dead():
                     uid_n = str(by_name.user_id or "")
@@ -239,19 +250,13 @@ class World:
                         char = by_name
                         uid = uid_n
                         resumed = True
-            # 评审 M2（总管裁定，spec §2.6）：带 user_id 的 /join 且角色已死时，
-            # 不再自动建角绕过 T11，返回与 /login 同款 dead:true payload；
-            # 建角须玩家显式 /转世。无 user_id 的匿名 /join 保持自动建角（见下）。
-            if uid and char is not None and (
-                char.status == CharacterStatus.DEAD or char.lifespan.is_dead()
-            ):
-                return self.dead_payload(uid)
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             is_new_life = False
             if not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
-                # 已死（仅匿名路径到此）：结算道统（若尚未结算），再新一世
+                # 已死（匿名路径或 auto_rebirth）：结算道统（若尚未结算），再新一世
                 if char is not None:
                     self._settle_if_needed(char, cause=char.death_cause or "身死道消")
+                if not uid:
+                    uid = f"lan_{uuid.uuid4().hex[:8]}"
                 char = WorldClock.create_new_character(uid, name)
                 CharacterRepository.save(char)
                 ChronicleRepository.record("JOIN", name, f"修士【{name}】登入局域网大世界。")
@@ -1501,8 +1506,6 @@ class World:
                 res = EquipEngine.unequip(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
-<<<<<<< HEAD
-=======
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/pets", "/pet", "/灵宠"):
                 return {
@@ -1734,7 +1737,6 @@ class World:
                 res = BookEngine.read_book(char, hint.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
@@ -2210,7 +2212,6 @@ class World:
                 from core.sect_contrib import sect_powerboard
 
                 return {"ok": True, "text": sect_powerboard()}
-<<<<<<< HEAD
             if action in ("/势力", "/faction"):
                 from core.faction import handle_faction_command, format_faction_board
 
@@ -2244,7 +2245,6 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/交宗门令 <令id>"}
                 return handle_complete_mission(char, parts[1].strip())
-=======
             if action in ("/议政", "/council"):
                 from core.council import CouncilEngine
 
@@ -2267,7 +2267,6 @@ class World:
                 if res.get("success") or res.get("dirty"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
             # ---------------- Wave2：除凶 ----------------
             if action in ("/除凶", "/hunt"):
@@ -3015,7 +3014,6 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/买寄售 <编号或ID>"}
                 open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
-<<<<<<< HEAD
                 target_id = parts[1]
                 listing = None
                 if target_id.isdigit():
@@ -3029,15 +3027,9 @@ class World:
                             break
                 if not listing:
                     return {"ok": False, "error": f"寄售货物【{target_id}】不存在或已下架。"}
-=======
-                idx = int(parts[1]) - 1
-                if idx < 0 or idx >= len(open_l):
-                    return {"ok": False, "error": "寄售编号不存在"}
-                listing = open_l[idx]
                 # 著书立说（F11）：手稿一人至多持一本，买家已持有则不成交
                 if listing.item_name == BOOK_ITEM and not BookEngine.buyer_can_hold(char):
                     return {"ok": False, "error": "怀中已有一部手稿，先将它流通出去再买新的。"}
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
                 res = MarketEngine.buy_listing(char, listing)
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "购买失败")}
@@ -3082,7 +3074,7 @@ class World:
                 if listing.item_name == BOOK_ITEM:
                     BookEngine.on_listing_cancelled(listing.id)
                 CharacterRepository.save(char)
-                return {"ok": True, "text": res["message"]}
+                return {"ok": True, "text": res["message"], "status": self._status_dict(char)}
 
             if action in ("/pawn", "/典当"):
                 from core.pawn import PawnEngine
@@ -3564,16 +3556,8 @@ class World:
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
             "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 /钱包 /钱包提取 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
-<<<<<<< HEAD
-            "/拍卖行 /上拍 /拍 /一口 /撤拍 "
-            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
-            "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
-            "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /纪元回流 /拍卖行 "
-            "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
-=======
             "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
-            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /天象 /探险 [野外|秘境] "
+            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /天象 /纪元回流 /探险 [野外|秘境] "
             "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
             "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
             "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
@@ -3586,8 +3570,7 @@ class World:
             "/榜 /飞升榜 [我|本纪元|道号] /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
-            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接令 /追凶 /弃令 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接令 /追凶 /弃令 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/任务 /目标 /天道 /世情 /望气"
         )
@@ -3610,7 +3593,6 @@ class World:
         prot_left = 0.0
         if prot:
             prot_left = max(0.0, c.newbie_protect_until() - _t.time())
-<<<<<<< HEAD
         # 统计已穿戴法宝信息
         equipped_names = list(getattr(c, "equipped", []) or [])
         equipped_counts: Dict[str, int] = {}
@@ -3737,7 +3719,6 @@ class World:
 
         unread_msgs = pop_player_inbox(c.id)
 
-=======
         # 账户钱包块（§2.8 命盘钱包行）：只读，不建行；NPC／无账户行为空钱包
         try:
             from core.wallet import wallet_summary as _ws
@@ -3778,7 +3759,6 @@ class World:
             _karma_chains = _KCE.status_summary(c)
         except Exception:
             _karma_chains = {"active": 0, "fermenting": 0, "nearest_mature_game_days": None}
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
@@ -3802,7 +3782,9 @@ class World:
             "skills": list(c.skills[:8]),
             # 灰度批次 B：行囊面板下发（纯新增字段，旧前端忽略即可）
             "inventory": list(c.inventory),
-            "equipped": list(c.equipped),
+            # "equipped" 键合并裁定：取分支富对象列表（equipped_list，workbench
+            # 契约，下方键值后置生效）；main 的 list(c.equipped) 名称列表形态
+            # 与之同键互斥，test_status_dict_gray 的名称断言为已知牺牲项。
             "arrays": list(c.arrays),
             # 灵宠（F01）：出战灵宠摘要 + 在养只数（纯新增）
             "pet": (
@@ -3861,7 +3843,6 @@ class World:
             "protect": ProtectionEngine.status_text(c),
             "conflict_zone": is_conflict_zone(c.location),
             "qi_mult": round(qi_mod.global_qi_multiplier(), 3),
-<<<<<<< HEAD
             "crane_pending_item": getattr(c, "crane_pending_item", None),
             "max_bag_slots": getattr(c, "MAX_BAG_SLOTS", 64),
             "is_bag_full": c.is_bag_full() if hasattr(c, "is_bag_full") else (len(getattr(c, "items", [])) >= 64),
@@ -3965,7 +3946,6 @@ class World:
             "soul": c.soul.model_dump() if hasattr(c, "soul") and hasattr(c.soul, "model_dump") else {},
             "equip_slots": c.equip_slots.model_dump() if hasattr(c, "equip_slots") and hasattr(c.equip_slots, "model_dump") else {},
             "professions": c.professions.model_dump() if hasattr(c, "professions") and hasattr(c.professions, "model_dump") else {},
-=======
             # 委托链摘要（F07，纯新增）：None 或 {publisher, ring: "x/y", kind}
             "quest": (
                 {
@@ -3979,7 +3959,6 @@ class World:
                 if getattr(c, "active_quest", None)
                 else None
             ),
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         }
 
     def _look(self, c: Character) -> str:
@@ -4178,13 +4157,8 @@ class World:
             CharacterRepository.save(c)
             lines.append("寿尽坐化。")
             dead = True
-<<<<<<< HEAD
-            self._settle_if_needed(c, cause="洞府坐化")
-        ret = {
-=======
             _emerge_settle = self._settle_if_needed(c, cause="洞府坐化")
-        return {
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+        ret = {
             "ok": True,
             "text": "\n".join(lines),
             "death": dead,
@@ -4246,7 +4220,6 @@ class World:
                 CharacterRepository.save(c)
             except Exception:
                 pass
-<<<<<<< HEAD
             try:
                 from core.player_echo import record_player_breakthrough
 
@@ -4261,9 +4234,7 @@ class World:
                 WorldDirector.run_cycle(trigger="breakthrough", force=False)
             except Exception:
                 pass
-=======
         _bt_settle = None
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         if dead:
             _bt_settle = self._settle_if_needed(c, cause="渡劫陨落")
         return {
