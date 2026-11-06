@@ -91,7 +91,10 @@ class WorldClock:
             meditation=MeditationSession(),
             location="青云坊市客栈",
             arrays=[],  # 初始散修背包空空，无阵盘
-            inventory=["藏宝图"],  # 入世自带 1 张藏宝图，首次 /挖宝 100% 触发奇遇
+            # 合并裁定：分支的「入世自带藏宝图」不放在工厂——create_new_character
+            # 同时供 NPC 种子/名册/命数模拟与双端入世使用，出厂塞物会污染
+            # 前世遗物清单与纳戒守恒断言（main 侧钉死「初始背包空空」）。
+            # 藏宝图仍可由首次探险保底掉落获得（core/adventure 首探保底）。
         )
         return char
 
