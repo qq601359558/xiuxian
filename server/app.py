@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import urlparse
 
@@ -23,6 +24,41 @@ def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.end_headers()
     handler.wfile.write(body)
+
+
+# ---- Web 静态托管（spec: web-static-hosting）----
+# 按代码自身路径定位 web/（与 data/ 的定位方式一致，与工作目录无关；Docker 中即 /app/web）
+_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+# 精确白名单：请求路径 → (固定文件名, Content-Type)。文件名全是常量，
+# 绝不把用户请求路径拼进文件系统路径，路径穿越在构造上不可能。
+_STATIC_PAGES: Dict[str, tuple[str, str]] = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/style.css": ("style.css", "text/css; charset=utf-8"),
+    "/ailog.html": ("ailog.html", "text/html; charset=utf-8"),
+}
+
+
+def _static_response(handler: BaseHTTPRequestHandler, path: str) -> bool:
+    """命中静态白名单则发文件并返回 True；未命中返回 False（调用方走原 404）。"""
+    entry = _STATIC_PAGES.get(path)
+    if entry is None:
+        return False
+    filename, content_type = entry
+    try:
+        body = (_WEB_DIR / filename).read_bytes()
+    except OSError:
+        return False
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    # 灰度期页面更新频繁，一律不缓存，避免玩家拿到旧页面
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.end_headers()
+    handler.wfile.write(body)
+    return True
 
 
 class GameHandler(BaseHTTPRequestHandler):
@@ -178,6 +214,9 @@ class GameHandler(BaseHTTPRequestHandler):
                     "messages": [m.model_dump() for m in msgs],
                 },
             )
+        # Web 静态托管：置于全部 API 路由之后、白名单精确匹配，API 优先级不变
+        if _static_response(self, path):
+            return
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
