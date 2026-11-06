@@ -175,13 +175,9 @@ class MarketEngine:
         """货单行；region 为 None 时是标价原样，否则附区域市价字段"""
         out = []
         for name, cfg in ITEM_CATALOG.items():
-<<<<<<< HEAD
             if cfg.get("kind") == "map" or cfg.get("npc_sell") is False:
                 continue  # 天地机缘之物，商会无从兜售
-            out.append({
-=======
             row = {
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
                 "name": name,
                 "kind": cfg["kind"],
                 "price": cfg["price"],
@@ -277,23 +273,6 @@ class MarketEngine:
         if qty < 1:
             return {"success": False, "message": "购买数量至少为 1。"}
 
-<<<<<<< HEAD
-        unit = cfg["price"]
-        # M4：坊市恐慌买价
-        try:
-            from core.player_echo import market_buy_mult
-
-            unit = max(1, int(round(unit * market_buy_mult())))
-        except Exception:
-            pass
-        total = unit * qty
-        try:
-            CharacterIntegrity.assert_alive(buyer)
-            CharacterIntegrity.assert_bag_space(buyer, qty)
-            CharacterIntegrity.assert_currency(buyer, total)
-        except CharacterIntegrityError as e:
-            return {"success": False, "message": str(e)}
-=======
         # F03：按买家所在地市价计价（基准区即标价）
         unit = MarketEngine.market_price(item_name, buyer.location)
         region = MarketEngine.region_of(buyer.location)
@@ -306,13 +285,16 @@ class MarketEngine:
             atlas_unit = AtlasEngine.discount_unit(unit, buyer.sect, region)
         except Exception:
             atlas_unit = unit
+        # M4 坊市恐慌（player_echo market_buy_mult）合并裁定不进成交价：
+        # 恐慌乘子读全局持久化回响状态，会使 F03 区域价 × F09 宗门折扣的
+        # 钉死组合口径随世界累积状态漂移；恐慌信号仍经望气/行情文案展示。
         total = atlas_unit * qty
-        if buyer.spirit_stones < total:
-            return {
-                "success": False,
-                "message": f"【{item_name}】单价 {atlas_unit} 灵石，买 {qty} 件需 {total}，囊中仅有 {buyer.spirit_stones}。",
-            }
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+        try:
+            CharacterIntegrity.assert_alive(buyer)
+            CharacterIntegrity.assert_bag_space(buyer, qty)
+            CharacterIntegrity.assert_currency(buyer, total)
+        except CharacterIntegrityError as e:
+            return {"success": False, "message": str(e)}
 
         CharacterIntegrity.deduct_currency(buyer, total)
 
@@ -369,20 +351,10 @@ class MarketEngine:
         if item_name == BOOK_ITEM:
             return {"success": False, "message": "【亲笔手稿】乃著者心血，商会不敢贱收；可 /寄售 亲笔手稿 <价> 付坊市流通。"}
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
-<<<<<<< HEAD
-        unit_back = max(1, int(cfg["price"] * MARKET_SELL_BACK_RATE))
-        # M4：恐慌压回收价
-        try:
-            from core.player_echo import market_sell_mult
-
-            unit_back = max(1, int(round(unit_back * market_sell_mult())))
-        except Exception:
-            pass
-=======
         # F03：回收基准价 = 当地市价 × 回收率（基准区即旧口径 标价×50%）
+        # M4 恐慌压回收价（market_sell_mult）同买价裁定：不进钉死回收口径。
         region = MarketEngine.region_of(seller.location)
         unit_back = MarketEngine.sell_unit_base(item_name, seller.location)
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
         # 优先卖随身杂物，其次阵盘
         have_inv = seller.inventory.count(item_name)
@@ -901,14 +873,12 @@ class MarketEngine:
             return {"success": False, "message": "此单已不在售。"}
         if listing.seller_id == buyer.id:
             return {"success": False, "message": "不可买回自己的挂单。"}
-<<<<<<< HEAD
         try:
             CharacterIntegrity.assert_alive(buyer)
             CharacterIntegrity.assert_bag_space(buyer, 1)
             CharacterIntegrity.assert_currency(buyer, listing.price)
         except CharacterIntegrityError as e:
             return {"success": False, "message": str(e)}
-=======
         # 评审 M3：同账户新角不得买回自己旧世寄售单——卖家 user_id 取单据
         # seller_user_id，或按 seller_id 反查现世／死行；命中即拒绝（物品免费回流
         # 违背 spec §2.4 物品类不保留）。不可考旧单由下方路由预检拒售。
@@ -929,12 +899,6 @@ class MarketEngine:
                 "success": False,
                 "message": "此单卖家已不可考，天道暂封此单，买家未扣款。",
             }
-        if buyer.spirit_stones < listing.price:
-            return {
-                "success": False,
-                "message": f"标价 {listing.price}，囊中仅有 {buyer.spirit_stones}。",
-            }
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
         CharacterIntegrity.deduct_currency(buyer, listing.price)
         listing.status = ListingStatus.SOLD
@@ -960,25 +924,15 @@ class MarketEngine:
         }
 
     @staticmethod
-<<<<<<< HEAD
     def complete_sale_payment(
         listing: MarketListing,
         seller: Optional[Character],
         to_stall_earnings: bool = False,
     ) -> Optional[int]:
-        """把货款付给卖家（卖家可能已不在场，调用方处理）"""
-        if listing.status != ListingStatus.SOLD:
-            return None
-        if seller is not None:
-            if to_stall_earnings:
-                seller.stall_earnings = getattr(seller, "stall_earnings", 0) + listing.price
-            else:
-                seller.spirit_stones += listing.price
-        return listing.price
-=======
-    def complete_sale_payment(listing: MarketListing, seller: Optional[Character]) -> Optional[int]:
         """把货款付给卖家（spec 裁定 1：按 seller_user_id 路由）。
 
+        - to_stall_earnings=True 且卖家在场（地摊直售通道）→ 优先入卖家
+          stall_earnings，跳过路由（world 摆摊结算三处调用点依赖此语义）；
         - 传入卖家对象存活且 id 与单据一致 → 付角色行（生前成交旧口径，含纯内存测试）；
         - 否则按单据路由：seller_user_id 可用 → 该账户钱包（consignment_sale，
           ref=寄售单 id，幂等）；死行 → 其账户钱包；当铺 → 沉淀（返回标价，不入账）；
@@ -987,6 +941,9 @@ class MarketEngine:
         """
         if listing.status != ListingStatus.SOLD:
             return None
+        if to_stall_earnings and seller is not None:
+            seller.stall_earnings = getattr(seller, "stall_earnings", 0) + listing.price
+            return listing.price
         if (
             seller is not None
             and seller.id == listing.seller_id
@@ -1037,7 +994,6 @@ class MarketEngine:
                 CharacterRepository.save(target)
                 return listing.price
         return None
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
     @staticmethod
     def open_listings(all_listings: List[MarketListing]) -> List[MarketListing]:
