@@ -95,12 +95,30 @@ def test_root_serves_login_page():
 
 def test_login_page_has_no_loopback_default():
     # 127.0.0.1 在玩家设备上永远指向玩家自己的设备，服不在那里：登录页不得再向
-    # 玩家展示 127.0.0.1:8765（占位/页脚都算），页面从哪打开就连哪。
+    # 玩家展示 127.0.0.1:8765（占位/页脚都算），默认阵枢是 NAS 域名（见下条测试）。
     _, _, body = _get("/")
     text = body.decode("utf-8")
     assert "127.0.0.1:8765" not in text
     assert "127.0.0.1" not in text
     print("✓ 登录页不含 127.0.0.1 默认地址")
+
+
+def test_login_page_default_server_is_nas_domain():
+    # 默认阵枢 = NAS 域名：登录页占位、实际登录路径 workbench.js、app.js 三处一致，
+    # 打开即用，不用手动改；127.0.0.1:8765 只许留在 JS 的本机调试回落分支里，
+    # 不得再成为无条件默认（`|| "http://127.0.0.1:8765"` 不得出现）。
+    _, _, body = _get("/")
+    text = body.decode("utf-8")
+    assert 'placeholder="http://mn.20230803.xyz:8765"' in text
+    _, _, wb = _get("/workbench.js")
+    wb_text = wb.decode("utf-8")
+    assert "http://mn.20230803.xyz:8765" in wb_text
+    assert '|| "http://127.0.0.1:8765"' not in wb_text
+    _, _, app = _get("/app.js")
+    app_text = app.decode("utf-8")
+    assert "http://mn.20230803.xyz:8765" in app_text
+    assert '|| "http://127.0.0.1:8765"' not in app_text
+    print("✓ 登录页默认阵枢为 NAS 域名 mn.20230803.xyz:8765")
 
 
 def test_index_html_path():

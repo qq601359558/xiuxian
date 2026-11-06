@@ -135,7 +135,17 @@
   const $ = (id) => document.getElementById(id);
 
   const state = {
-    base: localStorage.getItem("wb.base") || "http://127.0.0.1:8765",
+    // 阵枢默认地址：NAS 域名。存下的回环地址（早年默认的 127.0.0.1:8765，在玩家
+    // 设备上永远指向玩家自己、服不在那里）一律丢弃；本机调试仍回落 127.0.0.1:8765。
+    base: (function () {
+      var stored = localStorage.getItem("wb.base") || "";
+      if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(stored)) {
+        localStorage.removeItem("wb.base");
+        stored = "";
+      }
+      var local = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:";
+      return stored || (local ? "http://127.0.0.1:8765" : "http://mn.20230803.xyz:8765");
+    })(),
     token: localStorage.getItem("wb.token") || "",
     user: localStorage.getItem("wb.user") || "",
     name: localStorage.getItem("wb.name") || "",
