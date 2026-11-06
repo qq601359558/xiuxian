@@ -1,5 +1,25 @@
 # 更新日志
 
+## v0.3.2-gray.9（2026-11-06）— 游戏服托管网页（一个网址即玩）
+
+定位：部署体验修复版，无新玩法、无数值口径变更。
+
+### 变更
+- 游戏服直接托管玩家页面：`GET /` 与 `/index.html`、`/app.js`、`/style.css`、`/ailog.html`
+  由 server 按精确白名单发出（text/html、text/javascript、text/css，均带 charset=utf-8
+  与 Cache-Control: no-cache）；玩家打开 `http://<地址>:8765/` 一个网址即是登录页，
+  页面自动连同源服，不再需要单独打开 web/index.html 文件、不用填服务器地址
+  （输入框保留，可手动连别的服）
+- 白名单外路径维持现状：全部 API 路由形状不变，`/prototype.html` 不对外，
+  路径穿越在构造上不可能（文件名全是代码常量，不拼用户输入）
+- 部署文档对齐：docs/nas-deploy.md 改为一个网址玩法为首选，本地文件法降为备用，
+  单入口代理降为可选；公网路线只转发 8765 即可
+
+### 测试
+- 新增真实 HTTP 测试 11 例（静态 5 路径逐字节一致、响应头、穿越 8 变体全拒、
+  /health 与 /ailog JSON 不回归）；全量基线 719 → 730
+- 隔离服实证：页面自服地址同源加载，桌面宽截图确认登录页渲染正常
+
 ## v0.3.1-gray.8（2026-11-05）— AI 天道事件链
 
 定位：新玩法版（spec：docs/compose/spec/karma-event-chains.md）。上一稳定点 v0.3.0-gray.7。
