@@ -159,6 +159,48 @@ class ArrayFormation(BaseModel):
     is_active: bool = False
 
 
+class SpiritPet(BaseModel):
+    """灵宠（F01）：随角色一世存续；主人坐化则灵宠殁"""
+    species: str                      # 物种名（见 core/pets.py 物种池）
+    name: str                         # 个体名（默认同物种，重名加序）
+    growth: int = 0                   # 成长值（等级由 core.pets.level_for 推导）
+    intimacy: int = 10                # 亲密度 0~100
+    active: bool = False              # 是否出战中（全角色唯一，由 PetEngine 维护）
+    state: str = "rest"               # follow 随行 / rest 休息 / dead 已殁
+    met_at: float = 0.0               # 结契时间戳
+
+
+class FarmPlot(BaseModel):
+    """灵田地块（F06）：一块地一茬作物；成熟只看墙钟时间戳，惰性结算"""
+    crop: str = ""                    # 所种种子名（见 core/farm.py FARM_CROPS），空 = 空地
+    planted_at: float = 0.0           # 播种现实 Unix 时间戳
+    matures_at: float = 0.0           # 成熟现实 Unix 时间戳
+
+
+class QuestRing(BaseModel):
+    """委托链一环（F07）：核验只认既有事实（当面交付/行囊物品/探险计数）"""
+    kind: str                         # deliver 送信 / fetch 寻物 / slay 除妖
+    desc: str = ""                    # 规则模板文案（发布时写死）
+    deliver_npc_id: str = ""          # 交付对象：送信=收信人，寻物/除妖=发布者本人
+    deliver_npc_name: str = ""
+    item_name: str = ""               # fetch 目标物品名
+    need: int = 1                     # slay 需成功探险次数；fetch 恒 1
+    progress: int = 0                 # slay 已计数（探险落账钩子写入）
+
+
+class QuestChain(BaseModel):
+    """NPC 委托链（F07）：奖励在成链时定价写死，完成时一次发放"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    publisher_id: str
+    publisher_name: str
+    rings: List[QuestRing] = Field(default_factory=list)
+    ring_index: int = 0               # 当前环下标（0 起）
+    accepted_at: float = 0.0          # 接取前为 0（offers 预览态）
+    expires_at: float = 0.0
+    reward_stones: int = 0
+    reward_merit: int = 0
+
+
 class MeditationSession(BaseModel):
     """现实闭关会话（现实时间与游戏世界时间严格并行）"""
     is_active: bool = False
@@ -258,6 +300,10 @@ class Character(BaseModel):
     core_art: str = "基础引气诀"
     skills: List[str] = Field(default_factory=lambda: ["吐纳术", "御剑术"])
     custom_arts: List[Dict[str, Any]] = Field(default_factory=list)  # 自创功法完整 DSL
+    # 心法槽位（F02）：默认空槽 = 未装配 = 旧行为；art_slot_changed_at=0 表示从未变更（免冷却）
+    main_art: str = ""  # 主修功法名（须在 skills 中）
+    sub_arts: List[str] = Field(default_factory=list)  # 辅修功法名（最多 ART_SUB_MAX 门）
+    art_slot_changed_at: float = 0.0  # 上次成功调整槽位的现实时间戳（冷却用）
     equipped: List[str] = Field(default_factory=list)  # 已穿戴装备名
     arrays: List[str] = Field(default_factory=list) # 持有的阵盘行囊
     sect: Optional[str] = None     # 所属宗门 (None 代表无门无派散修)
@@ -332,6 +378,26 @@ class Character(BaseModel):
     last_omen_at: float = 0.0          # 上次自然触发奇遇时间戳
 
     goals: List[Dict[str, Any]] = Field(default_factory=list)
+    # 灵宠（F01）：本世所养灵宠；待契约灵兽物种名（探险遇兽后写入，空=无）
+    pets: List[SpiritPet] = Field(default_factory=list)
+    pending_pet_species: str = ""
+    # 洞府灵田（F06）：0 = 无洞府；地块数由等级推导（见 core/farm.py），旧档自动补默认
+    cave_level: int = 0
+    farm_plots: List[FarmPlot] = Field(default_factory=list)
+    # NPC 委托链（F07）：进行中至多 1 条（见 core/quests.py）；随旧世消散，旧档自动补默认
+    active_quest: Optional[QuestChain] = None
+    quest_cooldown_until: float = 0.0  # 链了结后的接取冷却截止时间戳
+    # 炼体/炼神双修（F10）：副修层数 0–10（见 core/body_soul.py）；随旧世消散，旧档自动补默认
+    body_level: int = 0  # 炼体层数（战力/寿元微增）
+    soul_level: int = 0  # 炼神层数（有效道心/神识加成）
+    # 著书立说（F11）：灵感（探险/委托/突破钩子积攒，著书消耗）与个人声望（著书被研读结算）；旧档自动补默认
+    inspiration: int = 0  # 灵感存量（封顶见 core/books.py INSPIRATION_CAP）
+    prestige: int = 0     # 个人声望（与宗门声望、功德分账）
+    # 心魔长期状态（F16）：魔念值与惰性推导锚点（阶段纯推导不落库，见 core/heart_demon_state.py）；随旧世消散，旧档自动补默认
+    demon_seed: float = 0.0      # 魔念值：0=无种；阶段阈值 40 滋长 / 90 临发
+    demon_anchor_at: float = 0.0 # 惰性结算锚点时间戳；0=从未同步（首同步只建基线不追溯）
+    demon_sin_seen: int = 0      # 上次同步见过的业力值（杀业增量推导基线）
+    demon_calm_at: float = 0.0   # 上次静坐镇魔时间戳（冷却用）
 
     def is_newbie_protected(self, now: Optional[float] = None) -> bool:
         """新手庇护：72h 内且境界 ≤ 筑基初"""

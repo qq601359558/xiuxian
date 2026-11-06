@@ -4,8 +4,10 @@
 """
 from __future__ import annotations
 
+import random
 import time
 import uuid
+import zlib
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,6 +21,14 @@ from config import (
     AUCTION_MIN_INCREMENT,
     AUCTION_SETTLE_FEE_RATE,
     AUCTION_MAX_LOTS,
+    AUCTION_NPC_BID_CHANCE,
+    AUCTION_NPC_CAP_MULT,
+    AUCTION_SYSTEM_INTERVAL_SECONDS,
+    AUCTION_SYSTEM_LEAD_SECONDS,
+    AUCTION_SYSTEM_START_RATE,
+    AUCTION_HOUSE_ID,
+    AUCTION_HOUSE_NAME,
+    AUCTION_SYSTEM_ITEMS,
     NPC_PRICE_FRIENDLY_BUY,
     NPC_PRICE_NEUTRAL_BUY,
     NPC_PRICE_HOSTILE_BUY,
@@ -98,6 +108,101 @@ def _find_by_id_or_user(char_id: str, user_id: str = "") -> Optional[Character]:
     if user_id:
         return CharacterRepository.get_by_user_id(user_id)
     return None
+
+
+def _is_alive(c: Optional[Character]) -> bool:
+    """存活判定：行存在、非 DEAD、寿元未尽（account-death 付款路由严格口径，
+    转世后同 user_id 的新角不得承接旧单的钱／物）。"""
+    if c is None:
+        return False
+    if c.status == CharacterStatus.DEAD or c.lifespan.is_dead():
+        return False
+    return True
+
+
+def _credit_wallet_amount(user_id: str, amount: int, kind: str, ref: str, note: str) -> str:
+    """拍卖落账的钱包入账单点（评审 S6：返回值拆开旧 bool 的 False 语义）：
+
+    - "credited"：本次入账；"duplicate"：ref 已存在，已付过，正常（不得双记、不得告警）；
+    - "skipped"：NPC／系统伪主体／空 user_id／金额 ≤0，不建钱包；
+    - "failed"：仓储等异常导致未入账，调用方须记大事记／告警，不得静默。
+    """
+    if not user_id or user_id in ("auction_house", "pawn_shop"):
+        return "skipped"
+    try:
+        from core.wallet import credit_wallet_status, is_npc_user
+        from storage.db import LegacyRepository
+
+        if is_npc_user(user_id):
+            return "skipped"
+        account = LegacyRepository.get_or_create(user_id)
+        status = credit_wallet_status(account, amount, kind, ref, note)
+        LegacyRepository.save(account)
+        return status
+    except Exception:
+        return "failed"
+
+
+def _refund_outbid(lot: "AuctionLot", prev_id: str, prev_user_id: str, amount: int) -> None:
+    """超价退款（_apply_bid／buyout 共用）：旧领先者行仍在且存活 → 退行；
+    行仍在但已死（评审 M1a：sweep 后死行又入账的源头之一）→ 直接退其账户钱包，
+    不退死行；行已不在（已转世覆写）→ 退其账户钱包，防旧行为的钱凭空消失；
+    NPC／系统无钱包可退时沿用旧行为（不退）。"""
+    from storage.db import CharacterRepository
+
+    prev = CharacterRepository.get_by_id(prev_id) if prev_id else None
+    if prev is not None and _is_alive(prev):
+        prev.spirit_stones += amount
+        CharacterRepository.save(prev)
+        return
+    if prev is not None:
+        # 死行：退钱包（ref 沿用 :outbid: 格式，见 spec §2.7）
+        _credit_wallet_amount(
+            prev.user_id or prev_user_id, amount, "auction_refund",
+            f"{lot.id}:outbid:{prev_id or prev_user_id}",
+            f"拍卖超价退款：【{lot.item_name}】",
+        )
+        return
+    if prev_user_id:
+        _credit_wallet_amount(
+            prev_user_id, amount, "auction_refund",
+            f"{lot.id}:outbid:{prev_id or prev_user_id}",
+            f"拍卖超价退款：【{lot.item_name}】",
+        )
+
+
+def _snapshot_assets(char_id: str):
+    """DB 侧资产快照（灵石 + 三个物品列表），供 advance 前后差分"""
+    from storage.db import CharacterRepository
+
+    fresh = CharacterRepository.get_by_id(char_id)
+    if fresh is None:
+        return None
+    return (
+        fresh.spirit_stones,
+        list(fresh.inventory),
+        list(fresh.arrays),
+        list(fresh.equipped),
+    )
+
+
+def _absorb_advance_delta(c: Character, before, after) -> None:
+    """把 advance 在 DB 侧给本角色造成的资产增量并入调用方对象（评审整改）。
+
+    advance()/settle 以 DB 新鲜副本给当事人入账/退物并落库；若调用方随后用旧对象
+    落库，会把那笔入账整段覆盖。只并入「DB 前后差分」而不整表覆盖，是为了不冲掉
+    调用方尚未落库的合法内存改动（如先 append 行囊再上拍的既有调用方式）。
+    差分来源只有结算入账/退款/退物/得物，均为增量；物品按列表逐项做多重集差。
+    """
+    if before is None or after is None:
+        return
+    from collections import Counter
+
+    c.spirit_stones += after[0] - before[0]
+    for idx, attr in ((1, "inventory"), (2, "arrays"), (3, "equipped")):
+        gained = Counter(after[idx]) - Counter(before[idx])
+        for item, n in gained.items():
+            getattr(c, attr).extend([item] * n)
 
 
 # ==================== 玩家当面交易 ====================
@@ -214,6 +319,22 @@ class TradeEngine:
     """玩家当面交易"""
 
     @staticmethod
+    def cancel_for_death(char_id: str) -> bool:
+        """死亡 sweep：取消该角色参与的全部 OPEN 当面交易会话，锁定资金／物品
+        按 _cancel_session 口径退回双方行（死者侧退回后由归集随身步入钱包）。
+        返回是否取消过会话。"""
+        s = _session_for(char_id)
+        if s is None:
+            # _session_for 只按 user 映射查；再按参与 id 全表扫一次（防映射残留）
+            for cand in list(_trade_sessions.values()):
+                if cand.status == TradeStatus.OPEN and char_id in (cand.a_id, cand.b_id):
+                    _cancel_session(cand, reason="一方身死道消，交易取消")
+                    return True
+            return False
+        _cancel_session(s, reason="一方身死道消，交易取消")
+        return True
+
+    @staticmethod
     def open_trade(a: Character, b_name: str, now: Optional[float] = None) -> Dict[str, Any]:
         _expire_stale(now)
         t = now if now is not None else time.time()
@@ -281,6 +402,12 @@ class TradeEngine:
         if stones < 0:
             return {"success": False, "message": "灵石不可为负。"}
         items = items or []
+        # 著书立说（F11 评审 M1）：亲笔手稿不可入当面交易——过户不经书目绑定会令
+        # 作者书目悬空（不能再著书/买书且无从处置），报价入口即拒（扣物之前）
+        from core.books import BOOK_ITEM
+
+        if BOOK_ITEM in items:
+            return {"success": False, "message": "【亲笔手稿】乃著者心血，不可交易；可 /寄售 亲笔手稿 <价> 流通。"}
 
         # 先退回旧锁定，再扣新的（避免中途失败丢货）
         TradeEngine._unlock_side(c, s)
@@ -671,6 +798,11 @@ class NpcShopEngine:
             return {"success": False, "message": err}
         if not npc_accepts_sell(npc):
             return {"success": False, "message": f"【{npc.name}】只售不收。"}
+        # 著书立说（F11）：亲笔手稿只许寄售流通/赠予，专柜不回收（保书目绑定一致；直导入 fail-closed）
+        from core.books import BOOK_ITEM
+
+        if item_name == BOOK_ITEM:
+            return {"success": False, "message": "【亲笔手稿】乃著者心血，专柜不收；可 /寄售 亲笔手稿 <价> 流通。"}
         cfg = ITEM_CATALOG.get(item_name, {"kind": "material", "price": 20})
         if not _take_item(player, item_name, qty):
             return {"success": False, "message": f"随身并无足够的【{item_name}】。"}
@@ -678,6 +810,21 @@ class NpcShopEngine:
 
         mult, _ = attitude_sell_mult(npc, player.id)
         unit = max(1, int(cfg.get("price", 20) * MARKET_SELL_BACK_RATE * mult))
+        # 区域锚（F09 评审整改）：专柜回收以当地商会回收口径封顶。
+        # 旧口径只认标价不认区域：产地区商会买价低至标价约 0.55 倍（主导折扣后约 0.52 倍），
+        # 而交好专柜回收恒为标价 0.55 倍且无资金池/防刷分档约束——同地「商会买入→专柜回收」
+        # 可无限套利。以 min 封顶只收紧区域价低于标价之地；当地价 ≥ 标价处行为逐字不变。
+        try:
+            from core.market import MarketEngine
+
+            local_unit = int(
+                MarketEngine.market_price(item_name, npc.location)
+                * MARKET_SELL_BACK_RATE
+                * mult
+            )
+            unit = max(1, min(unit, local_unit))
+        except Exception:
+            pass
         gain = unit * qty
         player.spirit_stones += gain
         return {
@@ -690,6 +837,7 @@ class NpcShopEngine:
 # ==================== 拍卖行 ====================
 
 class AuctionStatus(str, Enum):
+    PENDING = "PENDING"  # 待开场（F05 系统场次；玩家上拍直接 OPEN）
     OPEN = "OPEN"
     SOLD = "SOLD"
     EXPIRED = "EXPIRED"
@@ -713,6 +861,9 @@ class AuctionLot(BaseModel):
     ends_at: float = 0.0
     created_at: float = 0.0
     status: AuctionStatus = AuctionStatus.OPEN
+    # F05：系统场次待开场与来源（旧档无此二字段，默认值自动兼容；零改表）
+    starts_at: float = 0.0
+    source: str = "player"  # player=玩家上拍 / system=天道宝库系统场次
 
     def is_open(self) -> bool:
         return self.status == AuctionStatus.OPEN
@@ -728,6 +879,15 @@ class AuctionLot(BaseModel):
         return (
             f"#{self.id} 【{self.item_name}】当前 {bid} 灵石（起拍 {self.start_price}{buyout}）"
             f" | 领先 {leader} | 余 {self.remaining_min(now):.0f} 分 | 挂单人 {self.seller_name}"
+        )
+
+    def pending_line(self, now: Optional[float] = None) -> str:
+        t = now if now is not None else time.time()
+        mins = max(0.0, (self.starts_at - t) / 60.0)
+        buyout = f" | 一口价 {self.buyout_price}" if self.buyout_price else ""
+        return (
+            f"#{self.id} 【{self.item_name}】起拍 {self.start_price}{buyout}"
+            f" | {mins:.0f} 分后开场 | 挂单人 {self.seller_name}"
         )
 
 
@@ -753,43 +913,110 @@ class AuctionEngine:
                 continue
             if lot.bid_count <= 0:
                 lot.status = AuctionStatus.EXPIRED
-                seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-                if seller:
-                    _give_item(seller, lot.item_name, 1, lot.kind)
-                    CharacterRepository.save(seller)
-                AuctionLotRepository.save(lot)
-                notes.append(
-                    f"【流拍】#{lot.id}【{lot.item_name}】无人应价，"
-                    + (f"已退回【{lot.seller_name}】。" if seller else "但挂单人已不在，拍品消散于虚空。")
-                )
+                if lot.source == "system":
+                    # F05 系统场次：流拍即宝库收回，物品消散，不回任何人行囊
+                    AuctionLotRepository.save(lot)
+                    notes.append(
+                        f"【流拍】#{lot.id}【{lot.item_name}】无人应价，{AUCTION_HOUSE_NAME}收回，拍品消散于虚空。"
+                    )
+                else:
+                    # 卖家死后流拍（T4 配套／裁定 2）：拍品只还存活且 id 一致的卖家；
+                    # 死者／已转世新角一律不回行囊，拍品消散（不回新角）。
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    alive_seller = seller if _is_alive(seller) else None
+                    if alive_seller:
+                        _give_item(alive_seller, lot.item_name, 1, lot.kind)
+                        CharacterRepository.save(alive_seller)
+                    AuctionLotRepository.save(lot)
+                    notes.append(
+                        f"【流拍】#{lot.id}【{lot.item_name}】无人应价，"
+                        + (f"已退回【{lot.seller_name}】。" if alive_seller else "但挂单人已不在，拍品消散于虚空。")
+                    )
             else:
-                lot.status = AuctionStatus.SOLD
-                fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
-                net = lot.current_bid - fee
-                seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-                leader = _find_by_id_or_user(lot.leader_id or "", lot.leader_user_id or "")
-                if seller:
-                    seller.spirit_stones += net
-                    CharacterRepository.save(seller)
-                if leader:
+                # 兜底路径（T5／裁定 2）：领先者已死或行已不在（漏扫）→ 冻款退领先者
+                # 钱包，拍品不交付，按流拍计（卖家存活 → 还卖家；否则消散），无钱物双得。
+                leader = CharacterRepository.get_by_id(lot.leader_id or "")
+                if not _is_alive(leader):
+                    lot.status = AuctionStatus.EXPIRED
+                    leader_wallet = lot.leader_user_id or (leader.user_id if leader else "")
+                    _refund_status = _credit_wallet_amount(
+                        leader_wallet, lot.current_bid, "auction_refund",
+                        f"{lot.id}:settle-refund",
+                        f"拍卖落槌兜底退款：【{lot.item_name}】领先者已不在世",
+                    )
+                    if _refund_status == "failed":
+                        ChronicleRepository.record(
+                            "AUCTION_PAY_FAIL", lot.seller_name,
+                            f"拍卖落槌兜底退款失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                            f"{lot.current_bid} 灵石未入领先者账户钱包，账目待查。",
+                        )
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    returned = False
+                    if lot.source != "system" and _is_alive(seller):
+                        _give_item(seller, lot.item_name, 1, lot.kind)
+                        CharacterRepository.save(seller)
+                        returned = True
+                    AuctionLotRepository.save(lot)
+                    notes.append(
+                        f"【落槌作废】#{lot.id}【{lot.item_name}】领先者已身死道消，"
+                        f"冻款 {lot.current_bid} 灵石已退还其账户钱包，拍品"
+                        + ("已退回卖家。" if returned else "消散于虚空。")
+                    )
+                else:
+                    lot.status = AuctionStatus.SOLD
+                    fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
+                    net = lot.current_bid - fee
+                    seller = CharacterRepository.get_by_id(lot.seller_id)
+                    _pay_status = ""
+                    if lot.source == "system":
+                        # F05 系统场次：卖家为宝库伪主体，成交款全额沉淀（不付款、不抽成拆分）
+                        fee = 0
+                        net = 0
+                        seller_paid = True
+                    elif _is_alive(seller):
+                        seller.spirit_stones += net
+                        CharacterRepository.save(seller)
+                        seller_paid = True
+                    else:
+                        wallet_user = lot.seller_user_id or (seller.user_id if seller else "")
+                        # S6：duplicate＝已付（正常），failed＝记大事记＋告警（不得静默）
+                        _pay_status = _credit_wallet_amount(
+                            wallet_user, net, "auction_sale", lot.id,
+                            f"拍卖成交净额：【{lot.item_name}】{lot.current_bid} 灵石（手续费 {fee}）",
+                        )
+                        seller_paid = _pay_status in ("credited", "duplicate") or net == 0
+                        if _pay_status == "failed":
+                            ChronicleRepository.record(
+                                "AUCTION_PAY_FAIL", lot.seller_name,
+                                f"拍卖落槌卖家钱包落账失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                                f"净额 {net} 灵石未入卖家账户钱包，账目待查。",
+                            )
                     _give_item(leader, lot.item_name, 1, lot.kind)
                     CharacterRepository.save(leader)
-                AuctionLotRepository.save(lot)
-                notes.append(
-                    f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
-                    f"卖家实收 {net}（手续费 {fee}）。"
-                    + ("" if seller and leader else "（有当事人不在世，账目已尽天道所能）")
-                )
-                try:
-                    from core import ai_flavor
+                    AuctionLotRepository.save(lot)
+                if lot.status == AuctionStatus.SOLD:
+                    if lot.source == "system":
+                        notes.append(
+                            f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】"
+                            f"（系统场次，成交款全额归天道沉淀）。"
+                        )
+                    else:
+                        notes.append(
+                            f"【落槌】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归【{lot.leader_name}】，"
+                            f"卖家实收 {net}（手续费 {fee}）。"
+                            + ("（卖家钱包落账失败，账目待查）" if _pay_status == "failed"
+                               else "" if seller_paid and leader else "（有当事人不在世，账目已尽天道所能）")
+                        )
+                    try:
+                        from core import ai_flavor
 
-                    shout = ai_flavor.polish_auction_settle(
-                        lot.item_name, lot.leader_name or "", lot.current_bid, lot.seller_name, "落槌"
-                    )
-                    if shout:
-                        notes[-1] += f"\n司仪：「{shout}」"
-                except Exception:
-                    pass
+                        shout = ai_flavor.polish_auction_settle(
+                            lot.item_name, lot.leader_name or "", lot.current_bid, lot.seller_name, "落槌"
+                        )
+                        if shout:
+                            notes[-1] += f"\n司仪：「{shout}」"
+                    except Exception:
+                        pass
             try:
                 ChronicleRepository.record("AUCTION", lot.seller_name, notes[-1][:80])
                 from core import rumors
@@ -813,17 +1040,248 @@ class AuctionEngine:
                 pass
         return notes
 
+    # ---------- F05：状态机推进（惰性） ----------
+
     @staticmethod
-    def board(now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+    def advance(
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        react: bool = False,
+    ) -> List[str]:
+        """惰性推进拍卖状态机：系统场次排期 → 待开场晋升 → 到期结算 →（react 时）NPC 跟价。
+
+        所有指令入口都先调本函数（react=False 只做排期/晋升/结算，保既有路径行为不变）；
+        看板与世界 tick 以 react=True 调用，NPC 才会在推进点跟价。不新造常驻线程。
+        返回本次推进产生的摘要行（晋升/落槌/流拍/跟价）。
+        """
         t = now if now is not None else time.time()
+        notes: List[str] = []
+        notes += AuctionEngine._seed_system_lot(t)
+        notes += AuctionEngine._promote_pending(t)
+        notes += AuctionEngine.settle_expired(t)
+        if react:
+            for lot in AuctionEngine._load_open():
+                if t < lot.ends_at:
+                    res = AuctionEngine.npc_maybe_bid(lot, now=t, rng=rng)
+                    if res and res.get("success"):
+                        notes.append(res["message_note"])
+        return notes
+
+    @staticmethod
+    def _seed_system_lot(t: float) -> List[str]:
+        """系统场次排期：到期且无在场系统拍品时，生成一张 PENDING 宝库拍品（惰性）"""
+        from storage.db import AuctionLotRepository, WorldStateRepository
+
+        lots = AuctionLotRepository.list_all()
+        if any(
+            l.source == "system" and l.status in (AuctionStatus.PENDING, AuctionStatus.OPEN)
+            for l in lots
+        ):
+            return []
+        next_at = WorldStateRepository.get("auction_next_system_at")
+        if next_at is None:
+            # 首次：只立排期，不立即生成（避免任意一次调用凭空开场）
+            WorldStateRepository.set(
+                "auction_next_system_at", t + AUCTION_SYSTEM_INTERVAL_SECONDS
+            )
+            return []
+        if t < float(next_at):
+            return []
+        seq = int(WorldStateRepository.get("auction_system_seq", 0) or 0)
+        item = AUCTION_SYSTEM_ITEMS[seq % len(AUCTION_SYSTEM_ITEMS)]
+        from core.market import MarketEngine
+
+        price = MarketEngine.market_price(item)
+        start = max(10, int(price * AUCTION_SYSTEM_START_RATE))
+        buyout = max(start + 1, int(price * 1.25))
+        cfg = ITEM_CATALOG.get(item) or {}
+        lot = AuctionLot(
+            seller_id=AUCTION_HOUSE_ID,
+            seller_user_id="",
+            seller_name=AUCTION_HOUSE_NAME,
+            item_name=item,
+            kind=cfg.get("kind", "material"),
+            start_price=start,
+            buyout_price=buyout,
+            current_bid=0,
+            ends_at=0.0,
+            created_at=t,
+            starts_at=t + AUCTION_SYSTEM_LEAD_SECONDS,
+            status=AuctionStatus.PENDING,
+            source="system",
+        )
+        AuctionLotRepository.save(lot)
+        WorldStateRepository.set("auction_next_system_at", t + AUCTION_SYSTEM_INTERVAL_SECONDS)
+        WorldStateRepository.set("auction_system_seq", seq + 1)
+        return [
+            f"【拍卖预告】{AUCTION_HOUSE_NAME}将于 {AUCTION_SYSTEM_LEAD_SECONDS // 60} 分钟后"
+            f"开场拍【{item}】，起拍 {start} 灵石（一口价 {buyout}）。"
+        ]
+
+    @staticmethod
+    def _promote_pending(t: float) -> List[str]:
+        """PENDING 待开场 → OPEN 竞拍中（ends_at 以 starts_at 为锚，久未查看也可能晋升即到期）"""
+        from storage.db import AuctionLotRepository
+
+        notes: List[str] = []
+        for lot in AuctionLotRepository.list_all():
+            if lot.status == AuctionStatus.PENDING and t >= lot.starts_at:
+                lot.status = AuctionStatus.OPEN
+                lot.ends_at = lot.starts_at + AUCTION_DURATION_MIN * 60.0
+                AuctionLotRepository.save(lot)
+                notes.append(
+                    f"【开场】#{lot.id}【{lot.item_name}】竞拍开始，起拍 {lot.start_price} 灵石，"
+                    f"{AUCTION_DURATION_MIN} 分钟后落槌。"
+                )
+        return notes
+
+    @staticmethod
+    def open_lots(now: Optional[float] = None) -> List[AuctionLot]:
+        """当前可出价的 OPEN 拍品（供 /出价 无编号时解析）"""
+        AuctionEngine.advance(now=now, react=False)
+        t = now if now is not None else time.time()
+        return [l for l in AuctionEngine._load_open() if t < l.ends_at]
+
+    # ---------- F05：NPC 规则跟价 ----------
+
+    @staticmethod
+    def floor_price(lot: AuctionLot) -> int:
+        """当前合法最低出价：无出价=起拍价；有出价=现价 + max(最低加价, 5%) 步长"""
+        if not lot.bid_count:
+            return lot.start_price
+        step = max(AUCTION_MIN_INCREMENT, int(lot.current_bid * 0.05))
+        return lot.current_bid + step
+
+    @staticmethod
+    def _apply_bid(lot: AuctionLot, bidder: Character, amount: int) -> Optional[str]:
+        """出价落账单点（玩家 bid 与 NPC 跟价共用）：退上一领先者 → 扣款 → 更新领先 → 落库。
+
+        调用方须已完成全部校验（状态/地板价/余额/身份）。返回上一领先者名（无则 None）。
+        """
+        from storage.db import AuctionLotRepository, CharacterRepository
+
+        prev_name = lot.leader_name
+        if lot.leader_id and lot.bid_count > 0:
+            _refund_outbid(lot, lot.leader_id, lot.leader_user_id or "", lot.current_bid)
+        bidder.spirit_stones -= amount
+        lot.current_bid = amount
+        lot.leader_id = bidder.id
+        lot.leader_user_id = bidder.user_id
+        lot.leader_name = bidder.name
+        lot.bid_count += 1
+        AuctionLotRepository.save(lot)
+        CharacterRepository.save(bidder)
+        return prev_name
+
+    @staticmethod
+    def npc_cap(lot: AuctionLot, npc: Character) -> int:
+        """NPC 对该拍品的出价上限：min(自身灵石, 市价 × CAP 倍率 × 确定性意愿系数)。
+
+        意愿系数由 crc32(lot:npc) 导出 ∈ [0.85, 1.24]，同场同 NPC 恒定，不随刷新漂移 → 不会无限抬价。
+        """
+        from core.market import MarketEngine
+
+        base = MarketEngine.market_price(lot.item_name)
+        will = 0.85 + (zlib.crc32(f"{lot.id}:{npc.id}".encode("utf-8")) % 40) / 100.0
+        return min(int(npc.spirit_stones), int(base * AUCTION_NPC_CAP_MULT * will))
+
+    @staticmethod
+    def npc_maybe_bid(
+        lot: AuctionLot,
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """一名 NPC 按规则跟价一口（纯规则，不调 AI；走 NPC 真实灵石账）。
+
+        触发概率 AUCTION_NPC_BID_CHANCE（force=True 跳过概率门，供测试/定向推进）；
+        出价恒为合法地板价（达一口价则直接落槌）；无合格 NPC 或上限不够地板价时返回 None。
+        """
+        t = now if now is not None else time.time()
+        if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
+            return None
+        r = rng if rng is not None else random
+        if not force and r.random() > AUCTION_NPC_BID_CHANCE:
+            return None
+        floor = AuctionEngine.floor_price(lot)
+        from core.npc_mind import _is_npc
+        from storage.db import CharacterRepository
+
+        cands: List[Character] = []
+        for c in CharacterRepository.list_all_alive():
+            if not _is_npc(c):
+                continue
+            if c.id == lot.seller_id or c.id == lot.leader_id:
+                continue
+            # 与玩家同一口径：死亡/闭关/寿元已尽/资产转移受限者不参与竞价
+            ok, _reason = can_use_market(c, t)
+            if not ok:
+                continue
+            if AuctionEngine.npc_cap(lot, c) >= floor:
+                cands.append(c)
+        if not cands:
+            return None
+        npc = r.choice(cands)
+        amount = floor
+        if lot.buyout_price and amount >= lot.buyout_price:
+            amount = lot.buyout_price
+            AuctionEngine._apply_bid(lot, npc, amount)
+            AuctionEngine._settle_buyout(lot, npc)
+            return {
+                "success": True,
+                "npc": npc,
+                "amount": amount,
+                "buyout": True,
+                "message_note": (
+                    f"【NPC 落槌】{npc.name} 以一口价 {amount} 灵石拍下 #{lot.id}【{lot.item_name}】。"
+                ),
+            }
+        AuctionEngine._apply_bid(lot, npc, amount)
+        return {
+            "success": True,
+            "npc": npc,
+            "amount": amount,
+            "buyout": False,
+            "message_note": (
+                f"【NPC 跟价】{npc.name} 出价 {amount} 灵石，暂领先 #{lot.id}【{lot.item_name}】。"
+            ),
+        }
+
+    @staticmethod
+    def board(
+        now: Optional[float] = None,
+        rng: Optional[Any] = None,
+        react: bool = True,
+    ) -> Dict[str, Any]:
+        """拍卖看板。react=True 时推进点含 NPC 跟价（拍卖看板/世界 tick）；
+        react=False 只做排期/晋升/结算（如坊市摘要的只读呈现，不引 NPC 竞价）。"""
+        notes = AuctionEngine.advance(now=now, rng=rng, react=react)
+        t = now if now is not None else time.time()
+        from storage.db import AuctionLotRepository
+
+        all_lots = AuctionLotRepository.list_all()
+        pending = sorted(
+            [l for l in all_lots if l.status == AuctionStatus.PENDING],
+            key=lambda x: x.starts_at,
+        )
         lots = [l for l in AuctionEngine._load_open() if t < l.ends_at]
         lots.sort(key=lambda x: x.ends_at)
-        lines = ["【拍卖行】限时竞价；/拍 <编号> <出价> · /一口 <编号> · /上拍 <货> <底价> [一口价]"]
-        if not lots:
+        lines = [
+            "【拍卖行】限时竞价；/拍 <编号> <出价> · /出价 <金额>（单场直拍）"
+            " · /一口 <编号> · /上拍 <货> <底价> [一口价]"
+        ]
+        for n in notes:
+            lines.append("· " + n)
+        if not pending and not lots:
             lines.append("（当前无进行中的拍品）")
-        for l in lots:
-            lines.append("· " + l.board_line(t))
+        if pending:
+            lines.append("— 待开场 —")
+            for l in pending:
+                lines.append("· " + l.pending_line(t))
+        if lots:
+            lines.append("— 竞拍中 —")
+            for l in lots:
+                lines.append("· " + l.board_line(t))
         return {"success": True, "message": "\n".join(lines), "lots": lots}
 
     @staticmethod
@@ -834,7 +1292,9 @@ class AuctionEngine:
         buyout_price: Optional[int] = None,
         now: Optional[float] = None,
     ) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        _assets_before = _snapshot_assets(seller.id)
+        AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(seller, _assets_before, _snapshot_assets(seller.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(seller, t)
         if not ok:
@@ -843,6 +1303,11 @@ class AuctionEngine:
             return {"success": False, "message": "起拍价必须为正。"}
         if buyout_price is not None and buyout_price < start_price:
             return {"success": False, "message": "一口价不可低于起拍价。"}
+        # 著书立说（F11）：亲笔手稿不可上拍（保书目绑定一致，只许寄售/赠予；直导入 fail-closed）
+        from core.books import BOOK_ITEM
+
+        if item_name == BOOK_ITEM:
+            return {"success": False, "message": "【亲笔手稿】乃著者心血，不入拍卖；可 /寄售 亲笔手稿 <价> 流通。"}
         from storage.db import AuctionLotRepository, CharacterRepository
 
         open_n = sum(1 for l in AuctionLotRepository.list_all() if l.is_open() and l.seller_id == seller.id)
@@ -881,7 +1346,9 @@ class AuctionEngine:
 
     @staticmethod
     def cancel(seller: Character, lot_id: str) -> Dict[str, Any]:
-        AuctionEngine.settle_expired()
+        _assets_before = _snapshot_assets(seller.id)
+        AuctionEngine.advance(react=False)
+        _absorb_advance_delta(seller, _assets_before, _snapshot_assets(seller.id))
         from storage.db import AuctionLotRepository, CharacterRepository
 
         lot = AuctionEngine._find(lot_id)
@@ -901,7 +1368,9 @@ class AuctionEngine:
 
     @staticmethod
     def bid(buyer: Character, lot_id: str, amount: int, now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        _assets_before = _snapshot_assets(buyer.id)
+        AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(buyer, _assets_before, _snapshot_assets(buyer.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -909,17 +1378,20 @@ class AuctionEngine:
         lot = AuctionEngine._find(lot_id)
         if not lot:
             return {"success": False, "message": "拍品编号不存在。"}
+        if lot.status == AuctionStatus.PENDING:
+            return {"success": False, "message": "此拍品尚未开场，请看 /拍卖行 的待开场预告。"}
         if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
             return {"success": False, "message": "此拍品已结束。"}
         if lot.seller_id == buyer.id:
             return {"success": False, "message": "不可拍自己的货。"}
+        # 评审 M3：同账户新角（seller_id 已是旧世行，seller_user_id 仍是同一账户）
+        # 不得买回自己旧世拍品——物品免费回流违背 spec §2.4 物品类不保留。
+        if lot.seller_user_id and buyer.user_id and lot.seller_user_id == buyer.user_id:
+            return {"success": False, "message": "不可拍自己的货。"}
         if lot.leader_id == buyer.id:
             return {"success": False, "message": "你已是领先者。"}
 
-        floor = lot.current_bid if lot.bid_count else lot.start_price
-        if lot.bid_count:
-            step = max(AUCTION_MIN_INCREMENT, int(lot.current_bid * 0.05))
-            floor = lot.current_bid + step
+        floor = AuctionEngine.floor_price(lot)
         if amount < floor:
             return {
                 "success": False,
@@ -928,23 +1400,8 @@ class AuctionEngine:
         if buyer.spirit_stones < amount:
             return {"success": False, "message": f"囊中仅有 {buyer.spirit_stones} 灵石。"}
 
-        from storage.db import AuctionLotRepository, CharacterRepository
-
-        # 退回原领先者
-        if lot.leader_id and lot.bid_count > 0:
-            prev = CharacterRepository.get_by_id(lot.leader_id)
-            if prev:
-                prev.spirit_stones += lot.current_bid
-                CharacterRepository.save(prev)
-
-        buyer.spirit_stones -= amount
-        lot.current_bid = amount
-        lot.leader_id = buyer.id
-        lot.leader_user_id = buyer.user_id
-        lot.leader_name = buyer.name
-        lot.bid_count += 1
-        AuctionLotRepository.save(lot)
-        CharacterRepository.save(buyer)
+        # 落账单点（退上一领先者 → 扣款 → 更新领先 → 落库），与 NPC 跟价共用
+        AuctionEngine._apply_bid(lot, buyer, amount)
 
         # 一口价落槌
         if lot.buyout_price and amount >= lot.buyout_price:
@@ -973,7 +1430,9 @@ class AuctionEngine:
 
     @staticmethod
     def buyout(buyer: Character, lot_id: str, now: Optional[float] = None) -> Dict[str, Any]:
-        AuctionEngine.settle_expired(now)
+        _assets_before = _snapshot_assets(buyer.id)
+        AuctionEngine.advance(now=now, react=False)
+        _absorb_advance_delta(buyer, _assets_before, _snapshot_assets(buyer.id))
         t = now if now is not None else time.time()
         ok, reason = can_use_market(buyer, t)
         if not ok:
@@ -981,11 +1440,16 @@ class AuctionEngine:
         lot = AuctionEngine._find(lot_id)
         if not lot:
             return {"success": False, "message": "拍品编号不存在。"}
+        if lot.status == AuctionStatus.PENDING:
+            return {"success": False, "message": "此拍品尚未开场，请看 /拍卖行 的待开场预告。"}
         if lot.status != AuctionStatus.OPEN or t >= lot.ends_at:
             return {"success": False, "message": "此拍品已结束。"}
         if not lot.buyout_price:
             return {"success": False, "message": "此拍未设一口价。"}
         if lot.seller_id == buyer.id:
+            return {"success": False, "message": "不可买自己的货。"}
+        # 评审 M3：同账户新角不得一口买回自己旧世拍品（与 bid 同口径）。
+        if lot.seller_user_id and buyer.user_id and lot.seller_user_id == buyer.user_id:
             return {"success": False, "message": "不可买自己的货。"}
 
         from storage.db import CharacterRepository
@@ -1006,10 +1470,7 @@ class AuctionEngine:
             if lot.leader_id == buyer.id:
                 buyer.spirit_stones += lot.current_bid
             else:
-                prev = CharacterRepository.get_by_id(lot.leader_id)
-                if prev:
-                    prev.spirit_stones += lot.current_bid
-                    CharacterRepository.save(prev)
+                _refund_outbid(lot, lot.leader_id, lot.leader_user_id or "", lot.current_bid)
         buyer.spirit_stones -= price
         lot.current_bid = price
         lot.leader_id = buyer.id
@@ -1023,12 +1484,30 @@ class AuctionEngine:
         from storage.db import AuctionLotRepository, CharacterRepository, ChronicleRepository
 
         lot.status = AuctionStatus.SOLD
-        fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
-        net = lot.current_bid - fee
-        seller = _find_by_id_or_user(lot.seller_id, lot.seller_user_id)
-        if seller:
-            seller.spirit_stones += net
-            CharacterRepository.save(seller)
+        if lot.source == "system":
+            # F05 系统场次：显式分支（不依赖"卖家查无此人"偶然守恒）——不付款、无抽成，成交款全额沉淀
+            fee = 0
+            net = 0
+        else:
+            fee = max(0, int(lot.current_bid * AUCTION_SETTLE_FEE_RATE))
+            net = lot.current_bid - fee
+            # 卖家死亡后落槌（T4）：存活且 id 一致 → 行；否则 → 卖家账户钱包
+            seller = CharacterRepository.get_by_id(lot.seller_id)
+            if _is_alive(seller):
+                seller.spirit_stones += net
+                CharacterRepository.save(seller)
+            else:
+                wallet_user = lot.seller_user_id or (seller.user_id if seller else "")
+                # S6 同口径：failed 记大事记，不得静默（duplicate 视为已付）。
+                if _credit_wallet_amount(
+                    wallet_user, net, "auction_sale", lot.id,
+                    f"拍卖成交净额：【{lot.item_name}】{lot.current_bid} 灵石（手续费 {fee}）",
+                ) == "failed":
+                    ChronicleRepository.record(
+                        "AUCTION_PAY_FAIL", lot.seller_name,
+                        f"拍卖一口价卖家钱包落账失败（AUCTION_PAY_FAIL）：#{lot.id}【{lot.item_name}】"
+                        f"净额 {net} 灵石未入卖家账户钱包，账目待查。",
+                    )
         _give_item(buyer, lot.item_name, 1, lot.kind)
         AuctionLotRepository.save(lot)
         CharacterRepository.save(buyer)
@@ -1049,10 +1528,16 @@ class AuctionEngine:
             ) or ""
         except Exception:
             shout = ""
-        msg = (
-            f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你。"
-            f"卖家实收 {net}。"
-        )
+        if lot.source == "system":
+            msg = (
+                f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你"
+                f"（系统场次，成交款全额归天道沉淀）。"
+            )
+        else:
+            msg = (
+                f"【一口价成交】#{lot.id}【{lot.item_name}】以 {lot.current_bid} 灵石归你。"
+                f"卖家实收 {net}。"
+            )
         if shout:
             msg += f"\n司仪：「{shout}」"
         return {

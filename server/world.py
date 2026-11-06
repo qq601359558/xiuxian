@@ -34,8 +34,14 @@ from core.here import list_here, format_here
 from core.profile import build_profile, format_profile
 from core.npc_proactive import NpcProactiveEngine
 from core.bounty import BountyEngine, bounty_status_cn
+<<<<<<< HEAD
 from core.market import MarketEngine, ListingStatus
 from core.items import ItemEntity, ItemKind
+=======
+from core.market import MarketEngine
+from core.atlas import AtlasEngine
+from core.ascension import AscensionEngine
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 from core.breakthrough import BreakthroughEngine
 from core.protection import ProtectionEngine, is_conflict_zone
 from core.goals import GoalEngine
@@ -54,6 +60,14 @@ from core.secret_realm import SecretRealmEngine
 from core.combat import CombatEngine
 from core.adventure import AdventureEngine
 from core.loot_equip import DigEngine, EquipEngine
+from core.pets import PetEngine, active_pet as pet_active, level_for as pet_level_for
+from core.farm import FarmEngine, split_sow_args
+from core.quests import QuestEngine
+from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
+from core.art_slots import ArtSlotEngine
+from core.body_soul import BodySoulEngine
+from core.heart_demon_state import DemonStateEngine
+from core.books import BOOK_ITEM, BookEngine
 from core.season import settle_apocalypse
 from core import forge as forge_mod
 from config import (
@@ -63,6 +77,7 @@ from config import (
     LEGACY_MAX_BOOSTS_PER_LIFE,
     BOUNTY_MAX_PER_TARGET,
     MARKET_MAX_LISTINGS,
+    LIFESPAN_WARNING_YEARS,
 )
 from server.log import log_event
 from ai.gate import gate
@@ -117,6 +132,7 @@ class World:
                     except Exception:
                         pass
                     NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+<<<<<<< HEAD
                     # 天道导演：AI 主导走向（冷却在 run_cycle 内）
                     try:
                         from core.world_director import WorldDirector
@@ -152,6 +168,18 @@ class World:
                         era_reentry.tick()
                     except Exception:
                         pass
+=======
+                    # F05：拍卖状态机随世界 tick 惰性推进（系统场次排期/NPC 跟价/到期结算）
+                    try:
+                        from core.trade import AuctionEngine
+
+                        AuctionEngine.advance(react=True)
+                    except Exception as e:
+                        try:
+                            log_event("AUCTION", "advance_error", err=str(e)[:120])
+                        except Exception:
+                            pass
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             except Exception:
                 continue
 
@@ -197,9 +225,31 @@ class World:
             uid = user_id.strip()
             char = CharacterRepository.get_by_user_id(uid)
             resumed = False
+<<<<<<< HEAD
+=======
+            # 1) 浏览器账号 ID
+            if uid:
+                char = CharacterRepository.get_by_user_id(uid)
+            # 2) 按道号找回仍存活的玩家号（换设备/清缓存）
+            if (not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead()):
+                by_name = CharacterRepository.get_by_name(name)
+                if by_name and by_name.status != CharacterStatus.DEAD and not by_name.lifespan.is_dead():
+                    uid_n = str(by_name.user_id or "")
+                    if uid_n and not (uid_n.startswith("npc_") or uid_n.startswith("ai_npc_")):
+                        char = by_name
+                        uid = uid_n
+                        resumed = True
+            # 评审 M2（总管裁定，spec §2.6）：带 user_id 的 /join 且角色已死时，
+            # 不再自动建角绕过 T11，返回与 /login 同款 dead:true payload；
+            # 建角须玩家显式 /转世。无 user_id 的匿名 /join 保持自动建角（见下）。
+            if uid and char is not None and (
+                char.status == CharacterStatus.DEAD or char.lifespan.is_dead()
+            ):
+                return self.dead_payload(uid)
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             is_new_life = False
             if not char or char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
-                # 已死：结算道统（若尚未结算），再新一世
+                # 已死（仅匿名路径到此）：结算道统（若尚未结算），再新一世
                 if char is not None:
                     self._settle_if_needed(char, cause=char.death_cause or "身死道消")
                 char = WorldClock.create_new_character(uid, name)
@@ -274,21 +324,172 @@ class World:
             }
 
     def _settle_if_needed(self, char: Character, cause: str = "身死道消") -> Optional[Dict[str, Any]]:
-        """死亡后一次性道统结算"""
+        """死亡后一次性道统结算（account-death：资金归集步在钩子与道统结算之前，
+        双入口 CLI/server 共用同一 sweep 实现；已结算行走迁移补扫 §5.2）。"""
+        from core.wallet import (
+            is_npc_user,
+            sweep_death_funds,
+            sweep_has_real_change,
+            wallet_summary,
+        )
+
         if getattr(char, "death_settled", False):
-            return None
+            # 迁移补扫（评审 M1b：以 server 守卫为准，与 CLI 双入口语义统一）：
+            # 已结算行不再因“death_sweep ref 已存在”直接返回——sweep 内部处理
+            # 残差（ref 已存在但行内仍有余额时以残差 ref 入账，见 core/wallet.py），
+            # 故此处恒跑 sweep；仅当 sweep 确无真实变化（实际入账／作废／没收，
+            # 见 sweep_has_real_change）时返回 None，步骤异常只记 PARTIAL 大事记。
+            if is_npc_user(char.user_id or ""):
+                return None
+            account = LegacyRepository.get_or_create(char.user_id)
+            details = sweep_death_funds(char, account)
+            LegacyRepository.save(account)
+            CharacterRepository.save(char)
+            if details.get("errors"):
+                ChronicleRepository.record(
+                    "WALLET_SWEEP_PARTIAL", char.name,
+                    f"【{char.name}】死亡资金补扫部分完成（WALLET_SWEEP_PARTIAL）："
+                    + "；".join(f"{e.get('step')}:{e.get('error')}" for e in details["errors"])
+                    + f"；钱包余额 {account.wallet_stones}。",
+                )
+            # QA-D1：changed 只认真实变化（实际入账／作废／没收），与 CLI 同口径
+            # （core.wallet.sweep_has_real_change）。毛额退款／崩溃重放不再触发
+            # backfilled 与 WALLET_SWEEP 大事记；步骤异常仍另记 PARTIAL 大事记，
+            # 但不单独触发 backfilled。
+            changed = sweep_has_real_change(details)
+            if not changed:
+                return None
+            ChronicleRepository.record(
+                "WALLET_SWEEP", char.name,
+                f"【{char.name}】死亡资金补扫归集 {details['total']} 灵石，钱包余额 {account.wallet_stones}。",
+            )
+            return {"backfilled": True, "sweep": details, "wallet": wallet_summary(account)}
         account = LegacyRepository.get_or_create(char.user_id)
         char.status = CharacterStatus.DEAD
+        # 资金归集（§2.3 步骤 1–4）：随身＋寄存、拍卖退款回起拍、议政票作废、当票没收
+        sweep = sweep_death_funds(char, account)
+        LegacyRepository.save(account)
+        # 灵宠随主而殁（F01，一世循环）
+        PetEngine.on_owner_death(char)
+        # 洞府灵田随旧世荒废（F06，一世循环）
+        FarmEngine.on_owner_death(char)
+        # 委托链随旧世而散（F07，一世循环）
+        QuestEngine.on_owner_death(char)
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约；
+        # 被消散摘要经返回值注入 settle_death 写留痕（诺在 settle 前已消散）
+        dissolved_promises = []
+        try:
+            dissolved_promises = PromiseEngine.on_owner_death(char) or []
+        except Exception:
+            dissolved_promises = []
+        # 因果链随旧世而散（karma-event-chains §7.1）：紧随诺言钩子之后、
+        # settle_death 之前；返回值只记日志，不注入 settle_death（不进留痕）。
+        # 留痕口径（R1/MF-4）：server 侧不另记汇总编年史——latent 消散静默、
+        # fermenting 消散由引擎 _dissipate 经 jianghu public 单记一条。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.on_owner_death(char)
+        except Exception:
+            pass
         if not char.death_cause:
             char.death_cause = cause
-        settle = LegacyEngine.settle_death(account, char, death_cause=char.death_cause or cause)
+        settle = LegacyEngine.settle_death(
+            account, char, death_cause=char.death_cause or cause,
+            dissolved_promises=dissolved_promises,
+        )
         LegacyRepository.save(account)
         CharacterRepository.save(char)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", char.name,
+                f"【{char.name}】死亡资金归集部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
         ChronicleRepository.record(
             "LEGACY_SETTLE", char.name,
-            f"【{char.name}】{char.death_cause}，结转道统 {settle['points_gained']} 点。",
+            f"【{char.name}】{char.death_cause}，结转道统 {settle['points_gained']} 点；"
+            f"资金归集 {sweep['total']} 灵石，钱包余额 {account.wallet_stones}。",
         )
+        settle["sweep"] = sweep
+        settle["wallet"] = wallet_summary(account)
         return settle
+
+    def dead_payload(self, user_id: str, username: str = "") -> Optional[Dict[str, Any]]:
+        """Web /login 死者分支（§2.6 行为变更）：登录只报死讯＋钱包，不自动建角。
+
+        返回 None 表示现世角色存活或无角色（调用方走正常 join 流程）。
+        会话 token 保持有效且可用于 /转世（session.character_id 指向死行）。"""
+        with self.lock:
+            char = CharacterRepository.get_by_user_id(user_id)
+            if char is None or (char.status != CharacterStatus.DEAD and not char.lifespan.is_dead()):
+                return None
+            settle = self._settle_if_needed(char, cause=char.death_cause or "身死道消")
+            account = LegacyRepository.get_or_create(user_id)
+            token = uuid.uuid4().hex
+            self.sessions[token] = Session(token, user_id, char.id)
+            try:
+                AuthSessionRepository.save(token, user_id, char.id, char.name)
+            except Exception:
+                pass
+            from core.legacy import LegacyEngine as _LE
+            from core.wallet import wallet_summary as _ws
+            from core.inheritance import trace_summary as _trace_summary
+
+            # S3：寄售在售单数（按 seller_user_id／seller_id 计 OPEN 单；取数失败置 0）
+            try:
+                from storage.db import MarketListingRepository as _MLR
+
+                _open_count = sum(
+                    1
+                    for _lst in _MLR.list_all()
+                    if _lst.is_open()
+                    and ((_lst.seller_user_id or "") == user_id or _lst.seller_id == char.id)
+                )
+            except Exception:
+                _open_count = 0
+            # S4：最近一世享寿（settle 后 past_lives 末世即本世；已结算行同理）
+            _last_life = account.past_lives[-1] if account.past_lives else None
+            return {
+                "ok": True,
+                "dead": True,
+                "token": token,
+                "user_id": user_id,
+                "username": username,
+                "character_id": char.id,
+                "name": char.name,
+                # 旧前端兼容（只增字段）：死者行仍有境界／位置／寿元余量可读
+                "realm": char.realm.name,
+                "location": char.location,
+                "rem_years": round(char.lifespan.get_remaining_years(), 2),
+                "legacy_points": account.points,
+                "lives": account.total_lives,
+                "is_new_life": False,
+                "resumed": False,
+                "death_cause": char.death_cause,
+                "legacy": {
+                    "points": account.points,
+                    "lives": account.total_lives,
+                    "boosts": _LE.list_boosts(),
+                    "lifespan_lived": _last_life.lifespan_lived if _last_life else None,
+                    # 转世继承（只增）：前世列表（同 legacy_info 口径）与刚逝一世留痕摘要
+                    "past_lives": [
+                        {
+                            "name": p.name, "realm": p.realm, "cause": p.cause,
+                            "points": p.points_gained, "lived": p.lifespan_lived,
+                        }
+                        for p in account.past_lives[-8:]
+                    ],
+                    "trace": (
+                        _trace_summary(account.traces[-1])
+                        if account.traces else None
+                    ),
+                },
+                "wallet": _ws(account),
+                "settlement": (settle or {}).get("sweep") if settle else None,
+                "consignment_open_count": _open_count,
+            }
 
     def legacy_info(self, token: str) -> Dict[str, Any]:
         char = self.get_char(token)
@@ -298,6 +499,8 @@ class World:
         boosts = []
         for k, cfg in LEGACY_BOOSTS.items():
             boosts.append({"key": k, "name": cfg["name"], "cost": cfg["cost"], "desc": cfg["desc"]})
+        from core.inheritance import current_karma_shadow, trace_summary
+
         return {
             "ok": True,
             "points": account.points,
@@ -310,6 +513,9 @@ class World:
                 }
                 for p in account.past_lives[-8:]
             ],
+            # 转世继承（只增）：最近 8 世留痕摘要 + 当前角色本世被施加的影子清单
+            "traces": [trace_summary(t) for t in account.traces[-8:]],
+            "karma_shadow": current_karma_shadow(account),
             "boosts": boosts,
             "max_boosts": LEGACY_MAX_BOOSTS_PER_LIFE,
             "alive": char.status != CharacterStatus.DEAD and not char.lifespan.is_dead(),
@@ -336,24 +542,62 @@ class World:
             if CharacterRepository.get_by_name(new_name) and (not old or CharacterRepository.get_by_name(new_name).id != old.id):
                 new_name = new_name[:8] + "·转"
 
+            # 转世编排（spec §2.3/§2.4）：建角 → boosts → 按 bond_echo 与否选
+            # retention/cap 施加因果影子 → 统一落盘。old_trace 须在 boosts 前
+            # 捕获（settle 刚生成的留痕即 traces[-1]，boosts 不改 traces）。
+            old_trace = account.traces[-1] if account.traces else None
             char = WorldClock.create_new_character(session.user_id, new_name)
-            boost_res = LegacyEngine.apply_birth_boosts(char, account, list(boosts or []))
+            boost_res = LegacyEngine.apply_birth_boosts(
+                char, account, list(boosts or []), old_trace=old_trace,
+            )
+            from config import (
+                BOND_ECHO_CAP,
+                BOND_ECHO_RETENTION,
+                SHADOW_CAP,
+                SHADOW_RETENTION,
+            )
+            from core.inheritance import apply_karma_shadow
+
+            if boost_res.get("bond_echo"):
+                _retention, _cap = BOND_ECHO_RETENTION, BOND_ECHO_CAP
+            else:
+                _retention, _cap = SHADOW_RETENTION, SHADOW_CAP
+            karma_shadow = apply_karma_shadow(
+                account, char, retention=_retention, cap=_cap,
+            )
             LegacyRepository.save(account)
             CharacterRepository.save(char)
             session.character_id = char.id
+            try:
+                AuthSessionRepository.save(token, session.user_id, char.id, char.name)
+            except Exception:
+                pass
+            from core.wallet import wallet_summary as _ws
+
+            wallet_block = _ws(account)
             ChronicleRepository.record(
                 "REINCARNATE", char.name,
                 f"真灵转世，【{char.name}】重踏仙途。"
                 + (f"道统点化：{'、'.join(boost_res.get('applied') or [])}。" if boost_res.get("applied") else ""),
             )
+            shadow_text = ""
+            if karma_shadow:
+                shadow_lines = "、".join(
+                    f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow
+                )
+                shadow_text = f"因果余绪及身：{shadow_lines}\n"
             return {
                 "ok": True,
                 "text": (
                     f"【真灵转世】{char.name} · {char.realm.name} · {char.location}\n"
                     f"自然寿元 {char.lifespan.birth_base:.0f} 岁\n"
                     f"{boost_res.get('message', '')}\n"
-                    f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）"
+                    f"{shadow_text}"
+                    f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）\n"
+                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 150 灵石不变）；"
+                    f"入世后用 /钱包提取 <金额> 取用账户金额。"
                 ),
+                "karma_shadow": karma_shadow,
                 "settle": {
                     "points_gained": (settle or {}).get("points_gained", 0),
                     "cause": (settle or {}).get("cause", ""),
@@ -362,6 +606,8 @@ class World:
                 } if settle else None,
                 "boosts_applied": boost_res.get("applied") or [],
                 "legacy_points": account.points,
+                "wallet": wallet_block,
+                "sweep": (settle or {}).get("sweep"),
                 "name": char.name,
                 "realm": char.realm.name,
                 "location": char.location,
@@ -431,9 +677,9 @@ class World:
                     CharacterRepository.save(char)
                     session.pending_heart_demon = None
                     text = self._fmt_hd(res)
-                    # 心魔致死
+                    # 心魔致死（评审 S2：局内死亡响应带 sweep 与 death_cause）
                     if res.get("is_fatal") or char.status == CharacterStatus.DEAD:
-                        self._settle_if_needed(char, cause="心魔道消")
+                        _settle = self._settle_if_needed(char, cause="心魔道消")
                         return {
                             "ok": True,
                             "text": text,
@@ -441,6 +687,8 @@ class World:
                             "death": True,
                             "status": self._status_dict(char),
                             "legacy": self.legacy_info_id(char.user_id),
+                            "sweep": (_settle or {}).get("sweep") if _settle else None,
+                            "death_cause": char.death_cause,
                         }
                     # 心魔过关且未死 → 继续天劫
                     if not res.get("is_fatal") and char.realm.is_full and char.status != CharacterStatus.DEAD:
@@ -454,8 +702,9 @@ class World:
                                 GoalEngine.on_breakthrough_major(char)
                             except Exception:
                                 pass
+                        _trib_settle = None
                         if trib_dead:
-                            self._settle_if_needed(char, cause="渡劫陨落")
+                            _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
                         return {
                             "ok": True,
                             "text": text,
@@ -463,6 +712,8 @@ class World:
                             "death": trib_dead,
                             "status": self._status_dict(char),
                             "legacy": self.legacy_info_id(char.user_id) if trib_dead else None,
+                            "sweep": (_trib_settle or {}).get("sweep") if _trib_settle else None,
+                            "death_cause": char.death_cause if trib_dead else None,
                             "tribulation": {
                                 "success": trib.get("success"),
                                 "fatal": trib_dead,
@@ -573,11 +824,28 @@ class World:
                     "/goals", "/目标",
                     "/qi", "/灵气",
                     "/season", "/纪元",
+                    # 天象查看（F13：纯只读观照，主题为纪元编号纯函数推导）
+                    "/天象", "/omen",
                     "/agenda", "/议程",
                     "/roster", "/名录",
                     "/bounty", "/告示",
                     "/profile", "/人物", "/角色",
                     "/logout", "/下线",
+                    # 灵宠管理（F01 spec：闭关中可管理，仅契约/放生不开）
+                    "/灵宠", "/pets", "/pet",
+                    "/喂养", "/feed",
+                    "/出战", "/deploy",
+                    "/休息", "/petrest",
+                    # 心法查看（F02：只读观照；主修/辅修/卸功闭关中仍锁门，防结算前换功）
+                    "/心法", "/xinfa",
+                    # 行情查看（F03：只读观照；购买/出售闭关中仍锁门）
+                    "/行情",
+                    # 版图查看（F09：纯只读观照，查询零写盘）
+                    "/版图", "/atlas",
+                    # 飞升榜（F12：纯只读观照，查询零写盘）
+                    "/飞升榜", "/ascend",
+                    # 洞府查看（F06：纯只读观照；开辟/播种/收获/升级闭关中仍锁门）
+                    "/洞府", "/cave",
                 )
                 if action not in med_ok:
                     prog = WorldClock.get_meditation_progress(char)
@@ -631,7 +899,7 @@ class World:
                 except Exception:
                     pass
                 return {"ok": True, "text": text, "status": self._status_dict(char)}
-            if action in ("/legacy", "/道统"):
+            if action in ("/legacy", "/道统", "/前世"):
                 info = self.legacy_info(token)
                 if not info.get("ok"):
                     return info
@@ -646,15 +914,72 @@ class World:
                     lines.append("前世：")
                     for p in info["past_lives"]:
                         lines.append(f"  {p['name']} {p['realm']} · {p['cause']} +{p['points']}点")
+                # 前世因果段（转世继承）：无留痕/无因果时整段省略
+                try:
+                    from core.inheritance import causality_text
+
+                    _account = LegacyRepository.get_or_create(char.user_id)
+                    _causality = causality_text(_account)
+                    if _causality:
+                        lines.append(_causality)
+                except Exception:
+                    pass
                 info["text"] = "\n".join(lines)
                 return info
+            if action in ("/墓碑",):
+                # 墓碑查询（转世继承）：引擎同源文本，CLI 同命令同文案
+                from core.inheritance import find_tombstone
+
+                if len(parts) < 2 or not parts[1].strip():
+                    return {"ok": False, "error": "用法：/墓碑 <道号>"}
+                tomb = find_tombstone(parts[1].strip())
+                if tomb is None:
+                    return {"ok": True, "text": "江湖无此碑。"}
+                return {"ok": True, "text": tomb}
+            if action in ("/因果链", "/karma_chains"):
+                # 因果链面板（AI 天道事件链）：引擎同源文本，CLI 同命令同文案；
+                # 先惰性推进后呈现（照 /诺言 settle_due→panel_text 先例）；
+                # 无参命令，附加词按邻近面板口径忽略不报错
+                from core.karma_chains import KarmaChainEngine
+
+                try:
+                    KarmaChainEngine.advance_for(char)
+                except Exception:
+                    pass
+                return {"ok": True, "text": KarmaChainEngine.panel_text(char)}
+            if action in ("/wallet", "/钱包"):
+                from core.wallet import wallet_panel_text
+                from storage.db import AccountRepository as _AR
+
+                account = LegacyRepository.get_or_create(char.user_id)
+                text = wallet_panel_text(account, _AR.get_username(char.user_id))
+                return {"ok": True, "text": text, "status": self._status_dict(char),
+                        "wallet": self._status_dict(char)["wallet"]}
+            if action in ("/wallet_withdraw", "/钱包提取"):
+                if char.status == CharacterStatus.DEAD or char.lifespan.is_dead():
+                    return {"ok": False, "error": "身死道消，钱包须转世重生后方可提取。"}
+                if len(parts) < 2 or not parts[1].isdigit():
+                    return {"ok": False, "error": "用法：/钱包提取 <金额>（正整数，不超过钱包余额）"}
+                from core.wallet import withdraw_to_character
+
+                account = LegacyRepository.get_or_create(char.user_id)
+                res = withdraw_to_character(account, char, int(parts[1]))
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "提取失败")}
+                LegacyRepository.save(account)
+                CharacterRepository.save(char)
+                return {"ok": True, "text": res["message"], "status": self._status_dict(char),
+                        "wallet": self._status_dict(char)["wallet"]}
             if action in ("/reborn", "/转世"):
                 boosts: List[str] = []
                 new_name = None
                 # /转世 [道号] [boost...]
                 rest = parts[1:]
                 for tok in rest:
-                    if tok in LEGACY_BOOSTS:
+                    if tok.startswith("heirloom:") and len(tok) > len("heirloom:"):
+                        # 参数式遗物 token：heirloom:<物品名>（物品名无空格，整段透传引擎）
+                        boosts.append(tok)
+                    elif tok in LEGACY_BOOSTS:
                         boosts.append(tok)
                     elif tok.isdigit():
                         # 数字对应 boosts 列表顺序
@@ -849,7 +1174,33 @@ class World:
             if action in ("/qi", "/灵气"):
                 return {"ok": True, "text": qi_mod.qi_status_text(), "qi": qi_mod.effective_density(1.0)}
             if action in ("/season", "/纪元"):
+                # 纪元查询顺带惰性触发本纪元天象播报（幂等，F13）
+                try:
+                    from core.season_theme import SeasonThemeEngine
+
+                    SeasonThemeEngine.ensure_announced()
+                except Exception:
+                    pass
                 return {"ok": True, "text": season_status_text(), "season": season_info()}
+            if action in ("/omen", "/天象"):
+                # 纪元天象（F13）：当前纪元主题/修正/余天，纯规则推导；
+                # 首次查询惰性播报本纪元天象（world_state 标记防重播）；
+                # 推导异常时降级为静默口径文案，不阻断查询（与 _season_theme_summary 同口径）
+                try:
+                    from core.season_theme import SeasonThemeEngine
+
+                    SeasonThemeEngine.ensure_announced()
+                    return {
+                        "ok": True,
+                        "text": SeasonThemeEngine.panel_text(),
+                        "season_theme": SeasonThemeEngine.summary(),
+                    }
+                except Exception:
+                    return {
+                        "ok": True,
+                        "text": "【天象】天象沉静，天地无言，本纪元无天象加身。",
+                        "season_theme": self._season_theme_summary(),
+                    }
             if action in ("/rumors", "/传闻"):
                 from core.rumors import format_rumor_board
 
@@ -1150,6 +1501,240 @@ class World:
                 res = EquipEngine.unequip(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
+<<<<<<< HEAD
+=======
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/pets", "/pet", "/灵宠"):
+                return {
+                    "ok": True,
+                    "text": PetEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/契约", "/contract"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/契约 <兽名>（先在 /灵宠 看待契约灵兽）"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.contract(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                    log_event("DECISION", "pet_contract", name=char.name, species=char.pets[-1].species if char.pets else "")
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/喂养", "/feed"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/喂养 <宠名> [丹药名]"}
+                from core.pets import split_feed_args
+
+                pet_hint, pill = split_feed_args(
+                    char, command.strip().split(None, 1)[1].split()
+                )
+                res = PetEngine.feed(char, pet_hint, pill)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/出战", "/deploy"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/出战 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.deploy(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/休息", "/petrest"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/休息 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.rest(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/放生", "/release"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/放生 <宠名>"}
+                item = command.strip().split(None, 1)[1]
+                res = PetEngine.release(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/cave", "/洞府"):
+                return {
+                    "ok": True,
+                    "text": FarmEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/opencave", "/开辟"):
+                res = FarmEngine.open_cave(char)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/sow", "/播种"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/播种 <种子名> [数量]"}
+                seed_hint, sow_count = split_sow_args(parts[1:])
+                res = FarmEngine.sow(char, seed_hint, sow_count)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/harvest", "/收获"):
+                res = FarmEngine.harvest(char)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/upgradecave", "/升级洞府"):
+                res = FarmEngine.upgrade_cave(char)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/quests", "/委托"):
+                changed = QuestEngine.settle_expired(char)
+                if changed:
+                    CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": QuestEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/acceptquest", "/接委托"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/接委托 <NPC名或编号>（先 /委托 查看）"}
+                hint = command.strip().split(None, 1)[1]
+                res = QuestEngine.accept(char, hint.strip())
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/deliver", "/交付"):
+                res = QuestEngine.deliver(char)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/abandonquest", "/弃委托"):
+                res = QuestEngine.abandon(char)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/promises", "/诺言"):
+                changed = PromiseEngine.settle_due(char, actor_obj=char)
+                if changed:
+                    CharacterRepository.save(char)
+                return {
+                    "ok": True,
+                    "text": PromiseEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/promise", "/许诺"):
+                if len(parts) < 3:
+                    return {"ok": False, "error": "用法：/许诺 <对象名> 赠物 <物品名> | 抵达 <地点名> | 委托 | 不攻（唯指令立诺入账，交谈口头应承不算）"}
+                target = CharacterRepository.get_by_name(parts[1])
+                if not target:
+                    return {"ok": False, "error": f"查无此人：{parts[1]}"}
+                kind = PROMISE_KIND_ALIASES.get(parts[2]) or PROMISE_KIND_ALIASES.get(parts[2].lower())
+                if not kind:
+                    return {"ok": False, "error": "诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）"}
+                param = parts[3] if len(parts) > 3 else ""
+                res = PromiseEngine.make_promise(char, target, kind, param)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/acceptpromise", "/应诺"):
+                hint = parts[1] if len(parts) > 1 else ""
+                res = PromiseEngine.accept(char, hint)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/breakpromise", "/毁诺"):
+                hint = parts[1] if len(parts) > 1 else ""
+                res = PromiseEngine.break_promise(char, hint)
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/xinfa", "/心法"):
+                return {
+                    "ok": True,
+                    "text": ArtSlotEngine.panel_text(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/主修", "/main_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/主修 <功法名>（须已习得，/心法 查看）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.set_main(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/辅修", "/sub_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/辅修 <功法名>（须已习得，/心法 查看）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.add_sub(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/卸功", "/remove_art"):
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/卸功 <功法名>（卸下主修或辅修）"}
+                item = command.strip().split(None, 1)[1]
+                res = ArtSlotEngine.remove(char, item.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/body", "/炼体", "/soul", "/炼神"):
+                # 炼体/炼神双修（F10）：无参=面板；「修炼 [n]」=逐层精进（闭关不进白名单，天然锁门）
+                track = "body" if action in ("/body", "/炼体") else "soul"
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("修炼", "train"):
+                    times = 1
+                    if len(parts) > 2:
+                        try:
+                            times = int(parts[2])
+                        except Exception:
+                            times = 1
+                    res = (BodySoulEngine.train_body(char, times) if track == "body"
+                           else BodySoulEngine.train_soul(char, times))
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": f"用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数]"}
+                return {
+                    "ok": True,
+                    "text": BodySoulEngine.panel_text(char, track),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/demon", "/镇魔"):
+                # 心魔长期状态（F16）：无参=面板（打开即惰性结算魔念）；服丹/静坐=镇压（闭关不进白名单，天然锁门）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("服丹", "pill"):
+                    res = DemonStateEngine.suppress_pill(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub in ("静坐", "calm"):
+                    res = DemonStateEngine.suppress_calm(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": "用法：/镇魔 或 /镇魔 服丹 或 /镇魔 静坐"}
+                text = DemonStateEngine.panel_text(char)
+                CharacterRepository.save(char)  # 面板已 sync 魔念，落库锚点
+                return {"ok": True, "text": text, "status": self._status_dict(char)}
+            if action in ("/write_book", "/著书"):
+                # 著书立说（F11）：无参=面板；「写」=燃寿著书（闭关不进白名单，天然锁门）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("写", "write"):
+                    res = BookEngine.write_book(char)
+                    if res.get("success"):
+                        CharacterRepository.save(char)
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if sub:
+                    return {"ok": False, "error": "用法：/著书 或 /著书 写"}
+                return {"ok": True, "text": BookEngine.panel_text(char), "status": self._status_dict(char)}
+            if action in ("/read_book", "/研读"):
+                # 研读（F11）：展卷所持手稿；首次研读结算收益与作者声望（引擎内幂等）
+                hint = command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else ""
+                res = BookEngine.read_book(char, hint.strip())
+                if res.get("success"):
+                    CharacterRepository.save(char)
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
@@ -1163,6 +1748,10 @@ class World:
                 }
                 key = alias.get(board, board)
                 return {"ok": True, "text": LeaderboardEngine.format_board(key), "board": key}
+            if action in ("/ascend", "/飞升榜"):
+                # 飞升榜（F12）：历世纪念碑，只读已落账前世，与现世六榜互不相干
+                arg = parts[1] if len(parts) > 1 else None
+                return {"ok": True, "text": AscensionEngine.panel_text(char, arg)}
             if action in ("/sect", "/宗门"):
                 return {"ok": True, "text": format_sect_board(char)}
             if action in ("/join_sect", "/拜入"):
@@ -1621,6 +2210,7 @@ class World:
                 from core.sect_contrib import sect_powerboard
 
                 return {"ok": True, "text": sect_powerboard()}
+<<<<<<< HEAD
             if action in ("/势力", "/faction"):
                 from core.faction import handle_faction_command, format_faction_board
 
@@ -1654,6 +2244,30 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/交宗门令 <令id>"}
                 return handle_complete_mission(char, parts[1].strip())
+=======
+            if action in ("/议政", "/council"):
+                from core.council import CouncilEngine
+
+                return {"ok": True, "text": CouncilEngine.panel_text(char)}
+            if action in ("/投票", "/vote"):
+                from core.council import CouncilEngine
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/投票 支持|反对"}
+                res = CouncilEngine.vote(char, parts[1])
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/游说", "/lobby"):
+                from core.council import CouncilEngine
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/游说 <长老名>"}
+                res = CouncilEngine.lobby(char, "".join(parts[1:]))
+                if res.get("success") or res.get("dirty"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
             # ---------------- Wave2：除凶 ----------------
             if action in ("/除凶", "/hunt"):
@@ -1662,11 +2276,13 @@ class World:
                 t = my_target(char)
                 extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
                 return {"ok": True, "text": format_board() + extra}
-            if action in ("/接除凶",):
+            # /接令 消歧：纯数字编号是悬赏板既有接令（下方 handler），非数字道号才是除凶接令
+            _is_bounty_claim = action == "/接令" and len(parts) >= 2 and parts[1].isdigit()
+            if action in ("/接除凶", "/接令") and not _is_bounty_claim:
                 from core.hunt import accept
 
                 if len(parts) < 2:
-                    return {"ok": False, "error": "用法：/接除凶 <道号>"}
+                    return {"ok": False, "error": "用法：/接令 <凶犯道号>（纯数字编号为悬赏板接令）"}
                 res = accept(char, "".join(parts[1:]))
                 if res.get("success"):
                     try:
@@ -1676,10 +2292,15 @@ class World:
                     except Exception:
                         pass
                 return {"ok": res.get("success"), "text": res.get("message", "")}
-            if action in ("/弃除凶",):
+            if action in ("/弃除凶", "/弃令"):
                 from core.hunt import abandon
 
                 res = abandon(char)
+                return {"ok": res.get("success"), "text": res.get("message", "")}
+            if action in ("/追凶", "/track"):
+                from core.hunt import track
+
+                res = track(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
             if action in ("/反悬赏",):
                 from core.hunt import place_counter
@@ -2050,6 +2671,11 @@ class World:
                 return {"ok": True, "text": self._bounty_board()}
             if action in ("/market", "/坊市"):
                 return {"ok": True, "text": self._market(char)}
+            if action in ("/行情",):
+                return {"ok": True, "text": MarketEngine.trade_board(char.location)}
+            if action in ("/atlas", "/版图"):
+                arg = parts[1] if len(parts) > 1 else None
+                return {"ok": True, "text": AtlasEngine.panel_text(char, arg)}
             if action in ("/buy", "/购买"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/购买 <货名> [数量]，先 /坊市 看货单"}
@@ -2376,6 +3002,9 @@ class World:
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "摆摊挂牌失败")}
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿上架 → 书目转 listed 并绑定单号
+                if item_name == BOOK_ITEM:
+                    BookEngine.on_listing_created(char, listing.id)
                 CharacterRepository.save(char)
                 ChronicleRepository.record(
                     "MARKET", char.name, f"【{char.name}】在九霄坊市摆摊挂牌【{item_name}】标价 {price} 灵石。"
@@ -2386,6 +3015,7 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/买寄售 <编号或ID>"}
                 open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
+<<<<<<< HEAD
                 target_id = parts[1]
                 listing = None
                 if target_id.isdigit():
@@ -2399,9 +3029,21 @@ class World:
                             break
                 if not listing:
                     return {"ok": False, "error": f"寄售货物【{target_id}】不存在或已下架。"}
+=======
+                idx = int(parts[1]) - 1
+                if idx < 0 or idx >= len(open_l):
+                    return {"ok": False, "error": "寄售编号不存在"}
+                listing = open_l[idx]
+                # 著书立说（F11）：手稿一人至多持一本，买家已持有则不成交
+                if listing.item_name == BOOK_ITEM and not BookEngine.buyer_can_hold(char):
+                    return {"ok": False, "error": "怀中已有一部手稿，先将它流通出去再买新的。"}
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
                 res = MarketEngine.buy_listing(char, listing)
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "购买失败")}
+                # 著书立说（F11）：手稿成交 → 书目过户买家
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_sold(listing.id, char)
                 seller = CharacterRepository.get_by_name(listing.seller_name)
                 MarketEngine.complete_sale_payment(listing, seller, to_stall_earnings=True)
                 MarketListingRepository.save(listing)
@@ -2436,6 +3078,40 @@ class World:
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "撤回失败")}
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿撤单 → 书目回 held
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_cancelled(listing.id)
+                CharacterRepository.save(char)
+                return {"ok": True, "text": res["message"]}
+
+            if action in ("/pawn", "/典当"):
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    return {"ok": True, "text": PawnEngine.panel_text(char)}
+                item_name = "".join(parts[1:])
+                ticket, res = PawnEngine.pawn_item(char, item_name)
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "典当失败")}
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(char)
+                ChronicleRepository.record(
+                    "PAWN", char.name,
+                    f"【{char.name}】典当【{item_name}】得 {res['principal']} 灵石。",
+                )
+                return {"ok": True, "text": res["message"]}
+            if action in ("/redeem", "/赎回"):
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/赎回 <物品名>（先 /典当 查看当票）"}
+                item_name = "".join(parts[1:])
+                ticket, res = PawnEngine.redeem_item(char, item_name)
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "赎回失败")}
+                PawnTicketRepository.save(ticket)
                 CharacterRepository.save(char)
                 return {"ok": True, "text": res["message"], "status": self._status_dict(char)}
 
@@ -2681,7 +3357,7 @@ class World:
                 return {"ok": res.get("success"), "text": res.get("message", "")}
 
             # ---------------- 拍卖行 ----------------
-            if action in ("/auction", "/拍卖行"):
+            if action in ("/auction", "/拍卖行", "/拍卖"):
                 from core.trade import AuctionEngine
 
                 res = AuctionEngine.board()
@@ -2706,16 +3382,33 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
-            if action in ("/bid", "/拍"):
+            if action in ("/bid", "/拍", "/出价"):
                 from core.trade import AuctionEngine
 
-                if len(parts) < 3:
-                    return {"ok": False, "error": "用法：/拍 <编号> <出价>"}
-                try:
-                    amount = int(parts[2])
-                except ValueError:
-                    return {"ok": False, "error": "出价须为整数"}
-                res = AuctionEngine.bid(char, parts[1], amount)
+                if len(parts) < 2:
+                    return {"ok": False, "error": "用法：/拍 <编号> <出价>，或 /出价 <金额>（单场直拍）"}
+                if len(parts) == 2:
+                    # /出价 <金额>：仅当恰有一张 OPEN 拍品时直拍该件；/拍 仍须带编号
+                    if action != "/出价":
+                        return {"ok": False, "error": "用法：/拍 <编号> <出价>"}
+                    try:
+                        amount = int(parts[1])
+                    except ValueError:
+                        return {"ok": False, "error": "出价须为整数"}
+                    open_now = AuctionEngine.open_lots()
+                    if not open_now:
+                        return {"ok": False, "error": "当前无进行中的拍品。"}
+                    if len(open_now) > 1:
+                        ids = "、".join(f"#{l.id}【{l.item_name}】" for l in open_now)
+                        return {"ok": False, "error": f"当前多件拍品在场：{ids}，请用 /拍 <编号> <出价>。"}
+                    lot_id = open_now[0].id
+                else:
+                    lot_id = parts[1]
+                    try:
+                        amount = int(parts[2])
+                    except ValueError:
+                        return {"ok": False, "error": "出价须为整数"}
+                res = AuctionEngine.bid(char, lot_id, amount)
                 if res.get("success"):
                     CharacterRepository.save(char)
                 return {"ok": res.get("success"), "text": res.get("message", "")}
@@ -2869,17 +3562,45 @@ class World:
             "局域网指令：/look /here /who /go <地> /闭关 [h] /出关 /突破 /探查 "
             "/斗法 <名> /交谈 <名> [话] /做 <言行> /自创功法 <理念> /回访 /legacy /转世 [名] [加成] "
             "/tick /agenda /机缘 /告示 /挂赏 <名> <金> /接令 <#> /大事记 "
-            "/坊市 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 "
+            "/坊市 /行情 /版图 /购买 /出售 /服用 /寄存 /支取 /寄售 /买寄售 /撤单 /典当 /赎回 /钱包 /钱包提取 "
             "/交易 <名> /交易出 /交易同意 /交易拒绝 /npc货单 /npc买 /npc卖 "
+<<<<<<< HEAD
             "/拍卖行 /上拍 /拍 /一口 /撤拍 "
             "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /探险 [野外|秘境] "
             "/榜 /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
             "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /纪元回流 /拍卖行 "
             "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
             "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /势力 /宗门令 /接宗门令 /交宗门令 /望气 /除凶 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+=======
+            "/拍卖行 /拍卖 /上拍 /拍 /出价 /一口 /撤拍 "
+            "/归隐 [h] /出隐 /下线 /目标 /灵气 /纪元 /天象 /探险 [野外|秘境] "
+            "/灵宠 /契约 <兽名> /喂养 <宠名> [丹药] /出战 <宠名> /休息 <宠名> /放生 <宠名> "
+            "/洞府 /开辟 /播种 <种子名> [数量] /收获 /升级洞府 "
+            "/委托 /接委托 <NPC名|编号> /交付 /弃委托 "
+            "/诺言 /许诺 <对象> 赠物 <物品>|抵达 <地点>|委托|不攻 /应诺 [立诺者名] /毁诺 [受诺人名]（唯指令立诺入账，交谈口头应承不算） "
+            "/因果链 天道事件链面板（恩/仇/诺/血仇的发酵进度与近史；勿与 /因果 混淆：本服 /因果 为回访别名，CLI /因果 为因果关系列表） "
+            "/心法 /主修 <功法名> /辅修 <功法名> /卸功 <功法名> "
+            "/炼体 [修炼 [n]] /炼神 [修炼 [n]] "
+            "/镇魔 [服丹|静坐] "
+            "/著书 [写] /研读 [书名] "
+            "/榜 /飞升榜 [我|本纪元|道号] /宗门 /拜入 /叛门 /领俸禄 /晋升 /传功 /秘境 /帮助 "
+            "/传闻 /关系 /频道 /公告 /gm /奇遇 /传说 /拍卖行 "
+            "/拜师 /收徒 /出师 /结拜 /结拜同意 /绝交 /叛师 /师门任务 /交师门 /结义任务 /交结义 "
+            "/贡献 /上交 /兑换 /宗门环 /接宗门环 /宗门势 /议政 /投票 支持|反对 /游说 <长老名> /除凶 /接令 /追凶 /弃令 /接除凶 /弃除凶 /反悬赏 /围剿 /世情 /追 "
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             "/配方 /炼丹 /炼器 /悟丹 /悟器 /说 /挂断 /会话 /释放 /名物 /追查 /近况 /目标 /关系 /因果(回访) "
             "/任务 /目标 /天道 /世情 /望气"
         )
+
+    @staticmethod
+    def _season_theme_summary() -> Dict[str, Any]:
+        """当前纪元天象摘要（F13）；推导异常时回退静默纪元口径，不阻断状态下发"""
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            return SeasonThemeEngine.summary()
+        except Exception:
+            return {"name": "静默纪元", "key": "silence", "effect": "无天象修正", "season_number": 0}
 
     def _status_dict(self, c: Character) -> Dict[str, Any]:
         import time as _t
@@ -2889,6 +3610,7 @@ class World:
         prot_left = 0.0
         if prot:
             prot_left = max(0.0, c.newbie_protect_until() - _t.time())
+<<<<<<< HEAD
         # 统计已穿戴法宝信息
         equipped_names = list(getattr(c, "equipped", []) or [])
         equipped_counts: Dict[str, int] = {}
@@ -3015,6 +3737,48 @@ class World:
 
         unread_msgs = pop_player_inbox(c.id)
 
+=======
+        # 账户钱包块（§2.8 命盘钱包行）：只读，不建行；NPC／无账户行为空钱包
+        try:
+            from core.wallet import wallet_summary as _ws
+
+            _acc = LegacyRepository.get(c.user_id)
+            _wallet_block = _ws(_acc) if _acc is not None else {"balance": 0, "entries": [], "ledger": []}
+            from storage.db import AccountRepository as _AR
+
+            _wallet_block = dict(_wallet_block)
+            _wallet_block["username"] = _AR.get_username(c.user_id)
+        except Exception:
+            _acc = None
+            _wallet_block = {"balance": 0, "entries": [], "ledger": [], "username": ""}
+        # 前世摘要（转世继承，只增键）：留痕优先，旧档回退 past_lives；无前世 lives=0
+        _past_life = {"lives": 0, "last_name": "", "last_cause": "", "shadow_count": 0}
+        try:
+            if _acc is not None:
+                _past_life["lives"] = int(_acc.total_lives or 0)
+                if _acc.traces:
+                    _lt = _acc.traces[-1]
+                    _past_life["last_name"] = _lt.name
+                    _past_life["last_cause"] = _lt.cause
+                    # 观察4：与 causality_text 同口径（applied_shadow_entries），
+                    # 低于 SHADOW_APPLY_MIN、实际未落账的条目不计数
+                    from core.inheritance import applied_shadow_entries as _ase
+
+                    _past_life["shadow_count"] = len(_ase(_acc, _lt))
+                elif _acc.past_lives:
+                    _lp = _acc.past_lives[-1]
+                    _past_life["last_name"] = _lp.name
+                    _past_life["last_cause"] = _lp.cause
+        except Exception:
+            pass
+        # 因果链摘要（karma-event-chains §6.1，只增键）：旧前端忽略即可
+        try:
+            from core.karma_chains import KarmaChainEngine as _KCE
+
+            _karma_chains = _KCE.status_summary(c)
+        except Exception:
+            _karma_chains = {"active": 0, "fermenting": 0, "nearest_mature_game_days": None}
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
@@ -3022,6 +3786,9 @@ class World:
             "location": c.location,
             "stones": c.spirit_stones,
             "vault": c.vault_stones,
+            "wallet": _wallet_block,
+            "past_life": _past_life,
+            "karma_chains": _karma_chains,
             "sin": c.karma.sin_value,
             "merit": c.karma.merit_value,
             "exp": f"{c.realm.current_exp}/{c.realm.max_exp}",
@@ -3033,6 +3800,47 @@ class World:
             "root_eff": round(c.spiritual_root.efficiency, 2),
             "dao_heart": c.karma.dao_heart,
             "skills": list(c.skills[:8]),
+            # 灰度批次 B：行囊面板下发（纯新增字段，旧前端忽略即可）
+            "inventory": list(c.inventory),
+            "equipped": list(c.equipped),
+            "arrays": list(c.arrays),
+            # 灵宠（F01）：出战灵宠摘要 + 在养只数（纯新增）
+            "pet": (
+                {
+                    "name": _ap.name,
+                    "species": _ap.species,
+                    "level": pet_level_for(_ap.growth),
+                    "intimacy": _ap.intimacy,
+                }
+                if (_ap := pet_active(c)) is not None
+                else None
+            ),
+            "pets_count": len([p for p in (c.pets or []) if p.state != "dead"]),
+            # 洞府灵田（F06）：洞府摘要（纯新增，无洞府为 None）
+            "cave": FarmEngine.cave_summary(c),
+            # 心法槽位（F02）：当前主修/辅修（纯新增）
+            "arts": {
+                "main": getattr(c, "main_art", "") or "",
+                "sub": list(getattr(c, "sub_arts", None) or []),
+            },
+            # 炼体/炼神双修（F10）：副修层数（纯新增；走引擎钳制口径，与面板/加成一致）
+            "body_soul": {
+                "body": BodySoulEngine.body_level(c),
+                "soul": BodySoulEngine.soul_level(c),
+            },
+            # 心魔长期状态（F16）：阶段/魔念（纯新增；纯读推导不落库）
+            "heart_demon_state": DemonStateEngine.summary(c),
+            # 著书立说（F11）：灵感/声望（纯新增）
+            "books": {
+                "inspiration": int(getattr(c, "inspiration", 0) or 0),
+                "prestige": int(getattr(c, "prestige", 0) or 0),
+            },
+            # 纪元天象（F13）：当前纪元主题摘要（纯新增；纯函数推导，异常回退静默纪元口径）
+            "season_theme": self._season_theme_summary(),
+            # 天道可感知：血煞以规则侧 blood_mark_until 为准，大限阈值与 config 对齐
+            "blood_marked": c.karma.is_blood_marked(),
+            "lifespan_warning": c.lifespan.get_remaining_years()
+            <= LIFESPAN_WARNING_YEARS,
             "meditating": c.status == CharacterStatus.MEDITATING,
             "is_meditating": c.status == CharacterStatus.MEDITATING,
             "sect": sect_name,
@@ -3053,6 +3861,7 @@ class World:
             "protect": ProtectionEngine.status_text(c),
             "conflict_zone": is_conflict_zone(c.location),
             "qi_mult": round(qi_mod.global_qi_multiplier(), 3),
+<<<<<<< HEAD
             "crane_pending_item": getattr(c, "crane_pending_item", None),
             "max_bag_slots": getattr(c, "MAX_BAG_SLOTS", 64),
             "is_bag_full": c.is_bag_full() if hasattr(c, "is_bag_full") else (len(getattr(c, "items", [])) >= 64),
@@ -3156,6 +3965,21 @@ class World:
             "soul": c.soul.model_dump() if hasattr(c, "soul") and hasattr(c.soul, "model_dump") else {},
             "equip_slots": c.equip_slots.model_dump() if hasattr(c, "equip_slots") and hasattr(c.equip_slots, "model_dump") else {},
             "professions": c.professions.model_dump() if hasattr(c, "professions") and hasattr(c.professions, "model_dump") else {},
+=======
+            # 委托链摘要（F07，纯新增）：None 或 {publisher, ring: "x/y", kind}
+            "quest": (
+                {
+                    "publisher": c.active_quest.publisher_name,
+                    "ring": f"{min(c.active_quest.ring_index + 1, len(c.active_quest.rings))}/{len(c.active_quest.rings)}",
+                    "kind": (
+                        c.active_quest.rings[min(c.active_quest.ring_index, len(c.active_quest.rings) - 1)].kind
+                        if c.active_quest.rings else ""
+                    ),
+                }
+                if getattr(c, "active_quest", None)
+                else None
+            ),
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         }
 
     def _look(self, c: Character) -> str:
@@ -3250,7 +4074,15 @@ class World:
 
         c.location = matched
         CharacterRepository.save(c)
+        # 诺言账（F14）：抵达诺核验——迁跃落点即事实
+        promise_line = ""
+        try:
+            promise_line = PromiseEngine.note_arrival(c, matched) or ""
+        except Exception:
+            promise_line = ""
         text = f"御剑化虹，抵达【{matched}】。"
+        if promise_line:
+            text += f"\n{promise_line}"
         try:
             from core.sect_contrib import sync_ring
             from config import SECTS_CONFIG
@@ -3336,19 +4168,30 @@ class World:
             f"出关：闭关 {res.get('actual_real_hours',0):.1f} 小时，"
             f"修为+{res.get('exp_gained',0)}，寿元余 {res.get('after_years',0):.1f}"
         ]
+        _de = res.get("demon_eruption")
+        if _de:
+            lines.append(f"【心魔发作】{_de.get('text', '')}（/镇魔 可镇压）")
         dead = False
+        _emerge_settle = None
         if res.get("is_fatal"):
             c.status = CharacterStatus.DEAD
             CharacterRepository.save(c)
             lines.append("寿尽坐化。")
             dead = True
+<<<<<<< HEAD
             self._settle_if_needed(c, cause="洞府坐化")
         ret = {
+=======
+            _emerge_settle = self._settle_if_needed(c, cause="洞府坐化")
+        return {
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             "ok": True,
             "text": "\n".join(lines),
             "death": dead,
             "status": self._status_dict(c),
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
+            "sweep": (_emerge_settle or {}).get("sweep") if _emerge_settle else None,
+            "death_cause": c.death_cause if dead else None,
         }
         if not dead:
             return self._append_natural_omen(c, ret, context="出关入世")
@@ -3360,11 +4203,16 @@ class World:
             {"key": k, "name": cfg["name"], "cost": cfg["cost"], "desc": cfg["desc"]}
             for k, cfg in LEGACY_BOOSTS.items()
         ]
+        from core.inheritance import current_karma_shadow, trace_summary
+
         return {
             "points": account.points,
             "lives": account.total_lives,
             "boosts": boosts,
             "max_boosts": LEGACY_MAX_BOOSTS_PER_LIFE,
+            # 转世继承（只增）：最近 8 世留痕摘要 + 当前角色本世被施加的影子清单
+            "traces": [trace_summary(t) for t in account.traces[-8:]],
+            "karma_shadow": current_karma_shadow(account),
         }
 
     def _breakthrough(self, c: Character, session: Optional[Session]) -> Dict[str, Any]:
@@ -3398,6 +4246,7 @@ class World:
                 CharacterRepository.save(c)
             except Exception:
                 pass
+<<<<<<< HEAD
             try:
                 from core.player_echo import record_player_breakthrough
 
@@ -3412,8 +4261,11 @@ class World:
                 WorldDirector.run_cycle(trigger="breakthrough", force=False)
             except Exception:
                 pass
+=======
+        _bt_settle = None
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         if dead:
-            self._settle_if_needed(c, cause="渡劫陨落")
+            _bt_settle = self._settle_if_needed(c, cause="渡劫陨落")
         return {
             "ok": True,
             "text": res.get("message", ""),
@@ -3422,6 +4274,8 @@ class World:
             "death": dead,
             "status": self._status_dict(c),
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
+            "sweep": (_bt_settle or {}).get("sweep") if _bt_settle else None,
+            "death_cause": c.death_cause if dead else None,
         }
 
     def _fight(self, c: Character, target_name: str) -> Dict[str, Any]:
@@ -3538,15 +4392,30 @@ class World:
         return "\n".join(lines)
 
     def _market(self, c: Character) -> str:
-        goods = MarketEngine.catalog()
+        goods = MarketEngine.catalog(c.location)
+        region = MarketEngine.region_of(c.location)
         lines = [
-            f"【坊市】金库 {c.vault_stones} | 随身 {c.spirit_stones}",
-            "商会货单：",
+            f"【坊市 · {region}】金库 {c.vault_stones} | 随身 {c.spirit_stones}",
+            "商会货单（当地市价，回收为市价五折）：",
         ]
+        # F09：查看者宗门主导当地时注脚（货单价仍为市价单点，折扣只落成交）
+        try:
+            if c.sect and AtlasEngine.dominant_sect(region) == c.sect:
+                lines.append(f"（本宗【{c.sect}】主导此地：向商会购货成交价九五折，货单为市价。）")
+        except Exception:
+            pass
         for g in goods:
             grade = f"·{g['grade']}" if g.get("grade") else ""
             slot = f"·{g['slot']}" if g.get("slot") else ""
-            lines.append(f"  · {g['name']}{grade}{slot}  {g['price']} 灵石  {g.get('desc','')}")
+            tag = ""
+            if g.get("origin") == region:
+                tag = " 【产地价】"
+            elif g.get("origin") and (g.get("factor") or 1.0) > 1.001:
+                tag = f"（产{g['origin']}，涨{(g['factor'] - 1.0) * 100:.0f}%）"
+            elif g.get("origin"):
+                tag = f"（产{g['origin']}）"
+            lines.append(f"  · {g['name']}{grade}{slot}  {g['price']} 灵石{tag}  {g.get('desc','')}")
+        lines.append("各地价差见 /行情：产地贱买、远方高价回收，即是跑商。")
         try:
             open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
             if open_l:
@@ -3560,7 +4429,8 @@ class World:
         try:
             from core.trade import AuctionEngine
 
-            board = AuctionEngine.board()
+            # 坊市摘要是只读呈现：只推进排期/结算，不触发 NPC 跟价（react 触发点仅拍卖看板与世界 tick）
+            board = AuctionEngine.board(react=False)
             lots = board.get("lots") or []
             if lots:
                 lines.append("拍卖行：")
@@ -3572,10 +4442,10 @@ class World:
             pass
         lines.append(
             "通道：/购买 /出售 /服用 /寄存 /支取 | "
-            "/寄售 /买寄售 /撤单 | "
+            "/寄售 /买寄售 /撤单 | /典当 /赎回 | "
             "/交易 <名> · /交易出 · /交易同意 · /交易拒绝 | "
             "/npc货单 /npc买 /npc卖 | "
-            "/拍卖行 · /上拍 · /拍 · /一口 · /撤拍"
+            "/拍卖行 · /拍卖 · /上拍 · /拍 · /出价 · /一口 · /撤拍"
         )
         return "\n".join(lines)
 

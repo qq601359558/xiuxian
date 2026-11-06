@@ -142,6 +142,7 @@
           </div>
         </div>
 
+<<<<<<< HEAD
         <!-- Center: Jade Navigation Tabs (五大主境) -->
         <nav class="flex items-center gap-1.5 bg-jade-100/50 p-1.5 rounded-full border border-jade-200 main-nav" aria-label="Primary Navigation">
           <button type="button" class="nav-tab active px-5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-jade-700 to-jade-600 shadow-sm flex items-center gap-1.5 transition-all" data-view="sanctum">
@@ -165,6 +166,37 @@
             <span class="text-[10px] text-slate-400">纳戒乾坤</span>
           </button>
         </nav>
+=======
+      <div class="hud-stats">
+        <div class="stat">
+          <span class="k">境界</span>
+          <b id="hudRealm">—</b>
+        </div>
+        <div class="stat">
+          <span class="k">位置</span>
+          <b id="hudLoc">—</b>
+        </div>
+        <div class="stat wide">
+          <span class="k">寿元</span>
+          <b id="hudLife">—</b>
+          <div class="bar life"><i id="hudLifeBar"></i></div>
+          <span id="hudLifeState" class="hud-life-state hide"></span>
+        </div>
+        <div class="stat wide">
+          <span class="k">修为</span>
+          <b id="hudExp">—</b>
+          <div class="bar exp"><i id="hudExpBar"></i></div>
+        </div>
+        <div class="stat">
+          <span class="k">灵石</span>
+          <b id="hudStones">—</b>
+        </div>
+        <div class="stat">
+          <span class="k">全服灵气</span>
+          <b id="hudQi">—</b>
+        </div>
+      </div>
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
         <!-- Right: Stamina, Expedition Cost & Global Assets -->
         <div class="flex items-center gap-4">
@@ -218,9 +250,309 @@
       </div>
     </header>
 
+<<<<<<< HEAD
     <!-- 主视窗工作区（四大主境画卷容器） -->
     <main class="main-stage flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24" id="mainStage">
       <div id="stageContent" class="w-full"></div>
+=======
+    <main class="shell">
+      <!-- 左：修行台 -->
+      <aside class="rail left">
+        <section class="card fate">
+          <header class="card-h">
+            <h2>命盘</h2>
+            <span id="stProt" class="pill hide"></span>
+          </header>
+          <div class="avatar-row">
+            <div class="avatar" id="avatarChar">修</div>
+            <div class="avatar-meta">
+              <div class="name" id="stName">—</div>
+              <div class="realm" id="stRealm">—</div>
+            </div>
+          </div>
+          <div class="meters">
+            <div class="meter">
+              <div class="meter-top"><span>修为</span><b id="stExp">—</b></div>
+              <div class="bar exp"><i id="stExpBar"></i></div>
+            </div>
+            <div class="meter">
+              <div class="meter-top"><span>寿元</span><b id="stLife">—</b></div>
+              <div class="bar life"><i id="stLifeBar"></i></div>
+            </div>
+          </div>
+          <dl class="kv">
+            <div><dt>灵根</dt><dd id="stRoot">—</dd></div>
+            <div><dt>位置</dt><dd id="stLoc">—</dd></div>
+            <div><dt>随身</dt><dd id="stStones">—</dd></div>
+            <div><dt>金库</dt><dd id="stVault">—</dd></div>
+            <div><dt>账户钱包</dt><dd id="stWallet">—</dd></div>
+            <div><dt>业 / 德</dt><dd id="stKarma">—</dd></div>
+            <div id="daoHeartRow"><dt>道心</dt><dd class="dao-dd"><span id="stDaoHeart">—</span><span class="bar dao"><i id="stDaoHeartBar"></i></span></dd></div>
+            <div><dt>前世</dt><dd id="stPastLife">—</dd></div>
+            <div><dt>势力</dt><dd id="stSect">—</dd></div>
+            <div><dt>全服灵气</dt><dd id="stQi">—</dd></div>
+            <div><dt>天象</dt><dd id="stTheme">—</dd></div>
+            <div><dt>心魔</dt><dd id="stDemon">—</dd></div>
+            <div><dt>灵宠</dt><dd id="stPet">—</dd></div>
+          </dl>
+          <div id="stProtRow" class="note hide"></div>
+          <div class="wallet-box" id="walletBox">
+            <div class="wallet-top"><span>账户钱包</span><b id="walletBalance">—</b></div>
+            <div class="muted" id="walletUser">户名：—</div>
+            <details id="walletDetails">
+              <summary>最近流水（最多 5 条）</summary>
+              <div id="walletEntries" class="wallet-entries"><p class="empty">暂无流水。</p></div>
+            </details>
+            <form id="walletForm" class="wallet-form" autocomplete="off">
+              <input id="walletAmount" type="text" inputmode="numeric" placeholder="提取金额" spellcheck="false" />
+              <button type="submit" class="btn-mini">提取</button>
+            </form>
+            <div id="walletMsg" class="wallet-msg muted">提取：/钱包提取 &lt;金额&gt;（钱包 −n，随身 ＋n）</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>行囊</h2><span class="muted" id="bagCount"></span></header>
+          <div id="bagList" class="bag-list">
+            <p class="empty">行囊空空</p>
+          </div>
+          <div id="bagArts" class="bag-arts hide"></div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>修行</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/闭关 1">闭关 1h</button>
+            <button class="btn-soft" data-cmd="/闭关 8">闭关 8h</button>
+            <button class="btn-soft" data-cmd="/出关">出关</button>
+            <button class="btn-soft accent" data-cmd="/突破">突破</button>
+            <button class="btn-soft" data-cmd="/归隐">归隐</button>
+            <button class="btn-soft" data-cmd="/出隐">出隐</button>
+            <button class="btn-soft" data-cmd="/炼体">炼体</button>
+            <button class="btn-soft" data-cmd="/炼体 修炼">炼体修炼</button>
+            <button class="btn-soft" data-cmd="/炼神">炼神</button>
+            <button class="btn-soft" data-cmd="/炼神 修炼">炼神修炼</button>
+            <button class="btn-soft" data-cmd="/镇魔">镇魔</button>
+            <button class="btn-soft" data-cmd="/镇魔 服丹">镇魔·服丹</button>
+            <button class="btn-soft" data-cmd="/著书">著书</button>
+            <button class="btn-soft" data-cmd="/著书 写">著书·写</button>
+            <button class="btn-soft" data-cmd="/研读">研读</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>迁跃</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-go="青云坊市客栈">坊市</button>
+            <button class="btn-soft" data-go="青云宗外门山门">青云宗</button>
+            <button class="btn-soft" data-go="宗门玄元洞府">玄元洞</button>
+            <button class="btn-soft" data-go="落霞山灵泉">落霞山</button>
+            <button class="btn-soft" data-go="万剑仙门峰">万剑</button>
+            <button class="btn-soft" data-go="黑风绝渊">黑风渊</button>
+            <button class="btn-soft" data-go="万星古岛">乱星海</button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- 中：天道录 -->
+      <section class="stage">
+        <div class="stage-top">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-tab="feed">天道录</button>
+            <button class="tab" data-tab="goals">目标</button>
+            <button class="tab" data-tab="world" id="tabWorld">世界<span id="worldBadge" class="badge hidden">0</span></button>
+          </div>
+          <button type="button" class="btn-soft rail-toggle" id="railToggle" aria-expanded="false" aria-controls="railRight">场景面板</button>
+          <div class="scene-chip" id="sceneChip">—</div>
+        </div>
+
+        <div class="panes">
+          <div id="pane-feed" class="pane active">
+            <div id="log" class="log" aria-live="polite"></div>
+          </div>
+          <div id="pane-goals" class="pane">
+            <div id="goalsBody" class="pane-scroll"></div>
+          </div>
+          <div id="pane-world" class="pane">
+            <div id="worldFeed" class="world-feed" aria-live="polite"></div>
+            <div class="world-actions">
+              <button class="btn-soft" data-cmd="/频道">刷新频道</button>
+              <button class="btn-soft" data-cmd="/公告">公告</button>
+              <button class="btn-soft" data-cmd="/传闻">传闻</button>
+              <button class="btn-soft" data-cmd="/传说">传说</button>
+              <button class="btn-soft" data-cmd="/目标">刷新目标</button>
+              <button class="btn-soft" data-cmd="/灵气">全服灵气</button>
+              <button class="btn-soft" data-cmd="/纪元">纪元</button>
+              <button class="btn-soft" data-cmd="/天象">天象</button>
+              <button class="btn-soft" data-cmd="/榜">六榜</button>
+              <button class="btn-soft" data-cmd="/榜 境界">境界</button>
+              <button class="btn-soft" data-cmd="/榜 战力">战力</button>
+              <button class="btn-soft" data-cmd="/榜 凶名">凶名</button>
+              <button class="btn-soft" data-cmd="/榜 道行">道行</button>
+              <button class="btn-soft" data-cmd="/飞升榜">飞升榜</button>
+              <button class="btn-soft" data-cmd="/秘境">秘境</button>
+              <button class="btn-soft" data-cmd="/宗门">宗门</button>
+              <button class="btn-soft" data-cmd="/告示">告示</button>
+              <button class="btn-soft" data-cmd="/除凶">除凶令</button>
+              <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="凶犯道号" data-hint="先点「除凶」看凶犯道号，再填道号">接令·除凶…</button>
+              <button class="btn-soft" data-cmd="/追凶">追凶</button>
+              <button class="btn-soft" data-cmd="/弃令">弃令</button>
+              <button class="btn-soft" data-cmd="/who">天下</button>
+              <button class="btn-soft" data-cmd="/坊市">坊市</button>
+              <button class="btn-soft" data-cmd="/世情">世间动向</button>
+              <button class="btn-soft" data-cmd="/机缘">推演天机</button>
+              <button class="btn-soft" data-cmd="/回访">因果回访</button>
+              <button class="btn-soft" data-cmd="/帮助">敕令一览</button>
+            </div>
+            <div id="worldBody" class="pane-scroll dim-block"></div>
+          </div>
+        </div>
+
+        <form id="cmdForm" class="composer">
+          <div class="composer-inner">
+            <span class="prompt">敕令</span>
+            <input id="cmdInput" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="/做 我在坊市打听血刀老祖下落" />
+            <button type="submit" class="btn-primary sm">行</button>
+          </div>
+          <div class="quick-row">
+            <button type="button" class="chip" data-cmd="/闭关 1">闭关</button>
+            <button type="button" class="chip" data-cmd="/出关">出关</button>
+            <button type="button" class="chip" data-cmd="/突破">突破</button>
+            <button type="button" class="chip" data-cmd="/目标">目标</button>
+            <button type="button" class="chip" data-cmd="/榜">榜</button>
+            <button type="button" class="chip" data-cmd="/秘境">秘境</button>
+            <button type="button" class="chip" data-cmd="/宗门">宗门</button>
+            <button type="button" class="chip" data-cmd="/道身">道身</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 右：场景 -->
+      <aside class="rail right" id="railRight">
+        <section class="card scene">
+          <header class="card-h">
+            <h2>此地</h2>
+            <span id="zoneTag" class="tag">—</span>
+          </header>
+          <div class="scene-name" id="sceneName">—</div>
+          <div class="scene-meta" id="sceneMeta">迁跃或观照后刷新</div>
+          <div class="scene-actions">
+            <button class="btn-soft" data-cmd="/here">刷新同场</button>
+            <button class="btn-soft" data-cmd="/机缘">探机缘</button>
+          </div>
+        </section>
+
+        <section class="card grow">
+          <header class="card-h">
+            <h2>同场修士</h2>
+            <span class="muted" id="hereCount"></span>
+          </header>
+          <div id="hereList" class="here-list">
+            <p class="empty">尚无同道</p>
+          </div>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/委托">NPC 委托</button>
+            <button class="btn-soft" data-prompt="接委托" data-cmd-prefix="/接委托" data-placeholder="同场 NPC 名或编号">接委托…</button>
+            <button class="btn-soft" data-cmd="/交付">交付委托</button>
+            <button class="btn-soft" data-cmd="/弃委托">弃委托</button>
+            <button class="btn-soft" data-cmd="/诺言">诺言账</button>
+            <button class="btn-soft" data-prompt="许诺" data-cmd-prefix="/许诺" data-placeholder="如：委托翁 赠物 聚灵草 / 某道友 不攻 / 某翁 抵达 落霞山灵泉">许诺…</button>
+            <button class="btn-soft" data-cmd="/应诺">应诺</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>仙门 · 坊市</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/宗门">宗门</button>
+            <button class="btn-soft" data-prompt="拜入" data-cmd-prefix="/拜入">拜入…</button>
+            <button class="btn-soft" data-cmd="/叛门">叛门</button>
+            <button class="btn-soft" data-cmd="/领俸禄">领俸</button>
+            <button class="btn-soft" data-cmd="/晋升">晋升</button>
+            <button class="btn-soft" data-cmd="/议政">议政</button>
+            <button class="btn-soft" data-cmd="/版图">版图</button>
+            <button class="btn-soft" data-cmd="/投票 支持">议政·支持</button>
+            <button class="btn-soft" data-cmd="/投票 反对">议政·反对</button>
+            <button class="btn-soft" data-prompt="游说" data-cmd-prefix="/游说" data-placeholder="长老名，如：丹霞子">游说…</button>
+            <button class="btn-soft" data-prompt="传功" data-cmd-prefix="/传功" data-placeholder="弟子道号">传功…</button>
+            <button class="btn-soft" data-cmd="/坊市">坊市</button>
+            <button class="btn-soft" data-cmd="/钱包">钱包</button>
+            <button class="btn-soft" data-prompt="钱包提取" data-cmd-prefix="/钱包提取" data-placeholder="金额，如：100" data-num="1">钱包提取…</button>
+            <button class="btn-soft" data-cmd="/行情">行情</button>
+            <button class="btn-soft" data-prompt="购买" data-cmd-prefix="/购买" data-placeholder="货名 [数量]">购买…</button>
+            <button class="btn-soft" data-prompt="出售" data-cmd-prefix="/出售" data-placeholder="货名 [数量]">出售…</button>
+            <button class="btn-soft" data-prompt="服用" data-cmd-prefix="/服用" data-placeholder="丹药名">服用…</button>
+            <button class="btn-soft" data-prompt="寄存" data-cmd-prefix="/寄存" data-placeholder="灵石数量" data-num="1">寄存…</button>
+            <button class="btn-soft" data-prompt="支取" data-cmd-prefix="/支取" data-placeholder="灵石数量" data-num="1">支取…</button>
+            <button class="btn-soft" data-prompt="寄售" data-cmd-prefix="/寄售" data-placeholder="货名 价格">寄售…</button>
+            <button class="btn-soft" data-prompt="买寄售" data-cmd-prefix="/买寄售" data-placeholder="寄售编号" data-num="1">买寄售…</button>
+            <button class="btn-soft" data-prompt="撤单" data-cmd-prefix="/撤单" data-placeholder="寄售编号" data-num="1">撤单…</button>
+            <button class="btn-soft" data-cmd="/拍卖行">拍卖</button>
+            <button class="btn-soft" data-prompt="出价" data-cmd-prefix="/拍" data-placeholder="编号 出价，如：a1b2c3d4 300">出价…</button>
+            <button class="btn-soft" data-prompt="上拍" data-cmd-prefix="/上拍" data-placeholder="货名 底价 [一口价]，如：青锋剑 100 300">上拍…</button>
+            <button class="btn-soft" data-cmd="/典当">典当</button>
+            <button class="btn-soft" data-prompt="典当" data-cmd-prefix="/典当" data-placeholder="物品名，如：青锋剑">典当…</button>
+            <button class="btn-soft" data-prompt="赎回" data-cmd-prefix="/赎回" data-placeholder="物品名">赎回…</button>
+            <button class="btn-soft" data-prompt="挂赏" data-cmd-prefix="/挂赏" data-placeholder="道号 赏金 [缘由] [匿]">挂赏…</button>
+            <button class="btn-soft" data-prompt="接令" data-cmd-prefix="/接令" data-placeholder="告示编号" data-num="1" data-hint="先点「告示」看告示编号，再填编号">接令·告示…</button>
+            <button class="btn-soft" data-cmd="/探查">探查</button>
+            <button class="btn-soft" data-cmd="/挖宝">挖宝</button>
+            <button class="btn-soft" data-cmd="/生成丹药">生成丹药</button>
+            <button class="btn-soft" data-cmd="/生成法宝">生成法宝</button>
+            <button class="btn-soft" data-cmd="/生成妖兽">生成妖兽</button>
+            <button class="btn-soft" data-prompt="穿戴" data-cmd-prefix="/穿戴" data-placeholder="装备名，如：青锋剑">穿戴…</button>
+            <button class="btn-soft" data-prompt="卸下" data-cmd-prefix="/卸下" data-placeholder="装备名">卸下…</button>
+            <button class="btn-soft" data-cmd="/大劫">大劫</button>
+            <button class="btn-soft" data-prompt="自创功法" data-cmd-prefix="/自创功法" data-placeholder="理念，如：噬血炼骨">自创功法…</button>
+            <button class="btn-soft" data-cmd="/功法">我的功法</button>
+            <button class="btn-soft" data-cmd="/心法">心法槽位</button>
+            <button class="btn-soft" data-prompt="主修" data-cmd-prefix="/主修" data-placeholder="功法名，如：御剑术">主修…</button>
+            <button class="btn-soft" data-prompt="辅修" data-cmd-prefix="/辅修" data-placeholder="功法名">辅修…</button>
+            <button class="btn-soft" data-prompt="卸功" data-cmd-prefix="/卸功" data-placeholder="已装配的功法名">卸功…</button>
+            <button class="btn-soft" data-cmd="/大事记">大事记</button>
+            <button class="btn-soft" data-cmd="/因果">因果链</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>秘境</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/秘境">天机榜</button>
+            <button class="btn-soft" data-cmd="/探险">探险列表</button>
+            <button class="btn-soft" data-prompt="探险" data-cmd-prefix="/探险" data-placeholder="野外 / 秘境名">外出探险…</button>
+            <button class="btn-soft" data-cmd="/秘境 落霞古洞">落霞古洞</button>
+            <button class="btn-soft" data-cmd="/秘境 黑风绝渊裂隙">黑风裂隙</button>
+            <button class="btn-soft" data-cmd="/秘境 万星遗迹残址">万星残址</button>
+            <button class="btn-soft accent" data-cmd="/秘境 探">推进</button>
+            <button class="btn-soft" data-cmd="/秘境 弃">放弃</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>灵宠</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/灵宠">灵宠面板</button>
+            <button class="btn-soft" data-prompt="契约" data-cmd-prefix="/契约" data-placeholder="兽名，如：青鳞蟒">契约…</button>
+            <button class="btn-soft" data-prompt="喂养" data-cmd-prefix="/喂养" data-placeholder="宠名 [丹药名]">喂养…</button>
+            <button class="btn-soft" data-prompt="出战" data-cmd-prefix="/出战" data-placeholder="宠名">出战…</button>
+            <button class="btn-soft" data-prompt="休息" data-cmd-prefix="/休息" data-placeholder="宠名">休息…</button>
+            <button class="btn-soft" data-prompt="放生" data-cmd-prefix="/放生" data-placeholder="宠名">放生…</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>洞府灵田</h2></header>
+          <div class="btn-grid">
+            <button class="btn-soft" data-cmd="/洞府">洞府面板</button>
+            <button class="btn-soft" data-cmd="/开辟">开辟洞府</button>
+            <button class="btn-soft" data-prompt="播种" data-cmd-prefix="/播种" data-placeholder="种子名 [数量]，如：聚灵草种子 2">播种…</button>
+            <button class="btn-soft" data-cmd="/收获">收获</button>
+            <button class="btn-soft" data-cmd="/升级洞府">升级洞府</button>
+          </div>
+        </section>
+      </aside>
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
     </main>
 
     <!-- 右侧滑入式神识浮匣（同场仙友与十方迁跃） -->
@@ -310,6 +642,7 @@
   <!-- 全局天道提示浮层 -->
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<<<<<<< HEAD
   <script src="workbench.js"></script>
   <!-- 弹窗关闭兜底：防止任何事件阻断导致的遮罩卡死 -->
   <script>
@@ -334,5 +667,30 @@
       });
     })();
   </script>
+=======
+  <div id="deathModal" class="modal hidden">
+    <div class="modal-card death">
+      <h2>一世终结 · 真灵归寂</h2>
+      <p id="deathText" class="demon-text"></p>
+      <div id="deathLegacy" class="legacy-box"></div>
+      <div id="deathSettle" class="settle-box"></div>
+      <div id="deathWallet" class="wallet-box"></div>
+      <div id="deathGuide" class="guide-box"></div>
+      <div class="boost-box" id="boostBox"></div>
+      <div id="heirloomWrap" class="heirloom-box hide">
+        <label class="heirloom-label" for="heirloomSelect">遗物留存 · 选择一件前世遗物</label>
+        <select id="heirloomSelect" class="heirloom-select"></select>
+      </div>
+      <div class="death-actions">
+        <input id="rebornName" type="text" placeholder="新道号（可选，留空沿用旧名）" maxlength="12" />
+        <button id="btnReborn" class="btn-primary">以此道号重入轮回</button>
+        <button id="btnLater" class="btn-ghost">暂不转世</button>
+      </div>
+      <p id="deathError" class="wallet-msg err hide"></p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 </body>
 </html>

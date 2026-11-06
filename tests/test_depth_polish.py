@@ -9,10 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from storage.db import init_db, CharacterRepository, WorldStateRepository, KarmaLinkRepository
 from core.clock import WorldClock
+from core.models import CharacterStatus
 from core import social_bonds as sb
 from core import sect_contrib as sc
 from core import hunt
-from core.schedule import format_world_schedule, follow_action
+from core.schedule import format_world_schedule, follow_action, _ACTIONS_KEY
 
 
 def _p(name, tier=1, stones=300, loc="青云坊市客栈", sect=None):
@@ -124,16 +125,44 @@ def test_schedule_follow():
     init_db()
     WorldStateRepository.delete(hunt._HUNT_KEY)
     v = _p("观察者", loc="落霞山灵泉(野外)")
-    blood = _p("煞星", tier=2, loc="落霞山灵泉(野外)")
-    blood.karma.add_sin(100)
+    # 密封（活库）：排程血煞榜按全库在世血煞业力降序取前 8，存量 NPC
+    # 业力可达数百且可能与旧夹具重名——自造凶犯须唯一名 + 业力居首，
+    # 再按名从 actions 定位本人条目代号，不假设必占 B1
+    blood = _p("排程煞星", tier=2, loc="落霞山灵泉(野外)")
+    blood.karma.add_sin(10000)
     CharacterRepository.save(blood)
-    r = format_world_schedule(viewer_id=v.id)
-    assert "B1" in r["text"] or "血煞" in r["text"]
-    # /追 B1
-    res = follow_action(CharacterRepository.get_by_id(v.id), "B1")
-    assert res["success"] is True, res
-    assert hunt.my_target(CharacterRepository.get_by_id(v.id)) is not None
-    print("✓ 世情 /追 B1 接令")
+    try:
+        r = format_world_schedule(viewer_id=v.id)
+        assert f"【{blood.name}】" in r["text"]
+        marks = [a for a in r["actions"] if a.get("kind") == "mark"]
+        idx = next(
+            i for i, a in enumerate(marks) if a.get("name") == blood.name
+        )
+        res = follow_action(CharacterRepository.get_by_id(v.id), f"B{idx + 1}")
+        assert res["success"] is True, res
+        assert hunt.my_target(CharacterRepository.get_by_id(v.id)) is not None
+    finally:
+        # 零残留：摘除接令登记/令实体/猎手索引/排程动作缓存、自造两角置死，
+        # 免自造血煞留在活库榜上干扰后续运行
+        hunt._unregister_from_order(v.id, blood.id)
+        orders = hunt._load_orders()
+        if blood.id in orders:
+            orders.pop(blood.id)
+            hunt._save_orders(orders)
+        d = hunt._load()
+        if v.id in d:
+            d.pop(v.id)
+            hunt._save(d)
+        sched = WorldStateRepository.get(_ACTIONS_KEY)
+        if isinstance(sched, dict) and v.id in sched:
+            sched.pop(v.id)
+            WorldStateRepository.set(_ACTIONS_KEY, sched)
+        for c in (v, blood):
+            cc = CharacterRepository.get_by_id(c.id)
+            if cc is not None:
+                cc.status = CharacterStatus.DEAD
+                CharacterRepository.save(cc)
+    print("✓ 世情 /追 本人条目接令")
 
 
 if __name__ == "__main__":

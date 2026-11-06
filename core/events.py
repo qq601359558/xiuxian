@@ -28,8 +28,16 @@ class EventEngine:
     @staticmethod
     def pick_type(rng: Optional[random.Random] = None) -> str:
         r = rng or random
+        # 纪元天象（F13）：权重经主题修正（副本，不改 config 原表）；
+        # 非事件主题纪元与原表逐值一致，异常回退原表
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            weight_table = SeasonThemeEngine.event_weights()
+        except Exception:
+            weight_table = EVENT_WEIGHTS
         types = list(EVENT_WEIGHTS.keys())
-        weights = [EVENT_WEIGHTS[t] for t in types]
+        weights = [weight_table[t] for t in types]
         return r.choices(types, weights=weights, k=1)[0]
 
     @staticmethod
@@ -230,6 +238,14 @@ class EventEngine:
             source = "local"
 
         summary = EventEngine.apply_effects(character, cleaned["effects"])
+        # F16：血煞反噬落账 → 心魔播种钩子（规则概率，道心压制；失败不影响事件本身）
+        if cleaned.get("title") == "血煞反噬":
+            try:
+                from core.heart_demon_state import DemonStateEngine
+
+                DemonStateEngine.on_blood_backlash(character)
+            except Exception:
+                pass
         return {
             "source": source,
             "type": cleaned["type"],

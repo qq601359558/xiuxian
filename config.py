@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from typing import Dict
 
-# 根目录与数据目录 (全部严格限定在 D 盘)
+# 版本标识（灰度发布）：/health 回显，发布时与 git tag 对齐
+VERSION = "0.3.2-gray.9"
+
+# 根目录与数据目录
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -209,7 +212,18 @@ LEGACY_SUICIDE_THRESHOLD = 3
 LEGACY_SUICIDE_PENALTY = 0.5
 # 每次转世最多购买的加成项数（防滚雪球）
 LEGACY_MAX_BOOSTS_PER_LIFE = 3
+# ==================== 转世继承 · 因果影子（reincarnation-inheritance §2.6） ====================
+SHADOW_MIN_ABS = 30          # 态度快照门槛：|value| 低于此不入痕迹
+SHADOW_MAX_ENTRIES = 6       # 每世影子条数上限
+SHADOW_RETENTION = 0.4       # 基准衰减：转世后态度 = 前世值 × 此系数
+SHADOW_CAP = 25              # 基准施加绝对值顶
+SHADOW_APPLY_MIN = 8         # 施加后绝对值低于此不落账
+BOND_ECHO_RETENTION = 0.75   # 旧缘重续（bond_echo）衰减
+BOND_ECHO_CAP = 50           # 旧缘重续施加绝对值顶
+
 # 转世消费目录（成本/效果）
+# ⚠ 顺序即 /转世 数字序号映射：既有四键顺序与数值严禁变更，
+# 新键只能追加在末尾（reincarnation-inheritance §1.4）。
 LEGACY_BOOSTS = {
     "stones": {
         "name": "出身灵石",
@@ -230,6 +244,21 @@ LEGACY_BOOSTS = {
         "name": "传承功法",
         "cost": 2,
         "desc": "前世道统残篇化入识海，开局自带一门额外法门。",
+    },
+    "heirloom": {
+        "name": "遗物留存",
+        "cost": 5,
+        "desc": "自前世行囊中选 1 件遗物随真灵转世（heirloom:<物品名>），每世限 1 件。",
+    },
+    "art_memory": {
+        "name": "前世心法",
+        "cost": 4,
+        "desc": "唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。",
+    },
+    "bond_echo": {
+        "name": "旧缘重续",
+        "cost": 3,
+        "desc": "本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。",
     },
 }
 
@@ -477,11 +506,87 @@ MARKET_SELL_BACK_RATE = 0.50     # 回收给商会的折扣
 MARKET_LISTING_FEE_RATE = 0.10   # 玩家挂单手续费
 MARKET_MAX_LISTINGS = 8          # 单人同时挂单上限
 
+# ==================== 区域价差跑商（F03）====================
+# 基准区：四海散修商会总号所在地，标价即青州价（系数恒 1.00、无每日波动）
+TRADE_HUB_REGION = "东荒·青州"
+# 货物在产地的系数（产地直供价）
+TRADE_ORIGIN_FACTOR = 0.55
+# 距产地区域距离 → 价格系数（同区非产地不适用，基准区恒 1.00）
+TRADE_DISTANCE_FACTORS = {1: 1.05, 2: 1.20, 3: 1.35}
+# 非基准区每日波动幅度（±，由 日期+区域+货物 种子确定性生成，全服一致）
+TRADE_DAILY_FLUCTUATION = 0.03
+# 货物产地（与 ITEM_CATALOG 一一对应；剑器铸于万岳、妖材出幽冥、遗迹货自乱星海、丹药灵草产青州）
+TRADE_ITEM_ORIGIN = {
+    "一阶青木迷踪阵": "中土·万岳",
+    "一阶庚金剑煞阵": "中土·万岳",
+    "一阶白骨戮仙阵": "西陲·幽冥渊",
+    "聚气丹": "东荒·青州",
+    "玄元聚气丹": "东荒·青州",
+    "九转凝灵丹": "东荒·青州",
+    "筑基丹": "东荒·青州",
+    "回春露": "东荒·青州",
+    "妖兽内丹": "西陲·幽冥渊",
+    "百年灵芝": "东荒·青州",
+    "灵谷种子": "东荒·青州",
+    "灵谷": "东荒·青州",
+    "聚灵草种子": "东荒·青州",
+    "聚灵草": "东荒·青州",
+    "灵芝种子": "东荒·青州",
+    "青锋剑": "中土·万岳",
+    "玄铁护腕": "中土·万岳",
+    "平安符": "东荒·青州",
+    "玄铁剑": "中土·万岳",
+    "软猬甲": "西陲·幽冥渊",
+    "聚灵佩": "东荒·青州",
+    "赤霄剑": "中土·万岳",
+    "玄龟甲": "海外·乱星海",
+    "避尘珠": "海外·乱星海",
+    "斩仙剑": "中土·万岳",
+    "藏宝图": "海外·乱星海",
+}
+# 区域间距离（1 近邻 / 2 隔区 / 3 天涯）
+TRADE_REGION_DISTANCE = {
+    frozenset(("东荒·青州", "中土·万岳")): 1,
+    frozenset(("东荒·青州", "西陲·幽冥渊")): 2,
+    frozenset(("东荒·青州", "海外·乱星海")): 2,
+    frozenset(("中土·万岳", "西陲·幽冥渊")): 1,
+    frozenset(("中土·万岳", "海外·乱星海")): 3,
+    frozenset(("西陲·幽冥渊", "海外·乱星海")): 3,
+}
+# 防刷：单角色同货同日商会收购量分档压价（累计件数上限 → 回收价系数），逐件计价
+TRADE_REG_TIERS = [(10, 1.0), (20, 0.8), (30, 0.6), (float("inf"), 0.45)]
+# 收购量状态在 world_state 的 key 前缀（后接角色 id；{date, vol:{货名:件数}}，跨日重置）
+TRADE_REG_STATE_PREFIX = "trade_reg:"
+
+# ==================== 典当行（F04）====================
+# 典当率：当地市价 × 此率 = 典当额。与商会回收率 MARKET_SELL_BACK_RATE 同为五折——
+# 典当的卖点是「可赎回」而非价高；若高于回收率，弃赎将替代出售并绕开 F03 收购回归。
+PAWN_RATE = 0.5
+# 固定息：成票时按典当额一次计清（不按天滚动）；赎回 = 典当额 + 利息，恒高于典当额，防无息套现
+PAWN_INTEREST_RATE = 0.10
+# 当期（现实天）：到期未赎即没收，物品转入坊市寄售栏流通
+PAWN_TERM_DAYS = 3
+# 单人同时在途当票上限（与寄售栏上限 MARKET_MAX_LISTINGS 同值）
+PAWN_MAX_TICKETS = 8
+# 没收寄售的挂单主体（非角色；成交款查无此人自然沉淀销毁）
+PAWN_SHOP_ID = "pawn_shop"
+PAWN_SHOP_NAME = "天道当铺"
+
 # ---- 拍卖行 ----
 AUCTION_DURATION_MIN = 120       # 拍卖时长（现实分钟）
 AUCTION_MIN_INCREMENT = 1        # 最低加价（另有 5% 比例步长取大）
 AUCTION_SETTLE_FEE_RATE = 0.05   # 成交后向卖家抽成
 AUCTION_MAX_LOTS = 5             # 单人同时上拍上限
+# F05 拍卖专场：NPC 规则跟价 + 系统场次（详见 docs/compose/spec/auction.md）
+AUCTION_NPC_BID_CHANCE = 0.55    # 每次推进时 OPEN 拍品引来一名 NPC 跟价的概率
+AUCTION_NPC_CAP_MULT = 1.3       # NPC 估值硬顶 = 市价 × 此倍率（再乘确定性意愿系数）
+AUCTION_SYSTEM_INTERVAL_SECONDS = 7200   # 系统场次排期间隔（现实秒，2 小时一场）
+AUCTION_SYSTEM_LEAD_SECONDS = 300        # 系统拍品待开场时长（现实秒，5 分钟）
+AUCTION_SYSTEM_START_RATE = 0.8          # 系统拍品起拍价 = 市价 × 此率
+AUCTION_HOUSE_ID = "auction_house"       # 系统场次挂单伪主体（非角色，成交款全额沉淀）
+AUCTION_HOUSE_NAME = "天道宝库"
+# 系统拍品轮换表（须为 ITEM_CATALOG 真实物品；按 world_state 序号确定性轮换）
+AUCTION_SYSTEM_ITEMS = ["百年灵芝", "青锋剑", "回春露", "玄铁护腕", "筑基丹", "妖兽内丹"]
 
 # ---- 当面交易 ----
 TRADE_TIMEOUT_MIN = 10           # 会话超时（现实分钟）
@@ -534,6 +639,17 @@ ITEM_CATALOG = {
         "heal_lifespan": 1.0,
         "desc": "凡品伤药。下次闭关 +8% 修为，并回春 1 岁寿元（比聚气丹便宜，加成更弱）。",
     },
+<<<<<<< HEAD
+=======
+    "妖兽内丹": {"kind": "material", "price": 80, "desc": "炼丹炼器材料，亦可直接换灵石。"},
+    "百年灵芝": {"kind": "material", "price": 55, "desc": "温养道基的药材。"},
+    # 灵田作物（F06）：种子 kind=seed（/播种 入灵田），产出为可售材料；种植表见 core/farm.py
+    "灵谷种子": {"kind": "seed", "price": 10, "desc": "灵田种子：半个时辰可收灵谷。"},
+    "灵谷": {"kind": "material", "price": 15, "desc": "灵田所产灵谷，温饱之外微蕴灵气。"},
+    "聚灵草种子": {"kind": "seed", "price": 18, "desc": "灵田种子：一个时辰可收聚灵草。"},
+    "聚灵草": {"kind": "material", "price": 28, "desc": "灵田所产灵草，叶脉聚灵，可售可炼。"},
+    "灵芝种子": {"kind": "seed", "price": 30, "desc": "灵田种子：四个时辰可收百年灵芝。"},
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
     # 装备：slot=weapon|armor|trinket；grade 品阶；power_bonus 战力加成/件
     "青锋剑": {"kind": "equip", "slot": "weapon", "grade": "凡品", "power_bonus": 0.03, "price": 220,
         "desc": "凡品法剑。战力 +3%。"},
@@ -758,6 +874,24 @@ LLM_API_BASE = os.getenv("LLM_API_BASE", "https://api.deepseek.com/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 
+
+def _llm_timeout_seconds() -> float:
+    """主聊天通道超时（秒）：.env LLM_TIMEOUT_SECONDS 可调，默认 30，钳制 [5, 120]。
+
+    慢中转延迟常接近旧写死值 20s，故默认放宽到 30；非法/非有限值回退默认。
+    与其余 LLM_* 常量同口径：模块导入时冻结，改 .env 后重启生效。
+    """
+    try:
+        value = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+    except (TypeError, ValueError):
+        return 30.0
+    if value != value or value in (float("inf"), float("-inf")):
+        return 30.0
+    return min(120.0, max(5.0, value))
+
+
+LLM_TIMEOUT_SECONDS = _llm_timeout_seconds()
+
 # 是否走本机 CC Switch（Claude Code 本地代理）
 # USE_CCSWITCH=1：从 ~/.claude/settings.json 读 ANTHROPIC_BASE_URL / 模型，调 /v1/messages
 USE_CCSWITCH = os.getenv("USE_CCSWITCH", "0") in ("1", "true", "True")
@@ -824,4 +958,48 @@ def ai_unavailable_message() -> str:
         "【天道未启】未配置服务器 AI（LLM_API_KEY），"
         "交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、LLM_MODEL。"
     )
+
+
+# ==================== AI 天道事件链（karma-event-chains §10 配置总表） ====================
+# 时间口径：链计时只认游戏日（SECONDS_PER_GAME_DAY=240 现实秒）；
+# 「每日兑现预算」的「日」为现实日（见 KARMA_CHAIN_DAILY_* 注释）。
+KARMA_CHAIN_ATT_GRACE = 60            # S1 恩跨阈
+KARMA_CHAIN_ATT_HOSTILE = -60         # S1 仇跨阈
+KARMA_CHAIN_LINK_MIN = 3              # S2 关系边 strength 达阈
+KARMA_CHAIN_STRENGTH_CAP = 8          # 单链 strength 钳顶
+KARMA_CHAIN_MAX_ACTIVE_PER_PLAYER = 4
+KARMA_CHAIN_MAX_ACTIVE_PER_NPC = 2
+KARMA_CHAIN_MAX_ACTIVE_GLOBAL = 40
+KARMA_CHAIN_MAX_NODES = 12
+KARMA_CHAIN_PAIR_COOLDOWN_DAYS = 30   # 游戏日：同对同 kind 终态冷却 / 翻转窗口
+KARMA_CHAIN_NPC_START_INTERVAL_DAYS = 10  # 游戏日：单 NPC 新起链间隔
+KARMA_CHAIN_WINDOW_DAYS = 14          # 游戏日：兑现窗口
+KARMA_CHAIN_LIFETIME_DAYS = 90        # 游戏日：链龄硬顶
+KARMA_CHAIN_DAILY_RESOLVE_MAX = 2     # 每玩家每日（现实日）兑现数
+KARMA_CHAIN_DAILY_STONES_MAX = 120    # 每玩家每日（现实日）链灵石所得子顶
+KARMA_CHAIN_TICK_RESOLVE_MAX = 5      # 单轮 tick 兑现预算
+KARMA_CHAIN_TICK_FERMENT_MAX = 10     # 单轮 tick 发酵迁移预算
+KARMA_CHAIN_HISTORY_N = 5             # 面板近史条数（照 PROMISE_HISTORY_N）
+KARMA_CHAIN_TERMINAL_KEEP_PER_PLAYER = 20  # 终态链每玩家保留条数
+# 单链兑现子顶（严于 EVENT_EFFECT_CAPS；lifespan 恒 0 为铁律）
+KARMA_CHAIN_EFFECT_CAPS = {
+    "stones_gain": 60,
+    "stones_lose": 40,
+    "exp_gain": 120,
+    "exp_lose": 60,
+    "sin": 15,
+    "merit": 10,
+    "dao_heart": 5,
+    "attitude": 20,
+    "lifespan": 0,
+}
+# 发酵时长（游戏日）：nuo 按 polarity 分键 nuo+ / nuo-
+KARMA_CHAIN_DURATIONS = {"en": 9, "chou": 15, "nuo+": 6, "nuo-": 9, "xue": 21}
+
+# ==================== 赠礼态度计价（karma-event-chains §8.3.1 / R1-MF-1 路线 A） ====================
+# 赠礼/人情的 attitude 增量按实付灵石 + 所赠物品目录价计价，废弃旧固定增量：
+# 态度从 0 冲到 60 的最低灵石成本恒 ≥300（每笔 delta ≤ 实付/5，见 §8.3.1 证明）。
+GIFT_ATTITUDE_STONES_PER_POINT = 5   # 赠值每 5 灵石（或等价目录价）折 attitude +1
+GIFT_ATTITUDE_MAX_PER_GIFT = 10      # 单笔赠礼 attitude 增量上限
+FAVOR_ATTITUDE_MAX_PER_TRADE = 4     # 人情支单笔 attitude 增量上限（沿旧 +4 上限）
 

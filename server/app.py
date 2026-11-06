@@ -8,11 +8,16 @@ import json
 import re
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import urlparse
 
+<<<<<<< HEAD
 from config import LAN_HOST, LAN_PORT
 from core.command_catalog import all_entries
+=======
+from config import AI_REQUIRED, ALLOW_LOCAL_AI, LAN_HOST, LAN_PORT, VERSION, ai_available
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 from server.world import WORLD
 from server.log import log_event
 
@@ -53,6 +58,41 @@ def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str
     handler.send_header("Access-Control-Allow-Origin", "*")
     handler.end_headers()
     handler.wfile.write(body)
+
+
+# ---- Web 静态托管（spec: web-static-hosting）----
+# 按代码自身路径定位 web/（与 data/ 的定位方式一致，与工作目录无关；Docker 中即 /app/web）
+_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+# 精确白名单：请求路径 → (固定文件名, Content-Type)。文件名全是常量，
+# 绝不把用户请求路径拼进文件系统路径，路径穿越在构造上不可能。
+_STATIC_PAGES: Dict[str, tuple[str, str]] = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/style.css": ("style.css", "text/css; charset=utf-8"),
+    "/ailog.html": ("ailog.html", "text/html; charset=utf-8"),
+}
+
+
+def _static_response(handler: BaseHTTPRequestHandler, path: str) -> bool:
+    """命中静态白名单则发文件并返回 True；未命中返回 False（调用方走原 404）。"""
+    entry = _STATIC_PAGES.get(path)
+    if entry is None:
+        return False
+    filename, content_type = entry
+    try:
+        body = (_WEB_DIR / filename).read_bytes()
+    except OSError:
+        return False
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    # 灰度期页面更新频繁，一律不缓存，避免玩家拿到旧页面
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.end_headers()
+    handler.wfile.write(body)
+    return True
 
 
 class GameHandler(BaseHTTPRequestHandler):
@@ -126,9 +166,26 @@ class GameHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/health":
+<<<<<<< HEAD
             return _json_response(self, 200, {"ok": True, "service": "tiandao-lan"})
         if self._serve_static(path):
             return
+=======
+            # 灰度运维自检：版本、AI 通道状态、在线会话数（字段只增不改，兼容旧探针）
+            return _json_response(
+                self,
+                200,
+                {
+                    "ok": True,
+                    "service": "tiandao-lan",
+                    "version": VERSION,
+                    "ai_available": ai_available(),
+                    "ai_required": AI_REQUIRED,
+                    "allow_local_ai": ALLOW_LOCAL_AI,
+                    "online": len(WORLD.sessions),
+                },
+            )
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         if path == "/ailog":
             from ai.calllog import tail_ai_calls, AI_LOG_PATH
 
@@ -244,6 +301,7 @@ class GameHandler(BaseHTTPRequestHandler):
                     "messages": [m.model_dump() for m in msgs],
                 },
             )
+<<<<<<< HEAD
         if path == "/world/director" or path.startswith("/world/director"):
             from core.world_director import director_snapshot
             from core.schedule import build_world_evolution
@@ -279,6 +337,11 @@ class GameHandler(BaseHTTPRequestHandler):
             if q:
                 return _json_response(self, 200, {"ok": True, "query": q, "commands": search_commands(q, limit=limit)})
             return _json_response(self, 200, catalog_json())
+=======
+        # Web 静态托管：置于全部 API 路由之后、白名单精确匹配，API 优先级不变
+        if _static_response(self, path):
+            return
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
     def do_POST(self):
@@ -329,10 +392,20 @@ class GameHandler(BaseHTTPRequestHandler):
             else:
                 lg = {"ok": False, "error": "INVALID_CREDENTIAL_TYPES"}
             if not lg.get("ok"):
+<<<<<<< HEAD
                 log_event("GATE", "authentication_failed", route=path, reason=lg.get("error"))
                 return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
             username = lg["username"]
             name = str(data.get("name") or username).strip()[:12]
+=======
+                return _json_response(self, 400, lg)
+            # account-death §2.6 行为变更：现世角色已死 → 只报死讯＋钱包，不自动建角；
+            # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
+            dead = WORLD.dead_payload(lg["user_id"], username=username)
+            if dead is not None:
+                log_event("CMD", "login_dead", username=username)
+                return _json_response(self, 200, {"ok": True, "username": username, **dead})
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
             result = WORLD.join(name, user_id=lg["user_id"])
             log_event("CMD", path[1:], username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})

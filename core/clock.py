@@ -372,6 +372,29 @@ class WorldClock:
         except Exception:
             pass
         pill_mult = 1.0 + max(0.0, float(getattr(character, "pill_exp_mult", 0.0) or 0.0))
+        # 心法主修专注加成（F02）：未装配时恒为 1.0，与旧行为一致
+        try:
+            from core.art_slots import ArtSlotEngine
+
+            slot_mult = ArtSlotEngine.meditation_mult(character)
+        except Exception:
+            slot_mult = 1.0
+        # 洞府清气加成（F06）：无洞府时恒为 1.0，与旧行为一致；独立封顶 +5%，
+        # 在连乘链中只贡献一个有界因子（位序在心法之后，同属修行环境/法门段）
+        try:
+            from core.farm import meditation_mult as farm_meditation_mult
+
+            cave_mult = farm_meditation_mult(character)
+        except Exception:
+            cave_mult = 1.0
+        # 纪元天象加成（F13）：连乘链末端一环；非灵气主题纪元恒为 1.0，与旧行为一致；
+        # 按结算时刻所属纪元推导（纯函数），异常回退中性不阻断结算
+        try:
+            from core.season_theme import SeasonThemeEngine
+
+            theme_mult = SeasonThemeEngine.meditation_mult(current_time)
+        except Exception:
+            theme_mult = 1.0
         base_exp_per_hour = 28.0 * (1.0 + character.realm.tier * 0.4)
         raw_gain = (
             base_exp_per_hour
@@ -380,8 +403,11 @@ class WorldClock:
             * density_mult
             * qi_mult
             * art_mult
+            * slot_mult
+            * cave_mult
             * newbie_mult
             * pill_mult
+            * theme_mult
         )
 
         # 碎石加速结算（按有效时长占比）
@@ -443,6 +469,19 @@ class WorldClock:
         if died_in_cave:
             world_rumors = ["洞府石门自此紧闭，再无人见道友出关；数日后同道破门，唯余枯骨与未竟功法。"]
 
+        # F16：闭关结算心魔发作（魔种滋长以上按规则概率；规则内斗裁定；
+        # 无种/蛰伏/坐化恒不触发，与旧行为一致；异常回退不阻断结算）
+        demon_eruption = None
+        if not is_fatal:
+            try:
+                from core.heart_demon_state import DemonStateEngine
+
+                demon_eruption = DemonStateEngine.resolve_meditation_eruption(
+                    character, now=current_time
+                )
+            except Exception:
+                demon_eruption = None
+
         return {
             "success": True,
             "is_interrupted": force_interrupt,
@@ -472,6 +511,8 @@ class WorldClock:
             "is_bottleneck": character.realm.is_full,
             "world_rumors": world_rumors,
             "message": event_desc if is_fatal else "",
+            # F16（纯新增）：闭关心魔发作结果（None = 未发作）
+            "demon_eruption": demon_eruption,
         }
 
     @staticmethod

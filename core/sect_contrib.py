@@ -207,6 +207,11 @@ def donate_item(c: Character, item_name: str, qty: int = 1) -> Dict[str, Any]:
         if not hit or c.inventory.count(hit) < qty:
             return {"success": False, "message": f"随身并无足够的【{item_name}】。"}
         item_name = hit
+    # 著书立说（F11 评审 M1）：亲笔手稿不可上交——销毁会令书目悬空、作者终身砖化（扣物之前拒绝）
+    from core.books import BOOK_ITEM
+
+    if item_name == BOOK_ITEM:
+        return {"success": False, "message": "【亲笔手稿】乃著者心血，不可上交；可 /寄售 亲笔手稿 <价> 流通。"}
     cfg = ITEM_CATALOG.get(item_name, {"price": 20})
     gain = max(1, int(cfg.get("price", 20) * MARKET_SELL_BACK_RATE / 10)) * qty
     for _ in range(qty):

@@ -44,14 +44,14 @@ def test_server_briefing_and_worldinfo():
 
 def test_cli_karma_alias_not_shadowed():
     """CLI 源码：/因果 不得再出现在 revenge 分支"""
-    src = Path(r"D:\codex\xiuxian\cli\main.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parent.parent / "cli" / "main.py").read_text(encoding="utf-8")
     assert 'elif action in ["/回访", "/因果", "revenge"]' not in src
     assert 'elif action in ["/因果", "karma", "/仇怨"]' in src
     print("✓ CLI /因果 专指因果链，/回访 专指回访")
 
 
 def test_cli_help_no_ghost_commands():
-    src = Path(r"D:\codex\xiuxian\cli\main.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parent.parent / "cli" / "main.py").read_text(encoding="utf-8")
     # 帮助不再宣称 CLI 实现了 /说 /释放
     assert "[bold yellow]/说 <内容>" not in src
     assert "局域网专有" in src

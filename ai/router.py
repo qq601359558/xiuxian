@@ -17,6 +17,7 @@ from ai.audit import write_audit
 from ai.calllog import log_ai_call
 from ai.quota import quota
 from ai.registry import SceneSpec, get_scene
+from config import LLM_TIMEOUT_SECONDS
 
 
 def _extract_ref_ids(data: Any) -> List[str]:
@@ -74,7 +75,7 @@ def invoke(
     facts: Any = None,
     payload: Optional[Dict[str, Any]] = None,
     actor_id: str = "system",
-    timeout: float = 20.0,
+    timeout: float = LLM_TIMEOUT_SECONDS,
     gateway: Any = None,
 ) -> Dict[str, Any]:
     """中台唯一 AI 调用入口。gateway 可注入（测试）。"""

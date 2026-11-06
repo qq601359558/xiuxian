@@ -88,8 +88,13 @@ class BreakthroughEngine:
         sin = character.karma.sin_value
         karma_penalty = min(0.40, sin * 0.0005)
 
-        # 道心心魔扣减 (道心低于 80 开始滋生心魔)
-        dao_heart = character.karma.dao_heart
+        # 道心心魔扣减 (道心低于 80 开始滋生心魔；炼神 F10 以有效道心计，本体不变)
+        try:
+            from core.body_soul import BodySoulEngine
+
+            dao_heart = BodySoulEngine.effective_dao_heart(character)
+        except Exception:
+            dao_heart = character.karma.dao_heart
         heart_penalty = max(0.0, (80 - dao_heart) * 0.005)
 
         # 功德护体加成
@@ -125,6 +130,14 @@ class BreakthroughEngine:
             gain_range = BREAKTHROUGH_LIFESPAN_GAIN.get(target_tier, (20, 40))
             lifespan_gain = round(random.uniform(gain_range[0], gain_range[1]), 1)
             character.lifespan.add_lifespan(lifespan_gain)
+
+            # 著书立说（F11）：突破成功积攒灵感（与增寿同落账段）
+            try:
+                from core.books import INSPIRATION_FROM_BREAKTHROUGH, BookEngine
+
+                BookEngine.gain_inspiration(character, INSPIRATION_FROM_BREAKTHROUGH)
+            except Exception:
+                pass
 
             judge_line = f"\n[天命判词·{judge_source}] {judge_reason}" if judge_reason else ""
             try:

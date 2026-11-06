@@ -13,6 +13,10 @@ _log = logging.getLogger(__name__)
 from core.legacy import LegacyAccount
 from core.bounty import Bounty, KarmaLink, BountyStatus
 from core.market import MarketListing, ListingStatus
+from core.pawn import PawnTicket
+from core.books import Book
+from core.promises import Promise
+from core.karma_chains import KarmaChain
 from core.trade import AuctionLot, AuctionStatus
 
 
@@ -81,6 +85,52 @@ def init_db():
         data_json TEXT NOT NULL,
         status TEXT NOT NULL,
         seller_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6b. 典当当票（F04；只加新表，不动既有结构）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS pawn_tickets (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6c. 著书书目（F11；只加新表：每「本」亲笔手稿的元数据，物品本体是行囊固定名）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS books (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        author_id TEXT NOT NULL,
+        holder_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6d. 诺言账（F14；只加新表：一诺一行的规则账目，终态不可逆）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS promises (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        promiser_id TEXT NOT NULL,
+        promisee_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
+    # 6e. 因果链（karma-event-chains；只加新表：一链一行的延迟兑现账，终态不可逆）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS karma_chains (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        counterparty_id TEXT NOT NULL,
         created_at REAL NOT NULL
     );
     """)
@@ -494,6 +544,21 @@ class LegacyRepository:
         conn.close()
 
     @staticmethod
+    def get(user_id: str) -> Optional[LegacyAccount]:
+        """只读取账户行（account-death：_status_dict 钱包块用，不建行、无写盘副作用）。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM player_legacy WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            try:
+                return LegacyAccount.model_validate_json(row[0])
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
     def get_or_create(user_id: str) -> LegacyAccount:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -505,6 +570,22 @@ class LegacyRepository:
         account = LegacyAccount(user_id=user_id)
         LegacyRepository.save(account)
         return account
+
+    @staticmethod
+    def list_all() -> List[LegacyAccount]:
+        """只读全量（F12 飞升榜用）：损坏行跳过不崩，不写盘。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM player_legacy ORDER BY rowid")
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[LegacyAccount] = []
+        for r in rows:
+            try:
+                out.append(LegacyAccount.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
 
 
 class BountyRepository:
@@ -614,6 +695,246 @@ class MarketListingRepository:
         rows = cursor.fetchall()
         conn.close()
         return [MarketListing.model_validate_json(r[0]) for r in rows]
+
+
+class PawnTicketRepository:
+    """典当当票仓储（F04，照 MarketListingRepository 写法）"""
+
+    @staticmethod
+    def save(ticket):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO pawn_tickets (id, data_json, status, owner_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status;
+        """, (
+            ticket.id,
+            ticket.model_dump_json(),
+            ticket.status.value,
+            ticket.owner_id,
+            ticket.pawned_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def list_all() -> List[PawnTicket]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM pawn_tickets ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [PawnTicket.model_validate_json(r[0]) for r in rows]
+
+    @staticmethod
+    def list_by_owner(owner_id: str):
+        return [t for t in PawnTicketRepository.list_all() if t.owner_id == owner_id]
+
+
+class BookRepository:
+    """著书书目仓储（F11，照 PawnTicketRepository 写法）"""
+
+    @staticmethod
+    def save(book: Book):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO books (id, data_json, author_id, holder_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            author_id = excluded.author_id,
+            holder_id = excluded.holder_id;
+        """, (
+            book.id,
+            book.model_dump_json(),
+            book.author_id,
+            book.holder_id,
+            book.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def list_all() -> List[Book]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM books ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [Book.model_validate_json(r[0]) for r in rows]
+
+    @staticmethod
+    def delete(book_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        conn.commit()
+        conn.close()
+
+
+class PromiseRepository:
+    """诺言账仓储（F14，照 BookRepository 写法）"""
+
+    @staticmethod
+    def save(promise: Promise):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO promises (id, data_json, status, promiser_id, promisee_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status;
+        """, (
+            promise.id,
+            promise.model_dump_json(),
+            promise.status.value,
+            promise.promiser_id,
+            promise.promisee_id,
+            promise.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def list_all() -> List[Promise]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM promises ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [Promise.model_validate_json(r[0]) for r in rows]
+
+    @staticmethod
+    def delete(promise_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM promises WHERE id = ?", (promise_id,))
+        conn.commit()
+        conn.close()
+
+
+class KarmaChainRepository:
+    """因果链仓储（karma-event-chains，照 PromiseRepository 写法）"""
+
+    @staticmethod
+    def save(chain: KarmaChain):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO karma_chains (id, data_json, status, player_id, counterparty_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status,
+            player_id = excluded.player_id,
+            counterparty_id = excluded.counterparty_id;
+        """, (
+            chain.id,
+            chain.model_dump_json(),
+            chain.status,
+            chain.player_id,
+            chain.counterparty_id,
+            chain.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def get(chain_id: str) -> Optional[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM karma_chains WHERE id = ?", (chain_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            try:
+                return KarmaChain.model_validate_json(row[0])
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
+    def list_all() -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM karma_chains ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_player(player_id: str) -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE player_id = ? ORDER BY created_at ASC",
+            (player_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_active() -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE status IN ('latent','fermenting') "
+            "ORDER BY created_at ASC"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_pair(player_id: str, counterparty_id: str) -> List[KarmaChain]:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM karma_chains WHERE player_id = ? AND counterparty_id = ? "
+            "ORDER BY created_at ASC",
+            (player_id, counterparty_id),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out: List[KarmaChain] = []
+        for r in rows:
+            try:
+                out.append(KarmaChain.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def delete(chain_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM karma_chains WHERE id = ?", (chain_id,))
+        conn.commit()
+        conn.close()
 
 
 class AuctionLotRepository:
@@ -1046,6 +1367,33 @@ class NpcMindRepository:
         return {"personality": row[0], "traits": traits, "attitudes": attitudes}
 
     @staticmethod
+    def list_all() -> List[dict]:
+        """全量心智行（转世留痕态度快照用）：[{npc_id, personality, traits, attitudes}]"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT npc_id, personality, traits_json, attitudes_json FROM npc_minds"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out = []
+        for npc_id, personality, traits_json, attitudes_json in rows:
+            traits, attitudes = {}, {}
+            try:
+                traits = json.loads(traits_json or "{}")
+            except Exception:
+                pass
+            try:
+                attitudes = json.loads(attitudes_json or "{}")
+            except Exception:
+                pass
+            out.append({
+                "npc_id": npc_id, "personality": personality,
+                "traits": traits, "attitudes": attitudes,
+            })
+        return out
+
+    @staticmethod
     def set_attitude(npc_id: str, other_id: str, value: int, label: str = ""):
         """value: -100 仇视 ~ 0 中立 ~ +100 友善"""
         value = max(-100, min(100, int(value)))
@@ -1192,6 +1540,16 @@ class AccountRepository:
             "password_hash": row[2],
             "salt": row[3],
         }
+
+    @staticmethod
+    def get_username(user_id: str) -> str:
+        """按 user_id 取账户名（account-death：钱包块户名展示；无此账户时返回空串）。"""
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT username FROM accounts WHERE user_id = ?", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else ""
 
     @staticmethod
     def touch_login(user_id: str):

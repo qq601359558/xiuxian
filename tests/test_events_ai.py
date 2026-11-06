@@ -52,14 +52,31 @@ def test_local_event_applies():
     print(f"✓ 本地机缘触发：{ev['title']} → {ev['effects_summary']}（source={ev['source']}）")
 
 
+def _state_snapshot(c):
+    """事件可改动的全部属性快照（与 EventEngine.apply_effects 的效果键对齐）"""
+    return (
+        c.spirit_stones,
+        # 寿元随墙钟惰性流逝，四舍五入到 0.001 岁（≈86 秒）以免把自然流逝误判为事件改动
+        round(c.lifespan.get_remaining_years(), 3),
+        c.realm.current_exp,
+        c.karma.sin_value,
+        c.karma.merit_value,
+        c.karma.dao_heart,
+        c.karma.blood_mark_until,
+        list(c.inventory),
+        list(c.arrays),
+        list(c.skills),
+    )
+
+
 def test_crisis_can_burn_lifespan_or_stones():
     c = _char("遇难者")
     c.spirit_stones = 500
-    life0 = c.lifespan.get_remaining_years()
-    stones0 = c.spirit_stones
+    before = _state_snapshot(c)
     ev = EventEngine.fire(c, etype="crisis", force=True)
     assert ev is not None
     assert ev["type"] == "crisis"
+<<<<<<< HEAD
     # 至少有一项被改动或纯叙事
     changed = (
         c.spirit_stones != stones0
@@ -69,6 +86,11 @@ def test_crisis_can_burn_lifespan_or_stones():
         or c.realm.current_exp != 0
         or ev["effects"] == {}
     )
+=======
+    # 危机池并非每条都烧灵石/寿元（有的挫道心、有的增业力）：
+    # 断言「任一可改属性发生变化，或纯叙事（效果为空）」，避免随机抽池导致的 flaky。
+    changed = _state_snapshot(c) != before or ev["effects"] == {}
+>>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
     assert changed
     print(f"✓ 危机事件：{ev['title']} → {ev['effects_summary']}")
 

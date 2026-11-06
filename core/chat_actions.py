@@ -7,7 +7,13 @@ import random
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from config import ITEM_CATALOG, WORLD_LOCATIONS
+from config import (
+    ITEM_CATALOG,
+    WORLD_LOCATIONS,
+    GIFT_ATTITUDE_STONES_PER_POINT,
+    GIFT_ATTITUDE_MAX_PER_GIFT,
+    FAVOR_ATTITUDE_MAX_PER_TRADE,
+)
 from core.models import Character, CharacterStatus
 from storage.db import CharacterRepository
 
@@ -148,21 +154,50 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         }
     if item_hint and not item and stones <= 0:
         return {"ok": False, "error": f"行囊中无【{item_hint}】。现有：{'、'.join(player.inventory[:8]) or '空'}。"}
+    promise_line = ""
     if item:
         player.inventory.remove(item)
+        # 著书立说（F11）：赠出手稿则书目转终态 gifted（随赠礼离场，不再流通）
+        try:
+            from core.books import BOOK_ITEM, BookEngine
+
+            if item == BOOK_ITEM:
+                BookEngine.on_gifted(player, npc)
+        except Exception:
+            pass
+        # 诺言账（F14）：赠物诺核验——真赠出同名物品即践诺（钩子异常不炸赠礼主流程）
+        try:
+            from core.promises import PromiseEngine
+
+            promise_line = PromiseEngine.note_gift(player, npc, item) or ""
+        except Exception:
+            promise_line = ""
     if stones > 0:
         player.spirit_stones -= stones
     try:
         CharacterRepository.save(player)
     except Exception:
         pass
+    # 态度计价（karma-event-chains §8.3.1，R1/MF-1 路线 A）：赠值
+    # V = 实付灵石（已钳余额并落账）+ 所赠物品 ITEM_CATALOG 目录价
+    #（非目录物品计 0）；delta = min(单笔上限, V // 每点灵石数)，可为 0。
+    item_value = 0
+    if item:
+        try:
+            item_value = int((ITEM_CATALOG.get(item) or {}).get("price") or 0)
+        except Exception:
+            item_value = 0
+    delta = min(
+        GIFT_ATTITUDE_MAX_PER_GIFT,
+        (stones + item_value) // GIFT_ATTITUDE_STONES_PER_POINT,
+    )
     try:
         from core.npc_mind import shift_attitude
 
-        delta = 5 + (3 if stones >= 50 else 0) + (2 if item else 0)
-        shift_attitude(npc, player.id, delta, reason="会话赠礼")
+        if delta:
+            shift_attitude(npc, player.id, delta, reason="会话赠礼")
     except Exception:
-        delta = 5
+        pass
     parts = []
     if item:
         parts.append(f"【{item}】")
@@ -170,10 +205,13 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         parts.append(f"{stones} 灵石")
     gave = "、".join(parts)
     line = _polish(npc, player, "gift", f"「{npc.name}」接过{gave}，神色稍缓：「道友有心了。」")
+    gift_text = f"【赠礼】你将{gave}递给【{npc.name}】。\n{line}"
+    if promise_line:
+        gift_text += f"\n{promise_line}"
     return {
         "ok": True,
         "action": "gift",
-        "text": f"【赠礼】你将{gave}递给【{npc.name}】。\n{line}",
+        "text": gift_text,
         "ended": False,
         "attitude_delta": delta,
     }
@@ -510,10 +548,17 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
         CharacterRepository.save(player)
     except Exception:
         pass
+    # 人情支计价（§8.3.1）：delta = min(人情单笔上限, 实付 // 每点灵石数)，可为 0；
+    # 废弃旧口径「任意 ≥1 灵石固定 +4」。
+    favor_delta = min(
+        FAVOR_ATTITUDE_MAX_PER_TRADE,
+        stones // GIFT_ATTITUDE_STONES_PER_POINT,
+    )
     try:
         from core.npc_mind import shift_attitude
 
-        shift_attitude(npc, player.id, 4, reason="会话人情")
+        if favor_delta:
+            shift_attitude(npc, player.id, favor_delta, reason="会话人情")
     except Exception:
         pass
     line = _polish(npc, player, "trade", f"「{npc.name}」掂了掂灵石：「此事好说。」")
@@ -522,6 +567,7 @@ def do_trade(player: Character, npc: Character, item_hint: str, stones: int, tex
         "action": "trade",
         "text": f"【人情】奉上 {stones} 灵石。\n{line}",
         "ended": False,
+        "attitude_delta": favor_delta,
     }
 
 

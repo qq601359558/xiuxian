@@ -370,6 +370,32 @@ class AdventureEngine:
         loot = _roll_loot(c, target, success, random.Random())
         # 若 AI 瞎给 loot 我们已忽略
 
+        # 灵宠（F01）：出战宠引用与探宝宠额外拾获（规则骰，AI 无权干预）
+        pet = None
+        pet_mod = None
+        try:
+            from core import pets as _pet_mod
+
+            pet_mod = _pet_mod
+            pet = pet_mod.active_pet(c)
+            if (
+                pet is not None
+                and success
+                and pet.intimacy >= pet_mod.PET_INTIMACY_MIN_WORK
+                and (pet_mod.PET_SPECIES.get(pet.species) or {}).get("tendency")
+                == "treasure"
+                and random.random() < pet_mod.PET_TREASURE_LOOT_P
+            ):
+                # 掉落表单次掷骰可能空手：重掷至非空（至多 5 次），保证名义概率≈额外拾获 1 件
+                for _try in range(5):
+                    extra = _roll_loot(True, random.Random())
+                    if extra:
+                        loot.extend(extra[:1])
+                        break
+        except Exception:
+            pet = None
+            pet_mod = None
+
         # 落账
         before_exp = c.realm.current_exp
         c.realm.current_exp = max(0, min(c.realm.max_exp, c.realm.current_exp + exp_delta))
@@ -447,6 +473,27 @@ class AdventureEngine:
                 sync_ring(c, "explore", now=t)
             except Exception:
                 pass
+            # 委托链（F07）：除妖环计数——只认探险规则成功，与宗门环同落账段、同一对象
+            try:
+                from core.quests import QuestEngine
+
+                QuestEngine.note_adventure_win(c)
+            except Exception:
+                pass
+            # 势力版图（F09）：探险成功为本宗在落点区域扬名（区域取引擎内 c.location）
+            try:
+                from core.atlas import AtlasEngine
+
+                AtlasEngine.record_activity(c, "explore")
+            except Exception:
+                pass
+            # 著书立说（F11）：探险成功积攒灵感（只认规则成功，与版图同落账段）
+            try:
+                from core.books import INSPIRATION_FROM_EXPLORE, BookEngine
+
+                BookEngine.gain_inspiration(c, INSPIRATION_FROM_EXPLORE)
+            except Exception:
+                pass
 
         lines = [
             travel_note + narrative if travel_note else narrative,
@@ -473,6 +520,25 @@ class AdventureEngine:
                     lines.append(f"\n【奇遇 · {ch.title}】{st['prompt']}\n选项：{opts}（/奇遇 <n>）")
             except Exception:
                 pass
+        # 灵宠助战文本与随行成长
+        if pet_mod is not None and pet is not None:
+            aline = pet_mod.PetEngine.assist_line(c)
+            if aline:
+                lines.append(aline)
+            if success:
+                pet_mod.add_growth(pet, pet_mod.PET_EXPLORE_GROWTH)
+        # 遇兽（F01）：探险成功后规则掷骰，命中写入待契约；待契约遁走亦播报
+        pet_encounter = None
+        if success and pet_mod is not None:
+            try:
+                enc = pet_mod.PetEngine.maybe_encounter(c, random.Random())
+                pet_encounter = enc.get("species")
+                if pet_encounter:
+                    lines.append(pet_mod.PetEngine.encounter_line(pet_encounter))
+                elif enc.get("fled"):
+                    lines.append(pet_mod.PetEngine.flee_line())
+            except Exception:
+                pet_encounter = None
         lines.append(f"（盘缠已耗 {ADVENTURE_FEE} 灵石 · 下次可探约 {ADVENTURE_COOLDOWN_MIN:.0f} 设计分钟后）")
 
         return {
@@ -488,4 +554,5 @@ class AdventureEngine:
             "loot": loot,
             "events": ev_summaries,
             "prob": round(p, 3),
+            "pet_encounter": pet_encounter,
         }

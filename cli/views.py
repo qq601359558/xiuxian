@@ -134,6 +134,12 @@ def render_meditation_summary(res: dict):
     if a_years < 10:
         near_death_str = "\n[bold red]⚠️【大限将至】寿元不足 10 岁，宜速图突破或寻延寿之宝！[/bold red]"
 
+    # F16：闭关心魔发作（结算 dict 加法键；无发作时不显示，与旧渲染一致）
+    demon_str = ""
+    _de = res.get("demon_eruption")
+    if _de:
+        demon_str = f"\n[bold magenta]🌀【心魔发作】{_de.get('text', '')}（/镇魔 可镇压）[/bold magenta]"
+
     hours_show = res.get("actual_real_hours", res.get("hours", 0.0))
     eff_show = res.get("effective_hours", hours_show)
 
@@ -147,7 +153,7 @@ def render_meditation_summary(res: dict):
    [dim]{res['event_desc']}[/dim]
 
 [bold yellow]🌍 世事沧桑 · 闭关期间外界传闻[/bold yellow]：
-{rumors_text}{idle_str}{near_death_str}{bottleneck_str}
+{rumors_text}{idle_str}{near_death_str}{bottleneck_str}{demon_str}
 """
     panel = Panel(
         content.strip(),
@@ -318,8 +324,9 @@ def render_sect_panel(char: Character):
     console.print("[dim]拜入宗门：前往各派总坛山门（如输入 [/dim][bold green]/前往 青云宗外门山门[/bold green][dim]），输入 [/dim][bold green]/拜入 青云宗[/bold green][dim] 叩关。[/dim]\n")
 
 
-def render_legacy_settlement(settle: dict):
-    """一世终结 · 转世结算面板"""
+def render_legacy_settlement(settle: dict, sweep: dict | None = None, wallet: dict | None = None):
+    """一世终结 · 转世结算面板（account-death：sweep/wallet 传入时展示资金归集明细表
+    与账户钱包余额；不传时与旧版逐字一致）。"""
     past = settle.get("past_life")
     bd = settle.get("breakdown", {})
     lines = [
@@ -349,6 +356,32 @@ def render_legacy_settlement(settle: dict):
         f"  [bold gold1]道统池：{settle.get('account_points', 0)} 点"
         f"（累计 {settle.get('total_lives', 0)} 世）[/bold gold1]"
     )
+    if sweep is not None:
+        lines.append("")
+        lines.append("[bold cyan]【资金归集】[/bold cyan]")
+        lines.append(f"  随身灵石 {sweep.get('spirit', 0)} 灵石")
+        lines.append(f"  寄存灵石 {sweep.get('vault', 0)} 灵石")
+        refunds = sweep.get("auction_refunds") or []
+        if refunds:
+            for r in refunds:
+                lines.append(f"  拍卖退款【{r.get('item', '')}】＋{r.get('amount', 0)} 灵石")
+        else:
+            lines.append("  拍卖退款 —")
+        forfeits = sweep.get("pawn_forfeits") or []
+        if forfeits:
+            for t in forfeits:
+                lines.append(f"  当票没收【{t.get('item', '')}】（赎回价 {t.get('redeem', 0)} 灵石，物品入当铺寄售）")
+        else:
+            lines.append("  当票没收 —")
+        if sweep.get("council_voided"):
+            lines.append(f"  议政票作废 {sweep.get('council_voided')} 票（未结算场次）")
+        else:
+            lines.append("  议政票作废 —")
+        lines.append("  寄售在售单保留待售，成交后货款入账户钱包")
+        if wallet is not None:
+            lines.append(
+                f"  [bold gold1]账户钱包余额 {wallet.get('balance', 0)} 灵石[/bold gold1]"
+            )
     lines.append("")
     lines.append("[dim]道统点可于转世降生时兑换出身优势；亦可输入 /道统 查看前世与兑换目录。[/dim]")
 
@@ -388,6 +421,20 @@ def render_legacy_panel(account):
         console.print(table)
     else:
         console.print("[dim]尚无前世记载，此乃第一世。[/dim]")
+
+    # 前世因果段（转世继承）：与 server /道统 同源文本；无留痕/无因果时整段省略
+    try:
+        from core.inheritance import causality_text
+
+        _causality = causality_text(account)
+        if _causality:
+            console.print(Panel(
+                Text(_causality),
+                title="[bold magenta]◆ 前世因果 ◆[/bold magenta]",
+                border_style="magenta",
+            ))
+    except Exception:
+        pass
 
     from core.legacy import LegacyEngine
     boosts = LegacyEngine.list_boosts()
@@ -504,22 +551,24 @@ def render_market_panel(char: Character, listings=None):
         f"[bold]随身阵盘[/bold]：{arr}\n"
         f"[bold]随身杂物[/bold]：{inv}"
     )
+    region = MarketEngine.region_of(char.location)
     console.print(Panel(
         f"{vault_line}\n{bag}",
-        title=f"[bold cyan]◆ 青云坊市 · {char.name} 行囊 ◆[/bold cyan]",
+        title=f"[bold cyan]◆ 坊市 · {region} · {char.name} 行囊 ◆[/bold cyan]",
         border_style="cyan",
     ))
 
-    goods = MarketEngine.catalog()
-    gtable = Table(title="[bold gold1]商会货单（可 /购买 /出售）[/bold gold1]", border_style="gold1")
+    goods = MarketEngine.catalog(char.location)
+    gtable = Table(title="[bold gold1]商会货单（当地市价，可 /购买 /出售；全域价差见 /行情）[/bold gold1]", border_style="gold1")
     gtable.add_column("编号", style="bold")
     gtable.add_column("名目", style="yellow")
     gtable.add_column("类别", style="magenta")
-    gtable.add_column("标价", style="cyan")
+    gtable.add_column("市价", style="cyan")
     gtable.add_column("说明", style="white")
     kind_cn = {"array": "阵盘", "pill": "丹药", "material": "材料"}
     for i, g in enumerate(goods, 1):
-        gtable.add_row(str(i), g["name"], kind_cn.get(g["kind"], g["kind"]), f"{g['price']}", g["desc"])
+        tag = " 【产地价】" if g.get("origin") == region else ""
+        gtable.add_row(str(i), g["name"] + tag, kind_cn.get(g["kind"], g["kind"]), f"{g['price']}", g["desc"])
     console.print(gtable)
 
     if listings:

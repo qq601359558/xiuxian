@@ -100,6 +100,16 @@ class CombatFateEngine:
         ProtectionEngine.mark_combat(attacker)
         ProtectionEngine.mark_combat(defender)
 
+        # 诺言账（F14）：出手即事实——硬前置已全数拦截（未遂不算），此处对受诺人
+        # 动手当场判毁诺；诺期已满则先按履约结算（钩子异常不炸斗法主流程）
+        promise_breach_line = None
+        try:
+            from core.promises import PromiseEngine
+
+            promise_breach_line = PromiseEngine.note_attack(attacker, defender, now)
+        except Exception:
+            promise_breach_line = None
+
         # 围剿 + 结拜加成
         try:
             from core.hunt import siege_multiplier, settle_kill
@@ -136,6 +146,8 @@ class CombatFateEngine:
         summary = EventEngine.apply_effects(attacker, effects)
         spawned = None
         report_lines = [narrative, f"（因果落账：{summary}）"]
+        if promise_breach_line:
+            report_lines.append(promise_breach_line)
 
         # 非击杀结局也入江湖账（与 NPC 对称可见）
         if outcome != "kill":
@@ -284,6 +296,18 @@ class CombatFateEngine:
                     pass
             except Exception:
                 pass
+            # 因果链 S4（karma-event-chains）：击杀成立后注记血仇链
+            #（与 cascade_kill 末尾钩子靠幂等键 kill:{victim_id} 合流）；
+            #钩子异常不炸斗法主流程。
+            try:
+                from core.karma_chains import KarmaChainEngine
+
+                KarmaChainEngine.note_kill(attacker, defender)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "karma chain S4 hook (combat_fate) failed", exc_info=True)
 
         elif outcome == "escalate" and proposal.get("spawn"):
             spawn_cfg = proposal["spawn"]

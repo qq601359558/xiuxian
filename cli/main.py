@@ -25,6 +25,15 @@ from core.combat import CombatEngine
 from core.legacy import LegacyEngine, LegacyAccount
 from core.bounty import BountyEngine, BountyStatus, BOUNTY_MIN_REWARD
 from core.market import MarketEngine
+from core.pets import PetEngine
+from core.farm import FarmEngine, split_sow_args
+from core.quests import QuestEngine
+from core.promises import PROMISE_KIND_ALIASES, PromiseEngine
+from core.council import CouncilEngine
+from core.art_slots import ArtSlotEngine
+from core.body_soul import BodySoulEngine
+from core.heart_demon_state import DemonStateEngine
+from core.books import BOOK_ITEM, BookEngine
 from core.events import EventEngine
 from core.heart_demon import HeartDemonEngine
 from core.combat_fate import CombatFateEngine
@@ -129,6 +138,27 @@ def print_banner():
         console.print("[yellow]⚠ 开发模式：ALLOW_LOCAL_AI=1，使用本地模板降级（非正式体验）[/yellow]\n")
 
 
+# 局域网专有指令（QA2-03）：仅 LAN 服（server/world.py）实现，CLI 本地引擎
+# 无派发。run_mud 派发末尾有专有提示分支（输入这些指令得到专有提示而非
+# 「未知名敕令」），成员以本集合为准；帮助文本的「局域网专有」行是另一份
+# 展示字面量，须与本集合保持一致（tests/test_qa2_fix_regressions.py 有
+# 一致性断言防漂移）。
+# 既有声明 9 个（/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检）
+# + QA2-03 补入 19 个（web data-cmd 有按钮、server 有处理器、CLI 无本地实现；
+# 逐条核对无异名等价实现，如 /纪元 的 server 实现为纪元面板、CLI /天象 只管
+# 天象主题而非其别名；/榜 为六榜面板，CLI 只有单榜 /飞升榜）。
+LAN_ONLY_COMMANDS = frozenset({
+    "/说", "/释放", "/拜师", "/结拜", "/交易", "/宗门环", "/探险", "/秘境",
+    "/AI自检",
+    "/look", "/who", "/传说", "/传闻", "/公告", "/出隐", "/功法", "/叛门",
+    "/大劫", "/归隐", "/挖宝", "/晋升", "/榜", "/灵气", "/生成丹药",
+    "/生成妖兽", "/生成法宝", "/纪元", "/频道",
+})
+# 派发处 action 已被 .lower() 规范化（如 /AI自检 → /ai自检），故另备
+# 小写规范形集合供派发比对（评审 M1：否则 /AI自检 成员永远命中不了）。
+LAN_ONLY_COMMANDS_LOWER = frozenset(c.lower() for c in LAN_ONLY_COMMANDS)
+
+
 def print_help():
     help_text = """
 [bold cyan]【天道敕令 · 常用指令】[/bold cyan]
@@ -138,6 +168,9 @@ def print_help():
   [bold yellow]/宗门[/bold yellow]                 - 查阅天下仙门宗派榜、门规约束、月俸待遇与个人宗籍
   [bold yellow]/拜入 <宗门>[/bold yellow]          - 前往总坛山门参加入门考核（如：/拜入 青云宗）
   [bold yellow]/领俸禄[/bold yellow]               - 宗门弟子每过现实2小时（游戏内1个月）可领月度灵石俸禄
+  [bold yellow]/议政[/bold yellow]                 - 宗门长老议政面板（本场议题/长老立场/票数/宗门状态）
+  [bold yellow]/投票 <支持|反对>[/bold yellow]      - 就本场议题投票（一人一票，截止前可改票）
+  [bold yellow]/游说 <长老名>[/bold yellow]          - 备礼灵石游说长老向支持松动（成本递增，有次数上限）
   [bold yellow]/前往 [地点][/bold yellow]           - 查阅灵脉或御剑迁跃（不同福地灵气浓度与危险度各异）
   [bold yellow]/闭关 <现实小时> [碎石][/bold yellow]- 步入洞府封门静修（现实时间并行！野外无阵盘则裸闭极易被杀）
   [bold yellow]/出关[/bold yellow]                 - 提前收功出定破关（按已过去现实时间结算修为）
@@ -151,17 +184,64 @@ def print_help():
   [bold yellow]/告示[/bold yellow]                 - 查阅坊市悬赏告示榜
   [bold yellow]/挂赏 <道号> <赏金> [缘由][/bold yellow]- 花灵石挂血仇悬赏（句末加「匿」可匿名）
   [bold yellow]/接令 <编号>[/bold yellow]           - 揭下告示，接令猎凶（击杀后自动领赏）
-  [bold yellow]/因果[/bold yellow]                 - 查看个人仇怨恩义因果链（回访请用 /回访）
+  [bold yellow]/因果[/bold yellow]                 - 查看因果关系列表（KarmaLink 仇/恩/师徒/宗门边；回访请用 /回访；server 端 /因果 为回访别名）
   [bold yellow]/回访[/bold yellow]                 - 依事件账触发因果回访（寻仇/旧怨）
-  [bold yellow]/坊市[/bold yellow]                 - 商会货单、金库寄存、玩家寄售
+  [bold yellow]/因果链[/bold yellow]               - 天道事件链面板（恩/仇/诺/血仇的发酵进度与近史；与 /因果 关系列表不同）
+  [bold yellow]/坊市[/bold yellow]                 - 商会货单（当地市价）、金库寄存、玩家寄售
+  [bold yellow]/行情[/bold yellow]                 - 天下行情：各区域产地价与价差、跑商路线
+  [bold yellow]/版图 [区域][/bold yellow]           - 宗门势力版图：各区域主导宗门与本宗影响力
+  [bold yellow]/飞升榜 [我|本纪元|道号][/bold yellow] - 历世纪念碑：已坐化前世跨纪元综合榜（现世人物看 /榜）
+  [bold yellow]/天象[/bold yellow]                 - 本纪元天象主题：全服修正与剩余天数（纪元轮换）
   [bold yellow]/购买 <名目> [数量][/bold yellow]     - 向商会购货（如：/购买 一阶青木迷踪阵）
   [bold yellow]/出售 <名目> [数量][/bold yellow]     - 回售给商会（约五折）
   [bold yellow]/寄存 <数量>[/bold yellow]           - 灵石存入坊市金库（不可被夺）
   [bold yellow]/支取 <数量>[/bold yellow]           - 自金库取出灵石
+  [bold yellow]/钱包[/bold yellow]                 - 账户钱包：余额与最近流水（死亡归集款项挂账户名下）
+  [bold yellow]/钱包提取 <金额>[/bold yellow]       - 自账户钱包提取灵石到随身（零手续费）
   [bold yellow]/寄售 <货物> <价格>[/bold yellow]     - 将随身货物挂上寄售栏
   [bold yellow]/买寄售 <编号>[/bold yellow]         - 买下他人寄售货物
   [bold yellow]/撤单 <编号>[/bold yellow]           - 撤回自己的寄售
+  [bold yellow]/典当 [物品][/bold yellow]           - 无参看当票；带物品名典当 1 件（市价五折，3 天内可赎）
+  [bold yellow]/赎回 <物品>[/bold yellow]           - 按典当额+固定息赎回典当物，逾期没收
+  [bold yellow]/拍卖[/bold yellow]                 - 拍卖行看板（含待开场预告与 NPC 跟价）
+  [bold yellow]/上拍 <货物> <底价> [一口价][/bold yellow] - 上拍随身货物（120 分钟落槌，成交抽成 5%）
+  [bold yellow]/拍 <编号> <出价>[/bold yellow]       - 竞价（出价冻结，被超价自动退回）
+  [bold yellow]/出价 <金额>[/bold yellow]           - 仅一场在拍时直拍该件（多场请用 /拍）
+  [bold yellow]/一口 <编号>[/bold yellow]           - 按一口价立即落槌
+  [bold yellow]/撤拍 <编号>[/bold yellow]           - 撤回自己无出价的拍品
   [bold yellow]/服用 <丹药>[/bold yellow]           - 服用囊中丹药
+  [bold yellow]/灵宠[/bold yellow]                 - 灵宠面板（遇兽在探险，属局域网游径；存档互通）
+  [bold yellow]/契约 <兽名>[/bold yellow]          - 与待契约灵兽结契（耗灵石）
+  [bold yellow]/喂养 <宠名> [丹药][/bold yellow]   - 灵石或丹药喂养灵宠
+  [bold yellow]/出战 <宠名>[/bold yellow]          - 令灵宠随行出战（唯一）
+  [bold yellow]/休息 <宠名>[/bold yellow]          - 令灵宠退下休息
+  [bold yellow]/放生 <宠名>[/bold yellow]          - 放归灵宠于山林
+  [bold yellow]/洞府[/bold yellow]                 - 洞府灵田面板（等级/地块/长势）
+  [bold yellow]/开辟[/bold yellow]                 - 安全区开辟洞府（300 灵石，灵田 2 块）
+  [bold yellow]/播种 <种子名> [数量][/bold yellow] - 灵田播种（种子先在坊市购买）
+  [bold yellow]/收获[/bold yellow]                 - 收获全部成熟作物入行囊
+  [bold yellow]/升级洞府[/bold yellow]             - 升级洞府（扩田 + 闭关加成，最高 3 级）
+  [bold yellow]/委托[/bold yellow]                 - NPC 委托面板（可接/进行中）
+  [bold yellow]/接委托 <NPC名|编号>[/bold yellow] - 接取一条委托链（2–4 环，同时限 1 条）
+  [bold yellow]/交付[/bold yellow]                 - 向交付对象当面交付当前环
+  [bold yellow]/弃委托[/bold yellow]               - 放弃进行中委托（无惩罚）
+  [bold yellow]/诺言[/bold yellow]                 - 诺言账面板（进行中/待应诺/近史；唯指令立诺入账，交谈口头应承不算）
+  [bold yellow]/许诺 <对象> <诺目> [参数][/bold yellow] - 立诺：赠物 <物品名>|抵达 <地点>|委托|不攻（对玩家须对方 /应诺 才生效）
+  [bold yellow]/应诺 [立诺者名][/bold yellow]     - 应下他人向你立的诺（义务只在立诺者）
+  [bold yellow]/毁诺 [受诺人名][/bold yellow]     - 毁弃未结之诺（已生效者按违约记账；待应诺者可无代价撤回）
+  [bold yellow]/除凶[/bold yellow]                 - 除凶榜（血煞/重业者之令，发布→接令→追凶→围剿→结算）
+  [bold yellow]/接令 <道号>[/bold yellow]          - 接除凶令（一人一令，单令上限 5 人；/接除凶 同）
+  [bold yellow]/追凶[/bold yellow]                 - 追凶情报（区域级快照，每小时刷新，不泄确切行踪）
+  [bold yellow]/弃令[/bold yellow]                 - 放弃所接除凶令（/弃除凶 同）
+  [bold yellow]/心法[/bold yellow]                 - 心法槽位面板（主修 1 + 辅修 2）
+  [bold yellow]/主修 <功法名>[/bold yellow]       - 定主修（闭关修为 +10%，变更有 1 小时冷却）
+  [bold yellow]/辅修 <功法名>[/bold yellow]       - 纳辅修（每门斗法战力 +3%，最多 2 门）
+  [bold yellow]/卸功 <功法名>[/bold yellow]       - 卸下主修或辅修
+  [bold yellow]/炼体 [修炼 [n]][/bold yellow]     - 炼体副修（妖兽内丹+灵石升层：战力+1%/层、寿元+1岁/层，满 10 层）
+  [bold yellow]/炼神 [修炼 [n]][/bold yellow]     - 炼神副修（百年灵芝+灵石升层：有效道心+2/层、神识+3/层，满 10 层）
+  [bold yellow]/镇魔 [服丹|静坐][/bold yellow]    - 心魔长卷/镇压（魔念由杀业·血煞·反噬滋长，滋长以上会在突破问心/闭关结算时发作）
+  [bold yellow]/著书 [写][/bold yellow]           - 著书立说（灵感 10 + 燃寿 1 年成书；无参看面板：灵感/声望/在持手稿）
+  [bold yellow]/研读 [书名][/bold yellow]         - 研读所持亲笔手稿（他人之作首次研读得修为/道心，作者得声望）
   [bold yellow]/机缘 [机缘|危机|异象][/bold yellow]  - 主动推演一则世间事件（外出/出关后亦可能自动触发）
   [bold yellow]/做 <言行>[/bold yellow]             - 自由输入，由天命裁决后果（例：/做 我跪在坊市磕头求丹）
   [bold yellow]/世情[/bold yellow]                 - 离线江湖追赶 + NPC tick + 因果账
@@ -171,7 +251,7 @@ def print_help():
   [bold yellow]/议程[/bold yellow]                 - 查看 NPC 当前议程一览
   [bold yellow]/自创功法 <理念>[/bold yellow]       - 消耗神识让天道为你自创独门法门（如：/自创功法 噬血炼骨）
   [bold yellow]/大事记[/bold yellow]               - 翻阅天道总账，查看近期全界因果杀戮
-  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /拍卖 /除凶 /宗门环 /探险 /秘境 /AI自检 等，请连 LAN 服使用[/dim]
+  [dim]局域网专有：/说 /释放 /拜师 /结拜 /交易 /宗门环 /探险 /秘境 /AI自检 /look /who /传说 /传闻 /公告 /出隐 /功法 /叛门 /大劫 /归隐 /挖宝 /晋升 /榜 /灵气 /生成丹药 /生成妖兽 /生成法宝 /纪元 /频道 等，请连 LAN 服使用[/dim]
   [bold yellow]/帮助[/bold yellow]                 - 查看本指令菜单
   [bold yellow]/退出[/bold yellow]                 - 暂离修仙界（若正在闭关，离线期间现实时间照常计时）
 """
@@ -179,31 +259,48 @@ def print_help():
 
 
 def _parse_boost_keys(raw: str):
-    """把 '1 2' / 'stones lifespan' 解析为 boost key 列表"""
+    """把 '1 2' / 'stones lifespan' 解析为 boost key 列表。
+
+    转世继承：heirloom 可带参数 token（heirloom:<物品名>）整段保留；
+    其余新键（art_memory/bond_echo）随 LEGACY_BOOSTS 目录自然支持编号/键名/中文名。
+    """
     if not raw or not raw.strip():
         return []
     boosts = LegacyEngine.list_boosts()
     keys = [b["key"] for b in boosts]
     names = [b["name"] for b in boosts]
     picked = []
+    picked_bases = []
     for token in raw.replace(",", " ").split():
         t = token.strip()
-        if t.isdigit():
+        if t.startswith("heirloom:") and len(t) > len("heirloom:"):
+            if "heirloom" not in picked_bases:
+                picked.append(t)
+                picked_bases.append("heirloom")
+        elif t.isdigit():
             idx = int(t) - 1
-            if 0 <= idx < len(keys) and keys[idx] not in picked:
+            if 0 <= idx < len(keys) and keys[idx] not in picked_bases:
                 picked.append(keys[idx])
-        elif t in keys and t not in picked:
+                picked_bases.append(keys[idx])
+        elif t in keys and t not in picked_bases:
             picked.append(t)
+            picked_bases.append(t)
         else:
             for i, name in enumerate(names):
-                if t in name and keys[i] not in picked:
+                if t in name and keys[i] not in picked_bases:
                     picked.append(keys[i])
+                    picked_bases.append(keys[i])
                     break
     return picked
 
 
 def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
     """交互式转世降生（可选道统加成）。返回新角色。"""
+    from core.wallet import wallet_summary as _ws
+
+    console.print(
+        f"[bold gold1]账户钱包 {_ws(account)['balance']} 灵石（户名：{user_id}）[/bold gold1]"
+    )
     console.print("[bold gold1]【真灵入轮回】请选择本世出身……[/bold gold1]")
     name = Prompt.ask("[bold green]请赐予本世道号[/bold green]", default="厉飞雨")
 
@@ -217,10 +314,53 @@ def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
         )
         boost_keys = _parse_boost_keys(raw)
 
+    # 前世留痕（转世继承）：boosts 前捕获，覆写旧角后不可恢复
+    old_trace = account.traces[-1] if account.traces else None
+
+    # 遗物留存：选了裸 heirloom（编号/键名）而未带物品参数时，列前世行囊让玩家选件；
+    # 无候选则明示跳过该项（不静默吞掉）
+    if "heirloom" in boost_keys:
+        if old_trace is not None and old_trace.belongings:
+            console.print("[bold cyan]【遗物留存】前世行囊尚存：[/bold cyan]")
+            for i, item in enumerate(old_trace.belongings, 1):
+                console.print(f"  {i}. {item}")
+            pick = Prompt.ask(
+                "[bold cyan]选一件随真灵转世（输入编号或物品名，回车取第 1 件）[/bold cyan]",
+                default="1",
+            ).strip()
+            chosen = None
+            if pick.isdigit():
+                idx = int(pick) - 1
+                if 0 <= idx < len(old_trace.belongings):
+                    chosen = old_trace.belongings[idx]
+            elif pick in old_trace.belongings:
+                chosen = pick
+            if chosen is None:
+                chosen = old_trace.belongings[0]
+                console.print(f"[yellow]未识别所选，默认取第 1 件遗物：【{chosen}】[/yellow]")
+            boost_keys = [
+                f"heirloom:{chosen}" if k == "heirloom" else k for k in boost_keys
+            ]
+        else:
+            console.print("[yellow]【遗物留存】前世无遗物可承（行囊为空或无留痕），跳过此项。[/yellow]")
+            boost_keys = [k for k in boost_keys if k != "heirloom"]
+
     player = WorldClock.create_new_character(user_id, name)
-    boost_res = LegacyEngine.apply_birth_boosts(player, account, boost_keys)
+    boost_res = LegacyEngine.apply_birth_boosts(player, account, boost_keys, old_trace=old_trace)
     if boost_keys:
         render_birth_boost_result(boost_res)
+    # 因果影子（转世继承）：按 bond_echo 与否选 retention/cap 施加，落盘前完成
+    from config import BOND_ECHO_CAP, BOND_ECHO_RETENTION, SHADOW_CAP, SHADOW_RETENTION
+    from core.inheritance import apply_karma_shadow
+
+    if boost_res.get("bond_echo"):
+        _retention, _cap = BOND_ECHO_RETENTION, BOND_ECHO_CAP
+    else:
+        _retention, _cap = SHADOW_RETENTION, SHADOW_CAP
+    karma_shadow = apply_karma_shadow(account, player, retention=_retention, cap=_cap)
+    if karma_shadow:
+        shadow_lines = "、".join(f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow)
+        console.print(f"[bold magenta]【因果余绪】前世余绪及身：{shadow_lines}[/bold magenta]")
     LegacyRepository.save(account)
     CharacterRepository.save(player)
     ChronicleRepository.record(
@@ -234,6 +374,10 @@ def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
         f"（现余 {player.lifespan.get_remaining_years():.1f} 岁）· 灵根 {player.spiritual_root.display_name()}"
         f" · 道统池剩余 {account.points} 点。[/bold green]\n"
     )
+    console.print(
+        f"[cyan]新角随身 {player.spirit_stones} 灵石；账户钱包可用 /钱包 查看、"
+        f"/钱包提取 <金额> 取用。[/cyan]"
+    )
     return player
 
 
@@ -244,19 +388,80 @@ def settle_and_reincarnate(player, cause: str, user_id: str = USER_ID):
     """
     account = LegacyRepository.get_or_create(user_id)
 
+    from core.wallet import sweep_death_funds, wallet_summary
+
     if not player.death_settled:
         player.death_cause = cause
         player.status = CharacterStatus.DEAD
-        settle = LegacyEngine.settle_death(account, player, death_cause=cause)
+        # 资金归集（§2.3 步骤 1–4，server _settle_if_needed 同款）：在钩子与道统结算之前
+        sweep = sweep_death_funds(player, account)
+        LegacyRepository.save(account)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", player.name,
+                f"【{player.name}】死亡资金归集部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
+        # 灵宠随主而殁（F01，一世循环）
+        PetEngine.on_owner_death(player)
+        # 洞府灵田随旧世荒废（F06，一世循环）
+        FarmEngine.on_owner_death(player)
+        # 委托链随旧世而散（F07，一世循环）
+        QuestEngine.on_owner_death(player)
+        # 诺言随旧世而散（F14，一世循环）：其未结诺全部消散，不判违约；
+        # 被消散摘要经返回值注入 settle_death 写留痕（诺在 settle 前已消散）
+        dissolved_promises = []
+        try:
+            dissolved_promises = PromiseEngine.on_owner_death(player) or []
+        except Exception:
+            dissolved_promises = []
+        # 因果链随旧世而散（karma-event-chains §7.1）：紧随诺言钩子之后、
+        # settle_death 之前；返回值不注入 settle_death（不进留痕）。
+        try:
+            from core.karma_chains import KarmaChainEngine
+
+            KarmaChainEngine.on_owner_death(player)
+        except Exception:
+            pass
+        settle = LegacyEngine.settle_death(
+            account, player, death_cause=cause,
+            dissolved_promises=dissolved_promises,
+        )
         LegacyRepository.save(account)
         CharacterRepository.save(player)
         ChronicleRepository.record(
             "LEGACY_SETTLE",
             player.name,
-            f"修士【{player.name}】{cause}，盖棺定论，结转道统 {settle['points_gained']} 点。",
+            f"修士【{player.name}】{cause}，盖棺定论，结转道统 {settle['points_gained']} 点；"
+            f"资金归集 {sweep['total']} 灵石，钱包余额 {account.wallet_stones}。",
         )
-        render_legacy_settlement(settle)
+        render_legacy_settlement(settle, sweep=sweep, wallet=wallet_summary(account))
     else:
+        # 迁移补扫（§5.2）：旧规则已结算行，钱包无 death_sweep 流水时补归集（幂等）
+        # 评审 M1b：与 server 守卫同语义——sweep 内部处理残差，本分支恒跑 sweep。
+        # QA-D1：是否打印【资金补扫】按与 server 同口径的真实变化判定
+        # （sweep_has_real_change），不再按毛额 total／退款列表打印，崩溃重放不报补扫。
+        from core.wallet import sweep_has_real_change as _real_change
+        from core.wallet import wallet_panel_text as _wpt
+
+        sweep = sweep_death_funds(player, account)
+        LegacyRepository.save(account)
+        CharacterRepository.save(player)
+        if sweep.get("errors"):
+            ChronicleRepository.record(
+                "WALLET_SWEEP_PARTIAL", player.name,
+                f"【{player.name}】死亡资金补扫部分完成（WALLET_SWEEP_PARTIAL）："
+                + "；".join(f"{e.get('step')}:{e.get('error')}" for e in sweep["errors"])
+                + f"；钱包余额 {account.wallet_stones}。",
+            )
+        if _real_change(sweep):
+            console.print(
+                f"[bold gold1]【资金补扫】死亡归集 {sweep['total']} 灵石，"
+                f"账户钱包余额 {account.wallet_stones} 灵石。[/bold gold1]"
+            )
+        # 评审 S5：已结算 else 分支同样打印钱包面板（无归集时也不缺钱包展示）。
+        console.print(f"[bold gold1]{_wpt(account, user_id)}[/bold gold1]")
         console.print("[dim]本世业已结算，真灵尚在轮回边缘徘徊。[/dim]")
 
     ok, gate_msg = LegacyEngine.check_reincarnate_gate(account)
@@ -378,7 +583,7 @@ def run_mud():
                         if not _after_meditation_death(settle_res, "破关之际寿元灯枯！"):
                             break
                         continue
-                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty"]:
+                    elif action not in ["/道身", "status", "me", "/帮助", "help", "/退出", "exit", "quit", "/自创功法", "create_art", "/地图", "map", "/舆图", "/宗门", "sect", "/仙门", "/道统", "legacy", "/坊市", "market", "/告示", "bounty", "/灵宠", "pets", "pet", "/喂养", "feed", "/出战", "deploy", "/休息", "petrest", "/心法", "xinfa", "/行情", "/版图", "/atlas", "/飞升榜", "/ascend", "/洞府", "cave", "/天象", "/omen"]:
                         render_meditation_locked(
                             med_progress["remaining_seconds"],
                             med_progress["end_time"]
@@ -391,6 +596,54 @@ def run_mud():
             elif action in ["/道统", "legacy", "/前世"]:
                 account = LegacyRepository.get_or_create(USER_ID)
                 render_legacy_panel(account)
+
+            elif action in ["/墓碑"]:
+                # 墓碑查询（转世继承）：与 server 同命令同文案（引擎同源）
+                from core.inheritance import find_tombstone
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/墓碑 <道号>[/red]")
+                    continue
+                tomb = find_tombstone(parts[1])
+                if tomb is None:
+                    console.print("江湖无此碑。")
+                else:
+                    console.print(tomb)
+
+            elif action in ["/因果链", "/karma_chains"]:
+                # 因果链面板（AI 天道事件链）：与 server 同命令同文案（引擎同源）；
+                # 先惰性推进后呈现（照 /诺言 settle_due→panel_text 先例）
+                from core.karma_chains import KarmaChainEngine
+
+                try:
+                    KarmaChainEngine.advance_for(player)
+                except Exception:
+                    pass
+                console.print(KarmaChainEngine.panel_text(player))
+
+            elif action in ["/钱包", "wallet"]:
+                from core.wallet import wallet_panel_text
+
+                account = LegacyRepository.get_or_create(USER_ID)
+                console.print(f"[bold gold1]{wallet_panel_text(account, USER_ID)}[/bold gold1]")
+
+            elif action in ["/钱包提取", "wallet_withdraw"]:
+                from core.wallet import withdraw_to_character
+
+                if player.status == CharacterStatus.DEAD or player.lifespan.is_dead():
+                    console.print("[red]身死道消，钱包须转世重生后方可提取。[/red]")
+                    continue
+                if len(parts) < 2 or not parts[1].isdigit():
+                    console.print("[red]用法：/钱包提取 <金额>（正整数，不超过钱包余额）[/red]")
+                    continue
+                account = LegacyRepository.get_or_create(USER_ID)
+                res = withdraw_to_character(account, player, int(parts[1]))
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                LegacyRepository.save(account)
+                CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
 
             elif action in ["/地图", "map", "/舆图"]:
                 render_world_map(player.location)
@@ -495,6 +748,13 @@ def run_mud():
                 player.location = matched
                 CharacterRepository.save(player)
                 console.print(f"[bold green]御剑化虹！道友已遁行至【{matched}】！[/bold green]")
+                # 诺言账（F14）：抵达诺核验——迁跃落点即事实
+                try:
+                    _pline = PromiseEngine.note_arrival(player, matched)
+                    if _pline:
+                        console.print(f"[bold gold1]{_pline}[/bold gold1]")
+                except Exception:
+                    pass
                 render_character_sheet(player)
                 # 行路途中可能触发机缘/危机
                 ev = EventEngine.fire(player, context=f"御剑途经 {matched}")
@@ -714,10 +974,8 @@ def run_mud():
                 )
                 console.print(f"[bold gold1]{res['message']}[/bold gold1]")
 
-            elif action in ["/接令", "claim_bounty"]:
-                if len(parts) < 2 or not parts[1].isdigit():
-                    console.print("[red]用法：/接令 <告示编号>（先输入 /告示 查看）[/red]")
-                    continue
+            # /接令 消歧：纯数字编号走悬赏板（既有）；非数字道号落到下方 F15 除凶接令
+            elif action in ["/接令", "claim_bounty"] and len(parts) >= 2 and parts[1].isdigit():
                 idx = int(parts[1]) - 1
                 board = BountyEngine.list_board(BountyRepository.list_all())
                 if idx < 0 or idx >= len(board):
@@ -750,6 +1008,25 @@ def run_mud():
             elif action in ["/坊市", "market", "/商会"]:
                 open_l = MarketEngine.open_listings(MarketListingRepository.list_all())
                 render_market_panel(player, open_l)
+
+            elif action in ["/行情"]:
+                console.print(MarketEngine.trade_board(player.location))
+
+            elif action in ["/版图", "/atlas"]:
+                from core.atlas import AtlasEngine
+
+                console.print(AtlasEngine.panel_text(player, parts[1] if len(parts) > 1 else None))
+
+            elif action in ["/飞升榜", "/ascend"]:
+                from core.ascension import AscensionEngine
+
+                console.print(AscensionEngine.panel_text(player, parts[1] if len(parts) > 1 else None))
+
+            elif action in ["/天象", "/omen"]:
+                from core.season_theme import SeasonThemeEngine
+
+                SeasonThemeEngine.ensure_announced()
+                console.print(SeasonThemeEngine.panel_text())
 
             elif action in ["/购买", "buy"]:
                 if len(parts) < 2:
@@ -838,6 +1115,9 @@ def run_mud():
                     console.print(f"[bold red]{res['message']}[/bold red]")
                     continue
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿上架 → 书目转 listed 并绑定单号
+                if item_name == BOOK_ITEM:
+                    BookEngine.on_listing_created(player, listing.id)
                 CharacterRepository.save(player)
                 ChronicleRepository.record(
                     "MARKET", player.name,
@@ -855,10 +1135,17 @@ def run_mud():
                     console.print("[red]寄售编号不存在。[/red]")
                     continue
                 listing = open_l[idx]
+                # 著书立说（F11）：手稿一人至多持一本，买家已持有则不成交
+                if listing.item_name == BOOK_ITEM and not BookEngine.buyer_can_hold(player):
+                    console.print("[bold red]怀中已有一部手稿，先将它流通出去再买新的。[/bold red]")
+                    continue
                 res = MarketEngine.buy_listing(player, listing)
                 if not res["success"]:
                     console.print(f"[bold red]{res['message']}[/bold red]")
                     continue
+                # 著书立说（F11）：手稿成交 → 书目过户买家
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_sold(listing.id, player)
                 # 付款给卖家（玩家或 NPC）
                 seller = CharacterRepository.get_by_name(listing.seller_name)
                 MarketEngine.complete_sale_payment(listing, seller)
@@ -887,7 +1174,149 @@ def run_mud():
                     console.print(f"[bold yellow]{res['message']}[/bold yellow]")
                     continue
                 MarketListingRepository.save(listing)
+                # 著书立说（F11）：手稿撤单 → 书目回 held
+                if listing.item_name == BOOK_ITEM:
+                    BookEngine.on_listing_cancelled(listing.id)
                 CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/典当", "pawn"]:
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    console.print(PawnEngine.panel_text(player))
+                    continue
+                item_name = " ".join(parts[1:])
+                ticket, res = PawnEngine.pawn_item(player, item_name)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(player)
+                ChronicleRepository.record(
+                    "PAWN", player.name,
+                    f"【{player.name}】典当【{item_name}】得 {res['principal']} 灵石。"
+                )
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/赎回", "redeem"]:
+                from core.pawn import PawnEngine
+                from storage.db import PawnTicketRepository
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/赎回 <物品名>（先 /典当 查看当票）[/red]")
+                    continue
+                item_name = " ".join(parts[1:])
+                ticket, res = PawnEngine.redeem_item(player, item_name)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                PawnTicketRepository.save(ticket)
+                CharacterRepository.save(player)
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/拍卖行", "/拍卖", "auction"]:
+                from collections import Counter
+
+                from core.trade import AuctionEngine, _snapshot_assets
+
+                # 看板推进可能以新鲜副本给本人入账/退款（落槌收款、被超价退款）；
+                # CLI 的 player 是长驻对象，只吸收 DB 增量回内存（不整表覆盖，
+                # 防冲掉未落库改动），避免后续指令落库把结算款覆盖掉（F05 评审整改）
+                _before = _snapshot_assets(player.id)
+                res = AuctionEngine.board()
+                _after = _snapshot_assets(player.id)
+                if _before and _after:
+                    player.spirit_stones += _after[0] - _before[0]
+                    for _idx, _attr in ((1, "inventory"), (2, "arrays"), (3, "equipped")):
+                        for _item, _n in (Counter(_after[_idx]) - Counter(_before[_idx])).items():
+                            getattr(player, _attr).extend([_item] * _n)
+                console.print(res["message"])
+
+            elif action in ["/上拍", "auction_list"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 3:
+                    console.print("[red]用法：/上拍 <货名> <底价> [一口价][/red]")
+                    continue
+                try:
+                    start_price = int(parts[-1])
+                    buyout = None
+                    if len(parts) >= 4:
+                        buyout = int(parts[-1])
+                        start_price = int(parts[-2])
+                        item = "".join(parts[1:-2])
+                    else:
+                        item = "".join(parts[1:-1])
+                except ValueError:
+                    console.print("[red]价格须为整数。用法：/上拍 <货名> <底价> [一口价][/red]")
+                    continue
+                res = AuctionEngine.list_item(player, item, start_price, buyout)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/拍", "/出价", "bid"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/拍 <编号> <出价>，或 /出价 <金额>（单场直拍）[/red]")
+                    continue
+                if len(parts) == 2:
+                    if action != "/出价":
+                        console.print("[red]用法：/拍 <编号> <出价>[/red]")
+                        continue
+                    try:
+                        amount = int(parts[1])
+                    except ValueError:
+                        console.print("[red]出价须为整数[/red]")
+                        continue
+                    open_now = AuctionEngine.open_lots()
+                    if not open_now:
+                        console.print("[bold red]当前无进行中的拍品。[/bold red]")
+                        continue
+                    if len(open_now) > 1:
+                        ids = "、".join(f"#{l.id}【{l.item_name}】" for l in open_now)
+                        console.print(f"[bold red]当前多件拍品在场：{ids}，请用 /拍 <编号> <出价>。[/bold red]")
+                        continue
+                    lot_id = open_now[0].id
+                else:
+                    lot_id = parts[1]
+                    try:
+                        amount = int(parts[2])
+                    except ValueError:
+                        console.print("[red]出价须为整数[/red]")
+                        continue
+                res = AuctionEngine.bid(player, lot_id, amount)
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/一口", "buyout"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/一口 <编号>[/red]")
+                    continue
+                res = AuctionEngine.buyout(player, parts[1])
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
+                console.print(f"[bold green]{res['message']}[/bold green]")
+
+            elif action in ["/撤拍", "auction_cancel"]:
+                from core.trade import AuctionEngine
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/撤拍 <编号>[/red]")
+                    continue
+                res = AuctionEngine.cancel(player, parts[1])
+                if not res["success"]:
+                    console.print(f"[bold red]{res['message']}[/bold red]")
+                    continue
                 console.print(f"[bold green]{res['message']}[/bold green]")
 
             elif action in ["/服用", "use_pill", "eat"]:
@@ -905,6 +1334,363 @@ def run_mud():
                     console.print(f"[red]囊中并无【{item_name}】。[/red]")
                     continue
                 res = MarketEngine.use_pill(player, matched)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/灵宠", "pets", "pet"]:
+                console.print(PetEngine.panel_text(player))
+
+            elif action in ["/契约", "contract"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/契约 <兽名>[/red]")
+                    continue
+                res = PetEngine.contract(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/喂养", "feed"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/喂养 <宠名> [丹药名][/red]")
+                    continue
+                from core.pets import split_feed_args
+
+                pet_hint, pill = split_feed_args(player, parts[1:])
+                res = PetEngine.feed(player, pet_hint, pill)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/出战", "deploy"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/出战 <宠名>[/red]")
+                    continue
+                res = PetEngine.deploy(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/休息", "petrest"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/休息 <宠名>[/red]")
+                    continue
+                res = PetEngine.rest(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/放生", "release"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/放生 <宠名>[/red]")
+                    continue
+                res = PetEngine.release(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/洞府", "cave"]:
+                console.print(FarmEngine.panel_text(player))
+
+            elif action in ["/开辟", "opencave"]:
+                res = FarmEngine.open_cave(player)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/播种", "sow"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/播种 <种子名> [数量][/red]")
+                    continue
+                seed_hint, sow_count = split_sow_args(parts[1:])
+                res = FarmEngine.sow(player, seed_hint, sow_count)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/收获", "harvest"]:
+                res = FarmEngine.harvest(player)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/升级洞府", "upgradecave"]:
+                res = FarmEngine.upgrade_cave(player)
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/委托", "quests"]:
+                if QuestEngine.settle_expired(player):
+                    CharacterRepository.save(player)
+                console.print(QuestEngine.panel_text(player))
+
+            elif action in ["/接委托", "acceptquest"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/接委托 <NPC名或编号>（先 /委托 查看）[/red]")
+                    continue
+                res = QuestEngine.accept(player, " ".join(parts[1:]))
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/交付", "deliver"]:
+                res = QuestEngine.deliver(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/弃委托", "abandonquest"]:
+                res = QuestEngine.abandon(player)
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/诺言", "promises"]:
+                if PromiseEngine.settle_due(player, actor_obj=player):
+                    CharacterRepository.save(player)
+                console.print(PromiseEngine.panel_text(player))
+
+            elif action in ["/许诺", "promise"]:
+                if len(parts) < 3:
+                    console.print("[red]用法：/许诺 <对象名> 赠物 <物品名> | 抵达 <地点名> | 委托 | 不攻（唯指令立诺入账，交谈口头应承不算）[/red]")
+                    continue
+                target = CharacterRepository.get_by_name(parts[1])
+                if not target:
+                    console.print(f"[red]查无此人：{parts[1]}[/red]")
+                    continue
+                kind = PROMISE_KIND_ALIASES.get(parts[2]) or PROMISE_KIND_ALIASES.get(parts[2].lower())
+                if not kind:
+                    console.print("[red]诺目须是规则四类之一：赠物 / 抵达 / 委托 / 不攻（自由口诺天道不记）[/red]")
+                    continue
+                res = PromiseEngine.make_promise(player, target, kind, parts[3] if len(parts) > 3 else "")
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/应诺", "acceptpromise"]:
+                res = PromiseEngine.accept(player, parts[1] if len(parts) > 1 else "")
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/毁诺", "breakpromise"]:
+                res = PromiseEngine.break_promise(player, parts[1] if len(parts) > 1 else "")
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            # 除凶令（F15）：与 server 同引擎；闭关白名单不含此组指令，天然锁门（对齐 F07）
+            elif action in ["/除凶", "/hunt", "hunt"]:
+                from core import hunt as _hunt
+
+                t = _hunt.my_target(player)
+                extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
+                console.print(_hunt.format_board() + extra)
+
+            elif action in ["/接令", "/接除凶", "acceptorder"]:
+                from core import hunt as _hunt
+
+                if len(parts) < 2:
+                    console.print("[red]用法：/接令 <凶犯道号>（纯数字编号为悬赏板接令）[/red]")
+                    continue
+                res = _hunt.accept(player, "".join(parts[1:]))
+                if res.get("success"):
+                    try:
+                        from core.sect_contrib import sync_ring
+
+                        sync_ring(player, "hunt")
+                        CharacterRepository.save(player)
+                    except Exception:
+                        pass
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/追凶", "/track", "track"]:
+                from core import hunt as _hunt
+
+                res = _hunt.track(player)
+                if res.get("success"):
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/弃令", "/弃除凶", "abandonorder"]:
+                from core import hunt as _hunt
+
+                res = _hunt.abandon(player)
+                if res.get("success"):
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/议政", "/council", "council"]:
+                console.print(CouncilEngine.panel_text(player))
+
+            elif action in ["/投票", "/vote", "vote"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/投票 支持|反对[/red]")
+                    continue
+                res = CouncilEngine.vote(player, parts[1])
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/游说", "/lobby", "lobby"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/游说 <长老名>[/red]")
+                    continue
+                res = CouncilEngine.lobby(player, "".join(parts[1:]))
+                if res["success"] or res.get("dirty"):
+                    CharacterRepository.save(player)
+                if res["success"]:
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/心法", "xinfa"]:
+                console.print(ArtSlotEngine.panel_text(player))
+
+            elif action in ["/主修", "main_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/主修 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.set_main(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/辅修", "sub_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/辅修 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.add_sub(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/卸功", "remove_art"]:
+                if len(parts) < 2:
+                    console.print("[red]用法：/卸功 <功法名>[/red]")
+                    continue
+                res = ArtSlotEngine.remove(player, " ".join(parts[1:]))
+                if res["success"]:
+                    CharacterRepository.save(player)
+                    console.print(f"[bold green]{res['message']}[/bold green]")
+                else:
+                    console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+
+            elif action in ["/炼体", "body", "/炼神", "soul"]:
+                # 炼体/炼神双修（F10）：无参=面板；「修炼 [n]」=逐层精进（闭关白名单不含此指令，天然锁门）
+                track = "body" if action in ["/炼体", "body"] else "soul"
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("修炼", "train"):
+                    times = 1
+                    if len(parts) > 2:
+                        try:
+                            times = int(parts[2])
+                        except Exception:
+                            times = 1
+                    res = (BodySoulEngine.train_body(player, times) if track == "body"
+                           else BodySoulEngine.train_soul(player, times))
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print(f"[red]用法：/{'炼体' if track == 'body' else '炼神'} 或 /{'炼体' if track == 'body' else '炼神'} 修炼 [次数][/red]")
+                else:
+                    console.print(BodySoulEngine.panel_text(player, track))
+
+            elif action in ["/镇魔", "demon", "/demon"]:
+                # 心魔长期状态（F16）：无参=面板（打开即惰性结算魔念）；服丹/静坐=镇压（与 server 同引擎同口径）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("服丹", "pill"):
+                    res = DemonStateEngine.suppress_pill(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub in ("静坐", "calm"):
+                    res = DemonStateEngine.suppress_calm(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print("[red]用法：/镇魔 或 /镇魔 服丹 或 /镇魔 静坐[/red]")
+                else:
+                    console.print(DemonStateEngine.panel_text(player))
+                    CharacterRepository.save(player)
+
+            elif action in ["/著书", "write_book", "/write_book"]:
+                # 著书立说（F11）：无参=面板；「写」=燃寿著书（与 server 同引擎同口径）
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("写", "write"):
+                    res = BookEngine.write_book(player)
+                    if res["success"]:
+                        CharacterRepository.save(player)
+                        console.print(f"[bold green]{res['message']}[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]{res['message']}[/bold yellow]")
+                elif sub:
+                    console.print("[red]用法：/著书 或 /著书 写[/red]")
+                else:
+                    console.print(BookEngine.panel_text(player))
+
+            elif action in ["/研读", "read_book", "/read_book"]:
+                # 研读（F11）：展卷所持手稿；首次研读结算收益与作者声望（引擎内幂等）
+                hint = cmd.strip().split(None, 1)[1] if len(cmd.strip().split(None, 1)) > 1 else ""
+                res = BookEngine.read_book(player, hint.strip())
                 if res["success"]:
                     CharacterRepository.save(player)
                     console.print(f"[bold green]{res['message']}[/bold green]")
@@ -1153,6 +1939,11 @@ def run_mud():
 
             elif action in ["/帮助", "help"]:
                 print_help()
+
+            elif action in LAN_ONLY_COMMANDS_LOWER:
+                console.print(
+                    f"[yellow]【局域网专有】{action} 仅在局域网服可用，请连 LAN 服使用。[/yellow]"
+                )
 
             else:
                 console.print(f"[red]未知名敕令: {action}，输入 /帮助 查阅天道指引。[/red]")

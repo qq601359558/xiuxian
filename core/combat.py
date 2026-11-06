@@ -25,6 +25,12 @@ class CombatEngine:
         s_sense = scanner.realm.tier * 100 + scanner.realm.sub_tier * 25
         if scanner.spiritual_root.root_type.value in ["HEAVEN", "MUTANT"]:
             s_sense += 30
+        try:
+            from core.body_soul import BodySoulEngine
+
+            s_sense += BodySoulEngine.sense_bonus(scanner)
+        except Exception:
+            pass
 
         for target in targets:
             if target.id == scanner.id or target.status == CharacterStatus.DEAD:
@@ -91,6 +97,24 @@ class CombatEngine:
             from core.loot_equip import EquipEngine, art_combat_bonus
             power *= EquipEngine.power_bonus(c)
             power *= art_combat_bonus(c)
+        except Exception:
+            pass
+        try:
+            from core.pets import PetEngine
+
+            power *= PetEngine.power_bonus(c)
+        except Exception:
+            pass
+        try:
+            from core.art_slots import ArtSlotEngine
+
+            power *= ArtSlotEngine.power_bonus(c)
+        except Exception:
+            pass
+        try:
+            from core.body_soul import BodySoulEngine
+
+            power *= BodySoulEngine.power_bonus(c)
         except Exception:
             pass
         return power
@@ -292,6 +316,15 @@ class CombatEngine:
         report = []
         report.append(f"【绝岭伏击】{attacker.name} 携雷霆杀机暴起突袭 {defender.name}！")
         report.append(f"  · {attacker.name} 战力评估：{int(att_power)} | {defender.name} 战力评估：{int(def_power)}")
+        try:
+            from core.pets import PetEngine
+
+            for side in (attacker, defender):
+                line = PetEngine.assist_line(side)
+                if line:
+                    report.append(line)
+        except Exception:
+            pass
 
         if attacker_wins:
             report.append(f"【剑光纵横】{attacker.name} 祭出道法死死压制，{defender.name} 护体罡气崩溃，狂喷鲜血！")
