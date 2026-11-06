@@ -112,6 +112,14 @@ class CombatEngine:
         except Exception:
             pass
         try:
+            # 器灵加成（gallery-gameplay §6.4）：与 art_slots 同层乘子，
+            # 通灵 +2% / 化形 +3%、多灵只取最高一件、心情 ≥40 才生效
+            from core.artifact_spirit import ArtifactSpiritEngine
+
+            power *= ArtifactSpiritEngine.power_bonus(c)
+        except Exception:
+            pass
+        try:
             from core.body_soul import BodySoulEngine
 
             power *= BodySoulEngine.power_bonus(c)
