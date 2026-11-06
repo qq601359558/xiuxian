@@ -1,5 +1,0 @@
-marked DEAD: ea4d7de6
-token join after death: 200 {'ok': True, 'user_id': 'acct_b89e3ccbdb6e', 'character_id': 'c5808338', 'is_new_life': True, 'resumed': False}
-uid preserved: True | new character: True | is_new_life: True
-credential join after death: 200 {'ok': True, 'user_id': 'acct_b89e3ccbdb6e', 'character_id': 'c5808338', 'is_new_life': False, 'resumed': True}
-second join resumes new life: True

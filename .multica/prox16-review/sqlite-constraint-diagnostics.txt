@@ -1,6 +1,0 @@
-﻿{"mechanism_scope": "shared SQLite in-memory only; partial index only, no business schema/triggers installed; no files or application imports"}
-{"unregistered_connection": {"class": "OperationalError", "message": "no such collation sequence: DAO_NAME", "operation": "player_insert", "outcome": "rejected"}}
-{"unregistered_connection": {"class": "OperationalError", "message": "no such collation sequence: DAO_NAME", "operation": "npc_insert", "outcome": "rejected"}}
-{"unregistered_connection": {"class": "OperationalError", "message": "no such collation sequence: DAO_NAME", "operation": "name_update", "outcome": "rejected"}}
-{"unregistered_connection": {"operation": "status_only_update", "outcome": "allowed"}}
-{"unregistered_connection": {"operation": "json_only_update", "outcome": "allowed"}}

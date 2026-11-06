@@ -25,3 +25,7 @@ web/_extract.js
 *.log
 *.png
 scratch/
+
+# 合并清理：外部工具工作区与临时评审/QA 草稿不入库
+.multica/
+.tmp-*/

@@ -1,2 +1,0 @@
-{"ts": 1793259967.3523853, "actor": "14557565", "kind": "event", "ok": true, "outcome": null, "success": null, "effects": {}, "spawn": true, "narrative_len": 9}
-{"ts": 1793259967.3769805, "actor": "14557565", "kind": "free_action", "intent": "observe", "outcome": "escalate", "effects": {}, "text_len": 4, "source": "local", "event_id": "ev_2c1212c1f6"}

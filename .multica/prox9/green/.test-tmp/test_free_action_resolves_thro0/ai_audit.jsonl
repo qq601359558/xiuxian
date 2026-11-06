@@ -1,3 +1,0 @@
-{"ts": 1793259650.9618125, "actor": "cb7a10b6", "kind": "event", "ok": true, "outcome": null, "success": null, "effects": {}, "spawn": false, "narrative_len": 25}
-{"ts": 1793259650.965814, "actor": "cb7a10b6", "kind": "event", "ok": true, "outcome": null, "success": null, "effects": {}, "spawn": false, "narrative_len": 25}
-{"ts": 1793259650.9875443, "actor": "cb7a10b6", "kind": "free_action", "intent": "observe", "outcome": "observe", "effects": {}, "text_len": 4, "source": "local", "event_id": "ev_032a5d94e9"}
