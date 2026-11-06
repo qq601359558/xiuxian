@@ -1,6 +1,10 @@
 # 天道因果录 · 网页客户端
 
-唯一入口：**index.html + workbench.css + workbench.js**
+唯一入口：**index.html + workbench.css + workbench.js**（桌面版）
+
+手机版：**mobile.html + mobile.css + mobile.js**——手机打开根地址自动进入；
+桌面版点「手机版」/ 移动版点「桌面版」可双向切换（选择记入 `wb.viewpref`），
+`?view=mobile|desktop` 仅本次生效。两版接口与数据共用，登录态互通。
 
 服务器托管：http://<本机IP>:8765/（server.run）
 

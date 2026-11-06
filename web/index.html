@@ -68,6 +68,33 @@
   </script>
 
   <link rel="stylesheet" href="workbench.css" />
+  <!-- view-redirect:start -->
+  <script>
+    (function () {
+      function isMobileDevice() {
+        try { if (window.matchMedia("(max-width: 780px)").matches) return true; } catch (e) {}
+        return /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      }
+      var seg = (location.pathname || "/").split("/").pop();
+      var current = seg === "mobile.html" ? "mobile" : "desktop";
+      var params = new URLSearchParams(location.search || "");
+      var view = params.get("view");
+      var target = null;
+      if (view === "mobile" || view === "desktop") target = view;
+      else {
+        var pref = null;
+        try { pref = localStorage.getItem("wb.viewpref"); } catch (e) {}
+        if (pref === "mobile" || pref === "desktop") target = pref;
+        else target = isMobileDevice() ? "mobile" : "desktop";
+      }
+      if (target !== current) {
+        params.delete("view");
+        var qs = params.toString();
+        location.replace((target === "mobile" ? "/mobile.html" : "/index.html") + (qs ? "?" + qs : "") + (location.hash || ""));
+      }
+    })();
+  </script>
+  <!-- view-redirect:end -->
 </head>
 <body class="font-serif bg-paper-pattern text-slate-800 antialiased min-h-screen flex flex-col selection:bg-jade-200 selection:text-jade-900">
   <!-- 入世门庭 -->
@@ -109,7 +136,8 @@
         </form>
         <div class="gate-foot">
           启阵：<code>python -m server.run</code><br />
-          默认阵枢：<code>mn.20230803.xyz:8765</code>，换服可改。
+          默认阵枢：<code>mn.20230803.xyz:8765</code>，换服可改。<br />
+          手机浏览：<button type="button" class="btn ghost sm" data-view-switch="mobile" onclick="try{localStorage.setItem('wb.viewpref','mobile')}catch(e){};location.replace('/mobile.html')">手机版</button>
         </div>
       </div>
     </div>
@@ -209,6 +237,9 @@
             <!-- 切换天象与暂离 -->
             <button type="button" class="p-1.5 rounded-lg text-slate-500 hover:text-jade-700 hover:bg-white/60 transition" id="btnTheme" title="天象昼夜切换">
               <span class="material-symbols-outlined text-[18px]">contrast</span>
+            </button>
+            <button type="button" class="p-1.5 rounded-lg text-slate-500 hover:text-jade-700 hover:bg-white/60 transition" id="btnMobile" title="切换到手机版" data-view-switch="mobile" onclick="try{localStorage.setItem('wb.viewpref','mobile')}catch(e){};location.replace('/mobile.html')">
+              <span class="text-xs font-medium">手机版</span>
             </button>
             <button type="button" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-700 hover:bg-white/60 transition" id="btnLogout" title="暂离大千世界">
               <span class="material-symbols-outlined text-[18px]">logout</span>

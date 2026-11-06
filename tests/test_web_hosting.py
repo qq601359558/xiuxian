@@ -202,3 +202,41 @@ def test_unknown_path_still_404():
     status, _, _ = _get("/no-such-thing")
     assert status == 404
     print("✓ 未知路径仍 404")
+
+
+# ---- 手机端（spec: mobile-web M-13/M-14）----
+
+def test_mobile_pages_served():
+    for path, ctype in (("/mobile.html", "text/html; charset=utf-8"),
+                        ("/mobile.js", "text/javascript; charset=utf-8"),
+                        ("/mobile.css", "text/css; charset=utf-8")):
+        status, headers, body = _get(path)
+        assert status == 200, path
+        assert headers.get("Content-Type") == ctype, path
+        assert body == (WEB / path.lstrip("/")).read_bytes(), path
+        assert headers.get("Cache-Control") == "no-cache", path
+        assert int(headers.get("Content-Length")) == len(body), path
+    print("✓ GET /mobile.html/.js/.css 各 200、类型正确、与磁盘一致、no-cache")
+
+
+def test_mobile_traversal_blocked():
+    config_bytes = (ROOT / "config.py").read_bytes()
+    for raw_path in ("/mobile.html/../config.py", "/mobile.js/../config.py",
+                     "/mobile.css/../config.py", "/../config.py",
+                     "/%2e%2e/config.py", "/web/../config.py",
+                     "/mobile.html/%2e%2e/config.py"):
+        status, _, body = _get_raw(raw_path)
+        assert status in (400, 404), (raw_path, status)
+        assert body != config_bytes, raw_path
+        assert b"LAN_PORT" not in body, raw_path
+    print("✓ 移动版路径穿越变体全部 404/400，无文件内容泄漏")
+
+
+def test_mobile_pages_do_not_shadow_api():
+    status, headers, body = _get("/health")
+    assert status == 200
+    data = json.loads(body.decode("utf-8"))
+    assert data["ok"] is True
+    status, _, _ = _get("/mobile.html")
+    assert status == 200
+    print("✓ /mobile.html 不与 /health 等 API 路径冲突")

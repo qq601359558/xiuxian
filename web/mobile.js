@@ -1,0 +1,1172 @@
+/* 天道因果录 · 手机版客户端（spec: mobile-web D2）
+独立小客户端：只复用 workbench.js 的接口语义（/register /login /action 等）
+与会话键（wb.*）、阵枢默认地址口径（wb.base）；不加载 workbench.js，
+不读遗留客户端的旧阵枢键，不自造数值结果，一切裁决以服务端返回为准。 */
+(function () {
+  "use strict";
+
+  var $ = function (id) {
+    return document.getElementById(id);
+  };
+
+  // 十方迁跃地名（与桌面 workbench.js PLACES 同表；迁跃命令为 /go <地名>）
+  var PLACES = [
+    { name: "青云坊市客栈", tip: "商会客栈 · 安全庇护" },
+    { name: "青云宗外门山门", tip: "正道山门 · 灵气温润" },
+    { name: "宗门玄元洞府", tip: "后山静室 · 闭关福地" },
+    { name: "落霞山灵泉", tip: "凡阶野外 · 灵雾氤氲" },
+    { name: "万剑仙门峰", tip: "剑气冲霄 · 仙家总坛" },
+    { name: "黑风绝渊", tip: "大凶死地 · 罡风刺骨" },
+    { name: "万星古岛", tip: "诸星残阵 · 上古遗迹" },
+    { name: "洗剑池洞天", tip: "剑池淬锋 · 幽静洞天" },
+    { name: "九幽天魔宗坛", tip: "九幽煞泉 · 魔道凶穴" },
+  ];
+
+  var state = {
+    // 阵枢默认地址：与 workbench.js:138-147 逐字同口径——读 wb.base，
+    // 存下的回环地址丢弃；本机回落 127.0.0.1:8765，否则 NAS 域名。
+    base: (function () {
+      var stored = localStorage.getItem("wb.base") || "";
+      if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(stored)) {
+        localStorage.removeItem("wb.base");
+        stored = "";
+      }
+      var local =
+        location.hostname === "localhost" ||
+        location.hostname === "127.0.0.1" ||
+        location.protocol === "file:";
+      return (
+        stored ||
+        (local ? "http://127.0.0.1:8765" : "http://mn.20230803.xyz:8765")
+      );
+    })(),
+    token: localStorage.getItem("wb.token") || "",
+    user: localStorage.getItem("wb.user") || "",
+    name: localStorage.getItem("wb.name") || "",
+    uid: localStorage.getItem("wb.uid") || "",
+    theme: localStorage.getItem("wb.theme") === "dark" ? "dark" : "light",
+    mode: "login",
+    view: "feed",
+    status: null,
+    here: [],
+    feed: [],
+    world: null,
+    commands: [],
+    busy: false,
+    demo: false,
+    sug: [],
+    sugI: 0,
+    selectedBagName: "",
+    opsBuilt: false,
+  };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c];
+    });
+  }
+  function setText(id, v) {
+    var el = $(id);
+    if (el) el.textContent = v;
+  }
+  function setTheme(t) {
+    state.theme = t === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", state.theme);
+    localStorage.setItem("wb.theme", state.theme);
+  }
+  function toast(msg, kind) {
+    var box = $("toasts");
+    if (!box) return;
+    var el = document.createElement("div");
+    el.className = "toast" + (kind === "bad" ? " bad" : "");
+    el.textContent = msg;
+    box.appendChild(el);
+    setTimeout(function () {
+      el.remove();
+    }, 3200);
+  }
+
+  async function api(path, body) {
+    var base = (state.base || "").trim().replace(/\/$/, "");
+    if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
+    var opts = {
+      method: body ? "POST" : "GET",
+      credentials: "omit",
+      cache: "no-store",
+    };
+    if (body) {
+      opts.headers = { "Content-Type": "application/json" };
+      opts.body = JSON.stringify(body);
+    }
+    var res;
+    try {
+      res = await fetch(base + path, opts);
+    } catch (e) {
+      throw new Error("无法感应阵枢灵脉（请确认服务已启动）");
+    }
+    if (!res.ok) {
+      var msg = res.statusText || String(res.status);
+      try {
+        var j = await res.json();
+        msg = j.error || j.message || msg;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  function kindOf(text) {
+    var t = String(text || "");
+    if (/^»/.test(t)) return "cmd";
+    if (/失败|错误|拒绝|不可|中断|身死|陨落/.test(t)) return "bad";
+    if (/天道|世界弧|异象|大劫|血煞|机缘/.test(t)) return "ai";
+    return "ok";
+  }
+  function pushFeed(text, kind) {
+    if (!text) return;
+    state.feed.push({
+      text: String(text),
+      kind: kind || kindOf(text),
+      ts: Date.now() / 1000,
+    });
+    if (state.feed.length > 200) state.feed = state.feed.slice(-200);
+    if (state.view === "feed") renderFeed();
+  }
+  function fmtTime(ts) {
+    try {
+      var d = new Date(ts * 1000);
+      var p = function (n) {
+        return (n < 10 ? "0" : "") + n;
+      };
+      return p(d.getHours()) + ":" + p(d.getMinutes());
+    } catch (_) {
+      return "";
+    }
+  }
+
+  // ---- 状态同步：只读后端下发字段，不自造数值 ----
+  function applyStatus(st) {
+    if (!st) return;
+    state.status = Object.assign({}, state.status || {}, st);
+    setText("topDaoName", st.name || state.name || "—");
+    setText(
+      "topDaoRealm",
+      (st.realm || "—") +
+        (st.rank && st.rank !== "散修" ? " · " + st.rank : ""),
+    );
+    setText("topStones", (st.stones != null ? st.stones : 0) + " 灵石");
+    setText(
+      "topRemYears",
+      "寿元 " +
+        (st.rem_years != null ? Number(st.rem_years).toFixed(1) : "—") +
+        " 载",
+    );
+    setText("topLocation", st.location || "—");
+    renderCurrent();
+  }
+
+  function busy(on) {
+    state.busy = !!on;
+    var go = $("cmdGo");
+    if (go) {
+      go.disabled = !!on;
+      go.textContent = on ? "…" : "发送";
+    }
+    var dot = $("busyDot");
+    if (dot) dot.style.display = on ? "inline-block" : "none";
+  }
+
+  // ---- 各分区渲染 ----
+  function renderCurrent() {
+    if (state.view === "feed") renderFeed();
+    else if (state.view === "sanctum") renderSanctum();
+    else if (state.view === "bag") renderBag();
+    else if (state.view === "world") renderWorld();
+    else if (state.view === "ops") renderOps();
+  }
+
+  function renderFeed() {
+    var host = $("feedLog");
+    if (!host) return;
+    if (!state.feed.length) {
+      host.innerHTML =
+        '<div class="card muted">暂无动态。发一道敕令，或等天道演化。</div>';
+      return;
+    }
+    host.innerHTML = state.feed
+      .slice(-60)
+      .map(function (f) {
+        return (
+          '<div class="feed-line ' +
+          esc(f.kind || "ok") +
+          '"><span class="ts">' +
+          esc(fmtTime(f.ts)) +
+          "</span>" +
+          esc(f.text) +
+          "</div>"
+        );
+      })
+      .join("");
+    host.scrollTop = host.scrollHeight;
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function kv(k, v, cls) {
+    return (
+      '<div class="kv"><span class="k">' +
+      esc(k) +
+      '</span><span class="v' +
+      (cls ? " " + cls : "") +
+      '">' +
+      v +
+      "</span></div>"
+    );
+  }
+
+  function renderSanctum() {
+    var host = $("sanctumBody");
+    if (!host) return;
+    var st = state.status || {};
+    if (!state.status) {
+      host.innerHTML =
+        '<div class="card muted">命盘未至。先发一道敕令（如 /look），或等候同步。</div>';
+      return;
+    }
+    var expPct = 0;
+    if (st.exp && String(st.exp).indexOf("/") >= 0) {
+      var parts = String(st.exp).replace(/,/g, "").split("/");
+      var cur = parseFloat(parts[0]) || 0;
+      var max = parseFloat(parts[1]) || 1;
+      expPct = Math.min(100, Math.max(0, Math.round((cur / max) * 100)));
+    }
+    var wallet = st.wallet || {};
+    var past = st.past_life || {};
+    var chains = st.karma_chains || {};
+    var pet = st.pet || null;
+    var arts = st.arts || {};
+    var med = st.meditating || st.is_meditating;
+    var html = "";
+    html +=
+      '<div class="card"><h3>' +
+      esc(st.name || state.name || "—") +
+      " · " +
+      esc(st.realm || "—") +
+      "</h3>";
+    html += kv("所在", esc(st.location || "—"));
+    html += kv(
+      "道身状态",
+      esc(st.status_cn || st.status || "—") + (med ? " · " : ""),
+    );
+    if (st.blood_marked) html += kv("血煞", "血煞通缉", "warn");
+    html += kv("修为", esc(st.exp || "—"));
+    html += '<div class="bar"><i style="width:' + expPct + '%"></i></div>';
+    html += kv(
+      "寿元",
+      esc(st.rem_years != null ? Number(st.rem_years).toFixed(1) + " 载" : "—"),
+      st.lifespan_warning ? "warn" : "",
+    );
+    html += kv("灵石", esc(st.stones != null ? st.stones : 0));
+    html += kv("金库", esc(st.vault != null ? st.vault : 0));
+    html += kv("账户钱包", esc(wallet.balance != null ? wallet.balance : 0));
+    html += kv("道心", esc(st.dao_heart != null ? st.dao_heart : "—"));
+    html += kv(
+      "因果 / 功德",
+      esc(st.sin != null ? st.sin : "—") +
+        " / " +
+        esc(st.merit != null ? st.merit : "—"),
+    );
+    html += kv(
+      "宗门",
+      esc((st.sect || "散修") + (st.rank ? " · " + st.rank : "")),
+    );
+    html += kv(
+      "宗门贡献",
+      esc(st.sect_contribution != null ? st.sect_contribution : 0),
+    );
+    html += kv("灵根", esc(st.root || "—"));
+    if (pet)
+      html += kv(
+        "灵宠",
+        esc(
+          pet.name +
+            " · " +
+            pet.species +
+            " · " +
+            pet.level +
+            " 级 · 亲密度 " +
+            pet.intimacy,
+        ),
+      );
+    else
+      html += kv(
+        "灵宠",
+        "未收服（在养 " +
+          esc(st.pets_count != null ? st.pets_count : 0) +
+          " 只）",
+      );
+    if (arts.main) html += kv("主修心法", esc(arts.main));
+    if (arts.sub && arts.sub.length)
+      html += kv("辅修心法", esc(arts.sub.join("、")));
+    if (st.skills && st.skills.length)
+      html += kv("法门", esc(st.skills.join("、")));
+    if (past.lives) {
+      html += kv(
+        "前世",
+        esc(
+          "已历 " +
+            past.lives +
+            " 世" +
+            (past.last_name ? " · 上世 " + past.last_name : "") +
+            (past.last_cause ? "（" + past.last_cause + "）" : "") +
+            (past.shadow_count ? " · 前缘 " + past.shadow_count + " 缕" : ""),
+        ),
+      );
+    }
+    html += kv(
+      "因果链",
+      esc("进行中 " + (chains.active != null ? chains.active : 0) + " 条"),
+    );
+    html += "</div>";
+    // 俸禄与晋升
+    html += '<div class="card"><h3>宗门俸禄</h3>';
+    html += kv("月俸", esc(st.salary != null ? st.salary : 0) + " 灵石");
+    if (st.salary_claimable) {
+      html +=
+        '<button type="button" class="btn primary block" data-cmd="/领俸禄">领俸禄</button>';
+    } else if (st.salary_cd_sec) {
+      html +=
+        '<div class="muted">下次领俸约 ' +
+        esc(Math.ceil(st.salary_cd_sec / 60)) +
+        " 分钟后</div>";
+    }
+    if (st.can_promote && st.next_rank) {
+      html +=
+        '<button type="button" class="btn secondary block" data-cmd="/晋升">晋升' +
+        esc(st.next_rank) +
+        "</button>";
+    }
+    html += "</div>";
+    // 钱包提取（只发命令，不预改余额）
+    html +=
+      '<div class="card"><h3>钱包提取</h3><div class="inline-row">' +
+      '<input id="walletAmt" type="number" inputmode="numeric" min="1" placeholder="提取金额" aria-label="提取金额" />' +
+      '<button type="button" class="btn primary" id="btnWalletWithdraw">提取</button></div>' +
+      '<div class="muted">余额以服务端为准；转世后钱包随账户保留。</div></div>';
+    host.innerHTML = html;
+    var wb = $("btnWalletWithdraw");
+    if (wb)
+      wb.addEventListener("click", function () {
+        var amt = (($("walletAmt") && $("walletAmt").value) || "").trim();
+        if (!amt) {
+          toast("请先填提取金额", "bad");
+          return;
+        }
+        sendCmd("/钱包提取 " + amt);
+      });
+  }
+
+  function renderBag() {
+    var host = $("bagBody");
+    if (!host) return;
+    var st = state.status || {};
+    var items = Array.isArray(st.items) ? st.items : [];
+    var equipped = Array.isArray(st.equipped) ? st.equipped : [];
+    var html = "";
+    html += '<div class="card"><h3>已穿戴（' + equipped.length + "）</h3>";
+    if (!equipped.length) html += '<div class="muted">未穿戴任何法宝。</div>';
+    equipped.forEach(function (eq) {
+      html +=
+        '<div class="eq-row"><span>' +
+        esc((eq.slotCn || eq.slot || "法宝") + " · " + eq.name) +
+        '</span><span class="muted">' +
+        esc(eq.tierName || "") +
+        "</span></div>";
+    });
+    html += "</div>";
+    // 同名合并 ×n
+    var merged = {};
+    var order = [];
+    items.forEach(function (it) {
+      if (!merged[it.name]) {
+        merged[it.name] = { item: it, n: 0 };
+        order.push(it.name);
+      }
+      merged[it.name].n += 1;
+    });
+    html +=
+      '<div class="card"><h3>纳戒（' +
+      items.length +
+      " / " +
+      esc(st.max_bag_slots != null ? st.max_bag_slots : 64) +
+      " 格）</h3>";
+    if (!order.length)
+      html +=
+        '<div class="muted">纳戒空空。可 /探险 寻机缘，或去坊市采买。</div>';
+    order.forEach(function (name) {
+      var m = merged[name];
+      var it = m.item;
+      var sel = state.selectedBagName === name;
+      html +=
+        '<button type="button" class="bag-row' +
+        (sel ? " sel" : "") +
+        '" data-bag="' +
+        esc(name) +
+        '">' +
+        '<span class="tg">' +
+        esc(it.tierName || "凡品") +
+        "</span>" +
+        '<span class="nm">' +
+        esc(name) +
+        "</span>" +
+        (m.n > 1 ? '<span class="ct">×' + m.n + "</span>" : "") +
+        '<span class="muted">' +
+        esc(it.kind || "") +
+        "</span></button>";
+      if (sel) {
+        html +=
+          '<div class="card" style="margin:-2px 0 8px"><div class="muted">' +
+          esc(it.desc || it.lore || "") +
+          "</div>";
+        html += '<div class="chiprow" style="margin-top:8px">';
+        if (it.kind === "equip")
+          html +=
+            '<button type="button" class="chip" data-cmd="/穿戴 ' +
+            esc(name) +
+            '">穿戴</button>' +
+            '<button type="button" class="chip" data-cmd="/卸下 ' +
+            esc(name) +
+            '">卸下</button>';
+        if (it.kind === "pill" || it.kind === "consumable")
+          html +=
+            '<button type="button" class="chip" data-cmd="/服用 ' +
+            esc(name) +
+            '">服用</button>';
+        if (
+          it.kind === "treasure_map" ||
+          it.kind === "map" ||
+          name.indexOf("图") >= 0
+        )
+          html +=
+            '<button type="button" class="chip" data-cmd="/宝图 ' +
+            esc(name) +
+            '">研读宝图</button>' +
+            '<button type="button" class="chip" data-cmd="/挖宝 ' +
+            esc(name) +
+            '">挖宝</button>';
+        html +=
+          '<button type="button" class="chip" data-fill="/寄售 ' +
+          esc(name) +
+          ' ">寄售</button>';
+        html += "</div></div>";
+      }
+    });
+    html += "</div>";
+    host.innerHTML = html;
+  }
+
+  function renderWorld() {
+    var host = $("worldBody");
+    if (!host) return;
+    var html = "";
+    var w = state.world || {};
+    var lines =
+      w.summary_lines || (w.evolution && w.evolution.summary_lines) || [];
+    if (lines.length) {
+      html +=
+        '<div class="card"><h3>世界态势</h3>' +
+        lines
+          .slice(0, 5)
+          .map(function (l) {
+            return (
+              '<div class="kv"><span class="v" style="text-align:left">' +
+              esc(l) +
+              "</span></div>"
+            );
+          })
+          .join("") +
+        "</div>";
+    }
+    html += '<div class="card"><h3>同场修士（' + state.here.length + "）</h3>";
+    if (!state.here.length)
+      html +=
+        '<div class="muted">周遭方圆暂无其他修士。可迁跃前往客栈或宗门。</div>';
+    state.here.forEach(function (r) {
+      var tag = r.blood_marked
+        ? "血煞通缉"
+        : !r.is_npc
+          ? "同道仙友"
+          : r.attitude_cn || "中立";
+      html +=
+        '<div class="person"><div class="row1"><span class="nm">' +
+        esc(r.name) +
+        '</span><span class="tag' +
+        (r.blood_marked ? " danger" : "") +
+        '">' +
+        esc(tag) +
+        "</span></div>" +
+        '<div class="muted">' +
+        esc(r.realm || "") +
+        " · " +
+        esc(r.sect || "散修") +
+        (r.rank ? " · " + esc(r.rank) : "") +
+        "</div>" +
+        '<div class="acts">' +
+        '<button type="button" class="btn secondary" data-fill="/交谈 ' +
+        esc(r.name) +
+        ' ">传音</button>' +
+        '<button type="button" class="btn secondary" data-cmd="/交易 ' +
+        esc(r.name) +
+        '">交易</button>' +
+        '<button type="button" class="btn ghost" data-cmd="/斗法 ' +
+        esc(r.name) +
+        '">切磋</button>' +
+        "</div></div>";
+    });
+    html += "</div>";
+    var cur = (state.status && state.status.location) || "";
+    html += '<div class="card"><h3>十方迁跃</h3>';
+    PLACES.forEach(function (p) {
+      var isCur = p.name === cur;
+      html +=
+        '<div class="place-row"><span class="nm">' +
+        esc(p.name) +
+        (isCur ? " · 当前所在" : "") +
+        '<br /><span class="tip">' +
+        esc(p.tip) +
+        "</span></span>" +
+        (isCur
+          ? '<span class="muted">已至</span>'
+          : '<button type="button" class="btn secondary" data-cmd="/go ' +
+            esc(p.name) +
+            '">迁跃</button>') +
+        "</div>";
+    });
+    html += "</div>";
+    host.innerHTML = html;
+  }
+
+  function renderOps() {
+    var host = $("opsBody");
+    if (!host || state.opsBuilt) return;
+    state.opsBuilt = true;
+    var opts = PLACES.map(function (p) {
+      return '<option value="' + esc(p.name) + '">' + esc(p.name) + "</option>";
+    }).join("");
+    host.innerHTML =
+      '<div class="section-title">高频操作</div>' +
+      '<div class="ops-grid">' +
+      '<button type="button" class="btn primary" data-cmd="/突破">突破</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/闭关">闭关</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/出关">出关</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/探险">探险</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/奇遇">奇遇</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/领俸禄">领俸禄</button>' +
+      "</div>" +
+      '<div class="section-title">传音（与同场修士交谈）</div>' +
+      '<div class="inline-row"><input id="chatName" type="text" placeholder="对方道号" aria-label="对方道号" />' +
+      '<input id="chatText" type="text" placeholder="传音内容" aria-label="传音内容" /></div>' +
+      '<button type="button" class="btn secondary block" id="btnChatSend">传音</button>' +
+      '<div class="section-title">迁跃</div>' +
+      '<div class="inline-row"><select id="goSelect" aria-label="迁跃目的地">' +
+      opts +
+      "</select>" +
+      '<button type="button" class="btn secondary" id="btnGo">迁跃</button></div>' +
+      '<div class="inline-row"><button type="button" class="btn secondary" id="btnCrane">灵鹤派遣</button></div>' +
+      '<div class="section-title">常用命令（点按填入命令框）</div>' +
+      '<div class="chiprow">' +
+      [
+        "/宗门",
+        "/坊市",
+        "/墓碑 ",
+        "/道统",
+        "/因果链",
+        "/钱包",
+        "/寄存 ",
+        "/支取 ",
+        "/典当 ",
+        "/灵宠",
+        "/任务",
+        "/天道",
+        "/世情",
+        "/帮助",
+      ]
+        .map(function (c) {
+          return (
+            '<button type="button" class="chip" data-fill="' +
+            esc(c) +
+            '">' +
+            esc(c.replace(/ $/, "")) +
+            "</button>"
+          );
+        })
+        .join("") +
+      '<button type="button" class="chip" data-fill="/灵鹤 ">灵鹤</button>' +
+      "</div>" +
+      '<div class="section-title">显示与切换</div>' +
+      '<div class="chiprow">' +
+      '<button type="button" class="chip" data-theme-toggle="1">昼夜天象切换</button>' +
+      '<button type="button" class="chip" data-view-switch="desktop">桌面版</button>' +
+      '<button type="button" class="chip" data-auto-view="1">跟随设备自动选择</button>' +
+      "</div>" +
+      '<p class="muted">场景操作（秘境推进、挖宝、灵宠出战等）均可直接在下方命令框输入对应命令；服务端裁决为准。</p>';
+    $("btnChatSend").addEventListener("click", function () {
+      var n = ($("chatName").value || "").trim();
+      var t = ($("chatText").value || "").trim();
+      if (!n && !t) {
+        toast("请先填对方道号或传音内容", "bad");
+        return;
+      }
+      sendCmd(n && t ? "/交谈 " + n + " " + t : t || "/交谈 " + n);
+    });
+    $("btnGo").addEventListener("click", function () {
+      sendCmd("/go " + $("goSelect").value);
+    });
+    $("btnCrane").addEventListener("click", function () {
+      sendCmd("/灵鹤 " + $("goSelect").value);
+    });
+  }
+
+  function setView(v) {
+    var valid = ["feed", "sanctum", "bag", "world", "ops"];
+    if (valid.indexOf(v) < 0) v = "feed";
+    state.view = v;
+    document.querySelectorAll("[data-mview]").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mview") === v);
+    });
+    document.querySelectorAll("[data-pane]").forEach(function (p) {
+      p.hidden = p.getAttribute("data-pane") !== v;
+    });
+    renderCurrent();
+    if ((v === "sanctum" || v === "world") && state.token && !state.demo)
+      refreshAll();
+  }
+
+  // ---- 命令通道 ----
+  function demoResult(c) {
+    var st = state.status || {};
+    return {
+      ok: true,
+      text: "" + c + " —— 演化一局：灵气流转，道心微动（离线演示，不落存档）。",
+      status: st,
+    };
+  }
+
+  async function sendCmd(cmd) {
+    var c = (cmd || "").trim();
+    if (!c) return;
+    if (state.busy) {
+      toast("天道神念推演中，诸法暂滞，请稍候…", "bad");
+      return;
+    }
+    busy(true);
+    try {
+      pushFeed("» " + c, "cmd");
+      var data;
+      if (state.demo) data = demoResult(c);
+      else data = await api("/action", { token: state.token, command: c });
+      if (data.status) applyStatus(data.status);
+      if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
+      else if (data.ok === false && data.error)
+        pushFeed("敕令失败：" + data.error, "bad");
+      if (data.dead)
+        pushFeed("此身已坐化。输入 /转世 可再入轮回，钱包随账户保留。", "bad");
+      // 仅成功才清空输入框；服务端拒绝（ok:false）与网络异常都保留草稿（M-12）
+      if (data.ok !== false) {
+        var inp = $("cmdInput");
+        if (inp) inp.value = "";
+      }
+      hideSug();
+      return data;
+    } catch (e) {
+      pushFeed("敕令失败：" + e.message, "bad");
+      toast(e.message, "bad");
+      return { ok: false, error: e.message };
+    } finally {
+      busy(false);
+    }
+  }
+
+  async function loadCommands() {
+    if (state.demo) {
+      state.commands = [
+        { cmd: "/look", desc: "观照道身状态" },
+        { cmd: "/闭关", desc: "洞府入定吐纳" },
+        { cmd: "/出关", desc: "提前收功出关" },
+        { cmd: "/突破", desc: "引动九天雷劫破境" },
+        { cmd: "/探险", desc: "踏入十方大荒历练" },
+        { cmd: "/挖宝", desc: "循藏宝图挖掘机缘" },
+        { cmd: "/穿戴", desc: "佩戴法宝入体" },
+        { cmd: "/卸下", desc: "卸下装备收入纳戒" },
+        { cmd: "/坊市", desc: "查看诸天商会与寄售" },
+        { cmd: "/领俸禄", desc: "领取宗门月俸" },
+        { cmd: "/交谈", desc: "与同场修士传音" },
+        { cmd: "/帮助", desc: "查阅全部天道敕令" },
+      ];
+      return;
+    }
+    try {
+      var j = await api("/commands");
+      state.commands = j.commands || [];
+    } catch (_) {}
+  }
+
+  function fuzzy(q) {
+    var query = (q || "").trim().toLowerCase();
+    if (!query || query[0] !== "/") return [];
+    var all = state.commands || [];
+    if (query === "/")
+      return all.slice(0, 10).map(function (e) {
+        return Object.assign({}, e);
+      });
+    var core = query.replace(/^\//, "");
+    var out = [];
+    all.forEach(function (e) {
+      var cmd = String(e.cmd || "").toLowerCase();
+      var desc = String(e.desc || "").toLowerCase();
+      var s = 0;
+      if (cmd === query) s = 100;
+      else if (cmd.indexOf(query) === 0) s = 80;
+      else if (core && cmd.indexOf(core) >= 0) s = 55;
+      else if (core && desc.indexOf(core) >= 0) s = 40;
+      if (s > 0) out.push(Object.assign({}, e, { score: s }));
+    });
+    out.sort(function (a, b) {
+      return b.score - a.score;
+    });
+    return out.slice(0, 8);
+  }
+  function renderSug() {
+    var el = $("suggest");
+    var inp = $("cmdInput");
+    if (!el || !inp) return;
+    if (!inp.value || inp.value[0] !== "/") {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+      state.sug = [];
+      return;
+    }
+    state.sug = fuzzy(inp.value);
+    state.sugI = 0;
+    if (!state.sug.length) {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = state.sug
+      .map(function (it, i) {
+        return (
+          '<div class="suggest-item' +
+          (i === 0 ? " active" : "") +
+          '" data-sug-i="' +
+          i +
+          '">' +
+          '<span class="cmd">' +
+          esc(it.cmd) +
+          '</span><span class="desc">' +
+          esc(it.desc || it.usage || "") +
+          "</span></div>"
+        );
+      })
+      .join("");
+    el.classList.remove("hidden");
+  }
+  function applySug(i) {
+    var it = state.sug[i];
+    if (!it) return;
+    var inp = $("cmdInput");
+    inp.value = it.cmd + " ";
+    hideSug();
+    inp.focus();
+  }
+  function hideSug() {
+    var el = $("suggest");
+    if (el) {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+    }
+  }
+
+  async function refreshAll() {
+    if (state.demo) {
+      renderCurrent();
+      return;
+    }
+    if (!state.token) return;
+    try {
+      var look = await api("/action", { token: state.token, command: "/look" });
+      if (look && look.status) applyStatus(look.status);
+    } catch (_) {}
+    try {
+      var here = await api("/action", { token: state.token, command: "/here" });
+      if (here && Array.isArray(here.here)) state.here = here.here;
+    } catch (_) {}
+    try {
+      var world = await api("/world/director");
+      if (world && world.ok !== false) state.world = world;
+    } catch (_) {}
+    renderCurrent();
+  }
+
+  function showApp() {
+    $("gate") && $("gate").classList.add("hidden");
+    $("app") && $("app").classList.remove("hidden");
+    setView("feed");
+  }
+  function showGate(msg) {
+    $("app") && $("app").classList.add("hidden");
+    $("gate") && $("gate").classList.remove("hidden");
+    if (msg != null && $("gateMsg")) $("gateMsg").textContent = msg;
+  }
+
+  async function doAuth(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var username = $("fUser").value.trim();
+    var password = $("fPass").value;
+    var name = ($("fName").value || username).trim();
+    $("gateMsg").textContent = "";
+    if (!username || !password) {
+      $("gateMsg").textContent = "请完整填写仙籍账号与神识密匙";
+      return;
+    }
+    var btn = $("gateSubmit");
+    var old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "灵脉感应中…";
+    try {
+      var payload =
+        state.mode === "register"
+          ? await api("/register", {
+              username: username,
+              password: password,
+              name: name,
+            })
+          : await api("/login", {
+              username: username,
+              password: password,
+              name: name,
+            });
+      if (!payload || payload.ok === false) {
+        throw new Error((payload && payload.error) || "无法登临大千世界");
+      }
+      state.token = payload.token;
+      state.name = payload.name || name;
+      state.user = username;
+      state.uid = payload.user_id || "";
+      localStorage.setItem("wb.token", state.token);
+      localStorage.setItem("wb.user", state.user);
+      localStorage.setItem("wb.name", state.name);
+      localStorage.setItem("wb.base", state.base);
+      state.demo = false;
+      localStorage.removeItem("wb.demo");
+      applyStatus({
+        name: state.name,
+        realm: payload.realm || "练气期",
+        location: payload.location || "青云坊市客栈",
+        rem_years: payload.rem_years || 85,
+        stones: 100,
+      });
+      showApp();
+      toast("已入世 · " + state.name, "ok");
+      if (payload.dead) {
+        pushFeed(
+          "此身已坐化（" +
+            (payload.death_cause || "身死道消") +
+            "）。输入 /转世 可再入轮回，钱包随账户保留。",
+          "bad",
+        );
+      }
+      await loadCommands();
+      await refreshAll();
+    } catch (err) {
+      $("gateMsg").textContent = err.message || "入世受阻";
+      toast(err.message, "bad");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }
+
+  async function probeServer() {
+    $("gateMsg").textContent = "正在感应宗门阵枢 " + state.base + " …";
+    try {
+      var r = await fetch(state.base + "/health");
+      var j = await r.json();
+      if (j && j.ok) {
+        localStorage.setItem("wb.base", state.base);
+        $("gateMsg").textContent = "宗门阵枢通达灵动：" + state.base;
+      } else {
+        $("gateMsg").textContent = "阵枢感应迟滞，请确认灵脉地址";
+      }
+    } catch (err) {
+      $("gateMsg").textContent =
+        "未能连通阵枢。可直接使用「玄黄镜演（离线演示）」体验。";
+    }
+  }
+
+  function loadDemo() {
+    state.demo = true;
+    state.token = "demo";
+    state.name = "太虚散人";
+    state.status = {
+      name: "太虚散人",
+      realm: "筑基初期",
+      sect: "四海散修盟",
+      rank: "供奉",
+      location: "青云坊市客栈",
+      stones: 520,
+      vault: 1600,
+      rem_years: 145,
+      sin: 8,
+      merit: 45,
+      exp: "380/600",
+      root: "金水双灵根",
+      blood_marked: false,
+      meditating: false,
+      sect_contribution: 480,
+      salary: 120,
+      salary_claimable: true,
+      salary_cd_sec: 0,
+      can_promote: false,
+      next_rank: "客卿长老",
+      wallet: { balance: 300 },
+      past_life: { lives: 0, last_name: "", last_cause: "", shadow_count: 0 },
+      karma_chains: { active: 0 },
+      pet: null,
+      pets_count: 0,
+      arts: { main: "吐纳术", sub: ["御剑术"] },
+      skills: ["吐纳术", "御剑术"],
+      items: [],
+      equipped: [],
+      max_bag_slots: 64,
+      status_cn: "安然无恙",
+    };
+    state.here = [
+      {
+        name: "柳三娘",
+        realm: "筑基中期",
+        sect: "四海散修盟",
+        rank: "掌柜",
+        is_npc: true,
+        personality: "和气生财",
+        attitude_cn: "友善",
+      },
+      {
+        name: "凌剑心",
+        realm: "筑基圆满",
+        sect: "万剑仙门",
+        rank: "真传",
+        is_npc: true,
+        personality: "剑道痴迷",
+        attitude_cn: "中立",
+      },
+    ];
+    state.feed = [
+      {
+        kind: "ai",
+        text: "西荒黑风绝渊赤焰喷涌，世界疤痕显现，隐有上古凶煞降世！",
+        ts: Date.now() / 1000 - 120,
+      },
+      {
+        kind: "ok",
+        text: "你今日于客栈闭关参悟天工密卷，偶有所得，神识通达。",
+        ts: Date.now() / 1000 - 30,
+      },
+    ];
+    localStorage.setItem("wb.demo", "1");
+    showApp();
+    applyStatus(state.status);
+    loadCommands();
+    toast("已激活玄黄镜演模式", "ok");
+  }
+
+  async function tryRestore() {
+    if (localStorage.getItem("wb.demo") === "1") {
+      loadDemo();
+      return;
+    }
+    if (state.user && $("fUser")) $("fUser").value = state.user;
+    if (state.name && $("fName")) $("fName").value = state.name;
+    if (!state.token) return;
+    try {
+      var look = await api("/action", { token: state.token, command: "/look" });
+      if (!look || look.ok === false) throw new Error("失效");
+      if (look.status) applyStatus(look.status);
+      showApp();
+      await loadCommands();
+      await refreshAll();
+    } catch (_) {
+      localStorage.removeItem("wb.token");
+      state.token = "";
+      showGate("昔日会话已逝，请重新踏入大世界。");
+    }
+  }
+
+  function switchViewPage(target) {
+    try {
+      localStorage.setItem("wb.viewpref", target);
+    } catch (e) {}
+    location.replace(target === "mobile" ? "/mobile.html" : "/index.html");
+  }
+
+  function bind() {
+    setTheme(state.theme);
+    document.querySelectorAll("[data-mode]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.mode = btn.getAttribute("data-mode");
+        document.querySelectorAll("[data-mode]").forEach(function (b) {
+          b.classList.toggle("active", b === btn);
+        });
+        $("fNameWrap") &&
+          $("fNameWrap").classList.toggle("hidden", state.mode !== "register");
+        if ($("gateSubmit")) {
+          $("gateSubmit").textContent =
+            state.mode === "register" ? "铸造道号 · 踏入仙途" : "踏入大千世界";
+        }
+      });
+    });
+    $("gateForm") && $("gateForm").addEventListener("submit", doAuth);
+    $("btnProbe") && $("btnProbe").addEventListener("click", probeServer);
+    $("btnDemo") && $("btnDemo").addEventListener("click", loadDemo);
+
+    $("cmdForm") &&
+      $("cmdForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        sendCmd($("cmdInput").value);
+      });
+    var inp = $("cmdInput");
+    if (inp) {
+      inp.addEventListener("input", renderSug);
+      inp.addEventListener("focus", function () {
+        document.body.classList.add("kb-open");
+      });
+      inp.addEventListener("blur", function () {
+        document.body.classList.remove("kb-open");
+      });
+      inp.addEventListener("keydown", function (e) {
+        var sugBox = $("suggest");
+        var open =
+          sugBox && !sugBox.classList.contains("hidden") && state.sug.length;
+        if (open && e.key === "ArrowDown") {
+          e.preventDefault();
+          state.sugI = Math.min(state.sug.length - 1, state.sugI + 1);
+          updateSugActive();
+        } else if (open && e.key === "ArrowUp") {
+          e.preventDefault();
+          state.sugI = Math.max(0, state.sugI - 1);
+          updateSugActive();
+        } else if (
+          open &&
+          e.key === "Enter" &&
+          inp.value.startsWith("/") &&
+          !inp.value.trim().includes(" ")
+        ) {
+          e.preventDefault();
+          applySug(state.sugI);
+        } else if (e.key === "Escape") hideSug();
+      });
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", function () {
+        if (window.visualViewport.height < window.innerHeight * 0.8) {
+          document.body.classList.add("kb-open");
+        } else if (document.activeElement !== $("cmdInput")) {
+          document.body.classList.remove("kb-open");
+        }
+      });
+    }
+    // mousedown 守住焦点：点发送/联想/快捷条时不让输入框失焦，避免
+    // kb-open 切换造成命令坞上移、click 落空（M-12：发送按钮必须可点）。
+    // 只拦 mousedown 默认行为（不拦 touchstart，click 仍正常触发）。
+    ["cmdDock", "quickBar"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    });
+    $("suggest") &&
+      $("suggest").addEventListener("click", function (e) {
+        var t = e.target.closest("[data-sug-i]");
+        if (t) applySug(Number(t.getAttribute("data-sug-i")));
+      });
+    $("btnLogoutM") &&
+      $("btnLogoutM").addEventListener("click", async function () {
+        try {
+          if (!state.demo && state.token)
+            await api("/logout", { token: state.token });
+        } catch (_) {}
+        state.token = "";
+        localStorage.removeItem("wb.token");
+        localStorage.removeItem("wb.demo");
+        state.demo = false;
+        showGate("已暂离归隐大千世界。");
+      });
+
+    // 全局委托：导航 / 命令 / 填入 / 迁跃 / 切换 / 行囊选中
+    document.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var nav = t.closest("[data-mview]");
+      if (nav) {
+        setView(nav.getAttribute("data-mview"));
+        return;
+      }
+      var sw = t.closest("[data-view-switch]");
+      if (sw) {
+        switchViewPage(sw.getAttribute("data-view-switch"));
+        return;
+      }
+      var auto = t.closest("[data-auto-view]");
+      if (auto) {
+        try {
+          localStorage.removeItem("wb.viewpref");
+        } catch (err) {}
+        toast("已恢复跟随设备自动选择，下次打开按设备判定。", "ok");
+        return;
+      }
+      var th = t.closest("[data-theme-toggle]");
+      if (th) {
+        setTheme(state.theme === "dark" ? "light" : "dark");
+        return;
+      }
+      var cmd = t.closest("[data-cmd]");
+      if (cmd) {
+        sendCmd(cmd.getAttribute("data-cmd"));
+        return;
+      }
+      var fill = t.closest("[data-fill]");
+      if (fill) {
+        var ci = $("cmdInput");
+        if (ci) {
+          ci.value = fill.getAttribute("data-fill");
+          ci.focus();
+          renderSug();
+        }
+        return;
+      }
+      var bag = t.closest("[data-bag]");
+      if (bag) {
+        var nm = bag.getAttribute("data-bag");
+        state.selectedBagName = state.selectedBagName === nm ? "" : nm;
+        renderBag();
+        return;
+      }
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && state.token && !state.demo) refreshAll();
+    });
+  }
+
+  function updateSugActive() {
+    document.querySelectorAll(".suggest-item").forEach(function (el, i) {
+      el.classList.toggle("active", i === state.sugI);
+    });
+  }
+
+  bind();
+  tryRestore();
+})();
