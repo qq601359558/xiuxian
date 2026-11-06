@@ -534,10 +534,18 @@ class TreasureClueEngine:
     # ------------------------------------------------------------------
     @staticmethod
     def snapshot_chain(char: Any) -> Optional[Dict[str, Any]]:
-        """开匣前抓取首图链快照（dig 会耗图，链载体随之消亡，须先留底）。"""
+        """开匣前抓取链快照（dig 会耗图，链载体随之消亡，须先留底）。
+
+        配对口径（MF-1）：快照只绑行囊首图——TreasureEngine.dig 与
+        resolve_free_action 恒消耗 find_items_by_kind()[0]，且服务端两处
+        出口都是快照紧贴 dig 调用、中间无背包变更，故首图即被耗图。
+        不得再用 _find_chain_map 扫首个 active/awaiting 链：首图无链而
+        次图 awaiting 时会错配发奖并烧掉次图链的 DONE 锚（奖励永失）。
+        """
         import copy
 
-        tmap = TreasureClueEngine._find_chain_map(char)
+        maps = char.find_items_by_kind(ItemKind.TREASURE_MAP)
+        tmap = maps[0] if maps else None
         if not tmap:
             return None
         chain = get_chain(tmap)

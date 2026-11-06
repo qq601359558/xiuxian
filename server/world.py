@@ -2819,6 +2819,12 @@ class World:
                     from core.npc_mind import _is_npc
                     is_target_npc = _is_npc(target)
 
+                    # 头像下发（gallery-gameplay §10.3-5）：与同场 list_here
+                    # 共用一处解析，交谈开启各返回点统一带 avatar（完整路径）。
+                    from core.here import avatar_path_for_character as _avatar_fn
+
+                    _target_avatar = _avatar_fn(target)
+
                     greet = (
                         f"【会话开始】与【{target.name}】交谈中。\n"
                         f"用 /说 <内容> 继续，/挂断 结束；聊天窗可直接打字。"
@@ -2833,6 +2839,7 @@ class World:
                                 "text": greet + f"\n\n【神识传音】你向同道【{target.name}】传音：“{words}” 灵念已达，静候回音。",
                                 "chat_open": True,
                                 "npc": target.name,
+                                "avatar": _target_avatar,
                                 "is_player": True,
                                 "source": "player_direct",
                             }
@@ -2857,6 +2864,7 @@ class World:
                             "text": greet + "\n\n" + res.get("text", ""),
                             "chat_open": True,
                             "npc": target.name,
+                            "avatar": _target_avatar,
                             "attitude": res.get("attitude"),
                             "source": res.get("source"),
                             "bystanders": res.get("bystanders") or [],
@@ -2867,6 +2875,7 @@ class World:
                         "text": greet + "\n\n（可开口：直接在聊天窗打字，无需 /说）",
                         "chat_open": True,
                         "npc": target.name,
+                        "avatar": _target_avatar,
                         "is_player": not is_target_npc,
                         "messages": history_msgs[-10:],
                     }
@@ -2897,6 +2906,12 @@ class World:
                 from core.npc_mind import _is_npc
                 is_target_npc = _is_npc(npc)
 
+                # 头像下发（gallery-gameplay §10.3-5）：与同场 list_here
+                # 共用一处解析，本分支各 chat_open 返回点统一带 avatar。
+                from core.here import avatar_path_for_character as _avatar_fn
+
+                _npc_avatar = _avatar_fn(npc)
+
                 # 会话中若离地/死亡/被擒则终止
                 if npc.location != char.location or npc.status == CharacterStatus.DEAD:
                     npc_chat.close_session(char.id, "对方已不在同场，会话终止。", by="system")
@@ -2913,6 +2928,7 @@ class World:
                         "chat_open": True,
                         "chat_ended": False,
                         "npc": npc.name,
+                        "avatar": _npc_avatar,
                         "is_player": True,
                         "source": "player_direct",
                     }
@@ -2945,6 +2961,7 @@ class World:
                                 "chat_open": False,
                                 "chat_ended": True,
                                 "npc": npc.name,
+                                "avatar": _npc_avatar,
                                 "action": act.get("action") or "action",
                             }
                         # 未结束：玩家发言已由 player_say 记入，这里只追加动作结果
@@ -2970,6 +2987,7 @@ class World:
                             "chat_open": True,
                             "chat_ended": False,
                             "npc": npc.name,
+                            "avatar": _npc_avatar,
                             "action": act.get("action") or "action",
                         }
                     # 动作被规则拒绝：会话仍开，展示原因
@@ -2979,6 +2997,7 @@ class World:
                         "chat_open": True,
                         "chat_ended": False,
                         "npc": npc.name,
+                        "avatar": _npc_avatar,
                         "action": act.get("action") or "action",
                     }
 
@@ -3082,6 +3101,7 @@ class World:
                     "chat_open": not out.get("ended"),
                     "chat_ended": bool(out.get("ended")),
                     "npc": npc.name,
+                    "avatar": _npc_avatar,
                     "source": source,
                     "bystanders": banter_list,
                 }

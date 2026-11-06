@@ -12,6 +12,25 @@ from core.npc_agenda import agenda_cn
 from config import WORLD_LOCATIONS
 
 
+def avatar_path_for_character(c: Character) -> str:
+    """单个角色的头像完整路径（gallery-gameplay §3.3/§3.4）。
+
+    同场列表与交谈开启结构共用此一处解析，保证两处 avatar 逐字一致：
+    NPC 按原型规则、玩家按定相规则，后端下发完整路径，前端不自算。
+    解析失败返回空串，不影响主流程。
+    """
+    try:
+        from core.gallery_assets import npc_avatar_path_for_character, player_portrait_path
+
+        return (
+            npc_avatar_path_for_character(c)
+            if _is_npc(c)
+            else player_portrait_path(getattr(c, "gender", "") or "", c.realm.tier)
+        )
+    except Exception:
+        return ""
+
+
 def list_here(
     viewer: Character,
     include_self: bool = False,
@@ -43,18 +62,9 @@ def list_here(
             "stealth": c.stealth_active,
         }
 
-        # 头像（gallery-gameplay §3.3/§3.4/§10.1）：NPC 按原型规则、玩家按
-        # 定相规则，后端下发完整路径，前端不自算。解析失败不影响同场列表。
-        try:
-            from core.gallery_assets import npc_avatar_path_for_character, player_portrait_path
-
-            item["avatar"] = (
-                npc_avatar_path_for_character(c)
-                if _is_npc(c)
-                else player_portrait_path(getattr(c, "gender", "") or "", c.realm.tier)
-            )
-        except Exception:
-            item["avatar"] = ""
+        # 头像（gallery-gameplay §3.3/§3.4/§10.1）：与交谈开启结构共用
+        # avatar_path_for_character 一处解析，后端下发完整路径。
+        item["avatar"] = avatar_path_for_character(c)
 
         # 对 viewer 的态度（仅 NPC 有心智表；玩家显示「—」）
         if _is_npc(c):
