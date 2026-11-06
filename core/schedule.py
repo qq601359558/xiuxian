@@ -284,7 +284,7 @@ def format_world_schedule(viewer_id: str = "", simple: bool = False) -> Dict[str
     if blood:
         lines.append(f"  血煞/重业（{len(blood)}）：")
         for i, b in enumerate(blood[:6], 1):
-            lines.append(f"    B{i}. {b.get('name')} {b.get('realm')} 业力{b.get('sin')} @{b.get('location')}")
+            lines.append(f"    B{i}. 【{b.get('name')}】 {b.get('realm')} 业力{b.get('sin')} @{b.get('location')}")
             actions.append({"kind": "mark", "name": b["name"], "loc": b["location"], "label": "除凶"})
     else:
         lines.append("  血煞：天道清朗")

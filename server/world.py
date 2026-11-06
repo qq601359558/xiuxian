@@ -2969,7 +2969,9 @@ class World:
                 )
                 return {"ok": True, "text": res["message"]}
             if action in ("/list_item", "/寄售", "/摆摊"):
-                if len(parts) == 1:
+                # 合并分流：空参仅 /摆摊 开地摊面板（分支）；/寄售、/list_item
+                # 空参维持 main 的用法错误（双端 parity 钉死口径）
+                if len(parts) == 1 and action == "/摆摊":
                     my_open = [l for l in MarketListingRepository.list_all() if l.seller_id == char.id and l.is_open()]
                     earnings = getattr(char, "stall_earnings", 0)
                     lines = [f"【我的坊市地摊 · 聚宝法座】当前挂牌 {len(my_open)}/8 件，待提取收益：{earnings} 灵石。"]
