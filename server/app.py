@@ -43,6 +43,10 @@ _ROOT_STATIC_FILES = {
     "/app.css": "app.css",
     "/app.js": "app.js",
     "/style.css": "style.css",
+    # 手机端（spec: mobile-web D5-①）：与 _STATIC_PAGES 同步加条目
+    "/mobile.html": "mobile.html",
+    "/mobile.js": "mobile.js",
+    "/mobile.css": "mobile.css",
 }
 
 
@@ -67,6 +71,10 @@ _STATIC_PAGES: Dict[str, tuple[str, str]] = {
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/ailog.html": ("ailog.html", "text/html; charset=utf-8"),
+    # 手机端（spec: mobile-web D5-①）：与 _ROOT_STATIC_FILES 同步加条目
+    "/mobile.html": ("mobile.html", "text/html; charset=utf-8"),
+    "/mobile.js": ("mobile.js", "text/javascript; charset=utf-8"),
+    "/mobile.css": ("mobile.css", "text/css; charset=utf-8"),
 }
 
 

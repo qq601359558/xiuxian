@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>天道因果录 · 手机版</title>
+  <meta name="description" content="天道因果录手机版：单列布局，拇指可达" />
+  <!-- view-redirect:start -->
+  <script>
+    (function () {
+      function isMobileDevice() {
+        try { if (window.matchMedia("(max-width: 780px)").matches) return true; } catch (e) {}
+        return /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      }
+      var seg = (location.pathname || "/").split("/").pop();
+      var current = seg === "mobile.html" ? "mobile" : "desktop";
+      var params = new URLSearchParams(location.search || "");
+      var view = params.get("view");
+      var target = null;
+      if (view === "mobile" || view === "desktop") target = view;
+      else {
+        var pref = null;
+        try { pref = localStorage.getItem("wb.viewpref"); } catch (e) {}
+        if (pref === "mobile" || pref === "desktop") target = pref;
+        else target = isMobileDevice() ? "mobile" : "desktop";
+      }
+      if (target !== current) {
+        params.delete("view");
+        var qs = params.toString();
+        location.replace((target === "mobile" ? "/mobile.html" : "/index.html") + (qs ? "?" + qs : "") + (location.hash || ""));
+      }
+    })();
+  </script>
+  <!-- view-redirect:end -->
+  <link rel="stylesheet" href="mobile.css" />
+</head>
+<body>
+  <!-- 入世门庭（与桌面同 id 口径；无 #serverUrl，阵枢默认地址走 wb.base） -->
+  <div id="gate">
+    <div class="gate-card">
+      <div class="gate-hero">
+        <div class="gate-seal">道</div>
+        <h1>天道因果录</h1>
+        <p>修仙模拟 · 灵蕴玄枢</p>
+      </div>
+      <div class="gate-body">
+        <div class="gate-tabs">
+          <button type="button" class="tab active" data-mode="login">登临道界</button>
+          <button type="button" class="tab" data-mode="register">初入仙途</button>
+        </div>
+        <form id="gateForm" autocomplete="on">
+          <div class="field">
+            <label for="fUser">仙籍账号</label>
+            <input id="fUser" type="text" autocomplete="username" required maxlength="32" placeholder="输入仙籍账号" />
+          </div>
+          <div class="field hidden" id="fNameWrap">
+            <label for="fName">本命道号</label>
+            <input id="fName" type="text" maxlength="12" placeholder="踏入仙途名号" />
+          </div>
+          <div class="field">
+            <label for="fPass">神识密匙</label>
+            <input id="fPass" type="password" autocomplete="current-password" required maxlength="64" placeholder="输入入世密匙" />
+          </div>
+          <div id="gateMsg" class="gate-msg" role="alert"></div>
+          <div class="gate-actions">
+            <button type="submit" class="btn primary block" id="gateSubmit">踏入大千世界</button>
+            <button type="button" class="btn secondary block" id="btnProbe">感应阵枢灵脉</button>
+            <button type="button" class="btn ghost block" id="btnDemo">玄黄镜演（离线演示）</button>
+          </div>
+        </form>
+        <div class="gate-foot">
+          手机版 · 根地址自动进入<br />
+          默认阵枢：<code>mn.20230803.xyz:8765</code><br />
+          <button type="button" class="linklike" data-view-switch="desktop">桌面版</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手机工作台 -->
+  <div id="app" class="hidden">
+    <header id="topbar">
+      <div class="seal">道</div>
+      <div class="who">
+        <div class="nm" id="topDaoName">—</div>
+        <div class="sub"><span id="topDaoRealm">—</span> · <span id="topLocation">—</span></div>
+      </div>
+      <div class="stat"><span id="topStones">0 灵石</span><br /><span id="topRemYears">寿元 — 载</span></div>
+      <button type="button" id="btnLogoutM" title="暂离大千世界">暂离</button>
+    </header>
+
+    <main id="viewRoot">
+      <section class="pane" data-pane="feed" id="pane-feed">
+        <h2>动态 · 天道录</h2>
+        <div id="feedLog" aria-live="polite"></div>
+      </section>
+      <section class="pane" data-pane="sanctum" id="pane-sanctum" hidden>
+        <h2>命盘</h2>
+        <div id="sanctumBody"></div>
+      </section>
+      <section class="pane" data-pane="bag" id="pane-bag" hidden>
+        <h2>行囊 · 纳戒</h2>
+        <div id="bagBody"></div>
+      </section>
+      <section class="pane" data-pane="world" id="pane-world" hidden>
+        <h2>世界</h2>
+        <div id="worldBody"></div>
+      </section>
+      <section class="pane" data-pane="ops" id="pane-ops" hidden>
+        <h2>操作</h2>
+        <div id="opsBody"></div>
+      </section>
+    </main>
+
+    <!-- 常驻快捷条（横向可滑） -->
+    <div id="quickBar" role="group" aria-label="高频操作">
+      <button type="button" class="chip" data-cmd="/突破">突破</button>
+      <button type="button" class="chip" data-cmd="/闭关">闭关</button>
+      <button type="button" class="chip" data-cmd="/出关">出关</button>
+      <button type="button" class="chip" data-cmd="/探险">探险</button>
+      <button type="button" class="chip" data-cmd="/奇遇">奇遇</button>
+      <button type="button" class="chip" data-cmd="/领俸禄">领俸禄</button>
+      <button type="button" class="chip" data-fill="/交谈 ">交谈</button>
+      <button type="button" class="chip" data-fill="/灵鹤 ">灵鹤迁跃</button>
+    </div>
+
+    <!-- 命令坞：固定于底部导航正上方，全分区常驻 -->
+    <div id="cmdDock">
+      <div id="suggest" class="hidden" role="listbox"></div>
+      <form id="cmdForm">
+        <span id="busyDot" class="hidden" aria-hidden="true"></span>
+        <input id="cmdInput" type="text" maxlength="200" placeholder="输入神念指令，如 /突破 /探险…" aria-label="神识敕令" autocomplete="off" />
+        <button type="submit" id="cmdGo">发送</button>
+      </form>
+    </div>
+
+    <!-- 底部导航：5 分区 -->
+    <nav id="bottomNav" aria-label="主导航">
+      <button type="button" data-mview="feed" class="active"><span class="ic">☰</span><span>动态</span></button>
+      <button type="button" data-mview="sanctum"><span class="ic">◆</span><span>命盘</span></button>
+      <button type="button" data-mview="bag"><span class="ic">▣</span><span>行囊</span></button>
+      <button type="button" data-mview="world"><span class="ic">◎</span><span>世界</span></button>
+      <button type="button" data-mview="ops"><span class="ic">✦</span><span>操作</span></button>
+    </nav>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+  <script src="mobile.js"></script>
+</body>
+</html>
