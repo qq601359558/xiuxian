@@ -1,5 +1,23 @@
 # 更新日志
 
+## v0.3.4-gray.11（2026-11-06）— 手机端独立页面（单列+底部导航，自动分流）
+
+定位：移动端体验版，无新玩法、无数值口径变更。上一稳定点 v0.3.3-gray.10（0b43abf）。
+
+### 变更
+- 手机端独立页面 `web/mobile.html` + `mobile.js` + `mobile.css`：单列布局、底部导航
+  （命盘/行囊/坊市/世界/聊天等视图映射桌面端）、顶部状态条、常驻命令区
+- 根地址手机 UA 自动进移动版，桌面 UA 停留桌面版；双向切换按钮并记住选择；
+  `?view=mobile|desktop` 仅本次生效（逃生口）
+- 游戏服白名单新增 `/mobile.html`、`/mobile.js`、`/mobile.css`（与既有托管一致，no-cache）
+- 文档同步：`docs/gray-runbook.md` 与 `web/README.md` 增加移动版入口说明；
+  spec `docs/compose/spec/mobile-web.md` 状态更新为已发布
+
+### 测试
+- 目标测试 23 passed（`test_mobile_web.py` 7 passed + `test_web_hosting.py` 16 passed，
+  合并后 main 上重跑确认）
+- 独立评审通过，无 must-fix；QA 有条件通过后 M-10 缺陷已修并经独立复测通过
+
 ## v0.3.3-gray.10（2026-11-06）— 登录页去掉宗门阵枢输入框，同源直连
 
 定位：部署体验收尾版，无新玩法、无数值口径变更。上一稳定点 v0.3.2-gray.9（218b5aa）。

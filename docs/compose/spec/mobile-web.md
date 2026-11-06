@@ -1,7 +1,7 @@
 # 手机端独立页面（与桌面端两套页面，接口与数据共用）
 
 - 基线：worktree `feat/mobile-web`，HEAD `0b43abf`（`VERSION = "0.3.3-gray.10"`，见 `config.py`）
-- 状态：**已交付（实现完成，待发布）**——feat/mobile-web 分支实现，见 §验收 M-1～M-20 自测证据（实现岗报告）；截图验收（M-19）由 QA/截图岗另行执行。
+- 状态：**已发布（v0.3.4-gray.11）**——feat/mobile-web 分支实现并已合并 main 发布，见 §验收 M-1～M-20 自测证据（实现岗报告）；截图验收（M-19）由 QA/截图岗另行执行。
 - 版本号说明：**本 Spec 不写死目标版本号**。合并时按届时 `main` 顺延（`main` 另有并行改动可能继续进入；发版时由发布岗按 `config.py` 现状定版）。
 - 用户需求原话（Martinez 已批准）：「好，两套就两套，手机端太差劲了」
 - 相关 Spec：`web-static-hosting.md`（v0.3.2 同源托管）、`remove-server-input.md`（v0.3.3，已 supersede，见 §0-C2）、`ui-polish.md` / `ui-fix-round2.md`（手机缺陷史）、`pagegame-ui.md`
