@@ -385,6 +385,62 @@ def test_t6_daily_bonus_cap():
 
 
 # ---------------------------------------------------------------------------
+# T-6b 双图错位回归（MF-1）：首图无链 + 次图 awaiting_chest 时，快照必须
+# 绑定 dig 实际消耗的首图，不得给次图链错发奖/烧 DONE 锚；再挖次图才发。
+# 走 server /挖宝 真实出口（快照→dig→钩子同序同点）。
+# ---------------------------------------------------------------------------
+def test_t6b_double_map_misalignment_no_cross_bonus_then_second_pays():
+    from server.world import World
+    from storage.db import CharacterRepository
+
+    w = World(auto_tick=False)
+    sess = w.join(f"错位客{_tag()}", user_id=f"tc_misalign_{_tag()}")
+    tok = sess["token"]
+    c = w.get_char(tok)
+    c.location = TARGET_NAME
+    m1 = _map(tier=2)  # 首图：无链
+    c.add_item_entity(m1)
+    m2 = _map(tier=2)  # 次图：链已 awaiting_chest（灵石支，tier2 → 30）
+    _craft_chain(c, m2, [_step("guardian")], status="awaiting_chest", branch="stones")
+    CharacterRepository.save(c)
+    try:
+        assert [m.uid for m in c.find_items_by_kind(ItemKind.TREASURE_MAP)] == [m1.uid, m2.uid]
+        # 快照绑首图：首图无链 → 无快照（不得扫到次图的 awaiting 链）
+        assert TreasureClueEngine.snapshot_chain(c) is None
+        stones0 = CharacterRepository.get_by_id(c.id).spirit_stones
+
+        # 挖首图（element_puzzle 两段式）
+        r = w.handle(tok, "/挖宝")
+        assert r.get("ok"), r
+        r = w.handle(tok, "/挖宝 1")
+        assert r.get("ok"), r
+        # 零发奖：无链完成奖励文案、次图 DONE 锚不落盘、次图链状态不变
+        assert "完成奖励" not in r.get("text", "")
+        assert WorldStateRepository.get(DONE_KEY_PREFIX + str(m2.uid)) is None
+        reloaded = CharacterRepository.get_by_id(c.id)
+        maps_now = reloaded.find_items_by_kind(ItemKind.TREASURE_MAP)
+        assert [m.uid for m in maps_now] == [m2.uid]  # 首图已耗、次图本体仍在
+        chain_now = get_chain(maps_now[0])
+        assert chain_now["status"] == "awaiting_chest"
+        assert chain_now["bonus_paid"] is False
+        # 只有首图 dig 本体收益（200 + 2*80），无任何链奖混入
+        assert reloaded.spirit_stones == stones0 + 360
+
+        # 再挖次图：奖励正常发放一次（360 本体 + 30 链奖）
+        r = w.handle(tok, "/挖宝")
+        assert r.get("ok"), r
+        r = w.handle(tok, "/挖宝 1")
+        assert r.get("ok"), r
+        assert "完成奖励" in r.get("text", "") and "灵石 +30" in r.get("text", "")
+        reloaded2 = CharacterRepository.get_by_id(c.id)
+        assert reloaded2.spirit_stones == stones0 + 360 + 360 + 30
+        assert WorldStateRepository.get(DONE_KEY_PREFIX + str(m2.uid))
+        assert reloaded2.find_items_by_kind(ItemKind.TREASURE_MAP) == []
+    finally:
+        _cleanup(c, m1, m2)
+
+
+# ---------------------------------------------------------------------------
 # T-7 无链直挖零回归 / 弃链后直挖 / 旧图兼容
 # ---------------------------------------------------------------------------
 def test_t7_direct_dig_without_chain_unchanged():
