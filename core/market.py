@@ -787,6 +787,15 @@ class MarketEngine:
         cfg = ITEM_CATALOG.get(item_name)
         kind = cfg["kind"] if cfg else (kind_hint or "material")
 
+        # 已装备封堵（QA2 全渠道口径，与当铺同例）：佩戴中的法宝不得挂单。
+        # main 原实现靠「装备不在 inventory」天然封堵；分支实体优先扣除会
+        # 把 items 中的佩戴实体直接摘走上架，故在此显式拦截。
+        if item_name in (seller.equipped or []):
+            return None, {
+                "success": False,
+                "message": f"【{item_name}】正穿戴在身，须先 /卸下 放入行囊方可挂单。",
+            }
+
         # 从随身扣除（优先从实体道具库移除，再扣 inventory / arrays）
         removed = False
         entity = seller.remove_item_entity(item_name)

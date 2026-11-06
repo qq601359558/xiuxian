@@ -61,7 +61,7 @@ class CharacterIntegrity:
 
     ALLOWED_DEAD_ACTIONS: Collection[str] = {
         "/help", "/帮助",
-        "/legacy", "/道统",
+        "/legacy", "/道统", "/前世",
         "/reincarnate", "/转世",
         "/who",
         "/logout", "/下线",
