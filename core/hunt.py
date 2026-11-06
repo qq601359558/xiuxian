@@ -453,22 +453,6 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
         return None
     d.pop(hunter.id, None)
     _save(d)
-<<<<<<< HEAD
-    hunter.karma.add_merit(40)
-    try:
-        from core.player_echo import hunt_merit_bonus, record_player_merit
-
-        bonus = hunt_merit_bonus()
-        if bonus:
-            hunter.karma.add_merit(bonus)
-        record_player_merit(hunter, 4, reason="除凶")
-    except Exception:
-        bonus = 0
-    hunter.karma.sin_value = max(0, hunter.karma.sin_value - 20)
-    CharacterRepository.save(hunter)
-    try:
-        from core.world_channel import WorldChannel
-=======
     # QA-02 结算前复核（仅当存在 OPEN 令时；无令实体兼容路径不复核、旧口径逐值
     # 不变，spec 验收 6）：与 _sweep_orders 同口径——过期优先（走下方 EXPIRED
     # 分支，旧赏照发，M3 口径不变）；未过期但目标已洗清（不再 is_marked）→
@@ -486,11 +470,20 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
         # 消解 40//2=20，与 spec「业力 −20」恰一致——不得再叠加显式扣减
         # （原双路叠加总消解 40，与自报 sin_reduced=20 矛盾）。
         hunter.karma.add_merit(40)
+        # 玩家回响（player_echo）：除凶事迹入回响（只记声望，不动功德数值）。
+        # 合并裁定：池压力额外功德（hunt_merit_bonus）读全局持久化回响状态，
+        # 会使本结算随世界累积状态漂移、破坏上方 spec 钉死的 +40/−20 账本
+        # 身份，故不进结算口径；池压力信号仍经望气/热度等通道展示。
+        try:
+            from core.player_echo import record_player_merit
+
+            record_player_merit(hunter, 4, reason="除凶")
+        except Exception:
+            pass
         CharacterRepository.save(hunter)
         # 势力版图（F09）：除凶结算为猎手本宗在事发区域扬名（区域取 victim.location）
         try:
             from core.atlas import AtlasEngine
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
             AtlasEngine.record_activity(hunter, "hunt", location=victim.location)
         except Exception:
@@ -573,13 +566,8 @@ def settle_kill(hunter: Character, victim: Character) -> Optional[Dict[str, Any]
                     except Exception:
                         pass
     except Exception:
-<<<<<<< HEAD
-        pass
-    return {"merit": 40 + bonus, "sin_reduced": 20}
-=======
         pass  # 令层异常不炸旧口径结算；assists 保留已实际发放名单
     return {"merit": 40, "sin_reduced": 20, "assists": assists}
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
 
 def settle_hunter_slain(hunter: Character, killer: Character) -> Optional[Dict[str, Any]]:
