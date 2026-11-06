@@ -1,13 +1,11 @@
-﻿# 天道因果录 · 网页客户端
+# 天道因果录 · 网页客户端
 
-<<<<<<< HEAD
 唯一入口：**index.html + workbench.css + workbench.js**
 
 服务器托管：http://<本机IP>:8765/（server.run）
 
-旧版 pp.js / style.css 已弃用，可删除。
+启动方式：
 
-=======
 1. 启动局域网服（权威世界 + AI），在项目根目录执行：
 
 ```powershell
@@ -26,4 +24,5 @@
 > 用本地文件打开时，把服务器地址改成主机 IP 也可。
 
 > 前端只做表现；数值、AI、门禁全在 Python 服。
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+
+旧版 app.js / style.css 已弃用，可删除。

@@ -53,10 +53,6 @@ def _local_name(kind: str, banned: Set[str]) -> str:
             n = random.choice(_MON_A) + random.choice(_MON_B) + random.choice(_MON_C)
         if n not in banned:
             return n
-<<<<<<< HEAD
-    # 兜底：短哈希后缀，避免库内「无名pillXX」反复撞名
-    return f"无名{kind}{uuid.uuid4().hex[:4]}"
-=======
     # 兜底：无名{kind}{序号} 自随机起点顺序扫描首个未占用序号（可越过 99），
     # 保证返回值必不在 banned 内——旧实现 randint(10,99) 不查 banned，
     # 90 个槽位随落库累积被占满后必然撞名。
@@ -66,7 +62,6 @@ def _local_name(kind: str, banned: Set[str]) -> str:
         if n not in banned:
             return n
     raise RuntimeError(f"造化命名枯竭：{kind} 无名序号扫描达上限仍无可用名")
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
 
 
 def _clamp_pill(data: Dict[str, Any], banned: Set[str]) -> Dict[str, Any]:

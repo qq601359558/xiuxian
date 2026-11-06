@@ -76,21 +76,9 @@ def test_crisis_can_burn_lifespan_or_stones():
     ev = EventEngine.fire(c, etype="crisis", force=True)
     assert ev is not None
     assert ev["type"] == "crisis"
-<<<<<<< HEAD
-    # 至少有一项被改动或纯叙事
-    changed = (
-        c.spirit_stones != stones0
-        or abs(c.lifespan.get_remaining_years() - life0) > 1e-6
-        or c.karma.dao_heart != 100
-        or c.karma.sin_value != 0
-        or c.realm.current_exp != 0
-        or ev["effects"] == {}
-    )
-=======
     # 危机池并非每条都烧灵石/寿元（有的挫道心、有的增业力）：
     # 断言「任一可改属性发生变化，或纯叙事（效果为空）」，避免随机抽池导致的 flaky。
     changed = _state_snapshot(c) != before or ev["effects"] == {}
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
     assert changed
     print(f"✓ 危机事件：{ev['title']} → {ev['effects_summary']}")
 

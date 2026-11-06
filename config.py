@@ -639,8 +639,6 @@ ITEM_CATALOG = {
         "heal_lifespan": 1.0,
         "desc": "凡品伤药。下次闭关 +8% 修为，并回春 1 岁寿元（比聚气丹便宜，加成更弱）。",
     },
-<<<<<<< HEAD
-=======
     "妖兽内丹": {"kind": "material", "price": 80, "desc": "炼丹炼器材料，亦可直接换灵石。"},
     "百年灵芝": {"kind": "material", "price": 55, "desc": "温养道基的药材。"},
     # 灵田作物（F06）：种子 kind=seed（/播种 入灵田），产出为可售材料；种植表见 core/farm.py
@@ -649,7 +647,6 @@ ITEM_CATALOG = {
     "聚灵草种子": {"kind": "seed", "price": 18, "desc": "灵田种子：一个时辰可收聚灵草。"},
     "聚灵草": {"kind": "material", "price": 28, "desc": "灵田所产灵草，叶脉聚灵，可售可炼。"},
     "灵芝种子": {"kind": "seed", "price": 30, "desc": "灵田种子：四个时辰可收百年灵芝。"},
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
     # 装备：slot=weapon|armor|trinket；grade 品阶；power_bonus 战力加成/件
     "青锋剑": {"kind": "equip", "slot": "weapon", "grade": "凡品", "power_bonus": 0.03, "price": 220,
         "desc": "凡品法剑。战力 +3%。"},
