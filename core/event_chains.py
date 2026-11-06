@@ -43,6 +43,9 @@ class EventChain(BaseModel):
     status: str = "active"  # active | done | abandoned | expired
     season: int = 0
     log: List[str] = Field(default_factory=list)
+    # 配图键（gallery-gameplay §7.2）：开启时按 kind/标题定，引擎逻辑不变；
+    # 旧存档缺省空串（前端空串不渲染），推进孤儿问题不在本轮范围（D-2）
+    image_key: str = ""
 
 
 def _load() -> Dict[str, Any]:
@@ -115,6 +118,20 @@ def _apply_effects(c: Character, effects: Dict[str, Any]) -> str:
         c.karma.dao_heart = max(0, c.karma.dao_heart + int(e["dao_heart"]))
         notes.append(f"道心{int(e['dao_heart']):+d}")
     return "，".join(notes) if notes else "无事"
+
+
+def chain_image_key(kind: str, title: str) -> str:
+    """event_chains 模板配图（§7.2）：标题关键字走 §3.7 同序规则取 arts 键，
+    未命中缺省 maps/map-fine（opportunity 类机缘意象）。仅呈现、不点亮图鉴。"""
+    try:
+        from core.gallery_assets import _ART_NAME_RULES
+
+        for words, k in _ART_NAME_RULES:
+            if any(w in (title or "") for w in words):
+                return f"arts/{k}"
+    except Exception:
+        pass
+    return "maps/map-fine"
 
 
 class EventChainEngine:
@@ -206,6 +223,7 @@ class EventChainEngine:
             location=c.location,
             created_at=t,
             status="active",
+            image_key=chain_image_key(tpl["kind"], tpl["title"]),
         )
         # 可选 AI 润色第一步
         try:
