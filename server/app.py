@@ -208,7 +208,9 @@ class GameHandler(BaseHTTPRequestHandler):
             if not re.fullmatch(r"/assets/(portraits|artifacts|arts|maps)/[a-z0-9-]+\.webp", decoded):
                 return False
             relative = decoded[len("/assets/"):]
-            if relative not in GALLERY_ASSET_KEYS:
+            # 常量闸比对不带扩展名的相对键（GALLERY_ASSET_KEYS 口径）；
+            # 文件读取仍用带 .webp 的 relative 拼路径。
+            if relative[: -len(".webp")] not in GALLERY_ASSET_KEYS:
                 return False
             assets_root = (_WEB_DIR / "assets").resolve()
             try:

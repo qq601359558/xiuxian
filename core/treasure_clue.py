@@ -425,7 +425,11 @@ class TreasureClueEngine:
         from core.treasure_system import calculate_fengshui_direction
 
         curr_node = WorldGridEngine.get_node(char.location)
-        step_node = WorldGridEngine.get_node(step.get("node_id", ""))
+        # 步节点以 node_name 为准解析（角色 location 全仓为地名字符串口径，
+        # 与 dig 的 target_node_name 比对同范式）；node_id 仅作兜底。
+        # 注：手工/存量步数据可能出现 id 与 name 不一致，此时以 name 为准，
+        # 否则地点门禁会被错误的 id 误放行。
+        step_node = WorldGridEngine.get_node(step.get("node_name", "")) or WorldGridEngine.get_node(step.get("node_id", ""))
         if not curr_node or not step_node or curr_node.id != step_node.id:
             guide = calculate_fengshui_direction(curr_node, step_node)
             return {

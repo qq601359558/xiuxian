@@ -52,8 +52,12 @@ NPC_ELDER_RANK_WORDS = ("掌门", "宗主", "太上", "长老", "护法")
 
 
 def asset_path(relative_key: str) -> str:
-    """相对资产键 → 前端可用的完整路径（拼装只此一处，§3.3/§10.5）。"""
-    return f"/assets/{relative_key}"
+    """相对资产键 → 前端可用的完整路径（拼装只此一处，§3.3/§10.5）。
+
+    相对键不带扩展名（与 GALLERY_ASSET_KEYS / 图鉴键同口径），完整路径
+    须带 .webp 后缀才过 §4 托管正则闸（/assets/.../<key>.webp）。
+    """
+    return f"/assets/{relative_key}.webp"
 
 
 def realm_key_for_tier(tier: Any) -> str:

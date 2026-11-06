@@ -370,7 +370,9 @@ def test_t6_daily_bonus_cap():
     try:
         res = TreasureClueEngine.on_chest_opened(c, snap, "combat_victory", now=today)
         assert res["amount"] == 10 and c.spirit_stones == 10  # 日顶 120 截断
-        # 达顶后后续完成只结案不发奖
+        # 达顶后后续完成只结案不发奖。真实流程中首图已被 dig 开匣消耗
+        # （snapshot_chain 与 dig 同取首图配对），故先移除首图再抓第二图快照。
+        c.remove_item_entity(m.uid)
         m2 = _map(tier=2)
         snap2 = _awaiting_snapshot(c, m2, "stones", tier=2)
         try:
