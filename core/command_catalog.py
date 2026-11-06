@@ -81,6 +81,9 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/挖宝", "aliases": ["/dig"], "usage": "/挖宝 [选项]", "desc": "使用藏宝图挖掘机缘/破阵/杀劫", "category": "cultivate"},
     {"cmd": "/宝图", "aliases": ["/map", "/看宝图"], "usage": "/宝图 [图名/编号]", "desc": "研读手中实体藏宝图，推演地脉谶语与方位", "category": "cultivate"},
     {"cmd": "/寻宝", "aliases": ["/clue"], "usage": "/寻宝 [1|2|3|弃]", "desc": "寻宝线索链：查看当前线索，或在当前步节点作出抉择/弃链", "category": "cultivate"},
+    {"cmd": "/器灵", "aliases": ["/spirit"], "usage": "/器灵 [唤 <器物名>]", "desc": "法宝器灵面板；唤灵须已穿戴天品以上法宝（tier≥4），器灵随器而行", "category": "cultivate"},
+    {"cmd": "/温养", "aliases": ["/nourish"], "usage": "/温养 [器物名]", "desc": "温养器灵：tier4 30 灵石 / tier5 50 灵石，每器每日一次，成长封顶 100/150", "category": "cultivate"},
+    {"cmd": "/灵语", "aliases": ["/spirit_say"], "usage": "/灵语 [器物名 ·] <话>", "desc": "与器灵交谈：缺省找已唤灵中品阶最高者，可用「器物名 · 话」指定；每日首次对话涨成长", "category": "cultivate"},
     {"cmd": "/定相", "aliases": ["/gender"], "usage": "/定相 男|女", "desc": "自选男相/女相（纯外观，命盘人物图随之而变）", "category": "core"},
     {"cmd": "/图鉴", "aliases": ["/gallery"], "usage": "/图鉴", "desc": "天道图鉴：38 图点亮进度与展示称号（账户级，只记眼界不予数值）", "category": "core"},
 

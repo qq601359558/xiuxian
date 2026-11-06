@@ -659,6 +659,42 @@ def run_mud():
                         CharacterRepository.save(player)
                     console.print(res.get("message", ""))
 
+            elif action in ["/器灵", "/spirit"]:
+                # 法宝器灵（gallery-gameplay §6）：与 server 同命令同文案（引擎同源）
+                from core.artifact_spirit import ArtifactSpiritEngine, panel_text as _spirit_panel
+
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub == "唤":
+                    target_name = parts[2] if len(parts) > 2 else ""
+                    if not target_name:
+                        console.print("[red]用法：/器灵 唤 <器物名>（须已穿戴且天品以上）[/red]")
+                    else:
+                        res = ArtifactSpiritEngine.awaken(player, target_name)
+                        if res.get("changed"):
+                            CharacterRepository.save(player)
+                        console.print(res.get("message", ""))
+                else:
+                    console.print(_spirit_panel(player))
+
+            elif action in ["/温养", "/nourish"]:
+                # 温养（gallery-gameplay §6.4）：与 server 调同一引擎
+                from core.artifact_spirit import ArtifactSpiritEngine
+
+                res = ArtifactSpiritEngine.nourish(player, parts[1] if len(parts) > 1 else "")
+                if res.get("changed"):
+                    CharacterRepository.save(player)
+                console.print(res.get("message", ""))
+
+            elif action in ["/灵语", "/spirit_say"]:
+                # 灵语（gallery-gameplay §6.3）：CLI 端 AI 不可用时引擎自动走本地台词
+                from core.artifact_spirit import ArtifactSpiritEngine
+
+                words = command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else ""
+                res = ArtifactSpiritEngine.talk(player, words)
+                if res.get("changed"):
+                    CharacterRepository.save(player)
+                console.print(res.get("message", ""))
+
             elif action in ["/钱包", "wallet"]:
                 from core.wallet import wallet_panel_text
 

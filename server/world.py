@@ -1335,6 +1335,39 @@ class World:
                     "text": res.get("message", ""),
                     "status": self._status_dict(char),
                 }
+            if action in ("/器灵", "/spirit"):
+                # 法宝器灵面板/唤灵（gallery-gameplay §6）：无参面板同源文本；
+                # 「唤 <器物名>」唤灵，门禁在引擎内，写路径 save 收尾（§11）。
+                from core.artifact_spirit import ArtifactSpiritEngine, panel_text as _spirit_panel
+
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub == "唤":
+                    target_name = parts[2] if len(parts) > 2 else ""
+                    if not target_name:
+                        return {"ok": False, "error": "用法：/器灵 唤 <器物名>（须已穿戴且天品以上）", "status": self._status_dict(char)}
+                    res = ArtifactSpiritEngine.awaken(char, target_name)
+                    if res.get("changed"):
+                        CharacterRepository.save(char)
+                    return {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+                return {"ok": True, "text": _spirit_panel(char), "status": self._status_dict(char)}
+            if action in ("/温养", "/nourish"):
+                # 温养（gallery-gameplay §6.4）：明价日限，门禁在引擎内。
+                from core.artifact_spirit import ArtifactSpiritEngine
+
+                res = ArtifactSpiritEngine.nourish(char, parts[1] if len(parts) > 1 else "")
+                if res.get("changed"):
+                    CharacterRepository.save(char)
+                return {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+            if action in ("/灵语", "/spirit_say"):
+                # 灵语（gallery-gameplay §6.3）：AI 编排在引擎的 gateway 路径，
+                # 不可用自动本地台词降级；门禁在引擎内，写路径 save 收尾。
+                from core.artifact_spirit import ArtifactSpiritEngine
+
+                words = command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else ""
+                res = ArtifactSpiritEngine.talk(char, words)
+                if res.get("changed"):
+                    CharacterRepository.save(char)
+                return {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/wallet", "/钱包"):
                 from core.wallet import wallet_panel_text
                 from storage.db import AccountRepository as _AR
@@ -1702,13 +1735,14 @@ class World:
                         "text": res.get("message", ""),
                         "omen_open": False,
                         "omen_ended": True,
+                        "omen_image": res.get("omen_image", ""),
                         "status": self._status_dict(char),
                     }
                 # 选项
                 if sub.isdigit():
                     res = omen_choose(char, sub)
                     still_open = bool(get_scene(char.id))
-                    from core.omen_scene import current_choices
+                    from core.omen_scene import current_choices, scene_image_path
 
                     return {
                         "ok": res.get("success"),
@@ -1718,12 +1752,13 @@ class World:
                         "omen_choices": current_choices(char.id) if still_open else [],
                         "omen_ended": bool(res.get("ended")),
                         "omen_status": res.get("omen_status"),
+                        "omen_image": scene_image_path(get_scene(char.id)) if still_open else res.get("omen_image", ""),
                         "status": self._status_dict(char),
                     }
                 # 有进行中则渲染
                 sc = get_scene(char.id)
                 if sc:
-                    from core.omen_scene import _render, current_choices
+                    from core.omen_scene import _render, current_choices, scene_image_path
 
                     return {
                         "ok": True,
@@ -1732,6 +1767,7 @@ class World:
                         "omen_inline": True,
                         "omen_title": sc.get("title"),
                         "omen_choices": current_choices(char.id),
+                        "omen_image": scene_image_path(sc),
                         "status": self._status_dict(char),
                     }
                 return {
@@ -1739,6 +1775,7 @@ class World:
                     "text": "【天机渺茫】机缘天定，不可强求……",
                     "omen_open": False,
                     "omen_inline": False,
+                    "omen_image": "",
                     "status": self._status_dict(char),
                 }
             if action in ("/omen_say", "/奇遇说"):
@@ -1762,7 +1799,7 @@ class World:
                     pass
                 res = omen_say(char, words)
                 still_open = not bool(res.get("ended"))
-                from core.omen_scene import current_choices
+                from core.omen_scene import current_choices, scene_image_path
 
                 return {
                     "ok": res.get("success"),
@@ -1772,6 +1809,7 @@ class World:
                     "omen_choices": current_choices(char.id) if still_open else [],
                     "omen_ended": bool(res.get("ended")),
                     "omen_status": res.get("omen_status"),
+                    "omen_image": scene_image_path(get_scene(char.id)) if still_open else res.get("omen_image", ""),
                     "intent": res.get("intent"),
                     "status": self._status_dict(char),
                 }
@@ -4056,8 +4094,17 @@ class World:
                 _eq_img = _ap(_ak_item(it)) if it is not None else _ap(_ak_name(eq_name))
             except Exception:
                 _eq_img = ""
+            # 器灵下发（gallery-gameplay §6.5/§10.1，只增 spirit 键）：未唤灵
+            # 或无实体为 null；心情为惰性折算值（纯读不回写，锚点口径恒准）
+            try:
+                from core.artifact_spirit import public_spirit_dict as _psd
+
+                _eq_spirit = _psd(it) if it is not None else None
+            except Exception:
+                _eq_spirit = None
             equipped_list.append({
                 "img": _eq_img,
+                "spirit": _eq_spirit,
                 "uid": getattr(it, "uid", f"eq_{idx}_{eq_name}"),
                 "name": it.name if it else eq_name,
                 "kind": "equip",
@@ -4827,6 +4874,7 @@ class World:
                     payload["omen_inline"] = bool(omen.get("omen_inline", True))
                     payload["omen_title"] = omen.get("omen_title") or omen.get("title")
                     payload["omen_choices"] = omen.get("omen_choices") or []
+                    payload["omen_image"] = omen.get("omen_image", "")
                     payload["text"] = (payload.get("text") or "") + "\n\n" + (omen.get("text") or "")
                 payload["status"] = self._status_dict(char)
         except Exception:
