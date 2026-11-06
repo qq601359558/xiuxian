@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 # 版本标识（灰度发布）：/health 回显，发布时与 git tag 对齐
-VERSION = "0.3.4-gray.11"
+VERSION = "0.3.5-gray.12"
 
 # 根目录与数据目录
 BASE_DIR = Path(__file__).resolve().parent
@@ -875,7 +875,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 def _llm_timeout_seconds() -> float:
     """主聊天通道超时（秒）：.env LLM_TIMEOUT_SECONDS 可调，默认 12，钳制 [5, 120]。
 
-    login-latency-fix（v0.3.4）：默认 30 → 12，单次 AI 最坏耗时从约 66 秒
+    login-latency-fix（v0.3.5-gray.12）：默认 30 → 12，单次 AI 最坏耗时从约 66 秒
     压到约 15 秒；非法/非有限值回退默认。
     与其余 LLM_* 常量同口径：模块导入时冻结，改 .env 后重启生效。
     """

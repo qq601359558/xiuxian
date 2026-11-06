@@ -1,5 +1,33 @@
 # 更新日志
 
+## v0.3.5-gray.12（2026-11-06）— NAS 注册/登录很慢修复（超时收紧、去锁化、计时日志、熔断器）
+
+定位：登录/注册延迟修复版，无新玩法、无数值口径变更。上一稳定点 v0.3.4-gray.11（0643434）。
+
+### 变更
+- LLM 默认超时 30→12 秒（`.env` 的 `LLM_TIMEOUT_SECONDS` 可调，区间 5–120）；CC Switch 分支 `max(timeout, 30)` 下限与 `_chat_json` 非 200 二次尝试、director/gateway 写死 `timeout=25` 一并收紧；单次 AI 最坏耗时从约 66 秒压到约 15 秒
+- 登录/注册去锁化：读路径走锁外 DB 快照，写路径有界获取（2 秒界内拿不到锁返回 503 `SERVER_BUSY` 可重试，繁忙即未写）；`join` 内判定/收养/结算/建角/发 token 仍在短临界区内串行，语义不变
+- 计时日志：HTTP 请求 method/path/status/duration_ms 与 tick 分阶段计时（`log_event` JSONL），不记请求体/token/密码
+- 熔断器：AI 中继连续失败达阈值后快速失败、半开探测恢复；叙事降级为已接受 trade-off，本地模板兜底全覆盖
+- MF-1：首夜陈旧写回收——first-night 写回改为有界获取，拿不到则跳过
+- MF-3：`login` 只验密不写 `last_login`，写操作只在 app 层实际发会话后发生
+
+### 测试
+- 合并后 main 全量回归（干净库口径，1100 collected）：**1092 passed / 8 failed**，
+  23 分钟。复审口径 1083 passed / 7 failed（1090 collected，不含手机端测试）；
+  合并后多出的 10 个测试全为手机端新增（`test_mobile_web.py` 7 + `test_web_hosting.py` 3），
+  全部通过；无新增失败
+- 8 项失败全为既有：6 项稳定失败与基线一致（独立重跑复现）——
+  `test_world_join_requires_explicit_nonempty_authenticated_uid`、
+  `test_qa2_join_dead_http_and_anonymous_unchanged`（join 匿名语义裁决遗留）、
+  `test_status_dict_includes_bag_and_marks`、`test_status_dict_follows_real_equip_flow`
+  （status_dict rich-object 裁决遗留）、`test_initial_character_and_config`
+  （natural_omen 碰撞牺牲项）、`test_login_then_look_here`（workbench live-server
+  smoke，HTTP 401）
+- 另 2 项为顺序/状态依赖抖动（独立重跑通过）：`test_kill_and_bounty_single_chain`
+  （C-1 bounty divergence 既有）、`test_local_director_run_persists_and_channel`；
+  `test_qi_pace` 与 `test_lan_feed_endpoint_contract` 本轮全量通过
+
 ## v0.3.4-gray.11（2026-11-06）— 手机端独立页面（单列+底部导航，自动分流）
 
 定位：移动端体验版，无新玩法、无数值口径变更。上一稳定点 v0.3.3-gray.10（0b43abf）。
