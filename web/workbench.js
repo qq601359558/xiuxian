@@ -6517,10 +6517,10 @@
     const username = $("fUser").value.trim();
     const password = $("fPass").value;
     const name = ($("fName").value || username).trim();
-    let server = ($("fServer").value || state.base || "").trim().replace(/\/$/, "");
+    let server = ($("serverUrl").value || state.base || "").trim().replace(/\/$/, "");
     if (server && !/^https?:\/\//i.test(server)) {
       server = "http://" + server;
-      $("fServer").value = server;
+      $("serverUrl").value = server;
     }
     if (server) {
       state.base = server;
@@ -6578,10 +6578,10 @@
   }
 
   async function probeServer() {
-    let server = ($("fServer").value || state.base || "").trim().replace(/\/$/, "");
+    let server = ($("serverUrl").value || state.base || "").trim().replace(/\/$/, "");
     if (server && !/^https?:\/\//i.test(server)) {
       server = "http://" + server;
-      $("fServer").value = server;
+      $("serverUrl").value = server;
     }
     $("gateMsg").textContent = "正在感应宗门阵枢 " + server + " …";
     try {
@@ -6663,7 +6663,7 @@
       loadDemo();
       return;
     }
-    if ($("fServer")) $("fServer").value = state.base;
+    if ($("serverUrl")) $("serverUrl").value = state.base;
     if (state.user && $("fUser")) $("fUser").value = state.user;
     if (state.name && $("fName")) $("fName").value = state.name;
 

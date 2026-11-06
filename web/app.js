@@ -16,12 +16,9 @@
     lastLegacy: null,
     composerOpen: false,
     chatEnded: false,
-<<<<<<< HEAD
     chatNpc: "",
-=======
     lastTrigger: null,
     lastFocus: null,
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
   };
   let lastCmd = "";
 
@@ -1107,7 +1104,6 @@
     box.appendChild(el);
     box.scrollTop = box.scrollHeight;
   }
-<<<<<<< HEAD
   function removeInlineOmenBar() {
     state.omenInlineOpen = false;
     const bar = $("inlineOmenBar");
@@ -1154,7 +1150,8 @@
       removeInlineOmenBar();
     });
     bar.appendChild(leaveBtn);
-=======
+  }
+
   function openOmen(title) {
     const m = $("omenModal");
     if (!m) return;
@@ -1173,7 +1170,6 @@
     const chips = $("omenChips");
     if (chips) chips.innerHTML = "";
     if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
   }
 
   function parseOmenChoices(text) {
@@ -1205,7 +1201,7 @@
     async function sendChatFree(v) {
       if (!state.token) {
         chatAppend("", "尚未入世", "sys");
-        return;
+        return false;
       }
       setBusy(true);
       try {
@@ -1214,8 +1210,10 @@
         const data = await api("/chat", body);
         if (data.status) applyStatus(data.status);
         handleResult(data);
+        return true;
       } catch (e) {
         chatAppend("", "发送失败：" + e.message, "sys");
+        return false;
       } finally {
         setBusy(false);
         if (inp && !state.chatEnded) inp.focus();
@@ -1229,22 +1227,13 @@
         if (!v) return;
         // U15：失败保留输入——成功后才清空；失败时草稿留在输入框内
         chatAppend("你", v, "me");
-<<<<<<< HEAD
         // 有目标时带上 to，保证服务端能对上号
         if (state.chatNpc && !$("chatNpcName").textContent.includes(state.chatNpc)) {
           /* header already set */
         }
-        sendChatFree(v);
-=======
-        lastCmd = "/说";
-        const data = await send("/说 " + v);
-        if (data && data.ok !== false) inp.value = "";
-        // MF8/U15：send() busy 早返返回 undefined（已在 feed 记“天道正在裁决，稍候…”），
-        // 属稍候而非失败：不追加失败行、不记失败，输入保留待重试；仅 data 为 null
-        // （网络/请求异常）或 ok===false 时才追加失败行。
-        else if (data === undefined) { /* 稍候，草稿保留，不记失败 */ }
-        else chatAppend("", "发送失败，草稿已保留。", "sys");
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
+        // U15：sendChatFree 返回成败——成功才清空，失败草稿保留待重试
+        const sentOk = await sendChatFree(v);
+        if (sentOk) inp.value = "";
       });
     }
     if (btn) {
@@ -2021,15 +2010,10 @@
     }
     // 打开补全且仅输入 /xxx（无参数）时 Enter 已在 keydown 处理；此处提交完整指令
     lastCmd = v;
-<<<<<<< HEAD
-    $("cmdInput").value = "";
     hideSuggest();
-    send(v);
-=======
     // U15：失败保留输入——成功后才清空（原行为发送前即清空，失败后草稿不可找回）
     const data = await send(v);
     if (data && data.ok !== false) $("cmdInput").value = "";
->>>>>>> fb383c1fb995e8dabd8bd77ac6775956a22274bf
   });
 
   bindSuggest();
