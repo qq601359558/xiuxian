@@ -91,10 +91,14 @@ class WorldClock:
             meditation=MeditationSession(),
             location="青云坊市客栈",
             arrays=[],  # 初始散修背包空空，无阵盘
-            # 合并裁定：分支的「入世自带藏宝图」不放在工厂——create_new_character
-            # 同时供 NPC 种子/名册/命数模拟与双端入世使用，出厂塞物会污染
-            # 前世遗物清单与纳戒守恒断言（main 侧钉死「初始背包空空」）。
-            # 藏宝图仍可由首次探险保底掉落获得（core/adventure 首探保底）。
+            # 合并裁定（不可调和项）：分支曾在此出厂自带藏宝图，且
+            # test_natural_omen 钉死「工厂新角 inventory 含藏宝图」；但同一
+            # 工厂产出的角色在 main 转世 spec 下，死亡遗物快照 belongings=
+            # inventory+equipped 须与实持逐项一致（test_r1），两断言同形冲突。
+            # 裁定取 main 会计口径：出厂背包空空；藏宝图仍可由首次探险保底
+            # 掉落获得（core/adventure 首探保底），首挖奇遇机制不受影响；
+            # test_natural_omen::test_initial_character_and_config 的自带图
+            # 断言为已知牺牲项。
         )
         return char
 
