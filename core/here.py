@@ -43,6 +43,19 @@ def list_here(
             "stealth": c.stealth_active,
         }
 
+        # 头像（gallery-gameplay §3.3/§3.4/§10.1）：NPC 按原型规则、玩家按
+        # 定相规则，后端下发完整路径，前端不自算。解析失败不影响同场列表。
+        try:
+            from core.gallery_assets import npc_avatar_path_for_character, player_portrait_path
+
+            item["avatar"] = (
+                npc_avatar_path_for_character(c)
+                if _is_npc(c)
+                else player_portrait_path(getattr(c, "gender", "") or "", c.realm.tier)
+            )
+        except Exception:
+            item["avatar"] = ""
+
         # 对 viewer 的态度（仅 NPC 有心智表；玩家显示「—」）
         if _is_npc(c):
             try:

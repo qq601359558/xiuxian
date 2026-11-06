@@ -80,6 +80,9 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/卸下", "aliases": ["/unequip"], "usage": "/卸下 <装备>", "desc": "卸下指定装备", "category": "cultivate"},
     {"cmd": "/挖宝", "aliases": ["/dig"], "usage": "/挖宝 [选项]", "desc": "使用藏宝图挖掘机缘/破阵/杀劫", "category": "cultivate"},
     {"cmd": "/宝图", "aliases": ["/map", "/看宝图"], "usage": "/宝图 [图名/编号]", "desc": "研读手中实体藏宝图，推演地脉谶语与方位", "category": "cultivate"},
+    {"cmd": "/寻宝", "aliases": ["/clue"], "usage": "/寻宝 [1|2|3|弃]", "desc": "寻宝线索链：查看当前线索，或在当前步节点作出抉择/弃链", "category": "cultivate"},
+    {"cmd": "/定相", "aliases": ["/gender"], "usage": "/定相 男|女", "desc": "自选男相/女相（纯外观，命盘人物图随之而变）", "category": "core"},
+    {"cmd": "/图鉴", "aliases": ["/gallery"], "usage": "/图鉴", "desc": "天道图鉴：38 图点亮进度与展示称号（账户级，只记眼界不予数值）", "category": "core"},
 
     # 社交
     {"cmd": "/交谈", "aliases": ["/talk"], "usage": "/交谈 <道号> [话]", "desc": "与 NPC/玩家交谈（会话）", "category": "social"},

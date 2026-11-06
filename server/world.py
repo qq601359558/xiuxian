@@ -1296,6 +1296,45 @@ class World:
                 except Exception:
                     pass
                 return {"ok": True, "text": KarmaChainEngine.panel_text(char)}
+            if action in ("/定相", "/gender"):
+                # 定相（gallery-gameplay §3.3）：纯外观自选，assert_alive 门禁
+                # 在引擎内；写路径以 CharacterRepository.save 收尾（§11）。
+                from core import gallery as _gallery
+
+                res = _gallery.set_gender(char, parts[1] if len(parts) > 1 else "")
+                if not res.get("success"):
+                    return {"ok": False, "error": res.get("message", "定相失败"), "status": self._status_dict(char)}
+                CharacterRepository.save(char)
+                return {"ok": True, "text": res["message"], "status": self._status_dict(char)}
+            if action in ("/图鉴", "/gallery"):
+                # 图鉴面板（gallery-gameplay §8.5）：双端同源文本，读命令无门禁；
+                # 先做一次派生合并（与 _status_dict 同口径）再呈现。
+                from core import gallery as _gallery
+
+                try:
+                    _gallery.unlock_from_character(char)
+                except Exception:
+                    pass
+                return {"ok": True, "text": _gallery.panel_text(char), "status": self._status_dict(char)}
+            if action in ("/寻宝", "/clue"):
+                # 寻宝线索链推进（gallery-gameplay §5.3）：无参查看（纯读）、
+                # 数字抉择、弃链；门禁在引擎内，写路径 save 收尾（§11）。
+                from core.treasure_clue import TreasureClueEngine
+
+                arg = parts[1] if len(parts) > 1 else ""
+                if not arg:
+                    return {"ok": True, "text": TreasureClueEngine.view_text(char), "status": self._status_dict(char)}
+                if arg == "弃":
+                    res = TreasureClueEngine.abandon(char)
+                else:
+                    res = TreasureClueEngine.choose(char, arg)
+                if res.get("changed"):
+                    CharacterRepository.save(char)
+                return {
+                    "ok": bool(res.get("success")),
+                    "text": res.get("message", ""),
+                    "status": self._status_dict(char),
+                }
             if action in ("/wallet", "/钱包"):
                 from core.wallet import wallet_panel_text
                 from storage.db import AccountRepository as _AR
@@ -1342,6 +1381,21 @@ class World:
                 return res
             if action in ("/here", "/同场"):
                 rows = list_here(char)
+                # 图鉴事件点亮（gallery-gameplay §8.3）：同场组装时 NPC 原型 /
+                # 已定相玩家人物图入图鉴；钩子失败不影响同场列表。
+                try:
+                    from core import gallery as _gallery
+
+                    for _row in rows:
+                        _other = CharacterRepository.get_by_id(_row.get("id", ""))
+                        if _other is None:
+                            continue
+                        if _row.get("is_npc"):
+                            _gallery.note_npc_encounter(char, _other)
+                        else:
+                            _gallery.note_player_encounter(char, _other)
+                except Exception:
+                    pass
                 return {
                     "ok": True,
                     "text": format_here(char, rows),
@@ -1760,12 +1814,25 @@ class World:
                 from core.treasure_system import TreasureEngine
                 query = parts[1] if len(parts) > 1 else None
                 res = TreasureEngine.read_map(char, query)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                # 线索链激活写在图实体内（随角色行落盘，gallery-gameplay §5.4）
+                if res.get("chain_changed"):
+                    CharacterRepository.save(char)
+                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
 
             if action in ("/dig", "/挖宝"):
                 from core.treasure_system import TreasureEngine
+                from core.treasure_clue import TreasureClueEngine
                 choice = parts[1] if len(parts) > 1 else None
+                # 开匣前抓链快照：dig 耗图后链载体消亡，完成奖励钩子凭快照结算（§5.6）
+                _chain_snap = TreasureClueEngine.snapshot_chain(char)
                 res = TreasureEngine.dig(char, choice_id=choice)
+                if res.get("success") and res.get("outcome"):
+                    try:
+                        _bonus = TreasureClueEngine.on_chest_opened(char, _chain_snap, res.get("outcome"))
+                        if _bonus.get("message"):
+                            res["message"] = (res.get("message") or "") + _bonus["message"]
+                    except Exception:
+                        pass
                 if res.get("success"):
                     CharacterRepository.save(char)
                     log_event("DECISION", "dig", name=char.name, outcome=res.get("outcome"))
@@ -1807,7 +1874,17 @@ class World:
                     target_name = maps[0].custom_metadata.get("target_node_name", "")
                     curr_node = WorldGridEngine.get_node(char.location)
                     if curr_node and (curr_node.id == target_id or curr_node.base_name == target_name):
+                        from core.treasure_clue import TreasureClueEngine as _TCE
+
+                        _chain_snap = _TCE.snapshot_chain(char)
                         res = TreasureEngine.resolve_free_action(char, free_text)
+                        if res.get("success") and res.get("outcome"):
+                            try:
+                                _bonus = _TCE.on_chest_opened(char, _chain_snap, res.get("outcome"))
+                                if _bonus.get("message"):
+                                    res["message"] = (res.get("message") or "") + _bonus["message"]
+                            except Exception:
+                                pass
                         if res.get("success"):
                             CharacterRepository.save(char)
                             log_event("FREE_ACTION", "treasure_free", name=char.name, outcome=res.get("outcome"))
@@ -2690,6 +2767,17 @@ class World:
                     opened = npc_chat.open_session(char, target)
                     if not opened.get("success"):
                         return {"ok": False, "error": opened.get("message", "无法交谈")}
+                    # 图鉴事件点亮（gallery-gameplay §8.3）：交谈开启成功点亮
+                    # 该 NPC 原型图；钩子失败不影响交谈。
+                    try:
+                        from core.npc_mind import _is_npc as _is_npc_fn
+
+                        if _is_npc_fn(target):
+                            from core import gallery as _gallery
+
+                            _gallery.note_npc_encounter(char, target)
+                    except Exception:
+                        pass
                     from core.npc_mind import _is_npc
                     is_target_npc = _is_npc(target)
 
@@ -3961,7 +4049,15 @@ class World:
                 "flying_treasure": "御空法宝"
             }
             slot_cn = slot_cn_map.get(slot_val, "本命法宝")
+            # 法宝图（gallery-gameplay §3.5/§10.1）：后端下发完整路径
+            try:
+                from core.gallery_assets import artifact_key_for_item as _ak_item, artifact_key_for_equip_name as _ak_name, asset_path as _ap
+
+                _eq_img = _ap(_ak_item(it)) if it is not None else _ap(_ak_name(eq_name))
+            except Exception:
+                _eq_img = ""
             equipped_list.append({
+                "img": _eq_img,
                 "uid": getattr(it, "uid", f"eq_{idx}_{eq_name}"),
                 "name": it.name if it else eq_name,
                 "kind": "equip",
@@ -4105,6 +4201,61 @@ class World:
             _karma_chains = _KCE.status_summary(c)
         except Exception:
             _karma_chains = {"active": 0, "fermenting": 0, "nearest_mature_game_days": None}
+        # 图库/图鉴（gallery-gameplay §3.3/§8.2/§10.1，只增键）：派生点亮在
+        # 命盘组装后统一合并，newly 只在本次发生点亮的下发中非空。
+        _gender_val = getattr(c, "gender", "") or ""
+        try:
+            from core.gallery_assets import player_portrait_path as _ppp
+
+            _portrait_val = _ppp(_gender_val, c.realm.tier)
+        except Exception:
+            _portrait_val = ""
+        _gallery_newly: List[str] = []
+        try:
+            from core import gallery as _gallery_mod
+
+            _gallery_newly = _gallery_mod.unlock_from_character(c)
+            _gallery_block = _gallery_mod.summary(c.user_id, newly=_gallery_newly)
+        except Exception:
+            _gallery_block = {"unlocked": [], "count": 0, "total": 38, "title": "", "newly": []}
+        # 功法图（§3.7/§10.1）：art_images 以功法名为键覆盖 skills+custom_arts
+        _art_images: Dict[str, str] = {}
+        try:
+            from core.gallery_assets import art_key_for as _akf, asset_path as _ap2
+
+            _art_names = list(c.skills or [])
+            for _art in (c.custom_arts or []):
+                if isinstance(_art, dict) and _art.get("name"):
+                    _art_names.append(str(_art["name"]))
+            for _an in _art_names:
+                if _an and _an not in _art_images:
+                    _art_images[_an] = _ap2(_akf(_an, c))
+        except Exception:
+            _art_images = {}
+        # 行囊图与线索链摘要（§10.1）：按 uid 预计算，items 字面量里只查表
+        _item_imgs: Dict[str, str] = {}
+        _item_chains: Dict[str, Any] = {}
+        try:
+            from core.gallery_assets import item_image_path as _iip
+            from core.treasure_clue import chain_summary as _chain_summary
+
+            for _it in unworn_entities:
+                _uid = getattr(_it, "uid", getattr(_it, "id", ""))
+                _item_imgs[_uid] = _iip(_it)
+                _item_chains[_uid] = _chain_summary(_it) if getattr(_it, "kind", None) == ItemKind.TREASURE_MAP else None
+        except Exception:
+            _item_imgs = {}
+            _item_chains = {}
+        # 基础神通图（§3.7）：复制 catalog 项后增 img，不污染原 catalog
+        try:
+            from core.gallery_assets import spell_key_for_element as _skf, asset_path as _ap3
+
+            _spells_catalog = [
+                {**_sp, "img": _ap3(_skf(_sp.get("element")))}
+                for _sp in SPELL_CATALOG.values()
+            ]
+        except Exception:
+            _spells_catalog = list(SPELL_CATALOG.values())
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
@@ -4115,6 +4266,11 @@ class World:
             "wallet": _wallet_block,
             "past_life": _past_life,
             "karma_chains": _karma_chains,
+            # 图库（gallery-gameplay §10.1，只增键）
+            "gender": _gender_val,
+            "portrait": _portrait_val,
+            "gallery": _gallery_block,
+            "art_images": _art_images,
             "sin": c.karma.sin_value,
             "merit": c.karma.merit_value,
             "exp": f"{c.realm.current_exp}/{c.realm.max_exp}",
@@ -4196,6 +4352,8 @@ class World:
             "items": [
                 {
                     "uid": getattr(it, "uid", getattr(it, "id", f"it_{idx}")),
+                    "img": _item_imgs.get(getattr(it, "uid", getattr(it, "id", "")), ""),
+                    "clue_chain": _item_chains.get(getattr(it, "uid", getattr(it, "id", "")), None),
                     "name": it.name,
                     "kind": it.kind.value if hasattr(it.kind, "value") else str(it.kind),
                     "tier": it.tier,
@@ -4283,7 +4441,7 @@ class World:
                 for l in MarketEngine.open_listings(MarketListingRepository.list_all())
             ],
             "dungeon": DungeonEngine.get_session(c.id),
-            "spells_catalog": list(SPELL_CATALOG.values()),
+            "spells_catalog": _spells_catalog,
             "dungeon_floors": [
                 {"floor": f_k, "name": f_v["name"], "tier_name": f_v["tier_name"], "min_tier": f_v["min_tier"]}
                 for f_k, f_v in DUNGEON_FLOORS.items()

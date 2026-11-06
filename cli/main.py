@@ -621,6 +621,44 @@ def run_mud():
                     pass
                 console.print(KarmaChainEngine.panel_text(player))
 
+            elif action in ["/定相", "/gender"]:
+                # 定相（gallery-gameplay §3.3）：与 server 同命令同文案（引擎同源）
+                from core import gallery as _gallery
+
+                res = _gallery.set_gender(player, parts[1] if len(parts) > 1 else "")
+                if not res.get("success"):
+                    console.print(f"[red]{res.get('message', '定相失败')}[/red]")
+                else:
+                    CharacterRepository.save(player)
+                    console.print(res["message"])
+
+            elif action in ["/图鉴", "/gallery"]:
+                # 图鉴面板（gallery-gameplay §8.5）：与 server 同源文本
+                from core import gallery as _gallery
+
+                try:
+                    _gallery.unlock_from_character(player)
+                except Exception:
+                    pass
+                console.print(_gallery.panel_text(player))
+
+            elif action in ["/寻宝", "/clue"]:
+                # 寻宝线索链（gallery-gameplay §5.3）：与 server 调同一引擎
+                from core.treasure_clue import TreasureClueEngine
+
+                arg = parts[1] if len(parts) > 1 else ""
+                if not arg:
+                    console.print(TreasureClueEngine.view_text(player))
+                else:
+                    res = (
+                        TreasureClueEngine.abandon(player)
+                        if arg == "弃"
+                        else TreasureClueEngine.choose(player, arg)
+                    )
+                    if res.get("changed"):
+                        CharacterRepository.save(player)
+                    console.print(res.get("message", ""))
+
             elif action in ["/钱包", "wallet"]:
                 from core.wallet import wallet_panel_text
 
