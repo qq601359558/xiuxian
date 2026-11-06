@@ -188,6 +188,47 @@ class GameHandler(BaseHTTPRequestHandler):
         from config import BASE_DIR
         from urllib.parse import unquote
 
+        # ---- 图库 /assets/ 专用分支（spec: gallery-gameplay §4）----
+        # 置于既有分支之前：正则闸 + GALLERY_ASSET_KEYS 常量闸双闸齐过才放行，
+        # 文件路径由常量相对路径拼 web/assets，绝不用请求串拼路径。
+        # 任一闸不过 → 返回 False 落回既有流程（最终 404，不给探测预言机差异）。
+        if path.startswith("/assets/") or path == "/assets":
+            from core.gallery_assets import GALLERY_ASSET_KEYS
+
+            decoded = path
+            for decode_round in range(3):
+                if not decoded.startswith("/") or "\\" in decoded or "\x00" in decoded:
+                    return False
+                if any(segment in ("", ".", "..") for segment in decoded[1:].split("/")):
+                    return False
+                if decode_round < 2:
+                    decoded = unquote(decoded)
+            if "%" in decoded:
+                return False
+            if not re.fullmatch(r"/assets/(portraits|artifacts|arts|maps)/[a-z0-9-]+\.webp", decoded):
+                return False
+            relative = decoded[len("/assets/"):]
+            if relative not in GALLERY_ASSET_KEYS:
+                return False
+            assets_root = (_WEB_DIR / "assets").resolve()
+            try:
+                fp = (assets_root / relative).resolve()
+                fp.relative_to(assets_root)
+                if not fp.is_file():
+                    return False
+                data = fp.read_bytes()
+            except (OSError, ValueError, RuntimeError):
+                return False
+            self.send_response(200)
+            self.send_header("Content-Type", "image/webp")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            # 图库为版本内不变的静态资产：1 小时缓存（与页面 no-cache 刻意不同，§4.2）
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(data)
+            return True
+
         root = BASE_DIR.resolve()
         allowed_root = root / "web"
         if path in ("/", "/index.html", "/web", "/web/", "/web/index.html"):

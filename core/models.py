@@ -280,6 +280,9 @@ class Character(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     user_id: str
     name: str
+    # 图库定相（gallery-gameplay §3.3）："" 未定相 / "male" / "female"；
+    # 纯外观、零数值，旧存档靠默认值零迁移可读
+    gender: str = ""
     realm: Realm
     lifespan: Lifespan
     spiritual_root: SpiritualRoot
