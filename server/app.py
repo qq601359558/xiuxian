@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,7 +15,7 @@ from urllib.parse import urlparse
 
 from config import AI_REQUIRED, ALLOW_LOCAL_AI, LAN_HOST, LAN_PORT, VERSION, ai_available
 from core.command_catalog import all_entries
-from server.world import WORLD
+from server.world import LOCK_ACQUIRE_TIMEOUT_SECONDS, WORLD, WorldBusyError
 from server.log import log_event
 
 
@@ -50,14 +51,47 @@ _ROOT_STATIC_FILES = {
 }
 
 
-def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str, Any]):
+def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str, Any],
+                   headers: Dict[str, str] | None = None):
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(code)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Access-Control-Allow-Origin", "*")
+    for k, v in (headers or {}).items():
+        handler.send_header(k, v)
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def _touch_login_on_session(user_id: str, result: Dict[str, Any]) -> None:
+    """MF-3：仅在实际发会话（result 带非空 token）后写 accounts.last_login。
+
+    回退快照（token 为空）与 503 繁忙路径一律不写——“繁忙即未写”。
+    写失败不得影响已成功的登录响应。
+    """
+    try:
+        if result and result.get("token"):
+            from storage.db import AccountRepository
+
+            AccountRepository.touch_login(user_id)
+    except Exception:
+        pass
+
+
+def _busy_response(handler: BaseHTTPRequestHandler):
+    """login-latency-fix §2.2.4：写路径拿不到锁的唯一出口——503 可重试错误体。
+
+    固定体 {"ok": false, "error": "SERVER_BUSY", "message": "世界正在演化，
+    请稍后重试", "retryable": true} + Retry-After: 2。发出前调用方须保证
+    零写操作（“繁忙即未写”），不得附带 token、不得谎称已结算/已建角。
+    """
+    return _json_response(
+        handler,
+        503,
+        {"ok": False, "error": "SERVER_BUSY", "message": "世界正在演化，请稍后重试", "retryable": True},
+        headers={"Retry-After": "2"},
+    )
 
 
 # ---- Web 静态托管（spec: web-static-hosting）----
@@ -104,6 +138,43 @@ class GameHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):  # 安静一点
         pass
+
+    # D3.1（login-latency-fix）：捕获每次响应的状态码，供 HTTP 计时日志用。
+    # 只记 method/path/status/duration_ms，绝不记请求体、token、密码、Authorization。
+    def send_response(self, code, message=None):
+        self._http_status = code
+        super().send_response(code, message)
+
+    def _log_http(self, method: str, t0: float) -> None:
+        try:
+            from urllib.parse import urlparse as _up
+
+            path = _up(self.path).path
+        except Exception:
+            path = ""
+        status = getattr(self, "_http_status", None)
+        log_event(
+            "HTTP",
+            "http",
+            method=method,
+            path=path,
+            status=status if isinstance(status, int) else 500,
+            duration_ms=int((time.time() - t0) * 1000),
+        )
+
+    def do_GET(self):
+        t0 = time.time()
+        try:
+            self._do_GET_impl()
+        finally:
+            self._log_http("GET", t0)
+
+    def do_POST(self):
+        t0 = time.time()
+        try:
+            self._do_POST_impl()
+        finally:
+            self._log_http("POST", t0)
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -167,7 +238,7 @@ class GameHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
         return True
 
-    def do_GET(self):
+    def _do_GET_impl(self):
         path = urlparse(self.path).path
         if path == "/health":
             # 灰度运维自检：版本、AI 通道状态、在线会话数（字段只增不改，兼容旧探针）
@@ -341,7 +412,7 @@ class GameHandler(BaseHTTPRequestHandler):
             return
         return _json_response(self, 404, {"ok": False, "error": "not found"})
 
-    def do_POST(self):
+    def _do_POST_impl(self):
         path = urlparse(self.path).path
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b"{}"
@@ -361,7 +432,22 @@ class GameHandler(BaseHTTPRequestHandler):
             reg = acct_register(username, password, display_name=name)
             if not reg.get("ok"):
                 return _json_response(self, 400, reg)
-            result = WORLD.join(name or username, user_id=reg["user_id"])
+            # login-latency-fix §2.2.4：同一 2 秒总界贯穿 join；拿不到锁则
+            # 503 繁忙。acct_register 刚建的账号行须回滚，否则“原样重试”
+            # 会撞“用户名已存在”——繁忙即未写，重试安全。
+            deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+            try:
+                result = WORLD.join(name or username, user_id=reg["user_id"], _deadline=deadline)
+            except WorldBusyError:
+                try:
+                    from storage.db import AccountRepository
+
+                    # MF-4：delete 内含条件删除——该 uid 若已被另路建角/发会话，
+                    # 返回 False 且不删行，回滚是安全的空操作。
+                    AccountRepository.delete(reg["user_id"])
+                except Exception:
+                    pass
+                return _busy_response(self)
             log_event("CMD", "register", username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})
 
@@ -376,7 +462,12 @@ class GameHandler(BaseHTTPRequestHandler):
                     log_event("GATE", "authentication_failed", route=path, reason="INVALID_TOKEN")
                     return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
                 name = str(data.get("name") or sess["name"] or "散修").strip()[:12]
-                result = WORLD.join(name, user_id=sess["user_id"], auto_rebirth=(path == "/join"))
+                deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+                try:
+                    result = WORLD.join(name, user_id=sess["user_id"], auto_rebirth=(path == "/join"), _deadline=deadline)
+                except WorldBusyError:
+                    return _busy_response(self)
+                _touch_login_on_session(sess["user_id"], result)
                 log_event("CMD", "join", ok=True)
                 return _json_response(self, 200, {"ok": True, **result})
 
@@ -393,15 +484,24 @@ class GameHandler(BaseHTTPRequestHandler):
                 return _json_response(self, 401, {"ok": False, "code": "AUTH_FAILED", "error": "账号或密匙有误"})
             username = lg["username"]
             name = str(data.get("name") or username).strip()[:12]
-            if path == "/login":
-                # account-death §2.6：现世角色已死 → 只报死讯＋钱包，不自动建角；
-                # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
-                # /join 不走此路：凭据入世即转世开新世（分支语义，见下方 join 调用）。
-                dead = WORLD.dead_payload(lg["user_id"], username=username)
-                if dead is not None:
-                    log_event("CMD", "login_dead", username=username)
-                    return _json_response(self, 200, {"ok": True, "username": username, **dead})
-            result = WORLD.join(name, user_id=lg["user_id"], auto_rebirth=(path == "/join"))
+            # 同一 2 秒总界贯穿 dead_payload + join（§2.2.4）：两步共享 deadline，
+            # 避免各等 2 秒后合计超界。读路径拿不到锁走锁外回退快照（200），
+            # 写路径拿不到锁抛 WorldBusyError → 503 繁忙。
+            deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+            try:
+                if path == "/login":
+                    # account-death §2.6：现世角色已死 → 只报死讯＋钱包，不自动建角；
+                    # 建角须玩家显式 /转世（token 保持有效，指向死行会话）。
+                    # /join 不走此路：凭据入世即转世开新世（分支语义，见下方 join 调用）。
+                    dead = WORLD.dead_payload(lg["user_id"], username=username, _deadline=deadline)
+                    if dead is not None:
+                        _touch_login_on_session(lg["user_id"], dead)
+                        log_event("CMD", "login_dead", username=username)
+                        return _json_response(self, 200, {"ok": True, "username": username, **dead})
+                result = WORLD.join(name, user_id=lg["user_id"], auto_rebirth=(path == "/join"), _deadline=deadline)
+            except WorldBusyError:
+                return _busy_response(self)
+            _touch_login_on_session(lg["user_id"], result)
             log_event("CMD", path[1:], username=username)
             return _json_response(self, 200, {"ok": True, "username": username, **result})
 

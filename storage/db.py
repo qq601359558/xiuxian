@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import json
 import time
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from config import DB_PATH
 from core.models import Character
 
@@ -462,6 +462,76 @@ class CharacterRepository:
 
         conn.commit()
         conn.close()
+
+    @staticmethod
+    def get_by_id_with_meta(char_id: str) -> Tuple[Optional[Character], Optional[float]]:
+        """按 id 取角色 + 该行的 updated_at（供 save_if_unchanged 的乐观并发校验）。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json, updated_at FROM characters WHERE id = ?", (char_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None, None
+        return _parse_character(row[0]), row[1]
+
+    @staticmethod
+    def save_if_unchanged(character: Character, updated_at: Optional[float]) -> bool:
+        """MF-1：条件保存（原子）。仅当 DB 当前行仍存活（status != 'DEAD'）且
+        updated_at 与调用方重读时一致时落盘；否则返回 False 且一行不写。
+
+        供锁外后台任务的目标投射使用：重读与保存之间的 TOCTOU 窗口内若有
+        其他写者改过该行（死亡、移位、灵石变动），本次写回整体丢弃，绝不
+        把旧快照整行写回。BEGIN IMMEDIATE 使“校验 + 写回”原子化；写回
+        语义（审计、version +1、upsert 列）与 save() 一致。
+        """
+        from core.character_integrity import CharacterIntegrity
+
+        if updated_at is None:
+            return False
+        CharacterIntegrity.audit_character(character, auto_repair=True)
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT status, updated_at FROM characters WHERE id = ?",
+                (character.id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                conn.rollback()
+                return False
+            status, cur_updated = row
+            if status == "DEAD" or cur_updated != updated_at:
+                conn.rollback()
+                return False
+            now = time.time()
+            character.version = getattr(character, "version", 0) + 1
+            data_json = character.model_dump_json()
+            cur.execute(
+                """
+                INSERT INTO characters (id, user_id, name, status, data_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    id = excluded.id,
+                    name = excluded.name,
+                    status = excluded.status,
+                    data_json = excluded.data_json,
+                    updated_at = excluded.updated_at;
+                """,
+                (character.id, character.user_id, character.name, character.status.value, data_json, now, now),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
 
     @staticmethod
     def get_by_user_id(user_id: str) -> Optional[Character]:
@@ -1560,6 +1630,33 @@ class AccountRepository:
         )
         conn.commit()
         conn.close()
+
+    @staticmethod
+    def delete(user_id: str) -> bool:
+        """删除账号行。仅供 /register 繁忙回滚（login-latency-fix §2.2.4）：
+        本请求刚建、尚无角色/会话的账号行，join 拿不到锁返回 503 时删掉，
+        使“繁忙即未写”、客户端原样重试安全。
+
+        MF-4：条件删除——仅当该 uid 下无角色行且无会话行时才删；已有角色/
+        会话行时返回 False 且一行不删。单条 SQL 原子判定，堵住“同凭证另路
+        登录已建角成功、回滚却删掉账号行”的竞态窗口。
+        """
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                DELETE FROM accounts WHERE user_id = ?
+                  AND NOT EXISTS (SELECT 1 FROM characters WHERE user_id = ?)
+                  AND NOT EXISTS (SELECT 1 FROM auth_sessions WHERE user_id = ?)
+                """,
+                (user_id, user_id, user_id),
+            )
+            deleted = cur.rowcount > 0
+            conn.commit()
+            return deleted
+        finally:
+            conn.close()
 
 
 class GeneratedNameRepository:

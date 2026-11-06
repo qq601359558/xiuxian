@@ -46,7 +46,8 @@ def login(username: str, password: str) -> Dict[str, Any]:
     ph = _hash_password(password or "", acc["salt"])
     if not hmac.compare_digest(ph, acc["password_hash"]):
         return {"ok": False, "error": "密码错误"}
-    AccountRepository.touch_login(acc["user_id"])
+    # MF-3：login 只验密，不写 last_login——写操作只在 app 层实际发会话后
+    # 发生；回退快照（未发会话）与 503 繁忙路径一律不写（“繁忙即未写”）。
     return {"ok": True, "user_id": acc["user_id"], "username": acc["username"]}
 
 

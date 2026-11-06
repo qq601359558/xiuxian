@@ -4,8 +4,9 @@
 """
 import json
 import random
+import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
@@ -16,6 +17,7 @@ from config import (
     LLM_API_KEY,
     LLM_MODEL,
     LLM_TIMEOUT_SECONDS,
+    NPC_TICK_INTERVAL_SECONDS,
     TRIBULATION_AI_JITTER,
     ai_available,
     local_ai_allowed,
@@ -27,6 +29,150 @@ from ai.validator import DSLValidator
 from ai.event_validator import EventValidator
 from ai.facts import FactPack, build_fact_pack
 from ai.gate import gate
+
+
+# ==================== AI 熔断器（login-latency-fix D4）====================
+# 单点：全部走网关的 AI 调用（_chat_json / _chat_text）都经此处。
+# 判定：连续 3 次可数失败（超时 / 传输异常 / HTTP 5xx）→ 熔断一个 tick 周期
+# （NPC_TICK_INTERVAL_SECONDS，读配置不写死）→ 半开探测一次。
+# 不计入：HTTP 4xx（配置/参数问题）、JSON 解析失败、未知内部异常。
+# 熔断打开后调用方立即返回 None 走本地模板，不再发网络请求。
+_BREAKER_MAX_FAILURES = 3
+_BREAKER_COUNTABLE = ("timeout", "transport", "http_5xx")
+
+
+class _CircuitBreaker:
+    """进程内熔断器：closed → open → half_open → closed/open。"""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.failures = 0
+        self.state = "closed"  # closed | open | half_open
+        self.opened_at = 0.0
+        self._probe_in_flight = False
+
+    @property
+    def cooldown_seconds(self) -> float:
+        try:
+            v = float(NPC_TICK_INTERVAL_SECONDS)
+        except (TypeError, ValueError):
+            v = 0.0
+        return v if v > 0 else 120.0
+
+    def allow(self) -> bool:
+        """是否允许发一次真实请求。半开期只放行一个探测，其余短路。"""
+        half_open_now = False
+        failures = 0
+        with self._lock:
+            if self.state == "closed":
+                return True
+            if self.state == "open":
+                if time.time() - self.opened_at >= self.cooldown_seconds:
+                    self.state = "half_open"
+                    self._probe_in_flight = True
+                    half_open_now = True
+                    failures = self.failures
+                else:
+                    return False
+            else:
+                return False  # half_open：已有探测在途
+        if half_open_now:
+            self._log("breaker_half_open", failures=failures)
+        return True
+
+    def _log(self, message: str, **fields: Any) -> None:
+        try:
+            from server.log import log_event
+
+            log_event("GATE", message, breaker=self.state, **fields)
+        except Exception:
+            pass
+
+    def record_success(self) -> None:
+        with self._lock:
+            was = self.state
+            self.failures = 0
+            self.state = "closed"
+            self._probe_in_flight = False
+        if was != "closed":
+            self._log("breaker_closed", failures=0)
+
+    def record_failure(self, kind: str) -> None:
+        """可数失败记一次；半开探测失败则重新打开。"""
+        transition = None
+        with self._lock:
+            if self.state == "half_open":
+                self.state = "open"
+                self.opened_at = time.time()
+                self.failures = _BREAKER_MAX_FAILURES
+                self._probe_in_flight = False
+                transition = ("open", self.failures, kind)
+            else:
+                self.failures += 1
+                if self.failures >= _BREAKER_MAX_FAILURES and self.state != "open":
+                    self.state = "open"
+                    self.opened_at = time.time()
+                    transition = ("open", self.failures, kind)
+        if transition:
+            self._log("breaker_open", failures=transition[1], failure_kind=transition[2])
+
+    def record_neutral(self) -> None:
+        """不可数结局（4xx / 解析失败 / 未知异常）：半开探测视为未恢复，重开。"""
+        reopen = False
+        with self._lock:
+            if self.state == "half_open":
+                self.state = "open"
+                self.opened_at = time.time()
+                self.failures = _BREAKER_MAX_FAILURES
+                self._probe_in_flight = False
+                reopen = True
+        if reopen:
+            self._log("breaker_open", failures=self.failures, failure_kind="probe_neutral")
+
+    def reset(self) -> None:
+        with self._lock:
+            self.failures = 0
+            self.state = "closed"
+            self.opened_at = 0.0
+            self._probe_in_flight = False
+
+    def snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "state": self.state,
+                "failures": self.failures,
+                "opened_at": self.opened_at,
+                "cooldown_seconds": self.cooldown_seconds,
+            }
+
+
+breaker = _CircuitBreaker()
+
+
+def breaker_state() -> Dict[str, Any]:
+    """供测试/运维读取熔断器状态（不发起网络请求）。"""
+    return breaker.snapshot()
+
+
+def breaker_reset() -> None:
+    """测试专用：复位熔断器（进程内易失状态，重启即重建）。"""
+    breaker.reset()
+
+
+def _classify_http_status(status: int) -> str:
+    if status >= 500:
+        return "http_5xx"
+    if status >= 400:
+        return "http_4xx"
+    return "http_other"
+
+
+def _classify_exception(exc: BaseException) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    if isinstance(exc, httpx.HTTPError):
+        return "transport"
+    return "error"
 
 
 def ai_ready() -> bool:
@@ -165,11 +311,26 @@ def _chat_endpoint() -> str:
     return f"{base}/v1/chat/completions"
 
 
-def _anthropic_chat_json(prompt: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
-    """走本机 CC Switch（Anthropic Messages 协议）"""
+def _anthropic_chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Dict[str, Any]]:
+    """走本机 CC Switch（Anthropic Messages 协议）。失败返回 None。"""
+    data, _kind = _anthropic_chat_json_ex(prompt, timeout=timeout)
+    return data
+
+
+def _anthropic_chat_json_ex(
+    prompt: str, timeout: float = LLM_TIMEOUT_SECONDS
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """CC Switch 调用，返回 (data, outcome_kind)。
+
+    重试规则（与 _chat_json 的 D1.2 同款收敛）：仅当首次返回 HTTP 401/403
+    （Authorization 头形态不被接受）时，允许一次换 Bearer 头重试；
+    超时、传输异常、其他非 200（含 400/5xx）、解析失败一律只发一次即返回。
+    outcome_kind：None=成功；timeout/transport/http_5xx=可数失败；
+    http_4xx/parse_fail/error=不可数结局。
+    """
     rt = ccswitch_runtime()
     if not rt.get("base"):
-        return None
+        return None, "error"
     url = rt["base"] + "/v1/messages"
     headers = {
         "x-api-key": rt["token"],
@@ -184,18 +345,26 @@ def _anthropic_chat_json(prompt: str, timeout: float = 30.0) -> Optional[Dict[st
         "messages": [{"role": "user", "content": full_prompt}],
     }
     t0 = time.time()
-    try:
-        resp = httpx.post(url, headers=headers, json=body, timeout=timeout)
+
+    def _do_post(hdrs: Dict[str, str]):
+        return httpx.post(url, headers=hdrs, json=body, timeout=timeout)
+
+    def _log_exception(e: Exception) -> None:
+        log_ai_call(
+            kind="chat_json",
+            channel="ccswitch",
+            url=url,
+            model=rt.get("model", ""),
+            status="exception",
+            prompt=full_prompt,
+            error=str(e)[:400],
+            duration_ms=int((time.time() - t0) * 1000),
+        )
+
+    def _handle(resp) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         http_s = resp.status_code
-        if resp.status_code != 200:
-            headers2 = {
-                "Authorization": "Bearer " + rt["token"],
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }
-            resp = httpx.post(url, headers=headers2, json=body, timeout=timeout)
-            http_s = resp.status_code
-        if resp.status_code != 200:
+        if http_s != 200:
+            kind = _classify_http_status(http_s)
             log_ai_call(
                 kind="chat_json",
                 channel="ccswitch",
@@ -208,8 +377,15 @@ def _anthropic_chat_json(prompt: str, timeout: float = 30.0) -> Optional[Dict[st
                 error=f"HTTP {http_s}",
                 duration_ms=int((time.time() - t0) * 1000),
             )
-            return None
-        data = resp.json()
+            return None, kind
+        try:
+            data = resp.json()
+        except Exception:
+            return None, "parse_fail"
+        # MF-2：resp.json() 可能返回非 dict（如数组），data.get 会抛错；
+        # 此处归为解析失败，交由 _chat_json 的熔断器记账。
+        if not isinstance(data, dict):
+            return None, "parse_fail"
         parts = data.get("content") or []
         text = ""
         for p in parts:
@@ -230,33 +406,82 @@ def _anthropic_chat_json(prompt: str, timeout: float = 30.0) -> Optional[Dict[st
             raw_text=text,
             duration_ms=int((time.time() - t0) * 1000),
         )
-        return parsed
+        return parsed, (None if parsed is not None else "parse_fail")
+
+    try:
+        resp = _do_post(headers)
     except Exception as e:
-        log_ai_call(
-            kind="chat_json",
-            channel="ccswitch",
-            url=url,
-            model=rt.get("model", ""),
-            status="exception",
-            prompt=full_prompt,
-            error=str(e)[:400],
-            duration_ms=int((time.time() - t0) * 1000),
-        )
-        return None
+        _log_exception(e)
+        return None, _classify_exception(e)
+    if resp.status_code in (401, 403):
+        # 仅鉴权头形态问题重试一次（换 Bearer 头）
+        headers2 = {
+            "Authorization": "Bearer " + rt["token"],
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        try:
+            resp = _do_post(headers2)
+        except Exception as e:
+            _log_exception(e)
+            return None, _classify_exception(e)
+    return _handle(resp)
 
 
 def _chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Dict[str, Any]]:
-    """优先 CC Switch，其次 OpenAI 兼容接口；失败返回 None"""
-    if USE_CCSWITCH:
-        data = _anthropic_chat_json(prompt, timeout=max(timeout, 30.0))
-        if data is not None:
-            return data
-        # 再试 OpenAI 兼容兜底
-    if not LLM_API_KEY:
+    """优先 CC Switch，其次 OpenAI 兼容接口；失败返回 None。
+
+    熔断（D4）单点：打开时不发网络请求、立即返回 None；每次调用按结局
+    记一次成功/可数失败/不可数结局。重试规则（D1.2）：OpenAI 兼容分支
+    仅 HTTP 400 时允许一次不带 response_format 的重试；超时、连接异常、
+    HTTP 5xx、其他 4xx、解析失败一律只发一次即返回 None。
+    """
+    if not breaker.allow():
         return None
+    try:
+        data, kind = _chat_json_inner(prompt, timeout=timeout)
+    except Exception as e:
+        # MF-2：半开探测遇未预期异常（如畸形响应）时也必须归位熔断器，
+        # 否则 half_open + _probe_in_flight 会永久卡死、AI 全部短路直至重启。
+        breaker.record_neutral()
+        try:
+            from server.log import log_event
+
+            log_event(
+                "GATE",
+                "llm_unexpected_exception",
+                err=f"{type(e).__name__}: {e}"[:180],
+            )
+        except Exception:
+            pass
+        return None
+    if data is not None:
+        breaker.record_success()
+    elif kind in _BREAKER_COUNTABLE:
+        breaker.record_failure(kind)
+    elif kind is not None:
+        breaker.record_neutral()
+    return data
+
+
+def _chat_json_inner(
+    prompt: str, timeout: float = LLM_TIMEOUT_SECONDS
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """_chat_json 的实际调用体，返回 (data, outcome_kind)。"""
+    cc_kind: Optional[str] = None
+    if USE_CCSWITCH:
+        # D1.3：取消 max(timeout, 30.0) 下限，超时按调用方传入值生效。
+        data, kind = _anthropic_chat_json_ex(prompt, timeout=timeout)
+        if data is not None:
+            return data, None
+        # CC Switch 失败后仍试 OpenAI 兼容兜底；若兜底成功记成功，
+        # 若兜底亦失败则以兜底的 kind 为准（CC 侧 kind 仅在无兜底时生效）。
+        cc_kind = kind
+    if not LLM_API_KEY:
+        return None, (cc_kind or "error")
     url = _chat_endpoint()
     if not url:
-        return None
+        return None, (cc_kind or "error")
     headers = {"Authorization": f"Bearer {LLM_API_KEY}"}
     body = {
         "model": LLM_MODEL,
@@ -268,75 +493,103 @@ def _chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Di
             {"role": "user", "content": prompt},
         ],
     }
-    # 先带 json_object，部分代理不支持则降级再试
+    # 先带 json_object，部分代理不支持则降级再试（仅 HTTP 400 时）
     t0 = time.time()
-    last_http = None
+    last_http: Optional[int] = None
     last_body = ""
-    for with_fmt in (True, False):
-        payload = dict(body)
-        if with_fmt:
-            payload["response_format"] = {"type": "json_object"}
+
+    def _attempt(payload: Dict[str, Any], with_fmt: bool):
+        nonlocal last_http, last_body
         try:
             resp = httpx.post(url, headers=headers, json=payload, timeout=timeout)
-            last_http = resp.status_code
-            if resp.status_code != 200:
-                last_body = resp.text[:2000]
-                try:
-                    from server.log import log_event
-                    log_event(
-                        "GATE",
-                        "llm_http_error",
-                        status=resp.status_code,
-                        url=url,
-                        body=resp.text[:180],
-                        model=LLM_MODEL,
-                        with_fmt=with_fmt,
-                    )
-                except Exception:
-                    pass
-                continue
-            content = resp.json()["choices"][0]["message"]["content"]
-            parsed = _parse_json_loose(content)
-            log_ai_call(
-                kind="chat_json",
-                channel="openai",
-                url=url,
-                model=LLM_MODEL,
-                status="ok" if parsed else "parse_fail",
-                http_status=resp.status_code,
-                prompt=prompt,
-                response=parsed,
-                raw_text=content,
-                duration_ms=int((time.time() - t0) * 1000),
-                extra={"with_fmt": with_fmt},
-            )
-            return parsed
         except Exception as e:
             last_body = str(e)[:400]
             try:
                 from server.log import log_event
-                log_event("GATE", "llm_exception", err=str(e)[:180], url=url, with_fmt=with_fmt)
+                log_event(
+                    "GATE",
+                    "llm_exception",
+                    err=str(e)[:180],
+                    url=url,
+                    with_fmt=with_fmt,
+                )
             except Exception:
                 pass
-            continue
-    log_ai_call(
-        kind="chat_json",
-        channel="openai",
-        url=url,
-        model=LLM_MODEL,
-        status="fail",
-        http_status=last_http,
-        prompt=prompt,
-        raw_text=last_body,
-        error="all attempts failed",
-        duration_ms=int((time.time() - t0) * 1000),
-    )
-    return None
+            return None, _classify_exception(e)
+        last_http = resp.status_code
+        if resp.status_code != 200:
+            last_body = resp.text[:2000]
+            try:
+                from server.log import log_event
+                log_event(
+                    "GATE",
+                    "llm_http_error",
+                    status=resp.status_code,
+                    url=url,
+                    body=resp.text[:180],
+                    model=LLM_MODEL,
+                    with_fmt=with_fmt,
+                )
+            except Exception:
+                pass
+            return None, _classify_http_status(resp.status_code)
+        try:
+            content = resp.json()["choices"][0]["message"]["content"]
+        except Exception:
+            return None, "parse_fail"
+        # MF-2：content 可能为非字符串真值（如列表/数字），直接解析会抛错
+        if not isinstance(content, str):
+            return None, "parse_fail"
+        parsed = _parse_json_loose(content)
+        log_ai_call(
+            kind="chat_json",
+            channel="openai",
+            url=url,
+            model=LLM_MODEL,
+            status="ok" if parsed else "parse_fail",
+            http_status=resp.status_code,
+            prompt=prompt,
+            response=parsed,
+            raw_text=content,
+            duration_ms=int((time.time() - t0) * 1000),
+            extra={"with_fmt": with_fmt},
+        )
+        return parsed, (None if parsed is not None else "parse_fail")
+
+    def _log_fail(error: str):
+        log_ai_call(
+            kind="chat_json",
+            channel="openai",
+            url=url,
+            model=LLM_MODEL,
+            status="fail",
+            http_status=last_http,
+            prompt=prompt,
+            raw_text=last_body,
+            error=error,
+            duration_ms=int((time.time() - t0) * 1000),
+        )
+
+    payload_fmt = dict(body)
+    payload_fmt["response_format"] = {"type": "json_object"}
+    data, kind = _attempt(payload_fmt, True)
+    if data is not None:
+        return data, None
+    if kind == "http_4xx" and last_http == 400:
+        # 仅 HTTP 400：一次不带 response_format 的重试
+        data2, kind2 = _attempt(dict(body), False)
+        if data2 is not None:
+            return data2, None
+        _log_fail("all attempts failed")
+        return None, kind2
+    _log_fail("attempt failed")
+    return None, kind
 
 
 def _parse_json_loose(content: str) -> Optional[Dict[str, Any]]:
     """从模型输出提取 JSON（容忍 ```json 包裹与前后杂讯）"""
-    if not content:
+    # MF-2：非字符串输入直接返回 None，绝不抛错（半开探测的逃逸点之一）
+    if not isinstance(content, str) or not content:
         return None
     text = content.strip()
     if text.startswith("```"):
@@ -358,7 +611,15 @@ def _parse_json_loose(content: str) -> Optional[Dict[str, Any]]:
 
 
 def _chat_text(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[str]:
+    """纯文本通道；与 _chat_json 共用同一熔断器（D4 单点）。
+
+    熔断打开时不发网络请求、立即返回 None；超时/传输异常/HTTP 5xx
+    记一次可数失败，HTTP 4xx 与解析失败不计入。
+    """
+    if not breaker.allow():
+        return None
     if not LLM_API_KEY:
+        breaker.record_neutral()
         return None
     try:
         headers = {"Authorization": f"Bearer {LLM_API_KEY}"}
@@ -371,11 +632,27 @@ def _chat_text(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[st
             },
             timeout=timeout,
         )
-        if resp.status_code != 200:
-            return None
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception:
+    except Exception as e:
+        kind = _classify_exception(e)
+        if kind in _BREAKER_COUNTABLE:
+            breaker.record_failure(kind)
+        else:
+            breaker.record_neutral()
         return None
+    if resp.status_code != 200:
+        kind = _classify_http_status(resp.status_code)
+        if kind in _BREAKER_COUNTABLE:
+            breaker.record_failure(kind)
+        else:
+            breaker.record_neutral()
+        return None
+    try:
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+    except Exception:
+        breaker.record_neutral()
+        return None
+    breaker.record_success()
+    return text
 
 
 class AIGateway:
@@ -837,7 +1114,7 @@ class AIGateway:
             '"lifespan_burn_per_year":0.3,"tribulation_power_add":0.2},'
             '"spells":[{"name":"神通名","effect_type":"DAMAGE|BUFF|HEAL|CONTROL","multiplier":2.0}],'
             '"lore":"40字内背景判词","effect_summary":"中文功效说明，含修炼加速/燃寿/天劫/神通"}',
-            timeout=25.0,
+            timeout=LLM_TIMEOUT_SECONDS,
         )
         from core.art import clamp_art, infer_rank
 

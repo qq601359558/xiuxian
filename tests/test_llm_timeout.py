@@ -37,8 +37,8 @@ def _config_timeout_in_subprocess(raw):
     return float(out.stdout.strip())
 
 
-def test_default_timeout_is_30():
-    assert _config_timeout_in_subprocess(None) == 30.0
+def test_default_timeout_is_12():
+    assert _config_timeout_in_subprocess(None) == 12.0
 
 
 @pytest.mark.parametrize(
@@ -48,10 +48,10 @@ def test_default_timeout_is_30():
         ("7.5", 7.5),      # 小数可
         ("2", 5.0),        # 下限钳制
         ("999", 120.0),    # 上限钳制
-        ("abc", 30.0),     # 非法回退默认
-        ("", 30.0),        # 空串回退默认
-        ("nan", 30.0),     # NaN 回退默认
-        ("inf", 30.0),     # Inf 回退默认
+        ("abc", 12.0),     # 非法回退默认
+        ("", 12.0),        # 空串回退默认
+        ("nan", 12.0),     # NaN 回退默认
+        ("inf", 12.0),     # Inf 回退默认
     ],
 )
 def test_env_override_and_clamp(raw, expected):
@@ -67,11 +67,12 @@ def test_signature_defaults_bind_config_value():
         assert default == config.LLM_TIMEOUT_SECONDS, fn.__qualname__
 
 
-def test_anthropic_floor_default_unchanged():
-    """CCSwitch 路径既有口径保持独立：_anthropic_chat_json 默认仍为 30.0 字面值。"""
+def test_anthropic_default_binds_config_value():
+    """login-latency-fix D1.3：CCSwitch 路径默认超时与主通道一致（LLM_TIMEOUT_SECONDS）。"""
+    import config
     from ai import gateway
 
-    assert inspect.signature(gateway._anthropic_chat_json).parameters["timeout"].default == 30.0
+    assert inspect.signature(gateway._anthropic_chat_json).parameters["timeout"].default == config.LLM_TIMEOUT_SECONDS
 
 
 class _FakeResp:
