@@ -65,6 +65,10 @@ class CharacterIntegrity:
         "/reincarnate", "/转世",
         "/who",
         "/logout", "/下线",
+        # 钱包：账户层资产不随身死消散——/钱包 可查（死讯面板同口径），
+        # /钱包提取 由其 handler 自守并给出专属死讯文案，不走通用门禁文案
+        "/wallet", "/钱包",
+        "/wallet_withdraw", "/钱包提取",
     }
 
     @classmethod
@@ -210,12 +214,23 @@ class CharacterIntegrity:
             warnings.append(f"纳戒百宝囊超格(溢出{excess}件)，已执行防爆仓裁剪保护")
 
         # 同步 inventory 列表与 items 实体名一致（保留 legacy 道具名）
+        # 合并修正（计数语义，原成员检查两处误伤）：
+        # 1) legacy 可叠加道具无实体/少实体时会被压成 1 件（[灵芝×2]→[灵芝]）；
+        # 2) 已装备实体按穿戴模型本就不在 inventory（实体留 items、名入
+        #    equipped），旧同步会把装备塞回纳戒。
+        # 规则：只补不删——每种实体在 inventory 中的件数下限 = 实体数 −
+        # 已装备同名数；legacy 既有条目一律保留。
         if auto_repair:
-            item_names = [it.name for it in char.items]
-            for x in char.inventory:
-                if x not in item_names:
-                    item_names.append(x)
-            char.inventory = item_names
+            from collections import Counter
+
+            have = Counter(char.inventory)
+            equipped_count = Counter(char.equipped or [])
+            entity_count = Counter(it.name for it in char.items)
+            for name, n in entity_count.items():
+                want = n - equipped_count.get(name, 0)
+                while have[name] < want:
+                    char.inventory.append(name)
+                    have[name] += 1
 
         # 6. 定势排他性不变式
         if char.status == CharacterStatus.DEAD and char.meditation.is_active:
