@@ -87,7 +87,7 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/定相", "aliases": ["/gender"], "usage": "/定相 男|女", "desc": "自选男相/女相（纯外观，命盘人物图随之而变）", "category": "core"},
     {"cmd": "/命格", "aliases": ["/fate"], "usage": "/命格 [key]", "desc": "命格：查看待选/已选；带 key 从最老一抽中择定命格（突破大境界成功时抽定）", "category": "cultivate"},
     {"cmd": "/命途", "aliases": ["/fate_thread"], "usage": "/命途 [搁置|续]", "desc": "命途主线：本世章节、终局命题与搁置状态；搁置不删不罚，续走顺延当前章期限", "category": "cultivate"},
-    {"cmd": "/图鉴", "aliases": ["/gallery"], "usage": "/图鉴", "desc": "天道图鉴：38 图点亮进度与展示称号（账户级，只记眼界不予数值）", "category": "core"},
+    {"cmd": "/图鉴", "aliases": ["/gallery"], "usage": "/图鉴", "desc": "天道图鉴：139 图点亮进度与展示称号（账户级，只记眼界不予数值）", "category": "core"},
 
     # 社交
     {"cmd": "/交谈", "aliases": ["/talk"], "usage": "/交谈 <道号> [话]", "desc": "与 NPC/玩家交谈（会话）", "category": "social"},

@@ -456,6 +456,37 @@ def test_ft08_shelve_and_resume_deadline_shift():
     assert abs(float(goal["deadline_at"]) - (old_deadline + 500)) < 1.0
 
 
+def test_ft08b_shelved_thread_skips_e4_attitude_eval():
+    """评审 M-1：搁置中的主线，其 npc_attitude_at_least 章节目标在 E4
+    （evaluate_attitude_goals）同样跳过求值；恢复后正常翻转。"""
+    from core.npc_mind import shift_attitude
+
+    npc = _npc("M一向导")
+    char = _manual_origin_char("M一", npc)
+    thread = FateThreadEngine.ensure_thread(
+        char, LegacyAccount(user_id=char.user_id))
+    goal = {
+        "id": "m1_goal", "source": "thread", "status": "active",
+        "title": "M1 态度章节",
+        "check": {"kind": "npc_attitude_at_least", "npc_id": npc.id,
+                  "value": 10, "instance": f"{thread.id}:c9"},
+        "deadline_at": 0,
+    }
+    char.goals = list(char.goals or []) + [goal]
+    CharacterRepository.save(char)
+    shift_attitude(npc, char.id, 20, "M1 测试")
+    CharacterRepository.save(npc)
+    assert FateThreadEngine.shelve_thread(char)["success"]
+    flipped = GoalEngine.evaluate_attitude_goals(char)
+    assert all(g.get("id") != "m1_goal" for g in flipped), \
+        "搁置期 E4 不得翻转主线章节目标"
+    assert goal["status"] == "active"
+    assert FateThreadEngine.resume_thread(char)["success"]
+    flipped = GoalEngine.evaluate_attitude_goals(char)
+    assert any(g.get("id") == "m1_goal" for g in flipped)
+    assert goal["status"] == "done"
+
+
 def test_ft09_ensure_idempotent_and_origin_copy():
     char, acc = _origin_char("FT九")
     t1 = FateThreadEngine.ensure_thread(char, acc)

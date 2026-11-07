@@ -68,7 +68,7 @@
   // 图库接入（gallery-gameplay §3/§8/§10）：路径一律用后端下发字段
   // （portrait / items[].img / equipped[].img / art_images /
   //  spells_catalog[].img / here[].avatar / omen_image），前端不拼不自算；
-  // 唯一例外是图鉴页的 38 键展示表（§10.5 允许持有，分组/文案在前端，
+  // 唯一例外是图鉴页的 139 键展示表（§10.5 允许持有，分组/文案在前端，
   // 点亮事实只认后端 status.gallery.unlocked）。
   // 图片加载失败（onerror）：隐藏图位、保留文字与按钮，绝不破版（§3.8）。
   // ==========================================================================
@@ -208,7 +208,7 @@
     if (key === galleryNewlySeenKey) return;
     galleryNewlySeenKey = key;
     const names = g.newly.map((k) => GALLERY_KEY_CN[k] || k).join("、");
-    toast(`图鉴新点亮：${names}（${g.count || g.newly.length}/${g.total || 38}）`, "gold");
+    toast(`图鉴新点亮：${names}（${g.count || g.newly.length}/${g.total || 139}）`, "gold");
   }
 
   // 十方大荒四大秘境画卷 (Stitch 原生高保真图鉴)
@@ -986,7 +986,7 @@
 
   // ==========================================================================
   // 图鉴视图（§8.5/§10.3-1）：四类网格，已点亮彩图、未点亮剪影 + 条件文案，
-  // 顶部进度与称号档（10/20/30/38）；点亮事实只认 status.gallery.unlocked
+  // 顶部进度与称号档（10/40/80/120/139）；点亮事实只认 status.gallery.unlocked
   // ==========================================================================
   function renderGallery() {
     const s = state.status || {};
@@ -2107,7 +2107,7 @@
       ? `<span class="text-[11px] text-slate-500">已定${s.gender === "female" ? "女" : "男"}相 · 立绘随境界而变</span>`
       : `<span class="text-[11px] text-amber-800">尚未定相：当前为既有修行图占位。可用 /定相 男|女 自选相貌（纯外观，随时可改）。</span>`;
     const galleryLine = s.gallery
-      ? `<button type="button" class="text-[11px] text-jade-700 font-semibold cursor-pointer" data-act="view:gallery">图鉴 ${esc(s.gallery.count != null ? s.gallery.count : 0)}/${esc(s.gallery.total || 38)}${s.gallery.title ? " · " + esc(s.gallery.title) : ""} ›</button>`
+      ? `<button type="button" class="text-[11px] text-jade-700 font-semibold cursor-pointer" data-act="view:gallery">图鉴 ${esc(s.gallery.count != null ? s.gallery.count : 0)}/${esc(s.gallery.total || 139)}${s.gallery.title ? " · " + esc(s.gallery.title) : ""} ›</button>`
       : "";
     // 功法图（§3.7/§10.3-2）：art_images 覆盖 skills+custom_arts，spells_catalog[].img 直用
     const artNames = [...new Set([...(Array.isArray(s.skills) ? s.skills : []), ...((s.custom_arts || []).map((a) => (a && a.name) || "")), (s.arts && s.arts.main) || "", ...((s.arts && s.arts.sub) || [])].filter(Boolean))];
@@ -7379,7 +7379,7 @@
       promote_req_tier: 3,
       gender: "male",
       portrait: "/assets/portraits/male-zhuji.webp",
-      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 38, title: "", newly: [] },
+      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 139, title: "", newly: [] },
       art_images: { "吐纳术": "/assets/arts/earth.webp" },
       skills: ["吐纳术"],
       spells_catalog: [],

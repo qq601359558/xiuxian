@@ -284,7 +284,7 @@ class GoalEngine:
                 from storage.db import FateThreadRepository
 
                 shelved_thread_ids = {
-                    th.id for th in FateThreadRepository.list_all()
+                    th.id for th in FateThreadRepository.list_by_player(character.id)
                     if th.status == "shelved"
                 }
             except Exception:
@@ -328,12 +328,33 @@ class GoalEngine:
         """E4 专用：只求值 npc_attitude_at_least 类（态度移位点）。"""
         t = now if now is not None else time.time()
         flipped: List[Dict[str, Any]] = []
+        # 二期 §3.9（评审 M-1 销账）：搁置中的主线章节目标在 E4 同样跳过
+        # 求值——与 evaluate_checked_goals 同口径（按本角色 list_by_player）。
+        shelved_thread_ids: set = set()
+        if any(
+            g.get("source") == "thread" and g.get("status") == "active"
+            for g in (character.goals or [])
+        ):
+            try:
+                from storage.db import FateThreadRepository
+
+                shelved_thread_ids = {
+                    th.id for th in FateThreadRepository.list_by_player(character.id)
+                    if th.status == "shelved"
+                }
+            except Exception:
+                shelved_thread_ids = set()
         for g in list(character.goals or []):
             if g.get("status") != "active" or g.get("source") not in CHECKED_SOURCES:
                 continue
             check = g.get("check") or {}
             if check.get("kind") != "npc_attitude_at_least":
                 continue
+            if g.get("source") == "thread" and shelved_thread_ids:
+                _inst = str(check.get("instance") or "")
+                _tid = _inst.rsplit(":", 1)[0] if ":" in _inst else ""
+                if _tid in shelved_thread_ids:
+                    continue
             if GoalEngine._eval_check(character, check, t, final=False) == "done":
                 g["status"] = "done"
                 g["done_at"] = t

@@ -78,7 +78,7 @@
   // ---- 图库接入（gallery-gameplay §3/§8/§10.4）----
   // 路径一律用后端下发字段（st.portrait / items[].img / equipped[].img /
   // art_images / spells_catalog[].img / here[].avatar / omen_image）；
-  // 唯一例外是图鉴段的 38 键展示表（§10.5）。图片 onerror 隐藏图位（§3.8）。
+  // 唯一例外是图鉴段的 139 键展示表（§10.5）。图片 onerror 隐藏图位（§3.8）。
   var GALLERY_REALM_CN = ["凡人", "练气", "筑基", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫"];
   var GALLERY_REALM_KEYS = ["fanren", "lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu", "heti", "dacheng", "dujie"];
   // NPC 单人图（game-feel-phase2 §9.1/§9.10）：slug = uid 去 npc_ 前缀且 _ 换 -，与后端 GALLERY_GROUPS 同表镜像

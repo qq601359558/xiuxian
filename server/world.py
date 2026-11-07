@@ -4686,7 +4686,7 @@ class World:
             _gallery_newly = _gallery_mod.unlock_from_character(c)
             _gallery_block = _gallery_mod.summary(c.user_id, newly=_gallery_newly)
         except Exception:
-            _gallery_block = {"unlocked": [], "count": 0, "total": 38, "title": "", "newly": []}
+            _gallery_block = {"unlocked": [], "count": 0, "total": 139, "title": "", "newly": []}
         # 功法图（§3.7/§10.1）：art_images 以功法名为键覆盖 skills+custom_arts
         _art_images: Dict[str, str] = {}
         try:
