@@ -947,7 +947,8 @@
     if (o.debt && o.debt.amount) rel.push("欠" + (o.debt.creditor_name || "旧债主") + " " + o.debt.amount + " 灵石（旧债）");
     if (Array.isArray(o.relations) && o.relations.length) {
       var rc = { kin: "亲缘", foe: "宿怨", witness: "知情" };
-      rel.push(o.relations.map(function (r) { return (r.npc_name || "") + "·" + (rc[r.role] || r.role || "") + (r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : ""); }).join("、"));
+      // 世仇植入条目（game-feel-phase2 §4.3）：relations[].vendetta 在场才加世仇行标记
+      rel.push(o.relations.map(function (r) { return (r.npc_name || "") + "·" + (rc[r.role] || r.role || "") + (r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : "") + (r.vendetta ? "·世仇" + (r.vendetta_for ? "（替" + r.vendetta_for + "讨前世血债）" : "（前世血债未清）") : ""); }).join("、"));
     }
     if (rel.length) rows.push(["债与关系", rel.join("；")]);
     if (Array.isArray(o.path_gates) && o.path_gates.length) {
