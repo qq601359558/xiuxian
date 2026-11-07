@@ -644,10 +644,111 @@
       </details>
     </div>`;
   }
-  function fateSectionHtml() { return ""; }
+  // ---- 件三 · 仪式与命格（§4.1/§4.5）：只认 ceremony 结构；略过纯前端关闭 ----
+  const CEREMONY_KIND_CN = { breakthrough: "突破", death: "归府", rebirth: "转世" };
+  const CEREMONY_STAGE_CN = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
+
+  function ceremonySkipped(kind) {
+    try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; }
+  }
+
+  function fateNormalize(fate) {
+    if (!fate || typeof fate !== "object") return null;
+    let pending = fate.pending || fate.fate_pending || fate.pending_draws || [];
+    if (!Array.isArray(pending)) pending = [];
+    if (!pending.length && Array.isArray(fate.candidates) && fate.candidates.length) {
+      pending = [{ candidates: fate.candidates }];
+    }
+    let boons = fate.boons || fate.fate_boons || fate.chosen || [];
+    if (!Array.isArray(boons)) boons = [];
+    if (!pending.length && !boons.length) return null;
+    return { pending, boons };
+  }
+
+  function fateChoicesHtml(candidates) {
+    return (candidates || []).map((c) => `
+      <button type="button" class="btn sm primary" data-fate-choice="${esc(c.key || "")}" title="${esc(c.desc || "")}">${esc(c.icon || "✦")} ${esc(c.name || c.key || "")}</button>`).join("");
+  }
+
+  function fateCandidateDescHtml(candidates) {
+    return (candidates || []).filter((c) => c && c.desc).map((c) => `
+      <p class="text-[11px] text-slate-500">${esc(c.name || c.key || "")}：${esc(c.desc)}</p>`).join("");
+  }
+
+  // 命盘待选区（§4.5）：status.fate——首抽候选可择（FIFO），已选列表只读
+  function fateSectionHtml(fate) {
+    const f = fateNormalize(fate);
+    if (!f) return "";
+    let inner = "";
+    if (f.boons.length) {
+      inner += `<div class="text-xs text-slate-600">已选命格：${f.boons.map((b) => esc((b.icon ? b.icon + " " : "") + (b.name || b.key || ""))).join("、")}</div>`;
+    }
+    f.pending.forEach((draw, di) => {
+      const cands = (draw && draw.candidates) || [];
+      if (!cands.length) return;
+      if (di === 0) {
+        inner += `<div class="flex flex-wrap gap-2">${fateChoicesHtml(cands)}</div>${fateCandidateDescHtml(cands)}`;
+      } else {
+        inner += `<div class="text-xs text-slate-500">后续待选：${cands.map((c) => esc(c.name || c.key || "")).join("、")}（先择前一抽）</div>`;
+      }
+    });
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">命格待选</h3>
+      <div class="mt-2 flex flex-col gap-2">${inner}</div>
+    </div>`;
+  }
+
   function relationsSectionHtml() { return ""; }
-  function ceremonySkipSectionHtml() { return ""; }
-  function maybeShowCeremony() {}
+
+  // 命盘仪式偏好段：已设自动略过的 kind 在此取消（同 localStorage 键）
+  function ceremonySkipSectionHtml() {
+    const kinds = ["breakthrough", "death", "rebirth"].filter((k) => ceremonySkipped(k));
+    if (!kinds.length) return "";
+    const rows = kinds.map((k) => `
+      <div class="flex items-center justify-between gap-3 text-xs py-1">
+        <span class="text-slate-600">${esc(CEREMONY_KIND_CN[k] || k)}仪式：自动略过中</span>
+        <button type="button" class="btn sm secondary" data-ceremony-unskip="${esc(k)}">取消自动略过</button>
+      </div>`).join("");
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">仪式偏好</h3>
+      <div class="mt-1">${rows}</div>
+    </div>`;
+  }
+
+  function maybeShowCeremony(cer) {
+    if (!cer || typeof cer !== "object" || !cer.kind) return;
+    state.ceremony = cer;
+    if (ceremonySkipped(cer.kind)) return; // 自动略过只跳呈现，命格待选不受影响
+    const beats = Array.isArray(cer.beats) ? cer.beats : [];
+    const beatsHtml = beats.map((b) => {
+      if (!b) return "";
+      const img = b.asset_key ? galleryImg("/assets/" + b.asset_key + ".webp", "omen-image", b.stage || "") : "";
+      const ch = Array.isArray(b.choices) && b.choices.length
+        ? `<div class="flex flex-wrap gap-2 mt-2">${fateChoicesHtml(b.choices)}</div>${fateCandidateDescHtml(b.choices)}` : "";
+      return `
+      <div class="space-y-1">
+        ${img}
+        <div class="text-[11px] font-bold text-filigree-700">${esc(CEREMONY_STAGE_CN[b.stage] || b.stage || "")}</div>
+        <p class="text-sm text-slate-700 leading-relaxed">${esc(b.text || "")}</p>
+        ${ch}
+      </div>`;
+    }).join("");
+    const rr = cer.result_ref && typeof cer.result_ref === "object"
+      ? Object.entries(cer.result_ref).filter(([, v]) => v != null && typeof v !== "object")
+        .map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
+    openJadeDialog({
+      title: (CEREMONY_KIND_CN[cer.kind] || "仪式") + "仪式",
+      icon: cer.kind === "death" ? "🕯️" : cer.kind === "rebirth" ? "🌿" : "⚡",
+      bodyHtml: `<div class="space-y-4">${beatsHtml || `<p class="text-sm text-slate-600">仪式已成。</p>`}${rr ? `<p class="text-[11px] text-slate-400">${esc(rr)}</p>` : ""}</div>`,
+      footerHtml: `
+        <label class="text-xs text-slate-600 flex items-center gap-1.5 mr-auto">
+          <input type="checkbox" data-ceremony-autoskip="${esc(cer.kind)}" /> 同类自动略过
+        </label>
+        <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeJadeDialog()">略过</button>`,
+    });
+  }
 
   // ---- 件一 · 入局（§2.5 桌面） ----
   async function fetchBriefingEntry() {
@@ -6407,7 +6508,7 @@
       if (data.ceremony) maybeShowCeremony(data.ceremony);
       if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
-      if (c.startsWith("/突破") || c.startsWith("/break")) {
+      if ((c.startsWith("/突破") || c.startsWith("/break")) && !data.ceremony) {
         const isSucc = data.ok && (data.success !== false && !(data.tribulation && data.tribulation.fatal));
         if (isSucc && (data.tribulation || data.new_realm || (data.status && data.status.realm))) {
           const newR = (data.tribulation && data.tribulation.new_realm) || (data.status && data.status.realm) || "新阶位";

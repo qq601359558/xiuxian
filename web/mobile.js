@@ -489,6 +489,8 @@
         }
         sendCmd("/钱包提取 " + amt);
       });
+    var gfHtml = (st.origin ? '<div class="card"><details><summary><b>出身 · ' + esc(st.origin.family_text || st.origin.family || "") + '</b></summary>' + originBodyHtmlM({ origin: st.origin }) + "</details></div>" : "") + fateSectionHtmlM(st.fate) + relationsSectionHtmlM(st.relations_recent);
+    if (gfHtml) { var gd = document.createElement("div"); gd.innerHTML = gfHtml; host.appendChild(gd); }
   }
 
   function tierClass(t) {
@@ -664,7 +666,9 @@
         tagCls +
         '">' +
         esc(tag) +
-        "</span></div>" +
+        "</span>" +
+        relationMarkM(r) +
+        "</div>" +
         '<div class="muted">' +
         esc(r.realm || "") +
         " · " +
@@ -731,7 +735,7 @@
   function renderOps() {
     var host = $("opsBody");
     if (!host) return;
-    if (state.opsBuilt) { renderGalleryOps(); return; }
+    if (state.opsBuilt) { renderGalleryOps(); renderCeremonySkipOpsM(); return; }
     state.opsBuilt = true;
     var opts = PLACES.map(function (p) {
       return '<option value="' + esc(p.name) + '">' + esc(p.name) + "</option>";
@@ -796,7 +800,8 @@
       '<div class="card"><p class="card-eyebrow">显示与切换</p>' +
       '<button type="button" class="display-row" data-theme-toggle="1">昼夜天象切换<span class="arr">›</span></button>' +
       '<button type="button" class="display-row" data-view-switch="desktop">桌面版<span class="arr">›</span></button>' +
-      '<button type="button" class="display-row" data-auto-view="1">跟随设备自动选择<span class="arr">›</span></button></div>' +
+      '<button type="button" class="display-row" data-auto-view="1">跟随设备自动选择<span class="arr">›</span></button>' +
+      '<div id="ceremonySkipOps"></div></div>' +
       '<p class="muted">场景操作（秘境推进、挖宝、灵宠出战等）均可直接在下方命令框输入对应命令；服务端裁决为准。</p>';
     $("btnChatSend").addEventListener("click", function () {
       var n = ($("chatName").value || "").trim();
@@ -814,6 +819,7 @@
       sendCmd("/灵鹤 " + $("goSelect").value);
     });
     renderGalleryOps();
+    renderCeremonySkipOpsM();
   }
 
   function setView(v) {
@@ -834,19 +840,15 @@
   // ---- 游戏感第一期（game-feel-phase1）：只认后端下发结构渲染，缺失即不渲染 ----
   var CEREMONY_CN_M = { breakthrough: "突破", death: "归府", rebirth: "转世" };
   var STAGE_CN_M = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
-  function ceremonySkippedM(kind) {
-    try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; }
-  }
+  function ceremonySkippedM(kind) { try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; } }
   function closeOverlayM(id) { var el = $(id); if (el) el.remove(); }
   // 件一 · 移动入局卡（§2.5）：feed 置顶，数据同 state.entry
   function entryTargetAttrsM(t) {
     if (!t) return "";
     if (t.command) return ' data-cmd="' + esc(t.command) + '"';
     if (t.view) {
-      var map = { entry: "feed", inventory: "bag", bazaar: "ops", gallery: "ops" };
-      var v = map[t.view] || t.view;
-      if (["feed", "sanctum", "bag", "world", "ops"].indexOf(v) >= 0)
-        return ' data-mview="' + esc(v) + '"';
+      var v = { entry: "feed", inventory: "bag", bazaar: "ops", gallery: "ops" }[t.view] || t.view;
+      if (["feed", "sanctum", "bag", "world", "ops"].indexOf(v) >= 0) return ' data-mview="' + esc(v) + '"';
       return ' data-entry-view="' + esc(t.view) + '"';
     }
     return "";
@@ -854,33 +856,24 @@
   function entryItemHtmlM(it) {
     if (!it) return "";
     var attrs = entryTargetAttrsM(it.target);
-    return '<div class="entry-act"><span class="tx"><b>' + esc(it.title || it.kind || "待办") + "</b>" +
-      (it.text ? '<br><span class="muted">' + esc(it.text) + "</span>" : "") + "</span>" +
-      (attrs ? '<button type="button" class="chip primary"' + attrs + ">前往</button>" : "") + "</div>";
+    return '<div class="entry-act"><span class="tx"><b>' + esc(it.title || it.kind || "待办") + "</b>" + (it.text ? '<br><span class="muted">' + esc(it.text) + "</span>" : "") + "</span>" + (attrs ? '<button type="button" class="chip primary"' + attrs + ">前往</button>" : "") + "</div>";
   }
   function renderEntryCardM() {
     var host = $("entryCard");
     if (!host) return;
     var e = state.entry;
-    if (!e) {
-      host.innerHTML = state.entryPending
-        ? '<div class="card"><p class="muted">天道繁忙，入局信息待补——可先自由行动。</p></div>' : "";
-      return;
-    }
+    if (!e) { host.innerHTML = state.entryPending ? '<div class="card"><p class="muted">天道繁忙，入局信息待补——可先自由行动。</p></div>' : ""; return; }
     var lines = e.lines || {};
     var html = '<div class="card"><p class="card-eyebrow">入局 · 当下之事</p>';
     if (lines.fate) html += '<p class="world-para">' + esc(lines.fate) + "</p>";
-    if (lines.chains && (lines.chains.text || lines.chains.fermenting != null))
-      html += '<p class="world-para">' + esc(lines.chains.text || ("发酵中因果链 " + lines.chains.fermenting + " 条")) + "</p>";
-    if (Array.isArray(lines.relations))
-      lines.relations.forEach(function (r) { if (r && r.summary) html += '<p class="world-para">' + esc(r.summary) + "</p>"; });
+    if (lines.chains && (lines.chains.text || lines.chains.fermenting != null)) html += '<p class="world-para">' + esc(lines.chains.text || ("发酵中因果链 " + lines.chains.fermenting + " 条")) + "</p>";
+    if (Array.isArray(lines.relations)) lines.relations.forEach(function (r) { if (r && r.summary) html += '<p class="world-para">' + esc(r.summary) + "</p>"; });
     var pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
     if (pv) html += '<p class="world-para">' + esc(pv) + "</p>";
     var queue = Array.isArray(e.queue) ? e.queue : [];
     var hl = Array.isArray(e.highlight) && e.highlight.length ? e.highlight : queue.slice(0, 3);
-    if (e.empty || !queue.length) {
-      html += '<p class="muted">' + esc(e.empty_text || "江湖无事，可自由行动") + "</p>";
-    } else {
+    if (e.empty || !queue.length) html += '<p class="muted">' + esc(e.empty_text || "江湖无事，可自由行动") + "</p>";
+    else {
       hl.forEach(function (it) { html += entryItemHtmlM(it); });
       var rest = queue.slice(hl.length);
       if (rest.length) {
@@ -896,9 +889,7 @@
     try {
       var base = (state.base || "").trim().replace(/\/$/, "");
       if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
-      var res = await fetch(base + "/world/briefing", {
-        headers: { Authorization: "Bearer " + state.token }, cache: "no-store",
-      });
+      var res = await fetch(base + "/world/briefing", { headers: { Authorization: "Bearer " + state.token }, cache: "no-store" });
       if (!res.ok) return;
       var b = await res.json();
       if (b && b.entry) { state.entry = b.entry; state.entryPending = false; }
@@ -928,8 +919,7 @@
   }
   function originFateLineM(o) {
     if (!o) return "";
-    if (o.fate_text) return o.fate_text;
-    if (o.proposition) return o.proposition;
+    if (o.fate_text || o.proposition) return o.fate_text || o.proposition;
     return (state.entry && state.entry.lines && state.entry.lines.fate) || "";
   }
   function originBodyHtmlM(oc) {
@@ -946,11 +936,74 @@
     if (!oc || !oc.just_created || !oc.origin) return;
     closeOverlayM("originOverlay");
     var ov = document.createElement("div");
-    ov.id = "originOverlay";
-    ov.className = "gf-overlay";
+    ov.id = "originOverlay"; ov.className = "gf-overlay";
     ov.innerHTML = '<div class="gf-card"><p class="card-eyebrow">此世出身</p>' + originBodyHtmlM(oc) +
       '<button type="button" class="btn primary block" data-origin-close="1">收起出身卡</button></div>';
     document.body.appendChild(ov);
+  }
+
+  // 件三 · 仪式与命格（§4.1/§4.5）：全屏卡只认 ceremony 结构；略过纯前端关闭
+  function fateSectionHtmlM(fate) {
+    if (!fate || typeof fate !== "object") return "";
+    var pending = fate.pending || fate.fate_pending || fate.pending_draws || [];
+    if (!Array.isArray(pending)) pending = [];
+    if (!pending.length && Array.isArray(fate.candidates) && fate.candidates.length) pending = [{ candidates: fate.candidates }];
+    var boons = fate.boons || fate.fate_boons || fate.chosen || [];
+    if (!Array.isArray(boons)) boons = [];
+    if (!pending.length && !boons.length) return "";
+    var html = '<div class="card"><h3>命格待选</h3>';
+    if (boons.length) html += '<p class="muted">已选：' + boons.map(function (b) { return esc((b.icon ? b.icon + " " : "") + (b.name || b.key || "")); }).join("、") + "</p>";
+    pending.forEach(function (draw, di) {
+      var cands = (draw && draw.candidates) || [];
+      if (!cands.length) return;
+      if (di === 0) cands.forEach(function (c) {
+        html += '<div class="kv"><span class="k">' + esc(c.icon || "✦") + " " + esc(c.name || c.key || "") + '</span><button type="button" class="chip primary" data-fate-choice="' + esc(c.key || "") + '">择此命格</button></div>';
+        if (c.desc) html += '<p class="muted">' + esc(c.desc) + "</p>";
+      });
+      else html += '<p class="muted">后续待选：' + cands.map(function (c) { return esc(c.name || c.key || ""); }).join("、") + "（先择前一抽）</p>";
+    });
+    return html + "</div>";
+  }
+  function maybeShowCeremonyM(cer) {
+    if (!cer || !cer.kind || ceremonySkippedM(cer.kind)) return;
+    closeOverlayM("ceremonyOverlay");
+    var html = "";
+    (Array.isArray(cer.beats) ? cer.beats : []).forEach(function (b) {
+      if (!b) return;
+      if (b.asset_key) html += galleryImg("/assets/" + b.asset_key + ".webp", "feed-omen-img", b.stage || "");
+      html += '<p class="card-eyebrow">' + esc(STAGE_CN_M[b.stage] || b.stage || "") + '</p><p class="world-para">' + esc(b.text || "") + "</p>";
+      if (Array.isArray(b.choices) && b.choices.length) {
+        html += '<div class="chiprow">' + b.choices.map(function (c) { return '<button type="button" class="chip primary" data-fate-choice="' + esc(c.key || "") + '">' + esc(c.icon || "✦") + " " + esc(c.name || c.key || "") + "</button>"; }).join("") + "</div>";
+        b.choices.forEach(function (c) { if (c.desc) html += '<p class="muted">' + esc(c.name || "") + "：" + esc(c.desc) + "</p>"; });
+      }
+    });
+    var rr = cer.result_ref && typeof cer.result_ref === "object" ? Object.keys(cer.result_ref).filter(function (k) { var v = cer.result_ref[k]; return v != null && typeof v !== "object"; }).map(function (k) { return k + ": " + cer.result_ref[k]; }).join(" · ") : "";
+    if (rr) html += '<p class="muted">' + esc(rr) + "</p>";
+    var ov = document.createElement("div");
+    ov.id = "ceremonyOverlay";
+    ov.className = "gf-overlay";
+    ov.innerHTML = '<div class="gf-card"><p class="card-eyebrow">' + esc(CEREMONY_CN_M[cer.kind] || "仪式") + "仪式</p>" + (html || '<p class="muted">仪式已成。</p>') +
+      '<label class="muted gf-check"><input type="checkbox" data-ceremony-autoskip="' + esc(cer.kind) + '" /> 同类自动略过</label>' +
+      '<button type="button" class="btn primary block" data-ceremony-close="1">略过</button></div>';
+    document.body.appendChild(ov);
+  }
+  function renderCeremonySkipOpsM() {
+    var host = $("ceremonySkipOps");
+    if (!host) return;
+    host.innerHTML = ["breakthrough", "death", "rebirth"].filter(function (k) { return ceremonySkippedM(k); }).map(function (k) { return '<button type="button" class="display-row" data-ceremony-unskip="' + k + '">' + esc(CEREMONY_CN_M[k] || k) + '仪式自动略过：取消<span class="arr">›</span></button>'; }).join("");
+  }
+
+  // 件四 · 关系可见化（§5.4）：命盘近 5 条 + 同场箭头，与 relations_recent/marks 同源
+  function relationsSectionHtmlM(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    var html = '<div class="card"><h3>关系动态</h3>';
+    list.slice(0, 5).forEach(function (r) { var d = typeof r.delta === "number" ? r.delta : 0; html += '<div class="kv"><span class="k">' + (d > 0 ? "↑" + d : d < 0 ? "↓" + Math.abs(d) : "·") + " " + esc(r.after_cn || "") + '</span><span class="v">' + esc(r.summary || "") + "</span></div>"; });
+    return html + "</div>";
+  }
+  function relationMarkM(row) {
+    var marks = (state.status && state.status.relations_marks) || null;
+    var m = marks && row ? ((row.id != null && marks[row.id]) || (row.name && marks[row.name]) || null) : null;
+    return m && typeof m.delta === "number" && m.delta !== 0 ? ' <span class="rel-mark">' + (m.delta > 0 ? "↑" + m.delta : "↓" + Math.abs(m.delta)) + "</span>" : "";
   }
 
   // ---- 命令通道 ----
@@ -979,6 +1032,7 @@
       if (data.status) applyStatus(data.status);
       if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
       if (data.origin_card) { state.originCard = data.origin_card; if (data.origin_card.just_created) showOriginOverlayM(); }
+      if (data.ceremony) maybeShowCeremonyM(data.ceremony);
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
       else if (data.ok === false && data.error)
         pushFeed("敕令失败：" + data.error, "bad");
@@ -1473,6 +1527,24 @@
         state.selectedBagName = state.selectedBagName === nm ? "" : nm;
         renderBag();
         return;
+      }
+    });
+
+    // 游戏感第一期新增委托（属性与既有委托不重叠）：命格选择/出身·仪式关闭/取消自动略过
+    document.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var fc = t.closest("[data-fate-choice]");
+      if (fc) { closeOverlayM("ceremonyOverlay"); sendCmd("/命格 " + fc.getAttribute("data-fate-choice")); return; }
+      if (t.closest("[data-origin-close]")) { closeOverlayM("originOverlay"); return; }
+      if (t.closest("[data-ceremony-close]")) { closeOverlayM("ceremonyOverlay"); return; }
+      var un = t.closest("[data-ceremony-unskip]");
+      if (un) { try { localStorage.removeItem("ceremony_skip_" + un.getAttribute("data-ceremony-unskip")); } catch (_) {} renderCeremonySkipOpsM(); }
+    });
+    document.addEventListener("change", function (e) {
+      var t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-ceremony-autoskip")) {
+        try { if (t.checked) localStorage.setItem("ceremony_skip_" + t.getAttribute("data-ceremony-autoskip"), "1"); else localStorage.removeItem("ceremony_skip_" + t.getAttribute("data-ceremony-autoskip")); } catch (_) {}
       }
     });
 
