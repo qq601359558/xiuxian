@@ -234,11 +234,20 @@ def build_breakthrough_ceremony(
     beats.append({"stage": "reveal", "text": reveal_text, "asset_key": None, "choices": None})
     after_text = "雷云散尽，天地复归清明。"
     choices = None
+    newer_pending_count = 0
     if success and fate_drawn:
         pending = getattr(character, "fate_pending", None) or []
         if pending:
-            choices = list(pending[-1].get("candidates") or [])
+            # MF-2 修复：唯一选择函数 apply_fate_choice 只认最老一抽
+            # （pending[0]，FIFO 写死），仪式 choices 必须与之同抽——
+            # 此前取 pending[-1]（最新一抽）致仪式内选择必被拒。
+            choices = list(pending[0].get("candidates") or [])
+            newer_pending_count = len(pending) - 1
             after_text = "天道垂鉴，命格三选其一——此刻不选，日后于命盘 /命格 择定亦可。"
+            if newer_pending_count > 0:
+                after_text += (
+                    f"（按天道次序先择此抽；另有 {newer_pending_count} 抽更新的"
+                    "待选命格，将在本抽择定后依次呈上。）")
     beats.append({"stage": "aftermath", "text": after_text, "asset_key": None, "choices": choices})
     return {
         "kind": "breakthrough",
@@ -251,6 +260,8 @@ def build_breakthrough_ceremony(
             "fail_tier": attempt_result.get("fail_tier"),
             "fate_drawn": bool(fate_drawn),
             "fate_pending_count": len(getattr(character, "fate_pending", None) or []),
+            # MF-2 只增字段：呈现抽（pending[0]）之外尚待选的新抽数
+            "fate_pending_newer_count": newer_pending_count,
         },
         "skippable": True,
     }

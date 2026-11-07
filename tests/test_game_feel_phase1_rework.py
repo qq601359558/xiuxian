@@ -134,3 +134,57 @@ def test_mf1_join_karma_resolution_not_rolled_back():
         f"③ 求值未基于兑现后灵石：{goal_after}")
     p_after = [x for x in PromiseRepository.list_all() if x.id == p.id][0]
     assert p_after.status.value == "BROKEN"
+
+
+# ================= MF-2 仪式命格 choices 错位 =================
+
+def test_mf2_ceremony_choices_are_oldest_pending_and_selectable(monkeypatch):
+    """已有一抽未选 + 再次突破产生第二抽：仪式 choices 必须 == pending[0]
+    （唯一选择函数 apply_fate_choice 的 FIFO 口径），且明示尚有新抽待选；
+    经 /命格 选择该 choices 中任一 key 须成功落账。"""
+    from ai.gateway import AIGateway
+    from core.breakthrough import BreakthroughEngine
+    from core.ceremony import build_breakthrough_ceremony, fate_pool_for
+
+    monkeypatch.setattr(
+        AIGateway, "judge_tribulation",
+        staticmethod(lambda c, prob, target: {
+            "success": True, "source": "rule", "reason": "", "adj_prob": prob}),
+    )
+    char = _char("仪式错位")
+    snap = WORLD.join(char.name, user_id=char.user_id)
+    token = snap["token"]
+    char = CharacterRepository.get_by_id(char.id)
+    char.realm.tier = 1
+    char.realm.sub_tier = 3
+    char.realm.current_exp = char.realm.max_exp
+    char.karma.dao_heart = 100
+    old_candidates = [dict(c) for c in fate_pool_for(char)[:3]]
+    char.fate_pending = [{
+        "candidates": old_candidates, "from_tier": 1,
+        "drawn_at": time.time() - 100,
+    }]
+    char.fate_boons = []
+    CharacterRepository.save(char)
+    char = CharacterRepository.get_by_id(char.id)
+
+    res = BreakthroughEngine.attempt_breakthrough(char)
+    assert res["success"] and res["is_major"]
+    assert len(char.fate_pending) == 2, "再次突破应产生第二抽"
+    CharacterRepository.save(char)
+
+    cer = build_breakthrough_ceremony(char, res, fate_drawn=True)
+    aftermath = [b for b in cer["beats"] if b["stage"] == "aftermath"][0]
+    assert aftermath["choices"] == char.fate_pending[0]["candidates"], (
+        "仪式 choices 必须呈现最老一抽（pending[0]），与 apply_fate_choice 的 FIFO 一致")
+    # 明示尚有更新一抽待选（只增字段/文案，既有字段不删改）
+    assert cer["result_ref"]["fate_pending_count"] == 2
+    assert cer["result_ref"].get("fate_pending_newer_count") == 1
+    assert "另有 1 抽" in aftermath["text"]
+
+    key = aftermath["choices"][0]["key"]
+    pick = WORLD.handle(token, f"/命格 {key}")
+    assert pick.get("ok"), f"仪式 choices 中的 key 经 /命格 应可选：{pick}"
+    after = CharacterRepository.get_by_id(char.id)
+    assert [b["key"] for b in after.fate_boons] == [key]
+    assert len(after.fate_pending) == 1, "只消费最老一抽，新抽仍待选"
