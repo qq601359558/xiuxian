@@ -1156,6 +1156,14 @@ class World:
                                     CharacterRepository.save(char)
                             except Exception:
                                 pass
+                            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口②·心魔后继段）
+                            try:
+                                from core import rumors as _rumors_mod2
+
+                                _rumors_mod2.note_breakthrough(
+                                    char.name, char.realm.name, char.location)
+                            except Exception:
+                                pass
                         _trib_settle = None
                         if trib_dead:
                             _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
@@ -2607,6 +2615,24 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/斗法 <道号>"}
                 return self._fight(char, parts[1])
+            if action in ("/回应", "/respond_drama"):
+                # 主动戏剧回应（game-feel-phase2 §5.3/§8.4）：落账在 DramaEngine，
+                # fight 经 fight_fn 转调既有 _fight 分发（同一斗法入口）。
+                from core.npc_proactive import DramaEngine
+
+                if len(parts) < 3:
+                    return {"ok": True, "text": DramaEngine.panel_text(char),
+                            "status": self._status_dict(char)}
+                _dres = DramaEngine.respond(
+                    char, parts[1], parts[2],
+                    fight_fn=lambda _n: self._fight(char, _n))
+                if not _dres.get("success"):
+                    return {"ok": False, "error": _dres.get("error") or "回应失败。",
+                            "status": self._status_dict(char)}
+                if _dres.get("action") == "fight" and isinstance(_dres.get("fight"), dict):
+                    return _dres["fight"]
+                return {"ok": True, "text": _dres.get("message") or "已回应。",
+                        "status": self._status_dict(char), "drama": _dres}
             if action in ("/event", "/机缘"):
                 return self._event(char)
             if action in ("/revenge", "/回访", "/因果"):
@@ -4833,6 +4859,20 @@ class World:
                 text += "\n" + o.get("text", "")
         except Exception:
             pass
+        # 主动戏剧评估（game-feel-phase2 §5.4 迁跃落点触发点，与 maybe_engage 同段；
+        # 同场事件 text 经本通道下发，异地事件只入待回应队列）
+        try:
+            from core.npc_proactive import DramaEngine
+
+            for _dev in (DramaEngine.evaluate(c, trigger="travel") or [])[:1]:
+                _dnpc = CharacterRepository.get_by_id(_dev.get("npc_id") or "")
+                if _dnpc is not None and _dnpc.location == c.location:
+                    text += "\n" + str(_dev.get("text") or "")
+                else:
+                    text += (f"\n【江湖有事】{_dev.get('npc_name', '有人')}"
+                             f"遣人传话，事已入待回应（/回应 查看）。")
+        except Exception:
+            pass
         # 因果回访（小概率）
         try:
             rv = RevengeEngine.maybe_callback(c, chance=0.25)
@@ -4967,6 +5007,13 @@ class World:
                 from core.player_echo import record_player_breakthrough
 
                 record_player_breakthrough(c, realm_name=c.realm.name)
+            except Exception:
+                pass
+            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口①）
+            try:
+                from core import rumors as _rumors_mod
+
+                _rumors_mod.note_breakthrough(c.name, c.realm.name, c.location)
             except Exception:
                 pass
             # 大境界突破：尝试触发天道导演（仍受冷却）+ 惊动天道
