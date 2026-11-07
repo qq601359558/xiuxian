@@ -809,3 +809,12 @@ Pydantic 模型 `FateThread`（新文件 `core/fate_thread.py`，引擎 `FateThr
 - **新 config**：`FATE_THREAD_MAX_ACTIVE=1`、`FATE_CHAPTER_WINDOW_DAYS`（§3.2）、戏剧频控常量沿 §5.4 写死于 npc_proactive（或 config 同段，实现岗二选一并在代码注释标出处）。
 - **既有契约变更清单**：goals 幂等键（§2）+ CHECKED_SOURCES/KINDS/NON_REJECTABLE 各增 thread + _eval_check 增 3 kind（§3.5）；origin 生成器增 vendetta 入参（§4.3）；legacy `_fate_fields` 增 thread 分支与评语分段（§3.8/§7.2）；briefing 拼装增 ③.5/⑤.5 两步（§8.2）；KarmaChainEngine 增 nudge_ferment/nudge_strength 两钳制函数（§5.3）；rumors 增 4 写入口（§6.2）；gallery_assets 键集 38→139 与多处解析变更（§9）；gallery 分组/称号/派生变更（§9.10）；server/app.py 托管正则目录段扩展（§9.9）；`fate_block` 增 thread 子键（§8.1）；命令目录 +2（§8.4）。
 - **只增字段总表**：登录响应 entry.queue 增 fate_chapter/drama 两 kind、lines.fate 取值优先级（§8.2）；`_status_dict` 增 `fate.thread`、`location_image`（§8.1）；交谈开启响应增 `old_account`（§8.3）；命盘 pet 块增 `img`（§9.3）；秘境/副本进入响应增 `scene_image`（§9.4）；origin relations 条目增 `vendetta/vendetta_for` 两键（§4.3）。
+
+---
+
+## 裁决记录（集成收口回写，2026-11-08）
+
+> 本节由集成岗按派工单回写，只记裁决与出处，不改上方任何契约正文。
+
+- **§4.2 总管裁决（世仇选人 covered 口径收口，后端 A 偏差 1 就此关闭）**：来源 1（上世 xue 链）与来源 2（KarmaLink 仇/怨孤儿行）给出的候选若为影子已覆盖者（covered_ids），按 §4.2 末段走**顺延/同门降级**（同来源顺延下一候选，无则按降级链继续，全空返回 None）；来源 3（负值影子）的候选本身即影子条目、天然在 covered 集合内者**仍植入**，但标记 `shadow_covered`，origin 落账**不对其叠加** `shift_attitude`，其态度**以影子施加值为准**（一期影子优先口径不变）。VD-01 的第三来源构造据此成立，VD-05 的断言口径以本裁决为准。
+- **集成裁决（/回应 双分发合并）**：`world.handle` 的 `/回应` 双分发已合并为**单一分发**，落点取后端 A 位点，合并后同时含 `fight_fn` 路由（挑衅应战转既有 `_fight` 分发）与无参列表的 `drama_pending` 列表下发；后端 B 位点的重复分发不保留。此后 `/回应` 的服务端行为以该单一分发为唯一事实源。
