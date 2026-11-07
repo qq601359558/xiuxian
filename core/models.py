@@ -381,6 +381,11 @@ class Character(BaseModel):
     last_omen_at: float = 0.0          # 上次自然触发奇遇时间戳
 
     goals: List[Dict[str, Any]] = Field(default_factory=list)
+    # 游戏感第一期（game-feel-phase1 §3.2/§4.2）：单世出身块与命格状态；
+    # 全部带默认值，旧档零迁移。origin 空 dict = 无出身（老角色/NPC）。
+    origin: Dict[str, Any] = Field(default_factory=dict)
+    fate_boons: List[Dict[str, Any]] = Field(default_factory=list)    # 已选命格
+    fate_pending: List[Dict[str, Any]] = Field(default_factory=list)  # 待选命格抽（FIFO ≤2）
     # 灵宠（F01）：本世所养灵宠；待契约灵兽物种名（探险遇兽后写入，空=无）
     pets: List[SpiritPet] = Field(default_factory=list)
     pending_pet_species: str = ""

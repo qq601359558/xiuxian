@@ -349,6 +349,7 @@ def test_world_handle_farm_chain():
     tok = r["token"]
     char = w.get_char(tok)
     char.spirit_stones = 2000
+    char.location = "青云坊市客栈"
     CharacterRepository.save(char)
 
     res = w.handle(tok, "/购买 灵谷种子 2")
@@ -388,6 +389,7 @@ def test_world_handle_meditation_gate():
     tok = r["token"]
     char = w.get_char(tok)
     char.spirit_stones = 2000
+    char.location = "青云坊市客栈"
     CharacterRepository.save(char)
     assert w.handle(tok, "/开辟").get("ok")
     char = w.get_char(tok)

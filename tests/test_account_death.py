@@ -597,7 +597,9 @@ def test_web_login_dead_no_auto_rebirth_and_explicit_reincarnate():
         assert out2.get("wallet", {}).get("balance") == 400, out2
         new = CharacterRepository.get_by_user_id(uid)
         assert new.status != CharacterStatus.DEAD
-        assert new.spirit_stones == 150  # 出生灵石不变，钱包不自动划转
+        stones_final = new.origin["stones_final"]
+        assert 80 <= stones_final <= 260
+        assert new.spirit_stones == stones_final  # 出身灵石（Spec §3.5），钱包不自动划转
         # 新账号经 /register 仍自动建首世
         out3 = _http_post(port, "/register", {"username": f"ad{tag}z", "password": "123456"})
         assert out3.get("ok") is True, out3
@@ -648,7 +650,9 @@ def test_cli_death_settlement_and_rebirth_guidance(monkeypatch):
     monkeypatch.setattr(cm.Prompt, "ask", lambda *a, **k: next(answers))
     new = cm.settle_and_reincarnate(_get(dead.id), "身死道消", c.user_id)
     assert new is not None
-    assert new.spirit_stones == 150
+    stones_final = new.origin["stones_final"]
+    assert 80 <= stones_final <= 260
+    assert new.spirit_stones == stones_final
     assert _wallet(c.user_id).wallet_stones == 360
     blob = "\n".join(printed)
     assert "360" in blob, blob

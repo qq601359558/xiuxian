@@ -255,8 +255,15 @@
     uid: localStorage.getItem("wb.uid") || "",
     theme: localStorage.getItem("wb.theme") === "dark" ? "dark" : "light",
     mode: "login",
-    view: "sanctum", // 'sanctum', 'wilderness', 'inventory', 'bazaar'
+    view: "sanctum", // 'entry', 'sanctum', 'wilderness', 'inventory', 'bazaar'
     status: null,
+    // 游戏感第一期（game-feel-phase1 §2.5）：登录响应只增 entry；缺失即不渲染入局层
+    entry: null,
+    entryPending: false,
+    // §3.11 出身卡（origin_card）与 §4 仪式（ceremony，均只认后端下发结构）
+    originCard: null,
+    originCardDismissed: false,
+    ceremony: null,
     here: [],
     feed: [],
     world: null,
@@ -504,6 +511,7 @@
   // ---------- 视图切换 ----------
     // ---------- 视图切换与主境导航联动 ----------
   const VIEW_CRUMBS = {
+    entry: "入局",
     sanctum: "玄阁洞府",
     sect: "宗门大殿",
     wilderness: "十方大荒",
@@ -513,9 +521,12 @@
   };
 
   function setView(v) {
-    const valid = ["sanctum", "sect", "wilderness", "inventory", "bazaar", "gallery"];
+    const valid = ["entry", "sanctum", "sect", "wilderness", "inventory", "bazaar", "gallery"];
     if (!valid.includes(v)) v = "sanctum";
+    // §2.5 降级：entry 缺失且无待补标记/出身卡时不进入入局层，回退洞府
+    if (v === "entry" && !state.entry && !state.entryPending && !state.originCard) v = "sanctum";
     state.view = v;
+    if (v === "entry") refreshEntry();
     document.querySelectorAll(".nav-tab[data-view]").forEach((b) => {
       const isCur = b.getAttribute("data-view") === v;
       b.classList.toggle("active", isCur);
@@ -539,12 +550,316 @@
     if ($("topStones")) setText("topStones", (s.stones != null ? s.stones : 0) + " 灵石");
     if ($("topDaoRealm")) setText("topDaoRealm", (s.realm || "—") + (s.rank && s.rank !== "散修" ? " · " + s.rank : ""));
 
-    if (state.view === "sanctum") host.innerHTML = renderSanctum();
+    if (state.view === "entry") host.innerHTML = renderEntry();
+    else if (state.view === "sanctum") host.innerHTML = renderSanctum() + renderSanctumExtras();
     else if (state.view === "sect") host.innerHTML = renderSect();
     else if (state.view === "wilderness") host.innerHTML = renderWilderness();
     else if (state.view === "inventory") host.innerHTML = renderInventory();
     else if (state.view === "bazaar") host.innerHTML = renderBazaar();
     else if (state.view === "gallery") host.innerHTML = renderGallery();
+  }
+
+  // ==========================================================================
+  // 游戏感第一期（game-feel-phase1）：入局 / 出身卡 / 仪式 / 关系可见化。
+  // 只认后端下发结构渲染（entry / origin_card / ceremony / status.origin /
+  // status.fate / status.relations_recent / status.relations_marks）；
+  // 字段缺失即不渲染，不自造默认值掩盖后端缺失（沿既有降级惯例）。
+  // ==========================================================================
+
+  // 命盘追加段（出身/命格/关系/仪式偏好在后续段落拼入；renderSanctum 本体不改）
+  function renderSanctumExtras() {
+    const s = state.status || {};
+    const parts = [originFoldHtml(s.origin), fateSectionHtml(s.fate),
+      relationsSectionHtml(s.relations_recent), ceremonySkipSectionHtml()];
+    const html = parts.filter(Boolean).join("");
+    return html ? `<div class="w-full flex flex-col gap-5 mt-6">${html}</div>` : "";
+  }
+
+  // 出身卡/命格/关系/仪式偏好的渲染函数在下方各件段落定义（函数声明提升，此处先声明占位由后续段落实现）
+  // ---- 件二 · 出身卡（§3.11）：只读渲染 origin 块，null/缺键不出现 ----
+  function originRows(o) {
+    const rows = [];
+    if (!o) return rows;
+    if (o.family_text || o.family) rows.push(["家世", o.family_text || o.family]);
+    const os = o.old_story || {};
+    if (os.summary || os.kind) rows.push(["旧事", os.summary || os.kind]);
+    const rel = [];
+    if (o.debt && o.debt.amount) rel.push(`欠${o.debt.creditor_name || "旧债主"} ${o.debt.amount} 灵石（旧债）`);
+    if (Array.isArray(o.relations) && o.relations.length) {
+      const roleCn = { kin: "亲缘", foe: "宿怨", witness: "知情" };
+      rel.push(o.relations.map((r) => `${r.npc_name || ""}·${roleCn[r.role] || r.role || ""}${r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : ""}`).join("、"));
+    }
+    if (rel.length) rows.push(["债与关系", rel.join("；")]);
+    if (Array.isArray(o.path_gates) && o.path_gates.length) {
+      const effCn = { closed: "拒止", favored: "亲近" };
+      rows.push(["路径开关", o.path_gates.map((g) => `${g.target_ref || ""}（${effCn[g.effect] || g.effect || ""}）`).join("、")]);
+    }
+    if (o.birthplace) rows.push(["出生地", o.birthplace]);
+    return rows;
+  }
+
+  function originFateLine(o) {
+    if (!o) return "";
+    if (o.fate_text) return o.fate_text;
+    if (o.proposition) return o.proposition;
+    const e = state.entry;
+    return (e && e.lines && e.lines.fate) || "";
+  }
+
+  function originRowsHtml(o) {
+    return originRows(o).map(([k, v]) => `
+      <div class="flex justify-between gap-3 text-xs py-1.5 border-b border-jade-100">
+        <span class="text-slate-500 flex-none">${esc(k)}</span>
+        <span class="text-jade-950 font-medium text-right">${esc(v)}</span>
+      </div>`).join("");
+  }
+
+  // 入局视图顶部整卡：仅 origin_card.just_created 时呈现，关闭后去命盘回看
+  function originCardHtml() {
+    const oc = state.originCard;
+    if (!oc || !oc.just_created || state.originCardDismissed || !oc.origin) return "";
+    const fateLine = originFateLine(oc.origin);
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm" style="border:1px solid rgba(197,155,39,.5)">
+      <div class="flex items-start justify-between gap-3">
+        <h2 class="text-base font-bold text-jade-950">此世出身</h2>
+        <button type="button" class="btn sm ghost" data-origin-close="1">收起</button>
+      </div>
+      ${oc.prev_epitaph ? `<p class="text-sm text-amber-800 mt-2">前世曰：${esc(oc.prev_epitaph)}</p>` : ""}
+      <div class="mt-1">${originRowsHtml(oc.origin)}</div>
+      ${fateLine ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fateLine)}</p>` : ""}
+    </div>`;
+  }
+
+  // 命盘（sanctum）「出身」折叠段：读 status.origin 只读回看
+  function originFoldHtml(origin) {
+    if (!origin) return "";
+    const fateLine = originFateLine(origin);
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <details>
+        <summary class="text-sm font-bold text-jade-950 cursor-pointer">出身 · ${esc(origin.family_text || origin.family || "")}</summary>
+        <div class="mt-2">${originRowsHtml(origin)}</div>
+        ${fateLine ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fateLine)}</p>` : ""}
+      </details>
+    </div>`;
+  }
+  // ---- 件三 · 仪式与命格（§4.1/§4.5）：只认 ceremony 结构；略过纯前端关闭 ----
+  const CEREMONY_KIND_CN = { breakthrough: "突破", death: "归府", rebirth: "转世" };
+  const CEREMONY_STAGE_CN = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
+
+  function ceremonySkipped(kind) {
+    try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; }
+  }
+
+  function fateNormalize(fate) {
+    if (!fate || typeof fate !== "object") return null;
+    let pending = fate.pending || fate.fate_pending || fate.pending_draws || [];
+    if (!Array.isArray(pending)) pending = [];
+    if (!pending.length && Array.isArray(fate.candidates) && fate.candidates.length) {
+      pending = [{ candidates: fate.candidates }];
+    }
+    let boons = fate.boons || fate.fate_boons || fate.chosen || [];
+    if (!Array.isArray(boons)) boons = [];
+    if (!pending.length && !boons.length) return null;
+    return { pending, boons };
+  }
+
+  function fateChoicesHtml(candidates) {
+    return (candidates || []).map((c) => `
+      <button type="button" class="btn sm primary" data-fate-choice="${esc(c.key || "")}" title="${esc(c.desc || "")}">${esc(c.icon || "✦")} ${esc(c.name || c.key || "")}</button>`).join("");
+  }
+
+  function fateCandidateDescHtml(candidates) {
+    return (candidates || []).filter((c) => c && c.desc).map((c) => `
+      <p class="text-[11px] text-slate-500">${esc(c.name || c.key || "")}：${esc(c.desc)}</p>`).join("");
+  }
+
+  // 命盘待选区（§4.5）：status.fate——首抽候选可择（FIFO），已选列表只读
+  function fateSectionHtml(fate) {
+    const f = fateNormalize(fate);
+    if (!f) return "";
+    let inner = "";
+    if (f.boons.length) {
+      inner += `<div class="text-xs text-slate-600">已选命格：${f.boons.map((b) => esc((b.icon ? b.icon + " " : "") + (b.name || b.key || ""))).join("、")}</div>`;
+    }
+    f.pending.forEach((draw, di) => {
+      const cands = (draw && draw.candidates) || [];
+      if (!cands.length) return;
+      if (di === 0) {
+        inner += `<div class="flex flex-wrap gap-2">${fateChoicesHtml(cands)}</div>${fateCandidateDescHtml(cands)}`;
+      } else {
+        inner += `<div class="text-xs text-slate-500">后续待选：${cands.map((c) => esc(c.name || c.key || "")).join("、")}（先择前一抽）</div>`;
+      }
+    });
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">命格待选</h3>
+      <div class="mt-2 flex flex-col gap-2">${inner}</div>
+    </div>`;
+  }
+
+  // ---- 件四 · 关系可见化（§5.4）：命盘近 5 条 + 同场箭头，同源 status 两键 ----
+  function relationsSectionHtml(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    const rows = list.slice(0, 5).map((r) => {
+      const d = typeof r.delta === "number" ? r.delta : 0;
+      const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "·";
+      const cls = d > 0 ? "text-emerald-600" : d < 0 ? "text-rose-600" : "text-slate-400";
+      return `
+      <div class="flex items-center gap-2 text-xs py-1.5 border-b border-jade-100">
+        <span class="font-bold ${cls} flex-none">${arrow}${d ? Math.abs(d) : ""}</span>
+        <span class="flex-1 text-slate-700">${esc(r.summary || "")}</span>
+        ${r.after_cn ? `<span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 flex-none">${esc(r.after_cn)}</span>` : ""}
+      </div>`;
+    }).join("");
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">关系动态</h3>
+      <div class="mt-1">${rows}</div>
+    </div>`;
+  }
+
+  // 同场近变箭头：按 relations_marks 以 NPC id 对齐（name 兜底），无 mark 不显示
+  function relationMarkHtml(row) {
+    const marks = (state.status && state.status.relations_marks) || null;
+    if (!marks || !row) return "";
+    const m = (row.id != null && marks[row.id]) || (row.name && marks[row.name]) || null;
+    if (!m || typeof m.delta !== "number" || m.delta === 0) return "";
+    const up = m.delta > 0;
+    return `<span class="text-[11px] font-bold ${up ? "text-emerald-600" : "text-rose-600"}" title="近期态度变化">${up ? "↑" : "↓"}${Math.abs(m.delta)}</span>`;
+  }
+
+  // 命盘仪式偏好段：已设自动略过的 kind 在此取消（同 localStorage 键）
+  function ceremonySkipSectionHtml() {
+    const kinds = ["breakthrough", "death", "rebirth"].filter((k) => ceremonySkipped(k));
+    if (!kinds.length) return "";
+    const rows = kinds.map((k) => `
+      <div class="flex items-center justify-between gap-3 text-xs py-1">
+        <span class="text-slate-600">${esc(CEREMONY_KIND_CN[k] || k)}仪式：自动略过中</span>
+        <button type="button" class="btn sm secondary" data-ceremony-unskip="${esc(k)}">取消自动略过</button>
+      </div>`).join("");
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">仪式偏好</h3>
+      <div class="mt-1">${rows}</div>
+    </div>`;
+  }
+
+  function maybeShowCeremony(cer) {
+    if (!cer || typeof cer !== "object" || !cer.kind) return;
+    state.ceremony = cer;
+    if (ceremonySkipped(cer.kind)) return; // 自动略过只跳呈现，命格待选不受影响
+    const beats = Array.isArray(cer.beats) ? cer.beats : [];
+    const beatsHtml = beats.map((b) => {
+      if (!b) return "";
+      const img = b.asset_key ? galleryImg("/assets/" + b.asset_key + ".webp", "omen-image", b.stage || "") : "";
+      const ch = Array.isArray(b.choices) && b.choices.length
+        ? `<div class="flex flex-wrap gap-2 mt-2">${fateChoicesHtml(b.choices)}</div>${fateCandidateDescHtml(b.choices)}` : "";
+      return `
+      <div class="space-y-1">
+        ${img}
+        <div class="text-[11px] font-bold text-filigree-700">${esc(CEREMONY_STAGE_CN[b.stage] || b.stage || "")}</div>
+        <p class="text-sm text-slate-700 leading-relaxed">${esc(b.text || "")}</p>
+        ${ch}
+      </div>`;
+    }).join("");
+    const rr = cer.result_ref && typeof cer.result_ref === "object"
+      ? Object.entries(cer.result_ref).filter(([, v]) => v != null && typeof v !== "object")
+        .map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
+    openJadeDialog({
+      title: (CEREMONY_KIND_CN[cer.kind] || "仪式") + "仪式",
+      icon: cer.kind === "death" ? "🕯️" : cer.kind === "rebirth" ? "🌿" : "⚡",
+      bodyHtml: `<div class="space-y-4">${beatsHtml || `<p class="text-sm text-slate-600">仪式已成。</p>`}${rr ? `<p class="text-[11px] text-slate-400">${esc(rr)}</p>` : ""}</div>`,
+      footerHtml: `
+        <label class="text-xs text-slate-600 flex items-center gap-1.5 mr-auto">
+          <input type="checkbox" data-ceremony-autoskip="${esc(cer.kind)}" /> 同类自动略过
+        </label>
+        <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeJadeDialog()">略过</button>`,
+    });
+  }
+
+  // ---- 件一 · 入局（§2.5 桌面） ----
+  async function fetchBriefingEntry() {
+    if (state.demo || !state.token) return;
+    try {
+      let base = (state.base || "").trim().replace(/\/$/, "");
+      if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
+      const res = await fetch(base + "/world/briefing", {
+        headers: { Authorization: "Bearer " + state.token }, cache: "no-store",
+      });
+      if (!res.ok) return;
+      const b = await res.json();
+      if (b && b.entry) { state.entry = b.entry; state.entryPending = false; }
+    } catch (_) {}
+  }
+
+  async function refreshEntry() {
+    await fetchBriefingEntry();
+    if (state.view === "entry") renderBody();
+  }
+
+  function entryItemHtml(item, highlight) {
+    if (!item) return "";
+    const t = item.target || {};
+    let attrs = "";
+    if (t.command) attrs = `data-cmd="${esc(t.command)}"`;
+    else if (t.view) attrs = `data-entry-view="${esc(t.view)}"`;
+    return `
+    <div class="jade-panel rounded-2xl p-4 shadow-sm flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-sm font-bold text-jade-950">${esc(item.title || item.kind || "待办")}</div>
+        ${item.text ? `<p class="text-xs text-slate-600 mt-1 leading-relaxed">${esc(item.text)}</p>` : ""}
+      </div>
+      ${attrs ? `<button type="button" class="btn sm ${highlight ? "primary" : "secondary"} flex-none" ${attrs}>前往</button>` : ""}
+    </div>`;
+  }
+
+  function renderEntry() {
+    const e = state.entry;
+    let html = `<div class="w-full flex flex-col gap-5">`;
+    html += originCardHtml();
+    if (!e) {
+      html += `
+      <div class="jade-panel rounded-2xl p-5 shadow-sm">
+        <h1 class="text-xl font-bold text-jade-950">入局</h1>
+        <p class="text-xs text-slate-600 mt-2">${state.entryPending ? "天道繁忙，入局信息待补——可先自由行动，稍后回到入局查看。" : "入局信息未至，可先前往洞府自由行动。"}</p>
+      </div>`;
+      return html + `</div>`;
+    }
+    const lines = e.lines || {};
+    const relTexts = Array.isArray(lines.relations)
+      ? lines.relations.map((r) => (r && r.summary) || "").filter(Boolean) : [];
+    const chainsText = lines.chains
+      ? (lines.chains.text || (lines.chains.fermenting != null ? `发酵中因果链 ${lines.chains.fermenting} 条` : "")) : "";
+    const pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
+    html += `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h1 class="text-xl font-bold text-jade-950">入局 · 当下之事</h1>
+      <div class="mt-3 space-y-2 text-sm text-slate-700 leading-relaxed">
+        ${lines.fate ? `<p>${esc(lines.fate)}</p>` : ""}
+        ${chainsText ? `<p>${esc(chainsText)}</p>` : ""}
+        ${relTexts.length ? `<p>${relTexts.map((t) => esc(t)).join("；")}</p>` : ""}
+        ${pv ? `<p>${esc(pv)}</p>` : ""}
+      </div>
+    </div>`;
+    const queue = Array.isArray(e.queue) ? e.queue : [];
+    const highlight = Array.isArray(e.highlight) && e.highlight.length ? e.highlight : queue.slice(0, 3);
+    const rest = queue.slice(highlight.length);
+    const restCount = e.rest_count != null ? e.rest_count : rest.length;
+    if (e.empty || !queue.length) {
+      html += `<div class="jade-panel rounded-2xl p-5 shadow-sm text-center text-sm text-slate-600">${esc(e.empty_text || "江湖无事，可自由行动")}</div>`;
+    } else {
+      html += highlight.map((it) => entryItemHtml(it, true)).join("");
+      if (rest.length) {
+        html += `
+        <details class="jade-panel rounded-2xl p-4 shadow-sm">
+          <summary class="text-xs font-semibold text-jade-800 cursor-pointer">另有 ${esc(restCount)} 件待办</summary>
+          <div class="mt-3 flex flex-col gap-3">${rest.map((it) => entryItemHtml(it, false)).join("")}</div>
+        </details>`;
+      }
+    }
+    return html + `</div>`;
   }
 
   // ==========================================================================
@@ -5812,6 +6127,7 @@
             <span style="font-size:12px;color:var(--ink-500);margin-left:6px">${esc(r.realm || "")}</span>
           </div>
           <span class="card-tag ${tagCls}">${att}</span>
+          ${relationMarkHtml(r)}
         </div>
         <div style="font-size:11px;color:var(--ink-500)">
           ${esc(r.sect || "散修")}${r.rank ? " · " + esc(r.rank) : ""} · ${isPlayer ? '道气清圆 · 真人修士' : '秉性：' + esc(r.personality || '行止难测')}
@@ -6216,9 +6532,13 @@
       if (data.status) applyStatus(data.status, reqEpoch);
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
       applyOmenPayload(data);
+      // 游戏感第一期只增字段：/action 响应可携带 entry / origin_card / ceremony
+      if (data.entry) { state.entry = data.entry; state.entryPending = false; }
+      if (data.origin_card) { state.originCard = data.origin_card; state.originCardDismissed = false; }
+      if (data.ceremony) maybeShowCeremony(data.ceremony);
       if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
-      if (c.startsWith("/突破") || c.startsWith("/break")) {
+      if ((c.startsWith("/突破") || c.startsWith("/break")) && !data.ceremony) {
         const isSucc = data.ok && (data.success !== false && !(data.tribulation && data.tribulation.fatal));
         if (isSucc && (data.tribulation || data.new_realm || (data.status && data.status.realm))) {
           const newR = (data.tribulation && data.tribulation.new_realm) || (data.status && data.status.realm) || "新阶位";
@@ -6836,7 +7156,16 @@
         stones: 100,
       });
 
+      // 游戏感第一期：登录响应只增字段（§2.3/§3.11/§4.4）——entry 落点、
+      // origin_card 出身卡、ceremony 仪式；缺失即按既有口径降级。
+      if (payload.entry !== undefined) state.entry = payload.entry;
+      if (payload.entry_pending !== undefined) state.entryPending = !!payload.entry_pending;
+      if (payload.origin_card) state.originCard = payload.origin_card;
+
       showApp();
+      // §2.5：登录成功默认入局；entry 缺失回退洞府（setView 内亦有降级）
+      setView(state.entry || state.entryPending || (state.originCard && state.originCard.just_created) ? "entry" : "sanctum");
+      if (payload.ceremony) maybeShowCeremony(payload.ceremony);
       toast("已入世 · " + state.name, "ok");
       await loadCommands();
       await refreshAll();
@@ -7242,6 +7571,53 @@
             inp.focus();
           }
         }
+      }
+    });
+
+    // 游戏感第一期新增委托（与上方既有委托属性不重叠）：入局视图跳转等
+    document.addEventListener("click", (e) => {
+      const viewEl = e.target.closest && e.target.closest("[data-entry-view]");
+      if (viewEl) {
+        const v = viewEl.getAttribute("data-entry-view");
+        if (v === "world") {
+          // 桌面无 world 视图：NPC 来访落到同场抽屉（§2.3 前端既有打开方式）
+          const btn = $("btnOpenDrawer");
+          if (btn) btn.click();
+        } else {
+          setView(v);
+        }
+        return;
+      }
+      const originCloseEl = e.target.closest && e.target.closest("[data-origin-close]");
+      if (originCloseEl) {
+        state.originCardDismissed = true;
+        renderBody();
+        return;
+      }
+      const fateEl = e.target.closest && e.target.closest("[data-fate-choice]");
+      if (fateEl) {
+        const key = fateEl.getAttribute("data-fate-choice");
+        if (key) {
+          sendCmd("/命格 " + key).then((res) => {
+            if (res && res.ok !== false) closeJadeDialog();
+          });
+        }
+        return;
+      }
+      const unskipEl = e.target.closest && e.target.closest("[data-ceremony-unskip]");
+      if (unskipEl) {
+        try { localStorage.removeItem("ceremony_skip_" + unskipEl.getAttribute("data-ceremony-unskip")); } catch (_) {}
+        renderBody();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-ceremony-autoskip")) {
+        const kind = t.getAttribute("data-ceremony-autoskip");
+        try {
+          if (t.checked) localStorage.setItem("ceremony_skip_" + kind, "1");
+          else localStorage.removeItem("ceremony_skip_" + kind);
+        } catch (_) {}
       }
     });
 

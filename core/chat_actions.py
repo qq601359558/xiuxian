@@ -191,6 +191,14 @@ def do_gift(player: Character, npc: Character, item_hint: str, stones: int) -> D
         GIFT_ATTITUDE_MAX_PER_GIFT,
         (stones + item_value) // GIFT_ATTITUDE_STONES_PER_POINT,
     )
+    # 旧债还款事实钩子（game-feel-phase1 §3.5 挂点②）：赠礼按既有计价
+    # 口径折算的价值（实付灵石 + 目录价）流向债主时抵债；异常不炸主流程。
+    try:
+        from core.promises import PromiseEngine
+
+        PromiseEngine.note_debt_payment(player, npc, stones + item_value)
+    except Exception:
+        pass
     try:
         from core.npc_mind import shift_attitude
 

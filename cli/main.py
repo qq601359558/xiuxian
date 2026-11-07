@@ -361,6 +361,13 @@ def prompt_reincarnation(account: LegacyAccount, user_id: str = USER_ID):
     if karma_shadow:
         shadow_lines = "、".join(f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow)
         console.print(f"[bold magenta]【因果余绪】前世余绪及身：{shadow_lines}[/bold magenta]")
+    # 出身生成（game-feel-phase1 §3.10）：影子之后、统一 save 之前；失败不阻断
+    try:
+        from core.origin import OriginEngine
+
+        OriginEngine.generate_for_new_life(player, account)
+    except Exception:
+        pass
     LegacyRepository.save(account)
     CharacterRepository.save(player)
     ChronicleRepository.record(
@@ -641,6 +648,20 @@ def run_mud():
                 except Exception:
                     pass
                 console.print(_gallery.panel_text(player))
+
+            elif action in ["/命格", "/fate"]:
+                # 命格（game-feel-phase1 §4.2）：与 server 同命令同函数同文案
+                from core.ceremony import apply_fate_choice, fate_panel_text
+
+                if len(parts) > 1:
+                    res = apply_fate_choice(player, parts[1])
+                    if res.get("success"):
+                        CharacterRepository.save(player)
+                        console.print(res["message"])
+                    else:
+                        console.print(f"[red]{res.get('message', '选择失败')}[/red]")
+                else:
+                    console.print(fate_panel_text(player))
 
             elif action in ["/寻宝", "/clue"]:
                 # 寻宝线索链（gallery-gameplay §5.3）：与 server 调同一引擎

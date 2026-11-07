@@ -125,6 +125,13 @@ class CombatEngine:
             power *= BodySoulEngine.power_bonus(c)
         except Exception:
             pass
+        try:
+            # 命格加成（game-feel-phase1 §4.2，F5 口径）：乘子链尾，无命格恒 1.0
+            from core.ceremony import FateBoonEngine
+
+            power *= FateBoonEngine.power_bonus(c)
+        except Exception:
+            pass
         return power
 
     @staticmethod

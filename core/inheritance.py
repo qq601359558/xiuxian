@@ -224,6 +224,11 @@ def trace_summary(trace: LifeTrace) -> Dict[str, Any]:
             for p in trace.open_promises
         ],
         "promises_count": len(trace.open_promises),
+        # 游戏感第一期（§3.9）：评语四键只增（dead_payload/legacy_info 自动受益）
+        "fate_summary": getattr(trace, "fate_summary", "") or "",
+        "life_epitaph": getattr(trace, "life_epitaph", "") or "",
+        "origin_signature": getattr(trace, "origin_signature", "") or "",
+        "unfinished_prop": dict(getattr(trace, "unfinished_prop", None) or {}),
     }
 
 
@@ -237,6 +242,10 @@ def tombstone_text(trace: LifeTrace) -> str:
         f"道统点 +{trace.points_gained} · 第 {trace.life_no} 世",
         f"因果摘要：前世余绪 {len(trace.shadow)} 条 · 未了之诺 {len(trace.open_promises)} 条",
     ]
+    # 游戏感第一期（§3.9 落点①）：评语非空时末尾只增一行
+    epitaph = getattr(trace, "life_epitaph", "") or ""
+    if epitaph:
+        lines.append(f"一生评语：{epitaph}")
     return "\n".join(lines)
 
 

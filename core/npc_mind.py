@@ -83,6 +83,19 @@ def attitude_toward(npc: Character, other_id: str) -> Dict[str, Any]:
     return {"value": 0, "label": "neutral"}
 
 
+def _label_for_value(value: int) -> str:
+    """态度标签口径与 NpcMindRepository.set_attitude 同源。"""
+    if value <= -40:
+        return "hostile"
+    if value <= -15:
+        return "wary"
+    if value >= 40:
+        return "ally"
+    if value >= 15:
+        return "friendly"
+    return "neutral"
+
+
 def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") -> Dict[str, Any]:
     mind = ensure_mind(npc)
     cur = ((mind.get("attitudes") or {}).get(other_id) or {}).get("value", 0)
@@ -99,6 +112,78 @@ def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") 
             )
         except Exception:
             pass
+    # 关系可见化 RELATION 留痕（game-feel-phase1 §5.2）：在 ATTITUDE 写入
+    # 之后、因果链 S1 钩子之前；触发条件 delta≠0 且（值变或标签变）；
+    # 失败不炸主流程（与 S1 同纪律）。
+    if int(delta) != 0:
+        try:
+            new_value = int(result.get("value", new_v))
+            before_label = _label_for_value(int(cur))
+            after_label = result.get("label") or _label_for_value(new_value)
+            if new_value != int(cur) or after_label != before_label:
+                reason_text = reason or "无名由"
+                if after_label != before_label:
+                    summary = (
+                        f"{npc.name}对你由{ATTITUDE_LABELS.get(before_label, '中立')}"
+                        f"转{ATTITUDE_LABELS.get(after_label, '中立')}：{reason_text}"
+                    )
+                else:
+                    summary = (
+                        f"{npc.name}对你态度{'升温' if int(delta) > 0 else '降温'}"
+                        f"：{reason_text}"
+                    )
+                refs = [
+                    f"delta:{int(delta)}",
+                    f"before:{before_label}",
+                    f"after:{after_label}",
+                    f"reason:{reason or ''}",
+                ]
+                digest = f"attitude {int(cur)}->{new_value} ({int(delta):+d})"
+                other_obj = None
+                try:
+                    other_obj = CharacterRepository.get_by_id(other_id)
+                except Exception:
+                    other_obj = None
+                if other_obj is not None:
+                    record_event(
+                        type="RELATION",
+                        actor=npc,
+                        target=other_obj,
+                        summary=summary,
+                        location=npc.location,
+                        effects_digest=digest,
+                        refs=refs,
+                    )
+                else:
+                    # target 活对象不可得：直写仓储兜底，保证 target 索引可查
+                    from core.memory import new_event_id
+
+                    EventLedgerRepository.append(
+                        event_id=new_event_id(),
+                        ts=time.time(),
+                        type="RELATION",
+                        actor_id=npc.id,
+                        actor_name=npc.name,
+                        summary=summary,
+                        target_id=other_id,
+                        target_name="",
+                        location=npc.location,
+                        effects_digest=digest,
+                        refs=refs,
+                    )
+        except Exception:
+            pass
+    # 判定式求值点 E4（game-feel-phase1 §3.7）：态度移位后求值 other 一方
+    # 的 npc_attitude_at_least 类目标；活对象不可得时跳过（E1/E6 兜底）。
+    try:
+        _other = CharacterRepository.get_by_id(other_id)
+        if _other is not None:
+            from core.goals import GoalEngine
+
+            if GoalEngine.evaluate_attitude_goals(_other):
+                CharacterRepository.save(_other)
+    except Exception:
+        pass
     # 因果链 S1（karma-event-chains）：态度跨 ±60 阈才调引擎起链；
     # reason 以「因果链」开头的是链自身落账，跳过防自激。钩子异常不炸主流程。
     if not (reason or "").startswith("因果链"):

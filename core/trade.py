@@ -760,6 +760,15 @@ class NpcShopEngine:
             }
         player.spirit_stones -= total
         _give_item(player, item_name, qty, cfg.get("kind", "material"))
+        # 旧债还款事实钩子（game-feel-phase1 §3.5 挂点①）：专柜买入的付款
+        # 真实流向债主时抵债；钩子异常不炸主流程。
+        debt_line = ""
+        try:
+            from core.promises import PromiseEngine
+
+            debt_line = PromiseEngine.note_debt_payment(player, npc, total) or ""
+        except Exception:
+            debt_line = ""
         line_extra = ""
         try:
             from core import ai_flavor
@@ -779,6 +788,8 @@ class NpcShopEngine:
         msg = (
             f"【专柜成交】自【{npc.name}】购入【{item_name}】×{qty}，付 {total} 灵石。"
         )
+        if debt_line:
+            msg += f"\n{debt_line}"
         if line_extra:
             msg += f"\n「{line_extra}」"
         return {

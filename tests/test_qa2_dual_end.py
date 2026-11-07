@@ -95,11 +95,17 @@ def test_promise_server_make_engine_fulfil_once():
     npc = WorldClock.create_new_character(f"npc_qa2_de_{_tag()}", f"QA2双端受诺{_tag()}")
     npc.location = LOC_A
     CharacterRepository.save(npc)
+    # 立诺前同场化：promiser 落点设为受诺 NPC 所在地（出身出生地可能不在 LOC_A）
+    promiser_live = _get(promiser.id)
+    promiser_live.location = LOC_A
+    CharacterRepository.save(promiser_live)
     try:
         res = WORLD.handle(tok, f"/许诺 {npc.name} 抵达 {LOC_B}")
         assert res["ok"], res
         plist = PromiseEngine._involving(promiser.id)
-        assert len(plist) == 1 and plist[0].status.value == "ACTIVE", plist
+        arrive = [p for p in plist if p.kind == "arrive" and p.promisee_id == npc.id]
+        assert len(arrive) == 1 and arrive[0].status.value == "ACTIVE", plist
+        debt_before = [(p.id, p.status.value, p.paid) for p in plist if p.kind == "debt"]
         km0 = _merit(promiser.id)
         # 引擎侧（CLI 同路径）：移动达地点后 note_arrival 结算
         me = _get(promiser.id)
@@ -115,7 +121,10 @@ def test_promise_server_make_engine_fulfil_once():
         assert not line2
         assert _merit(promiser.id) == km0 + 10
         plist = PromiseEngine._involving(promiser.id)
-        assert plist[0].status.value == "KEPT", plist
+        arrive = [p for p in plist if p.kind == "arrive" and p.promisee_id == npc.id]
+        assert len(arrive) == 1 and arrive[0].status.value == "KEPT", plist
+        debt_after = [(p.id, p.status.value, p.paid) for p in plist if p.kind == "debt"]
+        assert debt_after == debt_before, (debt_before, debt_after)
         print("✓ 双端诺言：server 立诺、引擎践诺恰一次 +10，重复触发零入账")
     finally:
         _kill(promiser)

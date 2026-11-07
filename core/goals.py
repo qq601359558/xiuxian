@@ -29,10 +29,16 @@ KINDS = {
     "fame": "扬名",
     "survive": "避劫",
     "legacy": "道统",
+    # 游戏感第一期（§3.7 契约变更④）：出身短期目标 / 终局命题展示名
+    "origin": "出身",
+    "fate": "命途",
 }
 
-# 不可拒绝的目标源
-NON_REJECTABLE = {"dao"}
+# 不可拒绝的目标源（§3.7 契约变更③：fate 命题同 dao 口径不可弃）
+NON_REJECTABLE = {"dao", "fate"}
+
+# 判定式目标源（§3.7）：豁免 7 日过期与 GOAL_MAX_ACTIVE 计数
+CHECKED_SOURCES = ("origin", "fate")
 
 SOURCE_TEMPLATES = {
     "dao": ("问道长生", "稳固道基，勤修不辍，境界自会有进。"),
@@ -49,6 +55,15 @@ def _active_goals(character: Character) -> List[Dict[str, Any]]:
     return [g for g in (character.goals or []) if g.get("status") == "active"]
 
 
+def _counted_active(character: Character) -> List[Dict[str, Any]]:
+    """计入 GOAL_MAX_ACTIVE 的 active 目标（§3.7 契约变更②：
+    origin/fate 两源不计入上限计数，也永不被 omen supersede 选中）。"""
+    return [
+        g for g in _active_goals(character)
+        if g.get("source") not in CHECKED_SOURCES
+    ]
+
+
 def _has_source(character: Character, source: str) -> bool:
     return any(g.get("source") == source for g in _active_goals(character))
 
@@ -63,13 +78,16 @@ class GoalEngine:
         if not isinstance(character.goals, list):
             character.goals = []
         now = time.time()
-        # 过期清理（7 天）
+        # 过期清理（7 天）（§3.7 契约变更①：origin/fate 两源豁免，
+        # 其期限由 check 的 deadline 独立管辖）
         for g in character.goals:
+            if g.get("source") in CHECKED_SOURCES:
+                continue
             if g.get("status") == "active" and now - float(g.get("created_at") or 0) > 7 * 86400:
                 g["status"] = "expired"
 
         def _add(source: str, title: str, detail: str, **extra) -> None:
-            active_n = len([g for g in character.goals if g.get("status") == "active"])
+            active_n = len(_counted_active(character))
             # 基础三类不限满额挤占；扩展类留出 add_opportunity 余量
             base = source in ("dao", "newbie", "season")
             limit = GOAL_MAX_ACTIVE if base else max(4, GOAL_MAX_ACTIVE - 2)
@@ -93,7 +111,7 @@ class GoalEngine:
         _add("newbie", *SOURCE_TEMPLATES["newbie"])
         _add("season", *SOURCE_TEMPLATES["season"])
 
-        active_n = len([g for g in character.goals if g.get("status") == "active"])
+        active_n = len(_counted_active(character))
         if active_n < 5:
             if character.sect:
                 _add("sect", f"效力【{character.sect}】", "完成日环、上交贡献或除凶，为宗门立功。", target=character.sect)
@@ -107,7 +125,7 @@ class GoalEngine:
         try:
             import core.jianghu as jianghu
 
-            active_n = len([g for g in character.goals if g.get("status") == "active"])
+            active_n = len(_counted_active(character))
             if active_n < 5:
                 mine = jianghu.project_related(character.id, limit=6)
                 if not _has_source(character, "fame"):
@@ -117,7 +135,7 @@ class GoalEngine:
                         "江湖多事，宜在斗法/宗门/除凶中留下名号。",
                         progress=min(2, len(mine)),
                     )
-            active_n = len([g for g in character.goals if g.get("status") == "active"])
+            active_n = len(_counted_active(character))
             if active_n < GOAL_MAX_ACTIVE:
                 for e in jianghu.list_recent(limit=6):
                     if "夺" in (e.get("summary") or "") or e.get("kind") in ("npc_agenda",):
@@ -134,12 +152,13 @@ class GoalEngine:
         """外部事件挂接机缘目标（秘境等）。机缘类允许超基础配额，上限仍为 GOAL_MAX_ACTIVE。"""
         GoalEngine.ensure_goals(character)
         # 若 ensure 已写入 omen（江湖传闻），先降其优先级为 superseded，保证外部机缘可挂接
-        if len(_active_goals(character)) >= GOAL_MAX_ACTIVE:
+        # （§3.7 契约变更②：满额口径不计 origin/fate，supersede 只选 omen 源）
+        if len(_counted_active(character)) >= GOAL_MAX_ACTIVE:
             for g in character.goals or []:
                 if g.get("status") == "active" and g.get("source") == "omen":
                     g["status"] = "superseded"
                     break
-        if len(_active_goals(character)) >= GOAL_MAX_ACTIVE:
+        if len(_counted_active(character)) >= GOAL_MAX_ACTIVE:
             return {"success": False, "error": "世间目标已满，可先 /目标 处理。"}
         goal = {
             "id": _gid("omen"),
@@ -176,6 +195,194 @@ class GoalEngine:
                 g["done_reason"] = reason[:120]
                 return g
         return None
+
+    # ---------------- 判定式目标（game-feel-phase1 §3.7） ----------------
+    @staticmethod
+    def add_checked_goal(
+        character: Character,
+        *,
+        source: str,
+        title: str,
+        detail: str,
+        check: Dict[str, Any],
+        deadline_days: Optional[float] = None,
+        now: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """挂一条 check 判定式目标（origin 短期 / fate 命题）。
+
+        幂等：同 source + 同 check.kind + 同 check.ref 已有 active 项时
+        直接返回既有项，不重复挂（生成重入防线）。
+        """
+        t = now if now is not None else time.time()
+        if not isinstance(character.goals, list):
+            character.goals = []
+        chk = dict(check or {})
+        if deadline_days is not None:
+            chk.setdefault("deadline_days", deadline_days)
+        for g in character.goals:
+            if g.get("status") != "active" or g.get("source") != source:
+                continue
+            gc = g.get("check") or {}
+            if gc.get("kind") == chk.get("kind") and gc.get("ref") == chk.get("ref"):
+                return g
+        from config import SECONDS_PER_GAME_DAY
+
+        goal = {
+            "id": _gid(source),
+            "source": source,
+            "title": str(title)[:60],
+            "detail": str(detail)[:200],
+            "status": "active",
+            "progress": 0,
+            "created_at": t,
+            "tier": "short" if source == "origin" else "final",
+            "check": chk,
+            "deadline_at": (
+                t + float(deadline_days) * SECONDS_PER_GAME_DAY
+                if deadline_days is not None else 0.0
+            ),
+        }
+        character.goals.append(goal)
+        return goal
+
+    @staticmethod
+    def evaluate_checked_goals(
+        character: Character, now: Optional[float] = None, *, final: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """判定式求值器（§3.7 口径 K3）：纯读既有账 + 只改入参 char 的
+        goals 项 status，从不自行落盘。返回本轮新翻转（done/failed）的项。
+
+        求值点只有 E1 登录拼装 / E2 诺言终态 / E3 突破成功 / E4 态度移位
+        （仅 attitude 类，见 evaluate_attitude_goals）/ E5 死亡终判
+        （final=True）/ E6 sync_progress 尾部，禁止新增 tick 扫描。
+        """
+        t = now if now is not None else time.time()
+        flipped: List[Dict[str, Any]] = []
+        for g in list(character.goals or []):
+            if g.get("status") != "active" or g.get("source") not in CHECKED_SOURCES:
+                continue
+            check = g.get("check") or {}
+            kind = check.get("kind")
+            if not kind:
+                continue
+            outcome = GoalEngine._eval_check(character, check, t, final=final)
+            if outcome == "done":
+                g["status"] = "done"
+                g["done_at"] = t
+                g["done_reason"] = "判定式达成"
+                flipped.append(g)
+            elif outcome == "failed":
+                g["status"] = "failed"
+                g["done_at"] = t
+                g["done_reason"] = "判定式未成"
+                flipped.append(g)
+            else:
+                deadline_at = float(g.get("deadline_at") or 0.0)
+                if deadline_at and t > deadline_at:
+                    g["status"] = "failed"
+                    g["done_at"] = t
+                    g["done_reason"] = "到期未达成"
+                    flipped.append(g)
+        return flipped
+
+    @staticmethod
+    def evaluate_attitude_goals(
+        character: Character, now: Optional[float] = None,
+    ) -> List[Dict[str, Any]]:
+        """E4 专用：只求值 npc_attitude_at_least 类（态度移位点）。"""
+        t = now if now is not None else time.time()
+        flipped: List[Dict[str, Any]] = []
+        for g in list(character.goals or []):
+            if g.get("status") != "active" or g.get("source") not in CHECKED_SOURCES:
+                continue
+            check = g.get("check") or {}
+            if check.get("kind") != "npc_attitude_at_least":
+                continue
+            if GoalEngine._eval_check(character, check, t, final=False) == "done":
+                g["status"] = "done"
+                g["done_at"] = t
+                g["done_reason"] = "判定式达成"
+                flipped.append(g)
+        return flipped
+
+    @staticmethod
+    def _eval_check(
+        character: Character, check: Dict[str, Any], now: float, *, final: bool,
+    ) -> Optional[str]:
+        """单条 check 求值：返回 "done" / "failed" / None(pending)。
+
+        failed 只由 promise_settled 遇 BROKEN/DISSOLVED 产生（不等到期）；
+        到期 failed 由 evaluate_checked_goals 的 deadline 分支统一处理。
+        """
+        kind = check.get("kind")
+        try:
+            if kind == "promise_settled":
+                from core.promises import PromiseEngine
+
+                for p in PromiseEngine._involving(character.id):
+                    if p.id != check.get("ref"):
+                        continue
+                    st = p.status.value if hasattr(p.status, "value") else str(p.status)
+                    if st == "KEPT":
+                        return "done"
+                    if st in ("BROKEN", "DISSOLVED"):
+                        return "failed"
+                    return None
+                return None
+            if kind == "stones_at_least":
+                return "done" if character.spirit_stones >= int(check.get("amount") or 0) else None
+            if kind == "realm_at_least":
+                tier = int(check.get("tier") or 0)
+                sub = check.get("sub")
+                if character.realm.tier > tier:
+                    return "done"
+                if character.realm.tier == tier:
+                    if sub is None or character.realm.sub_tier >= int(sub):
+                        return "done"
+                return None
+            if kind == "npc_attitude_at_least":
+                from storage.db import CharacterRepository
+                from core.npc_mind import attitude_toward
+
+                npc = CharacterRepository.get_by_id(str(check.get("npc_id") or ""))
+                if npc is None:
+                    return None
+                # 死亡终判特例（仅 E5）：目标 NPC 已死 → 恩怨两消判 done
+                if final and (
+                    npc.status == CharacterStatus.DEAD or npc.lifespan.is_dead(now)
+                ):
+                    return "done"
+                value = int(attitude_toward(npc, character.id).get("value") or 0)
+                return "done" if value >= int(check.get("value") or 0) else None
+            if kind == "item_in_bag":
+                ref = str(check.get("item_ref") or "")
+                if ref and GoalEngine._bag_has(character, ref):
+                    return "done"
+                return None
+            if kind == "item_in_bag_at_death":
+                if not final:
+                    return None  # 生前恒 pending，只在 E5 终判求值
+                ref = str(check.get("item_ref") or "")
+                if ref and GoalEngine._bag_has(character, ref):
+                    return "done"
+                return None
+            if kind == "sect_joined":
+                ref = str(check.get("ref") or "")
+                if character.sect and (not ref or character.sect == ref):
+                    return "done"
+                return None
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def _bag_has(character: Character, item_ref: str) -> bool:
+        names = list(character.inventory or [])
+        for it in (character.items or []):
+            nm = getattr(it, "name", "")
+            if nm:
+                names.append(nm)
+        return any(item_ref in (n or "") for n in names)
 
     @staticmethod
     def on_breakthrough_major(character: Character) -> None:
@@ -234,6 +441,13 @@ class GoalEngine:
                         g["progress"] = 1
                 except Exception:
                     pass
+        # E6（§3.7）：sync_progress 尾部全量求值判定式目标（兜底点）
+        try:
+            for g in GoalEngine.evaluate_checked_goals(character, now):
+                if g.get("status") == "done":
+                    completed.append(g)
+        except Exception:
+            pass
         return completed
 
     @staticmethod
@@ -265,6 +479,16 @@ def format_goals(character: Character) -> str:
 
 def evaluate_and_complete(character: Character) -> List[Dict[str, Any]]:
     return GoalEngine.sync_progress(character)
+
+
+def add_checked_goal(character: Character, **kwargs) -> Dict[str, Any]:
+    return GoalEngine.add_checked_goal(character, **kwargs)
+
+
+def evaluate_checked_goals(
+    character: Character, now: Optional[float] = None, *, final: bool = False,
+) -> List[Dict[str, Any]]:
+    return GoalEngine.evaluate_checked_goals(character, now, final=final)
 
 
 def get_goals(character_id: str) -> List[Dict[str, Any]]:

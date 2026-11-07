@@ -1205,6 +1205,43 @@ class EventLedgerRepository:
         return out
 
     @staticmethod
+    def query_by_type_for_target(
+        target_id: str, type: str = "RELATION", limit: int = 30,
+    ) -> List[dict]:
+        """按 target + type 索引查询（game-feel-phase1 §5.3）：走既有
+        idx_ev_target 索引、ts 倒序；refs_json 解析回 refs 串列表。"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT event_id, ts, type, actor_id, actor_name, target_id, target_name,
+                   location, summary, effects_digest, chain_id, refs_json
+            FROM event_ledger
+            WHERE target_id = ? AND type = ?
+            ORDER BY ts DESC
+            LIMIT ?
+            """,
+            (target_id, type, int(limit)),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        out = []
+        for r in rows:
+            try:
+                refs = json.loads(r[11]) if r[11] else []
+            except Exception:
+                refs = []
+            out.append({
+                "event_id": r[0], "ts": r[1], "type": r[2],
+                "actor_id": r[3], "actor_name": r[4],
+                "target_id": r[5], "target_name": r[6],
+                "location": r[7], "summary": r[8],
+                "effects_digest": r[9], "chain_id": r[10],
+                "refs": refs if isinstance(refs, list) else [],
+            })
+        return out
+
+    @staticmethod
     def query_feud_pairs(character_id: str, limit: int = 5) -> List[dict]:
         """拉与自己相关的杀戮/仇怨类事件（复仇工作流用）"""
         conn = sqlite3.connect(DB_PATH)
@@ -1620,6 +1657,23 @@ class AccountRepository:
         row = cur.fetchone()
         conn.close()
         return row[0] if row else ""
+
+    @staticmethod
+    def get_last_login(user_id: str):
+        """只读：上一次登录时刻（game-feel-phase1 §2.2 水位口径）。
+
+        无账户行返回 None；行存在但 last_login 为空时返回 0.0。
+        本方法绝不写库——World.join 在 app 层 touch_login 之前调用，
+        读到的必是上一次登录的旧值。
+        """
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT last_login FROM accounts WHERE user_id = ?", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return float(row[0] or 0.0)
 
     @staticmethod
     def touch_login(user_id: str):

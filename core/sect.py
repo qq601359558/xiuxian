@@ -49,10 +49,32 @@ def evaluate_join(c: Character, sect: str) -> tuple[bool, str]:
     hq = cfg.get("headquarters") or ""
     if hq and c.location != hq:
         return False, f"须亲至【{hq}】山门方可叩关，当前在【{c.location}】。"
+    # 出身路径开关（game-feel-phase1 §3.6）：origin 块中的 sect 门——
+    # closed 拒止（定稿文案）；favored 只减道心判定门槛、不改角色道心。
+    _gates = []
+    try:
+        _gates = (getattr(c, "origin", None) or {}).get("path_gates") or []
+    except Exception:
+        _gates = []
+    _favored = False
+    for _g in _gates:
+        if not isinstance(_g, dict):
+            continue
+        if _g.get("gate") != "sect" or _g.get("target_ref") != sect:
+            continue
+        if _g.get("effect") == "closed":
+            return False, f"{sect}与你有出身旧怨，山门不对你开。"
+        if _g.get("effect") == "favored":
+            _favored = True
     dao = c.karma.dao_heart
     sin = c.karma.sin_value
-    if dao < cfg.get("req_dao_heart", 0):
-        return False, f"道心不足（需≥{cfg.get('req_dao_heart')}，现 {dao}）。"
+    _req_dao = cfg.get("req_dao_heart", 0)
+    if _favored:
+        from config import ORIGIN_SECT_FAVORED_DAO_WAIVER
+
+        _req_dao = max(0, _req_dao - ORIGIN_SECT_FAVORED_DAO_WAIVER)
+    if dao < _req_dao:
+        return False, f"道心不足（需≥{_req_dao}，现 {dao}）。"
     if sin > cfg.get("max_sin", 10**9):
         return False, f"业力过重（需≤{cfg.get('max_sin')}，现 {sin}）。"
     if cfg.get("min_sin") and sin < cfg["min_sin"]:

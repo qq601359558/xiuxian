@@ -357,6 +357,9 @@ class World:
             "first_night": None,
             "lock_fallback": True,
             "session_issued": False,
+            # 游戏感第一期（§2.3）：繁忙回退不拼装，entry 明示待补
+            "entry": None,
+            "entry_pending": True,
         }
 
     def _join_fallback(self, name: str, user_id, *, auto_rebirth: bool,
@@ -513,7 +516,60 @@ class World:
             except Exception:
                 pass
             self._schedule_first_night(char_obj.id, snap["user_id"], char_obj.name)
-        return {**snap, "newbie_feed": newbie_feed, "first_night": first_night}
+        # ---- 锁外：出身生成（新一世）+ 入局拼装（game-feel §2.2/§3.10）----
+        # 陈旧对象铁律：拼装只用此处锁外新读对象；①②③ 有变更时至多回存一次。
+        entry = None
+        origin_card: Dict[str, Any] = {
+            "origin": None, "prev_epitaph": "", "just_created": False}
+        try:
+            fresh = CharacterRepository.get_by_user_id(snap["user_id"]) or char_obj
+            if is_new_life and not (getattr(fresh, "origin", None) or {}):
+                try:
+                    from core.origin import OriginEngine
+
+                    _acc = LegacyRepository.get_or_create(snap["user_id"])
+                    OriginEngine.generate_for_new_life(fresh, _acc)
+                    CharacterRepository.save(fresh)
+                except Exception:
+                    pass  # 出身是增益层：失败留空、建角照常成功（§3.10）
+            try:
+                _acc2 = LegacyRepository.get(snap["user_id"])
+                if _acc2 and _acc2.traces:
+                    origin_card["prev_epitaph"] = (
+                        getattr(_acc2.traces[-1], "life_epitaph", "") or "")
+            except Exception:
+                pass
+            origin_card["origin"] = getattr(fresh, "origin", None) or None
+            origin_card["just_created"] = bool(
+                is_new_life and origin_card["origin"])
+            _since = float(getattr(fresh, "born_at", 0.0) or 0.0)
+            try:
+                from storage.db import AccountRepository as _AcctRepo
+
+                _last_login = _AcctRepo.get_last_login(snap["user_id"])
+                if _last_login:
+                    _since = float(_last_login)
+            except Exception:
+                pass
+            from core.briefing import build_entry
+
+            _dirty: list = []
+            entry = build_entry(
+                fresh, since=_since, allow_proactive=True, _out_dirty=_dirty)
+            if _dirty and _dirty[0]:
+                try:
+                    CharacterRepository.save(fresh)
+                except Exception:
+                    pass
+        except Exception:
+            entry = None  # 入口降级为旧行为，登录照常（§2.2 失败隔离）
+        return {
+            **snap,
+            "newbie_feed": newbie_feed,
+            "first_night": first_night,
+            "entry": entry,
+            "origin_card": origin_card,
+        }
 
     def first_night_status(self, character_id: str) -> Optional[str]:
         """first-night 异步任务终态查询（测试/运维用）：pending|done|failed。
@@ -796,9 +852,20 @@ class World:
             _open_count = 0
         # S4：最近一世享寿（settle 后 past_lives 末世即本世；已结算行同理）
         _last_life = account.past_lives[-1] if account.past_lives else None
+        # 死亡仪式（game-feel-phase1 §4.4）：已结算路拼装 death 幕；
+        # 锁忙回退路（未结算）ceremony=null——未结算不得演回望。
+        _ceremony = None
+        if settled:
+            try:
+                from core.ceremony import build_death_ceremony
+
+                _ceremony = build_death_ceremony(char, account)
+            except Exception:
+                _ceremony = None
         return {
             "ok": True,
             "dead": True,
+            "ceremony": _ceremony,
             "token": token,
             "user_id": user_id,
             "username": username,
@@ -914,6 +981,14 @@ class World:
             karma_shadow = apply_karma_shadow(
                 account, char, retention=_retention, cap=_cap,
             )
+            # 出身生成（game-feel §3.10 时机二）：影子之后、统一 save 之前；
+            # 纯规则毫秒级，失败不阻断转世。影子覆盖者由生成器排除。
+            try:
+                from core.origin import OriginEngine
+
+                OriginEngine.generate_for_new_life(char, account)
+            except Exception:
+                pass
             LegacyRepository.save(account)
             CharacterRepository.save(char)
             session.character_id = char.id
@@ -935,6 +1010,25 @@ class World:
                     f"{s['npc_name']} {s['value']:+d}" for s in karma_shadow
                 )
                 shadow_text = f"因果余绪及身：{shadow_lines}\n"
+            # 转世仪式 + 出身卡（game-feel §3.11/§4.4，只增键）
+            _origin_card = {
+                "origin": getattr(char, "origin", None) or None,
+                "prev_epitaph": (
+                    getattr(old_trace, "life_epitaph", "") or "") if old_trace else "",
+                "just_created": True,
+            }
+            _rebirth_ceremony = None
+            try:
+                from core.ceremony import build_rebirth_ceremony
+
+                _rebirth_ceremony = build_rebirth_ceremony(
+                    char, account,
+                    karma_shadow=karma_shadow,
+                    boosts_applied=boost_res.get("applied") or [],
+                    legacy_points=account.points,
+                )
+            except Exception:
+                _rebirth_ceremony = None
             return {
                 "ok": True,
                 "text": (
@@ -943,7 +1037,7 @@ class World:
                     f"{boost_res.get('message', '')}\n"
                     f"{shadow_text}"
                     f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）\n"
-                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 150 灵石不变）；"
+                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 {char.spirit_stones} 灵石）；"
                     f"入世后用 /钱包提取 <金额> 取用账户金额。"
                 ),
                 "karma_shadow": karma_shadow,
@@ -961,6 +1055,8 @@ class World:
                 "realm": char.realm.name,
                 "location": char.location,
                 "rem_years": round(char.lifespan.get_remaining_years(), 2),
+                "origin_card": _origin_card,
+                "ceremony": _rebirth_ceremony,
             }
 
     def _session(self, token: str) -> Optional[Session]:
@@ -1042,6 +1138,7 @@ class World:
                     # 心魔过关且未死 → 继续天劫
                     if not res.get("is_fatal") and char.realm.is_full and char.status != CharacterStatus.DEAD:
                         tmod = float(res.get("tribulation_mod") or 0.0)
+                        _pend_before = len(getattr(char, "fate_pending", None) or [])
                         trib = BreakthroughEngine.attempt_breakthrough(char, use_pill=False, heart_mod=tmod)
                         CharacterRepository.save(char)
                         text += "\n\n" + trib.get("message", "")
@@ -1051,9 +1148,29 @@ class World:
                                 GoalEngine.on_breakthrough_major(char)
                             except Exception:
                                 pass
+                            # 判定式求值点 E3（§3.7）：与 on_breakthrough_major 同位
+                            try:
+                                from core.goals import evaluate_checked_goals
+
+                                if evaluate_checked_goals(char):
+                                    CharacterRepository.save(char)
+                            except Exception:
+                                pass
                         _trib_settle = None
                         if trib_dead:
                             _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
+                        # 突破幕（§4.2 出口②）：is_major 才演，只增 ceremony
+                        _trib_ceremony = None
+                        if trib.get("is_major"):
+                            try:
+                                from core.ceremony import build_breakthrough_ceremony
+
+                                _trib_ceremony = build_breakthrough_ceremony(
+                                    char, trib,
+                                    fate_drawn=len(getattr(char, "fate_pending", None) or []) > _pend_before,
+                                )
+                            except Exception:
+                                _trib_ceremony = None
                         return {
                             "ok": True,
                             "text": text,
@@ -1063,6 +1180,7 @@ class World:
                             "legacy": self.legacy_info_id(char.user_id) if trib_dead else None,
                             "sweep": (_trib_settle or {}).get("sweep") if _trib_settle else None,
                             "death_cause": char.death_cause if trib_dead else None,
+                            "ceremony": _trib_ceremony,
                             "tribulation": {
                                 "success": trib.get("success"),
                                 "fatal": trib_dead,
@@ -1316,6 +1434,32 @@ class World:
                 except Exception:
                     pass
                 return {"ok": True, "text": _gallery.panel_text(char), "status": self._status_dict(char)}
+            if action in ("/命格", "/fate"):
+                # 命格（game-feel-phase1 §4.2）：无参查看、带参选择；仪式与
+                # 命盘共用唯一选择函数 apply_fate_choice，写路径 save 收尾。
+                from core.ceremony import (
+                    apply_fate_choice,
+                    fate_block,
+                    fate_panel_text,
+                )
+
+                arg = parts[1] if len(parts) > 1 else ""
+                if not arg:
+                    return {
+                        "ok": True,
+                        "text": fate_panel_text(char),
+                        "fate": fate_block(char),
+                        "status": self._status_dict(char),
+                    }
+                res = apply_fate_choice(char, arg)
+                if res.get("success"):
+                    CharacterRepository.save(char)
+                return {
+                    "ok": bool(res.get("success")),
+                    "text": res.get("message", ""),
+                    "fate": fate_block(char),
+                    "status": self._status_dict(char),
+                }
             if action in ("/寻宝", "/clue"):
                 # 寻宝线索链推进（gallery-gameplay §5.3）：无参查看（纯读）、
                 # 数字抉择、弃链；门禁在引擎内，写路径 save 收尾（§11）。
@@ -1534,6 +1678,7 @@ class World:
                         "text": text,
                         "goals": b.get("goals") or [],
                         "related": b.get("related") or [],
+                        "entry": b.get("entry"),
                     }
                 except Exception as e:
                     return {"ok": False, "error": f"近况生成失败：{e}"}
@@ -4323,10 +4468,28 @@ class World:
             ]
         except Exception:
             _spells_catalog = list(SPELL_CATALOG.values())
+        # 游戏感第一期只增（§3.11/§4.2/§5.3）：出身 / 命格 / 关系动态
+        _origin_block = getattr(c, "origin", None) or None
+        try:
+            from core.ceremony import fate_block as _fate_block_fn
+
+            _fate_block = _fate_block_fn(c)
+        except Exception:
+            _fate_block = {"boons": [], "pending": [], "power_bonus": 1.0}
+        try:
+            from core.relations import relations_recent_and_marks as _rrm
+
+            _rel_recent, _rel_marks = _rrm(c.id, recent_limit=5, pool=30)
+        except Exception:
+            _rel_recent, _rel_marks = [], {}
         return {
             "name": c.name,
             "version": getattr(c, "version", 1),
             "realm": c.realm.name,
+            "origin": _origin_block,
+            "fate": _fate_block,
+            "relations_recent": _rel_recent,
+            "relations_marks": _rel_marks,
             "location": c.location,
             "stones": c.spirit_stones,
             "vault": c.vault_stones,
@@ -4782,6 +4945,7 @@ class World:
                 "heart_demon_options": hd.options,
             }
 
+        _pend_before = len(getattr(c, "fate_pending", None) or [])
         res = BreakthroughEngine.attempt_breakthrough(c, use_pill=False, heart_mod=heart_mod)
         CharacterRepository.save(c)
         dead = bool(res.get("is_fatal"))
@@ -4789,6 +4953,14 @@ class World:
             try:
                 GoalEngine.on_breakthrough_major(c)
                 CharacterRepository.save(c)
+            except Exception:
+                pass
+            # 判定式求值点 E3（§3.7）：与 on_breakthrough_major 同位追加
+            try:
+                from core.goals import evaluate_checked_goals
+
+                if evaluate_checked_goals(c):
+                    CharacterRepository.save(c)
             except Exception:
                 pass
             try:
@@ -4808,6 +4980,18 @@ class World:
         _bt_settle = None
         if dead:
             _bt_settle = self._settle_if_needed(c, cause="渡劫陨落")
+        # 突破幕（§4.2 出口①）：is_major 才演，只增 ceremony（纯读拼装）
+        _bt_ceremony = None
+        if res.get("is_major"):
+            try:
+                from core.ceremony import build_breakthrough_ceremony
+
+                _bt_ceremony = build_breakthrough_ceremony(
+                    c, res,
+                    fate_drawn=len(getattr(c, "fate_pending", None) or []) > _pend_before,
+                )
+            except Exception:
+                _bt_ceremony = None
         return {
             "ok": True,
             "text": res.get("message", ""),
@@ -4818,6 +5002,7 @@ class World:
             "legacy": self.legacy_info_id(c.user_id) if dead else None,
             "sweep": (_bt_settle or {}).get("sweep") if _bt_settle else None,
             "death_cause": c.death_cause if dead else None,
+            "ceremony": _bt_ceremony,
         }
 
     def _fight(self, c: Character, target_name: str) -> Dict[str, Any]:

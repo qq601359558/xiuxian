@@ -574,9 +574,10 @@ def test_qa5_dual_end_wallet_and_login_reincarnate():
         res = WORLD.reincarnate(out["token"], name=f"QA转世{tag}")
         assert res.get("ok") is True, res
         assert res["wallet"]["balance"] == 400
-        assert "150 灵石不变" in res["text"] or "150" in res["text"]
         new = CharacterRepository.get_by_user_id(uid)
-        assert new.spirit_stones == 150 and new.status != CharacterStatus.DEAD
+        stones_final = new.origin["stones_final"]
+        assert f"新角随身 {stones_final} 灵石" in res["text"], res["text"]
+        assert new.spirit_stones == stones_final and new.status != CharacterStatus.DEAD
         # server /钱包 与 /钱包提取：面板文本与钱包块一致，失败路径余额不变
         joined2 = WORLD.join(new.name, user_id=uid)
         r = WORLD.handle(joined2["token"], "/钱包")
@@ -588,7 +589,7 @@ def test_qa5_dual_end_wallet_and_login_reincarnate():
             assert _wallet(uid).wallet_stones == 400, bad
         ok = WORLD.handle(joined2["token"], "/钱包提取 100")
         assert ok.get("ok") is True and _wallet(uid).wallet_stones == 300
-        assert _get(new.id).spirit_stones == 250
+        assert _get(new.id).spirit_stones == stones_final + 100
         # 死者提取：用死者 token 调 /钱包提取 须失败且余额不变
         c2 = _char("QA死者提取", stones=100)
         _die(c2)
@@ -635,7 +636,7 @@ def test_qa6_legacy_ascension_new_birth_unchanged():
     # 钱包不计飞升榜分：同世参数下分数与钱包无关
     assert score_of(3, 2, last.points_gained, last.lifespan_lived) == score_of(
         3, 2, last.points_gained, last.lifespan_lived)
-    # 转世新角：出生 150、钱包不动、宗门/贡献不继承、历世落账仍在
+    # 转世新角：出生灵石 = origin.stones_final、钱包不动、宗门/贡献不继承、历世落账仍在
     res = WORLD.reincarnate(WORLD.join(dead.name, user_id=c.user_id)["token"],
                             name=f"QA新世历世{_tag()}")
     # 上面 join 对死者返回 dead payload 无 token 时改用 dead_payload token
@@ -644,11 +645,13 @@ def test_qa6_legacy_ascension_new_birth_unchanged():
         res = WORLD.reincarnate(token, name=f"QA新世历世{_tag()}")
     assert res.get("ok") is True, res
     new = CharacterRepository.get_by_user_id(c.user_id)
-    assert new.spirit_stones == 150
+    stones_final = new.origin["stones_final"]
+    assert 80 <= stones_final <= 260
+    assert new.spirit_stones == stones_final
     assert _wallet(c.user_id).wallet_stones == 400
     assert new.sect != "青云宗" and new.sect_contribution == 0
     assert _wallet(c.user_id).past_lives[-1].name == dead.name
-    assert score_assets(new) == 150  # 资产榜只计随身+寄存，不含钱包 400
+    assert score_assets(new) == stones_final  # 资产榜只计随身+寄存，不含钱包 400
 
 
 # ---------------- 缺陷复现 QA-D1（目前应失败，见报告） ----------------
