@@ -217,6 +217,25 @@ def build_entry(
     except Exception:
         pass
 
+    # ③.5 命途主线求值（二期 §8.2/§3.6 T1）：在 ③ 之后、④ 之前；
+    # 新翻转/新激活章各成一条 fate_chapter queue 项（priority=2，
+    # 同级序排 goal_flip 之后——拼装追加顺序即同级序）。
+    fate_thread_obj = None
+    try:
+        from core.fate_thread import FateThreadEngine
+
+        _fate_res = FateThreadEngine.evaluate_for(character, t)
+        fate_thread_obj = _fate_res.get("thread")
+        if _fate_res.get("changed"):
+            changed = True
+        for _ev in (_fate_res.get("chapter_events") or []):
+            queue.append(_item(
+                "fate_chapter", 2, _ev.get("title") or "命途推进",
+                _ev.get("text") or "", _ev.get("ref_id") or "",
+                {"view": "sanctum"}))
+    except Exception:
+        fate_thread_obj = None
+
     # ④ 只读组装：奇遇 / 机缘 / 世界弧
     try:
         from core.event_chains import EventChainEngine
@@ -300,6 +319,37 @@ def build_entry(
                 fate_line = f"命途：{g0.get('title', '')} — {g0.get('detail', '')}"
     except Exception:
         pass
+    # 二期 §8.2：lines.fate 取值优先级——有线时用命途口径，
+    # 无线时回退上方一期拼装（回退分支即一期逻辑，不删）。
+    try:
+        _th = fate_thread_obj
+        if _th is None:
+            from core.fate_thread import FateThreadEngine
+
+            _th = FateThreadEngine.get_for_player(character.id)
+        if _th is not None and _th.status in ("active", "shelved"):
+            _chapters = list(_th.chapters or [])
+            _cur = (
+                _chapters[int(_th.current_chapter or 0)]
+                if _chapters and 0 <= int(_th.current_chapter or 0) < len(_chapters)
+                else {})
+            _chapter_status_cn = {
+                "active": "进行中", "done": "已成", "failed": "已憾",
+                "locked": "未启",
+            }.get(str(_cur.get("status") or ""), str(_cur.get("status") or ""))
+            if _th.status == "shelved":
+                _chapter_status_cn = "已搁置"
+            _prop = _th.final_proposition or {}
+            _prop_status_cn = _GOAL_STATUS_CN.get(
+                str(_prop.get("status") or "active"),
+                str(_prop.get("status") or "active"))
+            fate_line = (
+                f"命途「{_th.title}」：{_cur.get('title', '')}（{_chapter_status_cn}）"
+                f" · 命题：{_prop.get('text', '')}（{_prop_status_cn}）")
+            if _th.status == "shelved":
+                fate_line += "（已搁置）"
+    except Exception:
+        pass
     fermenting = int(chains_summary.get("fermenting") or 0)
     chains_text = f"发酵中因果链 {fermenting} 条"
     if nearest is not None:
@@ -337,6 +387,35 @@ def build_entry(
             "text": _pv0.get("text") or _pv0.get("line") or "",
             "npc": _pv0.get("npc", ""),
         }
+
+    # ⑤.5 主动戏剧（二期 §8.2/§5.4）：戏剧引擎本体由戏剧岗实现
+    # （core/npc_proactive.DramaEngine），本处只按 Spec 定形状接线：
+    # evaluate(player, trigger="login", now) -> List[drama_event dict]，
+    # 新建事件成一条 drama queue 项（priority=2，排 fate_chapter 之后，
+    # 只增 options 字段供前端渲染回应按钮）。引擎未就位时静默跳过。
+    if allow_proactive:
+        drama_events: list = []
+        try:
+            from core.npc_proactive import DramaEngine
+
+            try:
+                drama_events = DramaEngine.evaluate(
+                    character, trigger="login", now=t) or []
+            except TypeError:
+                drama_events = DramaEngine().evaluate(
+                    character, trigger="login", now=t) or []
+        except Exception:
+            drama_events = []
+        for _ev in drama_events[:1]:
+            if not isinstance(_ev, dict):
+                continue
+            _ditem = _item(
+                "drama", 2,
+                f"{_ev.get('npc_name') or _ev.get('npc') or '有人'} 有事相商",
+                _ev.get("text") or "", str(_ev.get("id") or ""),
+                {"command": f"/回应 {_ev.get('id') or ''}"})
+            _ditem["options"] = list(_ev.get("options") or [])
+            queue.append(_ditem)
 
     queue.sort(key=lambda q: q["priority"])
     queue = queue[:8]
