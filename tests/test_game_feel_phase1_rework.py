@@ -188,3 +188,80 @@ def test_mf2_ceremony_choices_are_oldest_pending_and_selectable(monkeypatch):
     after = CharacterRepository.get_by_id(char.id)
     assert [b["key"] for b in after.fate_boons] == [key]
     assert len(after.fate_pending) == 1, "只消费最老一抽，新抽仍待选"
+
+
+# ================= MF-3 未竟之志 kind 映射缺失 =================
+
+def test_mf3_origin_unfinished_maps_to_proposition_kind():
+    """P2-07 正例：上世短期目标（origin 源、check=promise_settled）failed →
+    未竟之志 kind 须为命题 kind debt_clear（非判定式原名）；下世有债时
+    select_fate_proposition 以未竟版本（文案/check）返回 debt_clear 为头号候选。"""
+    from core.goals import add_checked_goal, evaluate_checked_goals
+    from core.legacy import LegacyAccount, LegacyEngine
+    from core.origin import select_fate_proposition
+
+    # 映射表全量（origin 源须与 fate 源共用同一映射）
+    cases = {
+        "promise_settled": "debt_clear",
+        "npc_attitude_at_least": "foe_reckoning",
+        "item_in_bag_at_death": "lost_relic",
+        "stones_at_least": "family_revive",
+        "sect_joined": "sect_inner",
+        "realm_at_least": "stand_firm",
+    }
+    for ck, pk in cases.items():
+        goal = {"source": "origin", "check": {"kind": ck}}
+        assert LegacyEngine._prop_kind(goal, {}) == pk, f"{ck} 应映射为 {pk}"
+
+    char = _char("未竟债者")
+    t0 = time.time()
+    g = add_checked_goal(
+        char, source="origin", title="偿清旧债", detail="",
+        check={"kind": "promise_settled", "ref": "p_old_missing"},
+        deadline_days=1, now=t0)
+    evaluate_checked_goals(char, t0 + 2 * SECONDS_PER_GAME_DAY)
+    assert g["status"] == "failed"
+    account = LegacyAccount(user_id=char.user_id)
+    res = LegacyEngine.settle_death(account, char, death_cause="寿尽坐化", now=time.time())
+    unfinished = res["trace"].unfinished_prop
+    assert unfinished.get("kind") == "debt_clear", (
+        f"未竟之志 kind 应为命题 kind debt_clear，实际 {unfinished.get('kind')}")
+
+    kind, text, check = select_fate_proposition(
+        has_debt=True, debt_promise_id="p_new",
+        has_foe=False, foe_id="", foe_name="",
+        old_story_kind="", family="药农", item_ref="",
+        unfinished=unfinished)
+    assert kind == "debt_clear"
+    assert text == "偿清旧债", "文案应取未竟版本（上世目标标题）"
+    assert check == {"kind": "promise_settled", "ref": "p_new"}, (
+        "check 应取未竟判定式、ref 指向本世新债")
+
+
+def test_mf3_mapped_unfinished_falls_through_when_condition_mismatch():
+    """P2-07 负例：未竟映射为 foe_reckoning 但当世无 foe → 不得误命中，
+    须正常落到后续优先级（stand_firm）。"""
+    from core.goals import add_checked_goal, evaluate_checked_goals
+    from core.legacy import LegacyAccount, LegacyEngine
+    from core.origin import select_fate_proposition
+
+    char = _char("未竟仇者")
+    t0 = time.time()
+    g = add_checked_goal(
+        char, source="origin", title="讨个说法", detail="",
+        check={"kind": "npc_attitude_at_least", "npc_id": "npc_missing_rw", "value": 0},
+        deadline_days=1, now=t0)
+    evaluate_checked_goals(char, t0 + 2 * SECONDS_PER_GAME_DAY)
+    assert g["status"] == "failed"
+    account = LegacyAccount(user_id=char.user_id)
+    res = LegacyEngine.settle_death(account, char, death_cause="寿尽坐化", now=time.time())
+    unfinished = res["trace"].unfinished_prop
+    assert unfinished.get("kind") == "foe_reckoning"
+
+    kind, _text, check = select_fate_proposition(
+        has_debt=False, debt_promise_id="",
+        has_foe=False, foe_id="", foe_name="",
+        old_story_kind="幼年奇遇", family="寒门农家", item_ref="",
+        unfinished=unfinished)
+    assert kind == "stand_firm", f"无 foe 时不得命中 foe_reckoning，实际 {kind}"
+    assert check == {"kind": "realm_at_least", "tier": 2}

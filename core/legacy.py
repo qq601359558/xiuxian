@@ -237,22 +237,31 @@ class LegacyEngine:
             return "natural"
         return "misc"
 
+    # check.kind → 命题 kind 映射（MF-3：fate / origin 两源共用同一常量表，
+    # 避免两处漂移；item 类统一映射 lost_relic）
+    _CHECK_TO_PROP_KIND: Dict[str, str] = {
+        "promise_settled": "debt_clear",
+        "npc_attitude_at_least": "foe_reckoning",
+        "item_in_bag_at_death": "lost_relic",
+        "item_in_bag": "lost_relic",
+        "stones_at_least": "family_revive",
+        "sect_joined": "sect_inner",
+        "realm_at_least": "stand_firm",
+    }
+
     @staticmethod
     def _prop_kind(goal: Dict[str, Any], origin: Dict[str, Any]) -> str:
         """目标 → 命题 kind 名（未竟之志重实例化口径）。"""
+        ck = (goal.get("check") or {}).get("kind")
         if goal.get("source") == "fate":
             if origin.get("fate_kind"):
                 return str(origin["fate_kind"])
-            ck = (goal.get("check") or {}).get("kind")
-            return {
-                "promise_settled": "debt_clear",
-                "npc_attitude_at_least": "foe_reckoning",
-                "item_in_bag_at_death": "lost_relic",
-                "sect_joined": "sect_inner",
-                "realm_at_least": "stand_firm",
-                "stones_at_least": "family_revive",
-            }.get(ck, "stand_firm")
-        return str((goal.get("check") or {}).get("kind") or "")
+            return LegacyEngine._CHECK_TO_PROP_KIND.get(ck, "stand_firm")
+        # MF-3 修复：origin 源（短期目标）failed 的未竟之志同样走命题 kind
+        # 映射——此前直接返回判定式原名（如 promise_settled），
+        # select_fate_proposition 的未竟分支只认命题 kind，永不命中。
+        # 未知 kind 保留原名，不误判为任何命题。
+        return LegacyEngine._CHECK_TO_PROP_KIND.get(ck, str(ck or ""))
 
     @staticmethod
     def _fate_fields(
