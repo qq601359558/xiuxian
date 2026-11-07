@@ -1,11 +1,12 @@
 """
-图鉴（spec: gallery-gameplay §8）：账户级收集，WorldState KV 落点。
+图鉴（spec: gallery-gameplay §8；二期扩展见 game-feel-phase2 §9.10）：
+账户级收集，WorldState KV 落点。
 
 键 gallery_atlas:{user_id}，值 {"unlocked": {<asset_key>: <ts>}, "titles": [...]}。
 点亮唯一写入口为合并式 unlock（只增不减、全集外脏键清除）；派生型点亮
-由命盘快照推导（derive_keys_from_character），事件型点亮（NPC 原型 /
-奇遇配图）走 unlock 同一入口。奖励口径定死：只给展示称号、零数值，
-称号不写入 dao_title（§8.4）。
+由命盘快照推导（derive_keys_from_character），事件型点亮（NPC 单人/
+原型、同场玩家、地点到访、读图原型、奇遇配图）走 unlock 同一入口。
+奖励口径定死：只给展示称号、零数值，称号不写入 dao_title（§8.4/§9.10）。
 """
 from __future__ import annotations
 
@@ -14,37 +15,104 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from core.gallery_assets import (
     GALLERY_ASSET_KEYS,
+    NPC_SINGLE_UIDS,
     REALM_KEYS,
     artifact_key_for_equip_name,
     artifact_key_for_item,
     art_key_for,
     asset_path,
+    goods_key_for_name,
+    item_image_key,
+    map_archetype_key_for,
     map_key_for_tier,
+    npc_single_key_for_uid,
+    pet_key_for_species,
+    scene_key_for_location,
+    scene_key_for_realm,
 )
 
 ATLAS_KEY_PREFIX = "gallery_atlas:"
 
-#: 里程碑称号（§8.4）：点亮数阈值 → 展示称号，零数值奖励
+#: 里程碑称号（§9.10 重标定五档）：点亮数阈值 → 展示称号，零数值奖励。
+#: 旧四档 (10/20/30/38) 已废止；get_atlas 按 count 派生，无存量迁移。
 GALLERY_TITLES = [
     (10, "初窥门径"),
-    (20, "博览群真"),
-    (30, "洞鉴乾坤"),
-    (38, "图录大成"),
+    (40, "博览群真"),
+    (80, "洞鉴乾坤"),
+    (120, "博物通览"),
+    (139, "图录大成"),
 ]
 
-#: 图鉴分组（panel 文本与前端展示表同序）
+
+def _npc_single_entries() -> List[tuple]:
+    """NPC 单人组条目 [(key, 人名)]：由 ROSTER 程序化生成（§9.10 写死，
+    禁止手抄 37 行防漂移）。ROSTER 不可达时以 gallery_assets 的
+    NPC_SINGLE_UIDS 定稿表兜底（人名退化为 uid，仅紧急降级）。"""
+    try:
+        from core.npc_roster import ROSTER
+
+        entries = []
+        for row in ROSTER:
+            key = npc_single_key_for_uid(row.get("uid"))
+            if key:
+                entries.append((key, str(row.get("name") or row.get("uid") or "")))
+        if len(entries) == len(NPC_SINGLE_UIDS):
+            return entries
+    except Exception:
+        pass
+    return [(npc_single_key_for_uid(u), u) for u in NPC_SINGLE_UIDS]
+
+
+_NPC_SINGLE_ENTRIES = _npc_single_entries()
+_NPC_SINGLE_KEYS = [k for k, _ in _NPC_SINGLE_ENTRIES]
+
+#: 场景组键序（§9.4 表序：地点 10 / 秘境 5）
+_LOCATION_GROUP_KEYS = [
+    "scenes/market-inn", "scenes/qingyun-gate", "scenes/xuanyuan-cave",
+    "scenes/luoxia-spring", "scenes/heishui-swamp", "scenes/wanjian-peak",
+    "scenes/xijian-pool", "scenes/jiuyou-altar", "scenes/heifeng-abyss",
+    "scenes/wanxing-isle",
+]
+_REALM_GROUP_KEYS = [
+    "scenes/realm-luoxia-cave", "scenes/realm-sword-tomb",
+    "scenes/realm-wanxing-ruins", "scenes/realm-ghost-market",
+    "scenes/dungeon-entrance",
+]
+
+#: 图鉴分组（panel 文本与前端展示表同序；组序定稿见 §9.10）
 GALLERY_GROUPS = [
     ("人物·男相", [f"portraits/male-{r}" for r in REALM_KEYS]),
     ("人物·女相", [f"portraits/female-{r}" for r in REALM_KEYS]),
+    ("人物·NPC单人", list(_NPC_SINGLE_KEYS)),
     ("人物·NPC原型", ["portraits/npc-laodao", "portraits/npc-shanggu", "portraits/npc-nvxiu", "portraits/npc-shaonian"]),
-    ("法宝", [f"artifacts/{k}" for k in ("sword", "cauldron", "banner", "orb", "mirror", "bell", "pagoda", "gourd", "fan", "seal")]),
-    ("功法", [f"arts/{k}" for k in ("metal", "wood", "water", "fire", "earth", "thunder", "sword", "ice")]),
-    ("藏宝图", [f"maps/map-{r}" for r in ("common", "fine", "rare", "ancient")]),
+    ("法宝", [f"artifacts/{k}" for k in (
+        "sword", "cauldron", "banner", "orb", "mirror", "bell", "pagoda",
+        "gourd", "fan", "seal", "armor", "boots", "staff", "vessel",
+        "blade", "spear", "case", "needle", "shuttle", "talisman")]),
+    ("功法", [f"arts/{k}" for k in (
+        "metal", "wood", "water", "fire", "earth", "thunder", "sword",
+        "ice", "wind", "spirit")]),
+    ("藏宝图", [f"maps/map-{r}" for r in ("common", "fine", "rare", "ancient", "celestial")]
+     + [f"maps/arch-{a}" for a in ("puzzle", "combat", "hazard")]),
+    ("灵宠", [pet_key_for_species(s) for s in ("青鳞蟒", "疾风隼", "玄甲龟", "寻宝鼠")]),
+    ("场景·地点", list(_LOCATION_GROUP_KEYS)),
+    ("场景·秘境", list(_REALM_GROUP_KEYS)),
+    ("奇遇", [f"omen/{s}" for s in (
+        "black-market", "orphan-trust", "spring-dispute", "stele",
+        "escort-deal", "inn-whisper")]),
+    ("丹药", [f"goods/pill-{s}" for s in (
+        "breakthrough", "cultivation", "recovery", "lifespan", "soul",
+        "detox", "root", "combat")]),
+    ("材料", [f"goods/mat-{s}" for s in (
+        "herb", "ore", "metal", "beast", "liquid", "wood", "aura")]),
 ]
 
+_REALM_CN = ("凡人", "练气", "筑基", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫")
+
 KEY_CN = {
-    **{f"portraits/male-{r}": f"男相·{cn}" for r, cn in zip(REALM_KEYS, ("练气", "筑基", "金丹", "元婴", "化神", "炼虚"))},
-    **{f"portraits/female-{r}": f"女相·{cn}" for r, cn in zip(REALM_KEYS, ("练气", "筑基", "金丹", "元婴", "化神", "炼虚"))},
+    **{f"portraits/male-{r}": f"男相·{cn}" for r, cn in zip(REALM_KEYS, _REALM_CN)},
+    **{f"portraits/female-{r}": f"女相·{cn}" for r, cn in zip(REALM_KEYS, _REALM_CN)},
+    **{key: f"NPC·{name}" for key, name in _NPC_SINGLE_ENTRIES},
     "portraits/npc-laodao": "NPC·老道",
     "portraits/npc-shanggu": "NPC·商贾",
     "portraits/npc-nvxiu": "NPC·女修",
@@ -59,6 +127,16 @@ KEY_CN = {
     "artifacts/gourd": "法宝·葫芦",
     "artifacts/fan": "法宝·扇",
     "artifacts/seal": "法宝·印玺",
+    "artifacts/armor": "法宝·甲胄",
+    "artifacts/boots": "法宝·靴履",
+    "artifacts/staff": "法宝·法杖",
+    "artifacts/vessel": "法宝·舟舰",
+    "artifacts/blade": "法宝·战刃",
+    "artifacts/spear": "法宝·戈枪",
+    "artifacts/case": "法宝·剑匣",
+    "artifacts/needle": "法宝·灵刺",
+    "artifacts/shuttle": "法宝·破空梭",
+    "artifacts/talisman": "法宝·符箓",
     "arts/metal": "功法·金",
     "arts/wood": "功法·木",
     "arts/water": "功法·水",
@@ -67,10 +145,56 @@ KEY_CN = {
     "arts/thunder": "功法·雷",
     "arts/sword": "功法·剑",
     "arts/ice": "功法·冰",
+    "arts/wind": "功法·风",
+    "arts/spirit": "功法·神魂",
     "maps/map-common": "宝图·凡图",
     "maps/map-fine": "宝图·良图",
     "maps/map-rare": "宝图·珍图",
     "maps/map-ancient": "宝图·古图",
+    "maps/map-celestial": "宝图·仙图",
+    "maps/arch-puzzle": "宝图·解谜",
+    "maps/arch-combat": "宝图·凶地",
+    "maps/arch-hazard": "宝图·涉险",
+    "pets/pet-qinglinmang": "灵宠·青鳞蟒",
+    "pets/pet-jifengxun": "灵宠·疾风隼",
+    "pets/pet-xuanjiagui": "灵宠·玄甲龟",
+    "pets/pet-xunbaoshu": "灵宠·寻宝鼠",
+    "scenes/market-inn": "场景·青云坊市客栈",
+    "scenes/qingyun-gate": "场景·青云宗外门山门",
+    "scenes/xuanyuan-cave": "场景·宗门玄元洞府",
+    "scenes/luoxia-spring": "场景·落霞山灵泉",
+    "scenes/heishui-swamp": "场景·黑水沼泽",
+    "scenes/wanjian-peak": "场景·万剑仙门峰",
+    "scenes/xijian-pool": "场景·洗剑池洞天",
+    "scenes/jiuyou-altar": "场景·九幽天魔宗坛",
+    "scenes/heifeng-abyss": "场景·黑风绝渊",
+    "scenes/wanxing-isle": "场景·万星古岛",
+    "scenes/realm-luoxia-cave": "场景·落霞古洞",
+    "scenes/realm-sword-tomb": "场景·剑冢残碑",
+    "scenes/realm-wanxing-ruins": "场景·万星遗迹残址",
+    "scenes/realm-ghost-market": "场景·幽冥鬼市",
+    "scenes/dungeon-entrance": "场景·锁妖古窟",
+    "omen/black-market": "奇遇·黑市兜售",
+    "omen/orphan-trust": "奇遇·旧友托孤",
+    "omen/spring-dispute": "奇遇·灵泉争饮",
+    "omen/stele": "奇遇·残碑悟道",
+    "omen/escort-deal": "奇遇·镖银争议",
+    "omen/inn-whisper": "奇遇·客栈夜话",
+    "goods/pill-breakthrough": "丹药·破境",
+    "goods/pill-cultivation": "丹药·修炼",
+    "goods/pill-recovery": "丹药·疗愈",
+    "goods/pill-lifespan": "丹药·延寿",
+    "goods/pill-soul": "丹药·神魂",
+    "goods/pill-detox": "丹药·解毒",
+    "goods/pill-root": "丹药·洗髓",
+    "goods/pill-combat": "丹药·战斗",
+    "goods/mat-herb": "材料·灵草",
+    "goods/mat-ore": "材料·矿石",
+    "goods/mat-metal": "材料·金属",
+    "goods/mat-beast": "材料·兽材",
+    "goods/mat-liquid": "材料·灵液",
+    "goods/mat-wood": "材料·灵木",
+    "goods/mat-aura": "材料·灵气",
 }
 
 
@@ -165,19 +289,49 @@ def unlock(user_id: str, keys: Iterable[str], now: Optional[float] = None,
 
 
 # ---------------------------------------------------------------------------
-# 派生型点亮（§8.2/§8.3）：从角色当前事实推导，不在各业务引擎散埋钩子
+# 派生型点亮（§8.2/§8.3 + §9.2/§9.3/§9.8）：从角色当前事实推导，
+# 不在各业务引擎散埋钩子
 # ---------------------------------------------------------------------------
+def _pet_field(pet: Any, field: str) -> Any:
+    if isinstance(pet, dict):
+        return pet.get(field)
+    return getattr(pet, field, None)
+
+
+def pet_image_key(char: Any) -> str:
+    """§9.3 呈现挂点辅助：出战宠优先、无出战取首只活宠的物种图键。
+
+    命盘 pet 块 img 的下发在 server/world.py（集成项），本函数为其
+    唯一解析口径；无活宠/物种无图返回 ""。
+    """
+    pets = [p for p in (getattr(char, "pets", None) or []) if _pet_field(p, "state") != "dead"]
+    if not pets:
+        return ""
+    chosen = None
+    for p in pets:
+        if _pet_field(p, "active"):
+            chosen = p
+            break
+    if chosen is None:
+        chosen = pets[0]
+    return pet_key_for_species(_pet_field(chosen, "species"))
+
+
 def derive_keys_from_character(char: Any) -> List[str]:
     keys: List[str] = []
 
-    # 本人人物图：已定相后点亮当前及以下全部境界的本性别图
+    # 本人人物图（§9.2 新口径）：已定相即含 fanren + tier 1..min(9,tier)
+    # 的本性别键（异性不点亮口径不变）；未定相不点亮任何本人图。
     gender = (getattr(char, "gender", "") or "").strip().lower()
     tier = int(getattr(getattr(char, "realm", None), "tier", 0) or 0)
-    if gender in ("male", "female") and tier >= 1:
-        for t in range(1, min(6, tier) + 1):
-            keys.append(f"portraits/{gender}-{REALM_KEYS[t - 1]}")
+    if gender in ("male", "female"):
+        keys.append(f"portraits/{gender}-{REALM_KEYS[0]}")
+        for t in range(1, min(9, tier) + 1):
+            keys.append(f"portraits/{gender}-{REALM_KEYS[t]}")
 
-    # 法宝图 / 宝图图：行囊实体 + 已穿戴（实体优先，穿戴名走目录解析）
+    # 法宝图 / 宝图图 / 丹药·材料分类图：行囊实体 + 已穿戴（实体优先，
+    # 穿戴名走目录解析）。丹药按实体目录 pill_type 派生、材料按实体
+    # 名查目录 category 派生（§9.8，均经 item_image_key 同一分发）。
     seen_equip_names = set()
     for item in getattr(char, "items", []) or []:
         kind_val = getattr(getattr(item, "kind", None), "value", getattr(item, "kind", None))
@@ -186,9 +340,29 @@ def derive_keys_from_character(char: Any) -> List[str]:
             seen_equip_names.add(getattr(item, "name", ""))
         elif kind_val == "treasure_map":
             keys.append(map_key_for_tier(getattr(item, "tier", 2)))
+        elif kind_val in ("pill", "material", "herb"):
+            k = item_image_key(item)
+            if k:
+                keys.append(k)
     for eq_name in getattr(char, "equipped", []) or []:
         if eq_name and eq_name not in seen_equip_names:
             keys.append(artifact_key_for_equip_name(eq_name))
+
+    # 行囊名字串（材料/丹药的旧制字符串形态，§9.8）：遍历行囊名
+    # （≤64 格，目录 O(1) 查）经 goods_key_for_name 派生分类图。
+    for inv_name in getattr(char, "inventory", []) or []:
+        if isinstance(inv_name, str) and inv_name:
+            k = goods_key_for_name(inv_name)
+            if k:
+                keys.append(k)
+
+    # 灵宠图（§9.3）：名下活宠（state != dead）的物种键全部派生点亮
+    for pet in getattr(char, "pets", None) or []:
+        if _pet_field(pet, "state") == "dead":
+            continue
+        k = pet_key_for_species(_pet_field(pet, "species"))
+        if k:
+            keys.append(k)
 
     # 功法图：已习得 + 自创 + 主修/辅修
     art_names: List[str] = list(getattr(char, "skills", []) or [])
@@ -226,10 +400,15 @@ def unlock_from_character(char: Any, now: Optional[float] = None) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# 事件型点亮钩子（§8.3）：NPC 原型 / 同场玩家 / 奇遇配图（第二段调用）
+# 事件型点亮钩子（§8.3 + §9.1/§9.4/§9.7）：NPC 相遇 / 同场玩家 /
+# 地点到访 / 秘境进入 / 读图 / 奇遇配图，全部走 unlock 同一合并入口
 # ---------------------------------------------------------------------------
 def note_npc_encounter(viewer: Any, npc: Any, now: Optional[float] = None) -> List[str]:
-    """与 NPC 交谈开启成功或同场组装时点亮其原型图。"""
+    """与 NPC 交谈开启成功或同场组装时点亮其头像图。
+
+    §9.1：ROSTER 命中者点亮单人键（不再点亮原型键），动态 NPC 仍
+    点亮原型键——分流在 npc_avatar_key_for_character 内，本钩子不变。
+    """
     from core.gallery_assets import npc_avatar_key_for_character
 
     return unlock(
@@ -256,6 +435,50 @@ def note_player_encounter(viewer: Any, other: Any, now: Optional[float] = None) 
         now=now,
         actor_name=getattr(viewer, "name", "") or "",
     )
+
+
+def note_location_visit(viewer: Any, location: Any, now: Optional[float] = None) -> List[str]:
+    """§9.4：迁跃落点点亮落点地点场景图；无映射地点返回 []。
+
+    调用点（迁跃落点组装）在 server/world.py（集成项），本钩子为
+    唯一点亮口径。
+    """
+    key = scene_key_for_location(location)
+    if not key:
+        return []
+    return unlock(
+        str(getattr(viewer, "user_id", "") or ""),
+        [key],
+        now=now,
+        actor_name=getattr(viewer, "name", "") or "",
+    )
+
+
+def note_realm_visit(viewer: Any, realm_name: Any, now: Optional[float] = None) -> List[str]:
+    """§9.4：秘境/副本进入时点亮其场景图（与 note_location_visit 同一
+    unlock 入口）；进入返回组装处的调用属集成项。"""
+    key = scene_key_for_realm(realm_name)
+    if not key:
+        return []
+    return unlock(
+        str(getattr(viewer, "user_id", "") or ""),
+        [key],
+        now=now,
+        actor_name=getattr(viewer, "name", "") or "",
+    )
+
+
+def note_map_read(user_id: str, tier: Any = None, archetype: Any = None,
+                  now: Optional[float] = None, actor_name: str = "") -> List[str]:
+    """§9.7：读图动作点亮该宝图的原型键。archetype 未知时不点亮
+    任何键（稀有度键由持有派生负责，负例口径见 GL-07）。
+
+    读图路径（treasure_system）的调用属集成项，本钩子为唯一口径。
+    """
+    key = map_archetype_key_for(archetype)
+    if not key:
+        return []
+    return unlock(user_id, [key], now=now, actor_name=actor_name)
 
 
 def note_omen_image(user_id: str, asset_key: str, now: Optional[float] = None,
