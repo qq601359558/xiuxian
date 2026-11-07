@@ -72,12 +72,15 @@
   // 点亮事实只认后端 status.gallery.unlocked）。
   // 图片加载失败（onerror）：隐藏图位、保留文字与按钮，绝不破版（§3.8）。
   // ==========================================================================
-  const GALLERY_REALM_CN = ["练气", "筑基", "金丹", "元婴", "化神", "炼虚"];
-  const GALLERY_REALM_KEYS = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu"];
+  const GALLERY_REALM_CN = ["凡人", "练气", "筑基", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫"];
+  const GALLERY_REALM_KEYS = ["fanren", "lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu", "heti", "dacheng", "dujie"];
+  // NPC 单人图（game-feel-phase2 §9.1/§9.10）：slug = uid 去 npc_ 前缀且 _ 换 -，与后端 GALLERY_GROUPS 同表镜像
+  const GALLERY_NPC_SINGLE = [["qy-01", "玄清子"], ["qy-02", "静虚真人"], ["qy-03", "云鹤道人"], ["qy-04", "丹霞子"], ["qy-05", "林惊羽"], ["qy-06", "苏婉清"], ["qy-07", "石猛"], ["qy-08", "赵小满"], ["qy-09", "青萝"], ["wj-01", "剑圣·独孤败"], ["wj-02", "断岳剑尊"], ["wj-03", "白霜"], ["wj-04", "赤霄"], ["wj-05", "墨离"], ["wj-06", "剑奴阿七"], ["wj-07", "小环"], ["jy-01", "幽冥老祖"], ["jy-02", "血衣侯"], ["jy-03", "厉无锋"], ["jy-04", "骨姬"], ["jy-05", "血刀老祖"], ["jy-06", "毒娘子"], ["jy-07", "阿骨"], ["sh-01", "金满堂"], ["sh-02", "铁算盘"], ["sh-03", "柳三娘"], ["sh-04", "陆仁贾"], ["sh-05", "驼爷"], ["sh-06", "小雀儿"], ["wd-01", "采药翁"], ["wd-02", "赤练子"], ["wd-03", "山君"], ["wd-04", "蜃楼客"], ["wd-05", "海娘子"], ["wd-06", "盲眼琴师"], ["wd-07", "盗墓贼·孙九"], ["wd-08", "青州游侠·燕十三"]];
   const GALLERY_GROUPS = [
-    { title: "人物", keys: [
-      ...GALLERY_REALM_KEYS.map((r, i) => [`portraits/male-${r}`, `男相·${GALLERY_REALM_CN[i]}`, "定相男后随境界点亮，或同场遇见男修"]),
-      ...GALLERY_REALM_KEYS.map((r, i) => [`portraits/female-${r}`, `女相·${GALLERY_REALM_CN[i]}`, "定相女后随境界点亮，或同场遇见女修"]),
+    { title: "人物·男相", keys: GALLERY_REALM_KEYS.map((r, i) => [`portraits/male-${r}`, `男相·${GALLERY_REALM_CN[i]}`, "定相男后随境界点亮，或同场遇见男修"]) },
+    { title: "人物·女相", keys: GALLERY_REALM_KEYS.map((r, i) => [`portraits/female-${r}`, `女相·${GALLERY_REALM_CN[i]}`, "定相女后随境界点亮，或同场遇见女修"]) },
+    { title: "人物·NPC 单人", keys: GALLERY_NPC_SINGLE.map(([slug, nm]) => [`portraits/${"npc-" + slug}`, `NPC·${nm}`, `与${nm}同场或交谈`]) },
+    { title: "人物·NPC 原型", keys: [
       ["portraits/npc-laodao", "NPC·老道", "与老道原型 NPC 同场或交谈"],
       ["portraits/npc-shanggu", "NPC·商贾", "与商贾原型 NPC 同场或交谈"],
       ["portraits/npc-nvxiu", "NPC·女修", "与女修原型 NPC 同场或交谈"],
@@ -89,16 +92,57 @@
       ["artifacts/mirror", "法宝·镜", "拥有镜类法宝入纳戒或穿戴"], ["artifacts/bell", "法宝·铃钟", "拥有铃钟类法宝入纳戒或穿戴"],
       ["artifacts/pagoda", "法宝·塔", "拥有塔类法宝入纳戒或穿戴"], ["artifacts/gourd", "法宝·葫芦", "拥有葫芦类法宝入纳戒或穿戴"],
       ["artifacts/fan", "法宝·扇", "拥有扇类法宝入纳戒或穿戴"], ["artifacts/seal", "法宝·印玺", "拥有印玺类法宝入纳戒或穿戴"],
+      ["artifacts/armor", "法宝·甲胄", "拥有甲胄类法宝入纳戒或穿戴"], ["artifacts/boots", "法宝·靴履", "拥有靴履类法宝入纳戒或穿戴"],
+      ["artifacts/staff", "法宝·法杖", "拥有法杖类法宝入纳戒或穿戴"], ["artifacts/vessel", "法宝·舟舰", "拥有舟舰类法宝入纳戒或穿戴"],
+      ["artifacts/blade", "法宝·战刃", "拥有刀刃类法宝入纳戒或穿戴"], ["artifacts/spear", "法宝·戈枪", "拥有戈枪类法宝入纳戒或穿戴"],
+      ["artifacts/case", "法宝·剑匣", "拥有剑匣类法宝入纳戒或穿戴"], ["artifacts/needle", "法宝·灵刺", "拥有灵刺类法宝入纳戒或穿戴"],
+      ["artifacts/shuttle", "法宝·破空梭", "拥有飞梭类法宝入纳戒或穿戴"], ["artifacts/talisman", "法宝·符箓", "拥有符箓护符类法宝入纳戒或穿戴"],
     ]},
     { title: "功法", keys: [
       ["arts/metal", "功法·金", "习得金系功法或神通呈现"], ["arts/wood", "功法·木", "习得木系功法或神通呈现"],
       ["arts/water", "功法·水", "习得水系功法或神通呈现"], ["arts/fire", "功法·火", "习得火系功法或神通呈现"],
       ["arts/earth", "功法·土", "习得土系功法或神通呈现"], ["arts/thunder", "功法·雷", "习得雷系功法"],
       ["arts/sword", "功法·剑", "习得剑系功法"], ["arts/ice", "功法·冰", "习得冰系功法"],
+      ["arts/wind", "功法·风", "习得风系功法"], ["arts/spirit", "功法·神魂", "习得神魂类功法"],
     ]},
     { title: "藏宝图", keys: [
       ["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"],
       ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"],
+      ["maps/map-celestial", "宝图·仙图", "持有仙品藏宝图"], ["maps/arch-puzzle", "宝图·五行解谜", "研读五行解谜类宝图"],
+      ["maps/arch-combat", "宝图·凶地守护", "研读凶地守护类宝图"], ["maps/arch-hazard", "宝图·遗迹涉险", "研读遗迹涉险类宝图"],
+    ]},
+    { title: "灵宠", keys: [
+      ["pets/pet-qinglinmang", "灵宠·青鳞蟒", "收服青鳞蟒"], ["pets/pet-jifengxun", "灵宠·疾风隼", "收服疾风隼"],
+      ["pets/pet-xuanjiagui", "灵宠·玄甲龟", "收服玄甲龟"], ["pets/pet-xunbaoshu", "灵宠·寻宝鼠", "收服寻宝鼠"],
+    ]},
+    { title: "场景·地点", keys: [
+      ["scenes/market-inn", "场景·青云坊市客栈", "到访青云坊市客栈"], ["scenes/qingyun-gate", "场景·青云宗外门山门", "到访青云宗外门山门"],
+      ["scenes/xuanyuan-cave", "场景·宗门玄元洞府", "到访宗门玄元洞府"], ["scenes/luoxia-spring", "场景·落霞山灵泉", "到访落霞山灵泉"],
+      ["scenes/heishui-swamp", "场景·黑水沼泽", "到访黑水沼泽"], ["scenes/wanjian-peak", "场景·万剑仙门峰", "到访万剑仙门峰"],
+      ["scenes/xijian-pool", "场景·洗剑池洞天", "到访洗剑池洞天"], ["scenes/jiuyou-altar", "场景·九幽天魔宗坛", "到访九幽天魔宗坛"],
+      ["scenes/heifeng-abyss", "场景·黑风绝渊", "到访黑风绝渊"], ["scenes/wanxing-isle", "场景·万星古岛", "到访万星古岛"],
+    ]},
+    { title: "场景·秘境", keys: [
+      ["scenes/realm-luoxia-cave", "秘境·落霞古洞", "进入秘境落霞古洞"], ["scenes/realm-sword-tomb", "秘境·剑冢残碑", "进入秘境剑冢残碑"],
+      ["scenes/realm-wanxing-ruins", "秘境·万星遗迹残址", "进入秘境万星遗迹"], ["scenes/realm-ghost-market", "秘境·幽冥鬼市", "进入秘境幽冥鬼市"],
+      ["scenes/dungeon-entrance", "副本·锁妖古窟", "进入锁妖古窟"],
+    ]},
+    { title: "奇遇", keys: [
+      ["omen/black-market", "奇遇·黑市", "逢黑市奇遇"], ["omen/orphan-trust", "奇遇·孤托", "逢孤托奇遇"],
+      ["omen/spring-dispute", "奇遇·灵泉之争", "逢灵泉之争奇遇"], ["omen/stele", "奇遇·残碑", "逢残碑奇遇"],
+      ["omen/escort-deal", "奇遇·护送交易", "逢护送交易奇遇"], ["omen/inn-whisper", "奇遇·客栈耳语", "逢客栈耳语奇遇"],
+    ]},
+    { title: "丹药", keys: [
+      ["goods/pill-breakthrough", "丹药·破境", "持有破境类丹药"], ["goods/pill-cultivation", "丹药·修行", "持有修行类丹药"],
+      ["goods/pill-recovery", "丹药·疗复", "持有疗复类丹药"], ["goods/pill-lifespan", "丹药·延寿", "持有延寿类丹药"],
+      ["goods/pill-soul", "丹药·养魂", "持有养魂类丹药"], ["goods/pill-detox", "丹药·解毒", "持有解毒类丹药"],
+      ["goods/pill-root", "丹药·洗根", "持有洗根类丹药"], ["goods/pill-combat", "丹药·战辅", "持有战辅类丹药"],
+    ]},
+    { title: "材料", keys: [
+      ["goods/mat-herb", "材料·灵草", "持有灵草类材料"], ["goods/mat-ore", "材料·矿石", "持有矿石类材料"],
+      ["goods/mat-metal", "材料·金石", "持有金石类材料"], ["goods/mat-beast", "材料·兽材", "持有兽材类材料"],
+      ["goods/mat-liquid", "材料·灵液", "持有灵液类材料"], ["goods/mat-wood", "材料·灵木", "持有灵木类材料"],
+      ["goods/mat-aura", "材料·灵蕴", "持有灵蕴类材料"],
     ]},
   ];
   const GALLERY_ALL_KEYS = GALLERY_GROUPS.flatMap((g) => g.keys.map((k) => k[0]));
@@ -569,7 +613,7 @@
   // 命盘追加段（出身/命格/关系/仪式偏好在后续段落拼入；renderSanctum 本体不改）
   function renderSanctumExtras() {
     const s = state.status || {};
-    const parts = [originFoldHtml(s.origin), fateSectionHtml(s.fate),
+    const parts = [originFoldHtml(s.origin), fateSectionHtml(s.fate), fateThreadHtml(s.fate),
       relationsSectionHtml(s.relations_recent), ceremonySkipSectionHtml()];
     const html = parts.filter(Boolean).join("");
     return html ? `<div class="w-full flex flex-col gap-5 mt-6">${html}</div>` : "";
@@ -699,6 +743,46 @@
     </div>`;
   }
 
+  // ---- 命途主线全量段（game-feel-phase2 §8.1）：只认 fate.thread 下发，null/缺失不渲染 ----
+  const THREAD_SEED_CN = { unfinished: "未竟之志", vendetta: "世仇", karma_shadow: "前世影子", blood_feud: "血仇", sect: "宗门风云", origin: "出身旧事" };
+  const THREAD_STATUS_CN = { active: "进行中", shelved: "已搁置", completed: "已了结", broken: "中道崩殂", inherited: "留待来世", done: "已成", failed: "未成" };
+  const CHAPTER_STATUS_CN = { done: "已成", active: "进行中", locked: "未启", failed: "未成" };
+  const CHAPTER_TIER_CN = { short: "短期", mid: "中期", final: "终局" };
+  const CHAPTER_GROUP_CN = { setup: "立命", manage: "经营", conflict: "冲突", climax: "高潮", finale: "暮年" };
+
+  function fateThreadHtml(fate) {
+    const th = fate && typeof fate === "object" ? fate.thread : null;
+    if (!th || typeof th !== "object") return "";
+    const meta = [];
+    meta.push(`种子来源：${esc(THREAD_SEED_CN[th.seed_source] || th.seed_source || "—")}`);
+    if (th.status) meta.push(`状态：${esc(THREAD_STATUS_CN[th.status] || th.status)}`);
+    if (th.antagonist && th.antagonist.name) meta.push(`对手：${esc(th.antagonist.name)}`);
+    if (th.patron && th.patron.name) meta.push(`引路人：${esc(th.patron.name)}`);
+    const chapters = (Array.isArray(th.chapters) ? th.chapters : []).filter(Boolean).map((c) => {
+      const cur = c.status === "active" && (th.current_chapter == null || c.idx === th.current_chapter);
+      return `
+      <div class="flex items-start gap-2 text-xs py-1.5 border-b border-jade-100">
+        <span class="px-1.5 py-0.2 rounded ${cur ? "bg-jade-700 text-white" : "bg-jade-100 text-jade-800"} flex-none">第${esc((c.idx != null ? c.idx : 0) + 1)}章${c.group ? " · " + esc(CHAPTER_GROUP_CN[c.group] || c.group) : ""}${c.tier ? " · " + esc(CHAPTER_TIER_CN[c.tier] || c.tier) : ""}</span>
+        <span class="flex-1 text-slate-700">${esc(c.title || "")}${c.goal_text ? `<br><span class="text-slate-500">${esc(c.goal_text)}</span>` : ""}</span>
+        <span class="flex-none font-bold ${c.status === "done" ? "text-emerald-600" : c.status === "failed" ? "text-rose-600" : "text-slate-400"}">${esc(CHAPTER_STATUS_CN[c.status] || c.status || "")}</span>
+      </div>`;
+    }).join("");
+    const fp = th.final_proposition || {};
+    let action = "";
+    if (th.shelvable) action = `<button type="button" class="btn sm secondary" data-cmd="/命途 搁置">搁置命途</button>`;
+    else if (th.status === "shelved") action = `<button type="button" class="btn sm primary" data-cmd="/命途 续">续接命途</button>`;
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <div class="flex items-start justify-between gap-3">
+        <h3 class="text-sm font-bold text-jade-950">命途 · ${esc(th.title || "命途")}</h3>
+        ${action}
+      </div>
+      <p class="text-xs text-slate-500 mt-1">${meta.join(" · ")}</p>
+      <div class="mt-1">${chapters}</div>
+      ${fp.text ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fp.text)}${fp.status ? `（${esc(THREAD_STATUS_CN[fp.status] || fp.status)}）` : ""}</p>` : ""}
+    </div>`;
+  }
+
   // ---- 件四 · 关系可见化（§5.4）：命盘近 5 条 + 同场箭头，同源 status 两键 ----
   function relationsSectionHtml(list) {
     if (!Array.isArray(list) || !list.length) return "";
@@ -799,19 +883,54 @@
     if (state.view === "entry") renderBody();
   }
 
+  // 入局新 kind（game-feel-phase2 §8.2）：fate_chapter 命途 / drama 戏剧（drama 带 options 回应按钮组）
+  const ENTRY_KIND_CN = { fate_chapter: "命途", drama: "戏剧" };
+  const DRAMA_TYPE_CN = { betrayal: "背叛", provoke: "挑衅", involvement: "牵连", help: "求助", favor: "示好" };
+
+  // 主动戏剧当面行（§5.4）：复用 entry.proactive 结构，drama_id 在场才渲染为戏剧行
+  function dramaRowHtml(pv) {
+    if (!pv || !pv.drama_id) return "";
+    return `
+    <div class="flex items-center gap-2 text-sm text-slate-700">
+      <span class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 flex-none text-xs font-bold">戏剧${pv.drama_type ? "·" + esc(DRAMA_TYPE_CN[pv.drama_type] || pv.drama_type) : ""}</span>
+      <span class="flex-1">${pv.npc ? `<b>${esc(pv.npc)}</b> ` : ""}${esc(pv.text || pv.line || "")}</span>
+      <button type="button" class="btn sm primary flex-none" data-cmd="/回应">去回应</button>
+    </div>`;
+  }
+
+  // 交谈旧账行文案（game-feel-phase2 §8.3，双端同文案）：字段缺失的段落不拼，不自造数
+  function oldAccountText(oa) {
+    if (!oa || typeof oa !== "object") return "";
+    const parts = [];
+    if (oa.open_promises != null) parts.push(`未了诺言 ${oa.open_promises}`);
+    if (oa.chains_with_npc != null) parts.push(`与他发酵中因果 ${oa.chains_with_npc}`);
+    else if (oa.fermenting_chains != null) parts.push(`发酵中因果 ${oa.fermenting_chains}`);
+    if (oa.nearest_chain_game_days != null) parts.push(`最近一条约 ${oa.nearest_chain_game_days} 游戏日`);
+    if (oa.last_relation) parts.push(`最近：${oa.last_relation}`);
+    return parts.length ? `旧账：${parts.join(" · ")}` : "";
+  }
+
   function entryItemHtml(item, highlight) {
     if (!item) return "";
     const t = item.target || {};
     let attrs = "";
     if (t.command) attrs = `data-cmd="${esc(t.command)}"`;
     else if (t.view) attrs = `data-entry-view="${esc(t.view)}"`;
+    const tag = ENTRY_KIND_CN[item.kind]
+      ? `<span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 text-[11px] font-bold mr-1.5">${esc(ENTRY_KIND_CN[item.kind])}</span>` : "";
+    let opts = "";
+    if (item.kind === "drama" && Array.isArray(item.options) && item.options.length) {
+      const base = item.id ? `/回应 ${item.id} ` : (t.command ? `${t.command} ` : "/回应 ");
+      opts = `<div class="flex flex-wrap gap-2 mt-2">${item.options.map((o) => `<button type="button" class="btn sm primary" data-cmd="${esc(base + (o.key || ""))}">${esc(o.label || o.key || "回应")}</button>`).join("")}</div>`;
+    }
     return `
     <div class="jade-panel rounded-2xl p-4 shadow-sm flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <div class="text-sm font-bold text-jade-950">${esc(item.title || item.kind || "待办")}</div>
+        <div class="text-sm font-bold text-jade-950">${tag}${esc(item.title || item.kind || "待办")}</div>
         ${item.text ? `<p class="text-xs text-slate-600 mt-1 leading-relaxed">${esc(item.text)}</p>` : ""}
+        ${opts}
       </div>
-      ${attrs ? `<button type="button" class="btn sm ${highlight ? "primary" : "secondary"} flex-none" ${attrs}>前往</button>` : ""}
+      ${attrs && !opts ? `<button type="button" class="btn sm ${highlight ? "primary" : "secondary"} flex-none" ${attrs}>前往</button>` : ""}
     </div>`;
   }
 
@@ -832,7 +951,9 @@
       ? lines.relations.map((r) => (r && r.summary) || "").filter(Boolean) : [];
     const chainsText = lines.chains
       ? (lines.chains.text || (lines.chains.fermenting != null ? `发酵中因果链 ${lines.chains.fermenting} 条` : "")) : "";
-    const pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
+    const pvObj = e.proactive && typeof e.proactive === "object" ? e.proactive : null;
+    const pv = typeof e.proactive === "string" ? e.proactive : (pvObj && pvObj.text) || "";
+    const pvHtml = pvObj && pvObj.drama_id ? dramaRowHtml(pvObj) : (pv ? `<p>${esc(pv)}</p>` : "");
     html += `
     <div class="jade-panel rounded-2xl p-5 shadow-sm">
       <h1 class="text-xl font-bold text-jade-950">入局 · 当下之事</h1>
@@ -840,7 +961,7 @@
         ${lines.fate ? `<p>${esc(lines.fate)}</p>` : ""}
         ${chainsText ? `<p>${esc(chainsText)}</p>` : ""}
         ${relTexts.length ? `<p>${relTexts.map((t) => esc(t)).join("；")}</p>` : ""}
-        ${pv ? `<p>${esc(pv)}</p>` : ""}
+        ${pvHtml}
       </div>
     </div>`;
     const queue = Array.isArray(e.queue) ? e.queue : [];
@@ -868,12 +989,12 @@
   // ==========================================================================
   function renderGallery() {
     const s = state.status || {};
-    const g = s.gallery || { unlocked: [], count: 0, total: 38, title: "" };
+    const g = s.gallery || { unlocked: [], count: 0, total: 0, title: "" };
     const unlocked = new Set(Array.isArray(g.unlocked) ? g.unlocked : []);
     const count = g.count != null ? g.count : unlocked.size;
-    const total = g.total || 38;
+    const total = g.total || 0;
     const pct = total ? Math.min(100, Math.round((count / total) * 100)) : 0;
-    const tiers = [[10, "初窥门径"], [20, "博览群真"], [30, "洞鉴乾坤"], [38, "图录大成"]]
+    const tiers = [[10, "初窥门径"], [40, "博览群真"], [80, "洞鉴乾坤"], [120, "博物通览"], [139, "图录大成"]]
       .map(([n, t]) => `<span class="gallery-tier ${count >= n ? "on" : ""}">${n} · ${t}${count >= n ? " ✓" : ""}</span>`).join("");
     const groups = GALLERY_GROUPS.map((grp) => `
       <section class="gallery-group">
@@ -896,7 +1017,7 @@
     <div class="w-full flex flex-col gap-5 gallery-view">
       <div class="jade-panel rounded-2xl p-5 shadow-sm">
         <h1 class="text-xl font-bold text-jade-950">天道图鉴</h1>
-        <p class="text-xs text-slate-600 mt-1">图鉴只记眼界，不予数值。点亮 ${esc(count)} / ${esc(total)}${g.title ? ` · 当前称号：【${esc(g.title)}】（仅展示）` : " · 尚未得图鉴称号（10 张起）"}</p>
+        <p class="text-xs text-slate-600 mt-1">图鉴只记眼界，不予数值。点亮 ${esc(count)} / ${esc(total || "—")}${g.title ? ` · 当前称号：【${esc(g.title)}】（仅展示）` : " · 尚未得图鉴称号（10 张起）"}</p>
         <div class="gallery-progress"><i style="width:${pct}%"></i></div>
         <div class="gallery-tiers">${tiers}</div>
         <button type="button" class="btn sm secondary" data-cmd="/图鉴">图鉴文本（/图鉴）</button>
@@ -3678,13 +3799,17 @@
     const curLoc = (state.status && state.status.location) || "落霞山灵泉";
     const dgSess = state.status && state.status.dungeon;
     const subTab = state.wildernessSubTab || ((dgSess && dgSess.active) ? "dungeon" : "dungeon");
+    // 地点场景头图（game-feel-phase2 §9.4）：location_image 只认后端下发，空串不渲染图位
+    const sceneBanner = state.status && state.status.location_image
+      ? `<div class="w-full">${galleryImg(state.status.location_image, "omen-image", curLoc)}</div>` : "";
 
     if (subTab === "dungeon") {
-      return renderDungeon();
+      return sceneBanner + renderDungeon();
     }
 
     return `
     <div class="w-full flex flex-col gap-5">
+      ${sceneBanner}
       <!-- 顶部子标签切换 -->
       <div class="flex items-center justify-between pb-3 border-b border-jade-200/80">
         <div class="flex items-center gap-2">
@@ -6103,8 +6228,17 @@
 
     // 周遭同道列表
     const rows = state.here || [];
+    // 世界分区头（game-feel-phase2 §9.4/§5.4）：地点场景图（location_image 只认后端下发）+ 主动戏剧当面行
+    const drawerHead = (() => {
+      const s = state.status || {};
+      const pvD = state.entry && state.entry.proactive && typeof state.entry.proactive === "object" ? state.entry.proactive : null;
+      let h = "";
+      if (s.location_image) h += galleryImg(s.location_image, "omen-image", s.location || "当前地点");
+      if (pvD && pvD.drama_id) h += `<div class="jade-panel rounded-xl p-3 shadow-sm mb-2">${dramaRowHtml(pvD)}</div>`;
+      return h;
+    })();
     if (!rows.length) {
-      box.innerHTML = `
+      box.innerHTML = drawerHead + `
       <div style="padding:40px 10px;text-align:center;color:var(--ink-400)">
         <div style="font-size:24px;margin-bottom:8px">🍃</div>
         <div>周遭方圆暂无其他修士。</div>
@@ -6113,7 +6247,7 @@
       return;
     }
 
-    box.innerHTML = rows.map((r) => {
+    box.innerHTML = drawerHead + rows.map((r) => {
       const isBlood = !!r.blood_marked;
       const isPlayer = !r.is_npc;
       const att = isBlood ? "血煞通缉" : (isPlayer ? "同道仙友" : (r.attitude_cn || "中立"));
@@ -6203,6 +6337,7 @@
     }
     setText("cmdTarget", "交谈对象：" + who);
     setText("cmdTag", state.chat.isPlayer ? "同道传音" : "言语传音");
+    renderOldAccount(null); // 换对象先清空旧账行，等开启响应 old_account 到达再渲染（§8.3）
 
     const modal = $("chatModal");
     if (modal) {
@@ -6314,9 +6449,19 @@
     }
   }
 
+  // 交谈旧账行（game-feel-phase2 §8.3）：弹窗顶部一行，只认交谈开启响应 old_account，缺失即隐藏
+  function renderOldAccount(oa) {
+    const el = $("chatOldAccount");
+    if (!el) return;
+    const text = oldAccountText(oa);
+    el.textContent = text;
+    el.style.display = text ? "" : "none";
+  }
+
   function handleChatData(data, reqEpoch) {
     if (!data) return;
     if (data.status) applyStatus(data.status, reqEpoch);
+    if (data.old_account) renderOldAccount(data.old_account);
     // 交谈内就地触发的奇遇（data.omen_chat）正文已并入 text，随玉简就地展示，不弹主界面芯片条
     const text = data.text || data.error || "";
     if (data.ok === false) {
@@ -6982,6 +7127,8 @@
         { cmd: "/寄存", usage: "/寄存 <灵石数>", desc: "灵石存入金库庇护" },
         { cmd: "/支取", usage: "/支取 <灵石数>", desc: "自金库取出灵石" },
         { cmd: "/交谈", usage: "/交谈 <道号>", desc: "与同场修士传音" },
+        { cmd: "/命途", usage: "/命途 [搁置|续]", desc: "查看此世命途主线与章节" },
+        { cmd: "/回应", usage: "/回应 <戏剧id> <选项>", desc: "回应找上门的主动戏剧" },
         { cmd: "/做", usage: "/做 <自由言行>", desc: "神识敕令自由行动" },
         { cmd: "/天道", usage: "/天道 [推演]", desc: "观照天道导演与变数" },
         { cmd: "/世情", usage: "/世情", desc: "大千世界全局态势" },
