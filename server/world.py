@@ -1255,18 +1255,28 @@ class World:
                         _trib_settle = None
                         if trib_dead:
                             _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
-                        # 突破幕（§4.2 出口②）：is_major 才演，只增 ceremony
+                        # 天劫/突破双幕（game-feel-phase3 §5.2 出口②）：
+                        # 与出口①同协议——ceremony=天劫幕、ceremony_next=
+                        # 突破幕（只增键）；致死时无第二幕
                         _trib_ceremony = None
+                        _trib_ceremony_next = None
                         if trib.get("is_major"):
                             try:
-                                from core.ceremony import build_breakthrough_ceremony
+                                from core.ceremony import build_tribulation_ceremony
 
-                                _trib_ceremony = build_breakthrough_ceremony(
-                                    char, trib,
-                                    fate_drawn=len(getattr(char, "fate_pending", None) or []) > _pend_before,
-                                )
+                                _trib_ceremony = build_tribulation_ceremony(char, trib)
                             except Exception:
                                 _trib_ceremony = None
+                            if not trib.get("is_fatal"):
+                                try:
+                                    from core.ceremony import build_breakthrough_ceremony
+
+                                    _trib_ceremony_next = build_breakthrough_ceremony(
+                                        char, trib,
+                                        fate_drawn=len(getattr(char, "fate_pending", None) or []) > _pend_before,
+                                    )
+                                except Exception:
+                                    _trib_ceremony_next = None
                         return {
                             "ok": True,
                             "text": text,
@@ -1277,6 +1287,7 @@ class World:
                             "sweep": (_trib_settle or {}).get("sweep") if _trib_settle else None,
                             "death_cause": char.death_cause if trib_dead else None,
                             "ceremony": _trib_ceremony,
+                            "ceremony_next": _trib_ceremony_next,
                             "tribulation": {
                                 "success": trib.get("success"),
                                 "fatal": trib_dead,
@@ -1660,7 +1671,21 @@ class World:
                     res = ArtifactSpiritEngine.awaken(char, target_name)
                     if res.get("changed"):
                         CharacterRepository.save(char)
-                    return {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+                    _spirit_ret = {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+                    if res.get("changed"):
+                        # 器灵认主幕（game-feel-phase3 §4.2 H-S1）：既有
+                        # save 之后只增 ceremony；changed=False/失败不产幕
+                        try:
+                            from core.artifact_spirit import find_equipped as _find_eq
+                            from core.ceremony import build_spirit_ceremony
+
+                            _sp_item = _find_eq(char, target_name)
+                            if _sp_item is not None:
+                                _spirit_ret["ceremony"] = build_spirit_ceremony(
+                                    char, _sp_item)
+                        except Exception:
+                            pass
+                    return _spirit_ret
                 return {"ok": True, "text": _spirit_panel(char), "status": self._status_dict(char)}
             if action in ("/温养", "/nourish"):
                 # 温养（gallery-gameplay §6.4）：明价日限，门禁在引擎内。
@@ -2195,10 +2220,27 @@ class World:
                 if res.get("success"):
                     CharacterRepository.save(char)
                     log_event("DECISION", "dig", name=char.name, outcome=res.get("outcome"))
+                # 得宝幕（game-feel-phase3 §3.3 H-L1）：结算与 save 之后
+                # 只增 ceremony（纯读拼装，失败降级为 None 不炸主流程）
+                _loot_ceremony = None
+                if res.get("success") and res.get("equipment"):
+                    try:
+                        from core.ceremony import (
+                            build_loot_ceremony,
+                            loot_ceremony_candidate,
+                        )
+
+                        _eq = res.get("equipment") or {}
+                        if loot_ceremony_candidate(_eq.get("kind"), _eq.get("tier")):
+                            _loot_ceremony = build_loot_ceremony(
+                                char, _eq, source="treasure_dig")
+                    except Exception:
+                        _loot_ceremony = None
                 return {
                     "ok": res.get("success"),
                     "text": res.get("message", ""),
                     "status": self._status_dict(char),
+                    "ceremony": _loot_ceremony,
                     "equipment": res.get("equipment"),
                     "pill": res.get("pill"),
                     "stone_gain": res.get("stone_gain", 0),
@@ -4060,11 +4102,38 @@ class World:
 
                 char.add_item_entity(loot)
                 CharacterRepository.save(char)
+                # 得宝幕（game-feel-phase3 §3.3 H-L2）：入包与 save 之后
+                # 只增 ceremony；实际只有 tier4 relic 一档可达门槛
+                _loot_ceremony = None
+                try:
+                    from core.ceremony import (
+                        build_loot_ceremony,
+                        loot_ceremony_candidate,
+                    )
+
+                    _kind = loot.kind.value if hasattr(loot.kind, "value") else str(loot.kind)
+                    if loot_ceremony_candidate(_kind, loot.tier):
+                        _loot_ceremony = build_loot_ceremony(char, {
+                            "uid": loot.uid,
+                            "name": loot.name,
+                            "kind": _kind,
+                            "tier": loot.tier,
+                            "tier_name": loot.tier_name,
+                            "slot": loot.slot,
+                            "affixes": [
+                                {"name": a.name, "desc": a.desc}
+                                for a in (loot.affixes or [])
+                            ],
+                            "lore": loot.lineage_lore,
+                        }, source="blind_box")
+                except Exception:
+                    _loot_ceremony = None
                 return {
                     "ok": True,
                     "text": f"【古修残宝 · 当场解石】消耗 {COST} 灵石切开锈蚀盲匣！{quality_text}，获【{loot.name}】（{loot.tier_name}）！已收入百宝纳戒首格。",
                     "status": self._status_dict(char),
                     "loot": loot.name,
+                    "ceremony": _loot_ceremony,
                 }
 
             if action in ("/招徕", "/招徕修士"):
@@ -5322,18 +5391,29 @@ class World:
         _bt_settle = None
         if dead:
             _bt_settle = self._settle_if_needed(c, cause="渡劫陨落")
-        # 突破幕（§4.2 出口①）：is_major 才演，只增 ceremony（纯读拼装）
+        # 天劫/突破双幕（game-feel-phase3 §5.2 出口①）：is_major 才演——
+        # ceremony=天劫幕（第一幕），ceremony_next=突破幕（第二幕，只增
+        # 键，builder 与 beats 不改）；致死时无第二幕。纯读拼装，任一
+        # 拼装失败只缺该幕。
         _bt_ceremony = None
+        _bt_ceremony_next = None
         if res.get("is_major"):
             try:
-                from core.ceremony import build_breakthrough_ceremony
+                from core.ceremony import build_tribulation_ceremony
 
-                _bt_ceremony = build_breakthrough_ceremony(
-                    c, res,
-                    fate_drawn=len(getattr(c, "fate_pending", None) or []) > _pend_before,
-                )
+                _bt_ceremony = build_tribulation_ceremony(c, res)
             except Exception:
                 _bt_ceremony = None
+            if not res.get("is_fatal"):
+                try:
+                    from core.ceremony import build_breakthrough_ceremony
+
+                    _bt_ceremony_next = build_breakthrough_ceremony(
+                        c, res,
+                        fate_drawn=len(getattr(c, "fate_pending", None) or []) > _pend_before,
+                    )
+                except Exception:
+                    _bt_ceremony_next = None
         return {
             "ok": True,
             "text": res.get("message", ""),
@@ -5345,6 +5425,7 @@ class World:
             "sweep": (_bt_settle or {}).get("sweep") if _bt_settle else None,
             "death_cause": c.death_cause if dead else None,
             "ceremony": _bt_ceremony,
+            "ceremony_next": _bt_ceremony_next,
         }
 
     def _fight(self, c: Character, target_name: str) -> Dict[str, Any]:
