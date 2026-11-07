@@ -654,13 +654,14 @@ def test_rm01_breakthrough_rumor_and_pick_and_lore():
     npc = _npc("听闻翁")
     marker = f"金丹{_tag()}"  # 唯一境界标记，避共享传闻池旧条目串扰
     try:
-        rumors.note_breakthrough(player.name, marker, LOC)
-        rumors.note_breakthrough(player.name, marker, LOC)  # 去重：heat+1 不新增
-        rumors.note_breakthrough(player.name, marker, LOC)
+        # 首调新增、后 7 调去重只 +heat：heat=8 稳居池首（共享池跨轮旧条目
+        # 各自 heat 有限，lore 的 _rumor_bits 只取 top-2，须以热度确保命中）
+        for _ in range(8):
+            rumors.note_breakthrough(player.name, marker, LOC)
         hits = _rumor_find(marker, tag="breakthrough")
         assert len(hits) == 1 and abs(float(hits[0]["truth"]) - 1.0) < 1e-9
         assert player.name in hits[0]["text"]
-        assert int(hits[0]["heat"]) >= 3, "重复写入只 +heat（_note_once 去重）"
+        assert int(hits[0]["heat"]) >= 8, "重复写入只 +heat（_note_once 去重）"
         picked = rumors.pick_for_npc(12)
         assert any(marker in (r.get("text") or "") for r in picked), \
             "pick_for_npc 函数级须可命中"
