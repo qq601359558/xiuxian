@@ -905,6 +905,54 @@
     } catch (_) {}
   }
 
+  // 件二 · 出身（§3.11）：全屏卡（gate 视觉语言）+ 命盘折叠段；origin 缺失不出现
+  function originRowsM(o) {
+    var rows = [];
+    if (!o) return rows;
+    if (o.family_text || o.family) rows.push(["家世", o.family_text || o.family]);
+    var os = o.old_story || {};
+    if (os.summary || os.kind) rows.push(["旧事", os.summary || os.kind]);
+    var rel = [];
+    if (o.debt && o.debt.amount) rel.push("欠" + (o.debt.creditor_name || "旧债主") + " " + o.debt.amount + " 灵石（旧债）");
+    if (Array.isArray(o.relations) && o.relations.length) {
+      var rc = { kin: "亲缘", foe: "宿怨", witness: "知情" };
+      rel.push(o.relations.map(function (r) { return (r.npc_name || "") + "·" + (rc[r.role] || r.role || "") + (r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : ""); }).join("、"));
+    }
+    if (rel.length) rows.push(["债与关系", rel.join("；")]);
+    if (Array.isArray(o.path_gates) && o.path_gates.length) {
+      var ec = { closed: "拒止", favored: "亲近" };
+      rows.push(["路径开关", o.path_gates.map(function (g) { return (g.target_ref || "") + "（" + (ec[g.effect] || g.effect || "") + "）"; }).join("、")]);
+    }
+    if (o.birthplace) rows.push(["出生地", o.birthplace]);
+    return rows;
+  }
+  function originFateLineM(o) {
+    if (!o) return "";
+    if (o.fate_text) return o.fate_text;
+    if (o.proposition) return o.proposition;
+    return (state.entry && state.entry.lines && state.entry.lines.fate) || "";
+  }
+  function originBodyHtmlM(oc) {
+    var o = oc && oc.origin;
+    if (!o) return "";
+    var html = oc.prev_epitaph ? '<p class="gold">前世曰：' + esc(oc.prev_epitaph) + "</p>" : "";
+    originRowsM(o).forEach(function (r) { html += kv(r[0], esc(r[1])); });
+    var fl = originFateLineM(o);
+    if (fl) html += '<p class="gold">终局命题：' + esc(fl) + "</p>";
+    return html;
+  }
+  function showOriginOverlayM() {
+    var oc = state.originCard;
+    if (!oc || !oc.just_created || !oc.origin) return;
+    closeOverlayM("originOverlay");
+    var ov = document.createElement("div");
+    ov.id = "originOverlay";
+    ov.className = "gf-overlay";
+    ov.innerHTML = '<div class="gf-card"><p class="card-eyebrow">此世出身</p>' + originBodyHtmlM(oc) +
+      '<button type="button" class="btn primary block" data-origin-close="1">收起出身卡</button></div>';
+    document.body.appendChild(ov);
+  }
+
   // ---- 命令通道 ----
   function demoResult(c) {
     var st = state.status || {};
@@ -930,6 +978,7 @@
       else data = await api("/action", { token: state.token, command: c });
       if (data.status) applyStatus(data.status);
       if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
+      if (data.origin_card) { state.originCard = data.origin_card; if (data.origin_card.just_created) showOriginOverlayM(); }
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
       else if (data.ok === false && data.error)
         pushFeed("敕令失败：" + data.error, "bad");
@@ -1135,6 +1184,8 @@
         stones: 100,
       });
       showApp();
+      if (payload.origin_card && payload.origin_card.just_created) showOriginOverlayM();
+      if (payload.ceremony) maybeShowCeremonyM(payload.ceremony);
       toast("已入世 · " + state.name, "ok");
       if (payload.dead) {
         pushFeed(

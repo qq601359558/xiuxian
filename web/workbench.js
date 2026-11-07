@@ -576,8 +576,74 @@
   }
 
   // 出身卡/命格/关系/仪式偏好的渲染函数在下方各件段落定义（函数声明提升，此处先声明占位由后续段落实现）
-  function originCardHtml() { return ""; }
-  function originFoldHtml() { return ""; }
+  // ---- 件二 · 出身卡（§3.11）：只读渲染 origin 块，null/缺键不出现 ----
+  function originRows(o) {
+    const rows = [];
+    if (!o) return rows;
+    if (o.family_text || o.family) rows.push(["家世", o.family_text || o.family]);
+    const os = o.old_story || {};
+    if (os.summary || os.kind) rows.push(["旧事", os.summary || os.kind]);
+    const rel = [];
+    if (o.debt && o.debt.amount) rel.push(`欠${o.debt.creditor_name || "旧债主"} ${o.debt.amount} 灵石（旧债）`);
+    if (Array.isArray(o.relations) && o.relations.length) {
+      const roleCn = { kin: "亲缘", foe: "宿怨", witness: "知情" };
+      rel.push(o.relations.map((r) => `${r.npc_name || ""}·${roleCn[r.role] || r.role || ""}${r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : ""}`).join("、"));
+    }
+    if (rel.length) rows.push(["债与关系", rel.join("；")]);
+    if (Array.isArray(o.path_gates) && o.path_gates.length) {
+      const effCn = { closed: "拒止", favored: "亲近" };
+      rows.push(["路径开关", o.path_gates.map((g) => `${g.target_ref || ""}（${effCn[g.effect] || g.effect || ""}）`).join("、")]);
+    }
+    if (o.birthplace) rows.push(["出生地", o.birthplace]);
+    return rows;
+  }
+
+  function originFateLine(o) {
+    if (!o) return "";
+    if (o.fate_text) return o.fate_text;
+    if (o.proposition) return o.proposition;
+    const e = state.entry;
+    return (e && e.lines && e.lines.fate) || "";
+  }
+
+  function originRowsHtml(o) {
+    return originRows(o).map(([k, v]) => `
+      <div class="flex justify-between gap-3 text-xs py-1.5 border-b border-jade-100">
+        <span class="text-slate-500 flex-none">${esc(k)}</span>
+        <span class="text-jade-950 font-medium text-right">${esc(v)}</span>
+      </div>`).join("");
+  }
+
+  // 入局视图顶部整卡：仅 origin_card.just_created 时呈现，关闭后去命盘回看
+  function originCardHtml() {
+    const oc = state.originCard;
+    if (!oc || !oc.just_created || state.originCardDismissed || !oc.origin) return "";
+    const fateLine = originFateLine(oc.origin);
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm" style="border:1px solid rgba(197,155,39,.5)">
+      <div class="flex items-start justify-between gap-3">
+        <h2 class="text-base font-bold text-jade-950">此世出身</h2>
+        <button type="button" class="btn sm ghost" data-origin-close="1">收起</button>
+      </div>
+      ${oc.prev_epitaph ? `<p class="text-sm text-amber-800 mt-2">前世曰：${esc(oc.prev_epitaph)}</p>` : ""}
+      <div class="mt-1">${originRowsHtml(oc.origin)}</div>
+      ${fateLine ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fateLine)}</p>` : ""}
+    </div>`;
+  }
+
+  // 命盘（sanctum）「出身」折叠段：读 status.origin 只读回看
+  function originFoldHtml(origin) {
+    if (!origin) return "";
+    const fateLine = originFateLine(origin);
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <details>
+        <summary class="text-sm font-bold text-jade-950 cursor-pointer">出身 · ${esc(origin.family_text || origin.family || "")}</summary>
+        <div class="mt-2">${originRowsHtml(origin)}</div>
+        ${fateLine ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fateLine)}</p>` : ""}
+      </details>
+    </div>`;
+  }
   function fateSectionHtml() { return ""; }
   function relationsSectionHtml() { return ""; }
   function ceremonySkipSectionHtml() { return ""; }
