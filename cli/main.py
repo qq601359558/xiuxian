@@ -1006,6 +1006,15 @@ def run_mud():
 
                 if res["success"]:
                     ChronicleRepository.record("BREAKTHROUGH", player.name, f"修士【{player.name}】历经天劫，突破至【{res['new_realm']}】！增寿 {res['lifespan_gained']} 岁！")
+                    # 传闻写入口（game-feel-phase2 §6）：CLI 突破路径同口径，大境界才入池
+                    if res.get("is_major"):
+                        try:
+                            from core import rumors as _rumors_cli
+
+                            _rumors_cli.note_breakthrough(
+                                player.name, player.realm.name, player.location)
+                        except Exception:
+                            pass
                 elif res.get("is_fatal", False):
                     ChronicleRepository.record("DEATH", player.name, f"修士【{player.name}】在九霄天劫中肉身灰飞湮灭，道消身死！")
                     console.print("[bold red]你已在天劫中陨落……[/bold red]")
