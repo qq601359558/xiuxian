@@ -666,9 +666,7 @@
         tagCls +
         '">' +
         esc(tag) +
-        "</span>" +
-        relationMarkM(r) +
-        "</div>" +
+        "</span>" + relationMarkM(r) + "</div>" +
         '<div class="muted">' +
         esc(r.realm || "") +
         " · " +
@@ -988,8 +986,7 @@
     document.body.appendChild(ov);
   }
   function renderCeremonySkipOpsM() {
-    var host = $("ceremonySkipOps");
-    if (!host) return;
+    var host = $("ceremonySkipOps"); if (!host) return;
     host.innerHTML = ["breakthrough", "death", "rebirth"].filter(function (k) { return ceremonySkippedM(k); }).map(function (k) { return '<button type="button" class="display-row" data-ceremony-unskip="' + k + '">' + esc(CEREMONY_CN_M[k] || k) + '仪式自动略过：取消<span class="arr">›</span></button>'; }).join("");
   }
 
