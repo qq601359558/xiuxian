@@ -78,20 +78,25 @@
   // ---- 图库接入（gallery-gameplay §3/§8/§10.4）----
   // 路径一律用后端下发字段（st.portrait / items[].img / equipped[].img /
   // art_images / spells_catalog[].img / here[].avatar / omen_image）；
-  // 唯一例外是图鉴段的 38 键展示表（§10.5）。图片 onerror 隐藏图位（§3.8）。
-  var GALLERY_REALM_CN = ["练气", "筑基", "金丹", "元婴", "化神", "炼虚"];
-  var GALLERY_REALM_KEYS = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu"];
+  // 唯一例外是图鉴段的 139 键展示表（§10.5）。图片 onerror 隐藏图位（§3.8）。
+  var GALLERY_REALM_CN = ["凡人", "练气", "筑基", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫"];
+  var GALLERY_REALM_KEYS = ["fanren", "lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu", "heti", "dacheng", "dujie"];
+  // NPC 单人图（game-feel-phase2 §9.1/§9.10）：slug = uid 去 npc_ 前缀且 _ 换 -，与后端 GALLERY_GROUPS 同表镜像
+  var GALLERY_NPC_SINGLE = [["qy-01", "玄清子"], ["qy-02", "静虚真人"], ["qy-03", "云鹤道人"], ["qy-04", "丹霞子"], ["qy-05", "林惊羽"], ["qy-06", "苏婉清"], ["qy-07", "石猛"], ["qy-08", "赵小满"], ["qy-09", "青萝"], ["wj-01", "剑圣·独孤败"], ["wj-02", "断岳剑尊"], ["wj-03", "白霜"], ["wj-04", "赤霄"], ["wj-05", "墨离"], ["wj-06", "剑奴阿七"], ["wj-07", "小环"], ["jy-01", "幽冥老祖"], ["jy-02", "血衣侯"], ["jy-03", "厉无锋"], ["jy-04", "骨姬"], ["jy-05", "血刀老祖"], ["jy-06", "毒娘子"], ["jy-07", "阿骨"], ["sh-01", "金满堂"], ["sh-02", "铁算盘"], ["sh-03", "柳三娘"], ["sh-04", "陆仁贾"], ["sh-05", "驼爷"], ["sh-06", "小雀儿"], ["wd-01", "采药翁"], ["wd-02", "赤练子"], ["wd-03", "山君"], ["wd-04", "蜃楼客"], ["wd-05", "海娘子"], ["wd-06", "盲眼琴师"], ["wd-07", "盗墓贼·孙九"], ["wd-08", "青州游侠·燕十三"]];
   var GALLERY_GROUPS = [
-    { title: "人物", keys: [].concat(
-      GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/male-" + r, "男相·" + GALLERY_REALM_CN[i], "定相男后随境界点亮，或同场遇见男修"]; }),
-      GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/female-" + r, "女相·" + GALLERY_REALM_CN[i], "定相女后随境界点亮，或同场遇见女修"]; }),
-      [["portraits/npc-laodao", "NPC·老道", "与老道原型 NPC 同场或交谈"],
-       ["portraits/npc-shanggu", "NPC·商贾", "与商贾原型 NPC 同场或交谈"],
-       ["portraits/npc-nvxiu", "NPC·女修", "与女修原型 NPC 同场或交谈"],
-       ["portraits/npc-shaonian", "NPC·少年", "与少年原型 NPC 同场或交谈"]]) },
-    { title: "法宝", keys: [["artifacts/sword", "法宝·剑", "拥有剑类法宝"], ["artifacts/cauldron", "法宝·鼎炉", "拥有鼎炉类法宝"], ["artifacts/banner", "法宝·幡旗", "拥有幡旗类法宝"], ["artifacts/orb", "法宝·珠戒", "拥有珠戒类法宝"], ["artifacts/mirror", "法宝·镜", "拥有镜类法宝"], ["artifacts/bell", "法宝·铃钟", "拥有铃钟类法宝"], ["artifacts/pagoda", "法宝·塔", "拥有塔类法宝"], ["artifacts/gourd", "法宝·葫芦", "拥有葫芦类法宝"], ["artifacts/fan", "法宝·扇", "拥有扇类法宝"], ["artifacts/seal", "法宝·印玺", "拥有印玺类法宝"]] },
-    { title: "功法", keys: [["arts/metal", "功法·金", "习得金系功法"], ["arts/wood", "功法·木", "习得木系功法"], ["arts/water", "功法·水", "习得水系功法"], ["arts/fire", "功法·火", "习得火系功法"], ["arts/earth", "功法·土", "习得土系功法"], ["arts/thunder", "功法·雷", "习得雷系功法"], ["arts/sword", "功法·剑", "习得剑系功法"], ["arts/ice", "功法·冰", "习得冰系功法"]] },
-    { title: "藏宝图", keys: [["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"], ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"]] },
+    { title: "人物·男相", keys: GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/male-" + r, "男相·" + GALLERY_REALM_CN[i], "定相男后随境界点亮，或同场遇见男修"]; }) },
+    { title: "人物·女相", keys: GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/female-" + r, "女相·" + GALLERY_REALM_CN[i], "定相女后随境界点亮，或同场遇见女修"]; }) },
+    { title: "人物·NPC 单人", keys: GALLERY_NPC_SINGLE.map(function (p) { return ["portraits/" + "npc-" + p[0], "NPC·" + p[1], "与" + p[1] + "同场或交谈"]; }) },
+    { title: "人物·NPC 原型", keys: [["portraits/npc-laodao", "NPC·老道", "与老道原型 NPC 同场或交谈"], ["portraits/npc-shanggu", "NPC·商贾", "与商贾原型 NPC 同场或交谈"], ["portraits/npc-nvxiu", "NPC·女修", "与女修原型 NPC 同场或交谈"], ["portraits/npc-shaonian", "NPC·少年", "与少年原型 NPC 同场或交谈"]] },
+    { title: "法宝", keys: [["artifacts/sword", "法宝·剑", "拥有剑类法宝"], ["artifacts/cauldron", "法宝·鼎炉", "拥有鼎炉类法宝"], ["artifacts/banner", "法宝·幡旗", "拥有幡旗类法宝"], ["artifacts/orb", "法宝·珠戒", "拥有珠戒类法宝"], ["artifacts/mirror", "法宝·镜", "拥有镜类法宝"], ["artifacts/bell", "法宝·铃钟", "拥有铃钟类法宝"], ["artifacts/pagoda", "法宝·塔", "拥有塔类法宝"], ["artifacts/gourd", "法宝·葫芦", "拥有葫芦类法宝"], ["artifacts/fan", "法宝·扇", "拥有扇类法宝"], ["artifacts/seal", "法宝·印玺", "拥有印玺类法宝"], ["artifacts/armor", "法宝·甲胄", "拥有甲胄类法宝"], ["artifacts/boots", "法宝·靴履", "拥有靴履类法宝"], ["artifacts/staff", "法宝·法杖", "拥有法杖类法宝"], ["artifacts/vessel", "法宝·舟舰", "拥有舟舰类法宝"], ["artifacts/blade", "法宝·战刃", "拥有刀刃类法宝"], ["artifacts/spear", "法宝·戈枪", "拥有戈枪类法宝"], ["artifacts/case", "法宝·剑匣", "拥有剑匣类法宝"], ["artifacts/needle", "法宝·灵刺", "拥有灵刺类法宝"], ["artifacts/shuttle", "法宝·破空梭", "拥有飞梭类法宝"], ["artifacts/talisman", "法宝·符箓", "拥有符箓护符类法宝"]] },
+    { title: "功法", keys: [["arts/metal", "功法·金", "习得金系功法"], ["arts/wood", "功法·木", "习得木系功法"], ["arts/water", "功法·水", "习得水系功法"], ["arts/fire", "功法·火", "习得火系功法"], ["arts/earth", "功法·土", "习得土系功法"], ["arts/thunder", "功法·雷", "习得雷系功法"], ["arts/sword", "功法·剑", "习得剑系功法"], ["arts/ice", "功法·冰", "习得冰系功法"], ["arts/wind", "功法·风", "习得风系功法"], ["arts/spirit", "功法·神魂", "习得神魂类功法"]] },
+    { title: "藏宝图", keys: [["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"], ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"], ["maps/map-celestial", "宝图·仙图", "持有仙品藏宝图"], ["maps/arch-puzzle", "宝图·解谜", "研读五行解谜类宝图"], ["maps/arch-combat", "宝图·凶地", "研读凶地守护类宝图"], ["maps/arch-hazard", "宝图·涉险", "研读遗迹涉险类宝图"]] },
+    { title: "灵宠", keys: [["pets/pet-qinglinmang", "灵宠·青鳞蟒", "收服青鳞蟒"], ["pets/pet-jifengxun", "灵宠·疾风隼", "收服疾风隼"], ["pets/pet-xuanjiagui", "灵宠·玄甲龟", "收服玄甲龟"], ["pets/pet-xunbaoshu", "灵宠·寻宝鼠", "收服寻宝鼠"]] },
+    { title: "场景·地点", keys: [["scenes/market-inn", "场景·青云坊市客栈", "到访青云坊市客栈"], ["scenes/qingyun-gate", "场景·青云宗外门山门", "到访青云宗外门山门"], ["scenes/xuanyuan-cave", "场景·宗门玄元洞府", "到访宗门玄元洞府"], ["scenes/luoxia-spring", "场景·落霞山灵泉", "到访落霞山灵泉"], ["scenes/heishui-swamp", "场景·黑水沼泽", "到访黑水沼泽"], ["scenes/wanjian-peak", "场景·万剑仙门峰", "到访万剑仙门峰"], ["scenes/xijian-pool", "场景·洗剑池洞天", "到访洗剑池洞天"], ["scenes/jiuyou-altar", "场景·九幽天魔宗坛", "到访九幽天魔宗坛"], ["scenes/heifeng-abyss", "场景·黑风绝渊", "到访黑风绝渊"], ["scenes/wanxing-isle", "场景·万星古岛", "到访万星古岛"]] },
+    { title: "场景·秘境", keys: [["scenes/realm-luoxia-cave", "场景·落霞古洞", "进入秘境落霞古洞"], ["scenes/realm-sword-tomb", "场景·剑冢残碑", "进入秘境剑冢残碑"], ["scenes/realm-wanxing-ruins", "场景·万星遗迹残址", "进入秘境万星遗迹"], ["scenes/realm-ghost-market", "场景·幽冥鬼市", "进入秘境幽冥鬼市"], ["scenes/dungeon-entrance", "场景·锁妖古窟", "进入锁妖古窟"]] },
+    { title: "奇遇", keys: [["omen/black-market", "奇遇·黑市兜售", "逢黑市奇遇"], ["omen/orphan-trust", "奇遇·旧友托孤", "逢孤托奇遇"], ["omen/spring-dispute", "奇遇·灵泉争饮", "逢灵泉之争奇遇"], ["omen/stele", "奇遇·残碑悟道", "逢残碑奇遇"], ["omen/escort-deal", "奇遇·镖银争议", "逢护送交易奇遇"], ["omen/inn-whisper", "奇遇·客栈夜话", "逢客栈耳语奇遇"]] },
+    { title: "丹药", keys: [["goods/pill-breakthrough", "丹药·破境", "持有破境类丹药"], ["goods/pill-cultivation", "丹药·修炼", "持有修行类丹药"], ["goods/pill-recovery", "丹药·疗愈", "持有疗复类丹药"], ["goods/pill-lifespan", "丹药·延寿", "持有延寿类丹药"], ["goods/pill-soul", "丹药·神魂", "持有养魂类丹药"], ["goods/pill-detox", "丹药·解毒", "持有解毒类丹药"], ["goods/pill-root", "丹药·洗髓", "持有洗根类丹药"], ["goods/pill-combat", "丹药·战斗", "持有战辅类丹药"]] },
+    { title: "材料", keys: [["goods/mat-herb", "材料·灵草", "持有灵草类材料"], ["goods/mat-ore", "材料·矿石", "持有矿石类材料"], ["goods/mat-metal", "材料·金属", "持有金石类材料"], ["goods/mat-beast", "材料·兽材", "持有兽材类材料"], ["goods/mat-liquid", "材料·灵液", "持有灵液类材料"], ["goods/mat-wood", "材料·灵木", "持有灵木类材料"], ["goods/mat-aura", "材料·灵气", "持有灵蕴类材料"]] },
   ];
   function galleryAssetPath(key) { return "/assets/" + key + ".webp"; }
   function galleryFrameClass(tier) {
@@ -130,7 +135,7 @@
     var key = g.newly.slice().sort().join(",") + "|" + (g.count || "");
     if (key === galleryNewlySeenKey) return;
     galleryNewlySeenKey = key;
-    toast("图鉴新点亮：" + g.newly.length + " 图（" + (g.count || g.newly.length) + "/" + (g.total || 38) + "）", "ok");
+    toast("图鉴新点亮：" + g.newly.length + " 图（" + (g.count || g.newly.length) + (g.total ? "/" + g.total : "") + "）", "ok");
   }
   function setText(id, v) {
     var el = $(id);
@@ -335,7 +340,7 @@
       '<button type="button" class="chip" data-cmd="/定相 女">定相 · 女</button></div>';
     if (st.gallery) {
       html += '<button type="button" class="gallery-progress-row" data-mview="ops">图鉴 ' +
-        esc(st.gallery.count != null ? st.gallery.count : 0) + "/" + esc(st.gallery.total || 38) +
+        esc(st.gallery.count != null ? st.gallery.count : 0) + "/" + esc(st.gallery.total != null ? st.gallery.total : "—") +
         (st.gallery.title ? " · " + esc(st.gallery.title) : "") + " ›</button>";
     }
     html += "</div></div>";
@@ -396,15 +401,17 @@
     if (pet)
       html += kv(
         "灵宠",
-        esc(
-          pet.name +
-            " · " +
-            pet.species +
-            " · " +
-            pet.level +
-            " 级 · 亲密度 " +
-            pet.intimacy,
-        ),
+        // 灵宠图（game-feel-phase2 §9.3）：pet.img 只认后端下发，缺失不渲染图位
+        (pet.img ? galleryImg(pet.img, "pet-thumb", pet.name || "灵宠") : "") +
+          esc(
+            pet.name +
+              " · " +
+              pet.species +
+              " · " +
+              pet.level +
+              " 级 · 亲密度 " +
+              pet.intimacy,
+          ),
       );
     else
       html += kv(
@@ -489,7 +496,7 @@
         }
         sendCmd("/钱包提取 " + amt);
       });
-    var gfHtml = (st.origin ? '<div class="card"><details><summary><b>出身 · ' + esc(st.origin.family_text || st.origin.family || "") + '</b></summary>' + originBodyHtmlM({ origin: st.origin }) + "</details></div>" : "") + fateSectionHtmlM(st.fate) + relationsSectionHtmlM(st.relations_recent);
+    var gfHtml = (st.origin ? '<div class="card"><details><summary><b>出身 · ' + esc(st.origin.family_text || st.origin.family || "") + '</b></summary>' + originBodyHtmlM({ origin: st.origin }) + "</details></div>" : "") + fateSectionHtmlM(st.fate) + fateThreadHtmlM(st.fate) + relationsSectionHtmlM(st.relations_recent);
     if (gfHtml) { var gd = document.createElement("div"); gd.innerHTML = gfHtml; host.appendChild(gd); }
   }
 
@@ -630,6 +637,12 @@
     var host = $("worldBody");
     if (!host) return;
     var html = "";
+    // 地点场景头图（game-feel-phase2 §9.4）：location_image 只认后端下发，空串不渲染图位
+    var stW = state.status || {};
+    if (stW.location_image) html += '<div class="card scene-card">' + galleryImg(stW.location_image, "world-scene-img", stW.location || "当前地点") + '<p class="card-eyebrow">' + esc(stW.location || "") + "</p></div>";
+    // 主动戏剧当面行（§5.4）：迁跃/登录的当面戏剧复用入局 proactive 行结构呈现于世界分区
+    var pvW = state.entry && state.entry.proactive && typeof state.entry.proactive === "object" ? state.entry.proactive : null;
+    if (pvW && pvW.drama_id) html += '<div class="card"><p class="card-eyebrow">当面来访</p>' + dramaRowHtmlM(pvW) + "</div>";
     var w = state.world || {};
     var lines =
       w.summary_lines || (w.evolution && w.evolution.summary_lines) || [];
@@ -712,11 +725,11 @@
     var host = $("galleryOps");
     if (!host) return;
     var st = state.status || {};
-    var g = st.gallery || { unlocked: [], count: 0, total: 38, title: "" };
+    var g = st.gallery || { unlocked: [], count: 0, total: 0, title: "" };
     var unlocked = {};
     (Array.isArray(g.unlocked) ? g.unlocked : []).forEach(function (k) { unlocked[k] = true; });
-    var html = '<div class="muted">进度 ' + esc(g.count != null ? g.count : 0) + "/" + esc(g.total || 38) +
-      (g.title ? " · 称号【" + esc(g.title) + "】（仅展示）" : " · 称号档：10 初窥门径 / 20 博览群真 / 30 洞鉴乾坤 / 38 图录大成") + "</div>";
+    var html = '<div class="muted">进度 ' + esc(g.count != null ? g.count : 0) + "/" + esc(g.total || "—") +
+      (g.title ? " · 称号【" + esc(g.title) + "】（仅展示）" : " · 称号档：10 初窥门径 / 40 博览群真 / 80 洞鉴乾坤 / 120 博物通览 / 139 图录大成") + "</div>";
     GALLERY_GROUPS.forEach(function (grp) {
       html += '<div class="section-title">' + esc(grp.title) + "</div>";
       grp.keys.forEach(function (entry) {
@@ -766,6 +779,8 @@
         "/墓碑 ",
         "/道统",
         "/因果链",
+        "/命途",
+        "/回应 ",
         "/钱包",
         "/寄存 ",
         "/支取 ",
@@ -851,10 +866,35 @@
     }
     return "";
   }
+  // 入局新 kind（game-feel-phase2 §8.2）：fate_chapter 命途 / drama 戏剧（drama 带 options 回应按钮组）
+  var ENTRY_KIND_CN_M = { fate_chapter: "命途", drama: "戏剧" };
+  var DRAMA_TYPE_CN_M = { betrayal: "背叛", provoke: "挑衅", involvement: "牵连", help: "求助", favor: "示好" };
   function entryItemHtmlM(it) {
     if (!it) return "";
     var attrs = entryTargetAttrsM(it.target);
-    return '<div class="entry-act"><span class="tx"><b>' + esc(it.title || it.kind || "待办") + "</b>" + (it.text ? '<br><span class="muted">' + esc(it.text) + "</span>" : "") + "</span>" + (attrs ? '<button type="button" class="chip primary"' + attrs + ">前往</button>" : "") + "</div>";
+    var tag = ENTRY_KIND_CN_M[it.kind] ? '<span class="entry-kind">' + ENTRY_KIND_CN_M[it.kind] + "</span>" : "";
+    var opts = "";
+    if (it.kind === "drama" && Array.isArray(it.options) && it.options.length) {
+      var base = it.id ? "/回应 " + it.id + " " : (it.target && it.target.command ? it.target.command + " " : "/回应 ");
+      opts = '<span class="chiprow">' + it.options.map(function (o) { return '<button type="button" class="chip primary" data-cmd="' + esc(base + (o.key || "")) + '">' + esc(o.label || o.key || "回应") + "</button>"; }).join("") + "</span>";
+    }
+    return '<div class="entry-act">' + tag + '<span class="tx"><b>' + esc(it.title || it.kind || "待办") + "</b>" + (it.text ? '<br><span class="muted">' + esc(it.text) + "</span>" : "") + "</span>" + opts + (attrs && !opts ? '<button type="button" class="chip primary"' + attrs + ">前往</button>" : "") + "</div>";
+  }
+  // 交谈旧账行文案（game-feel-phase2 §8.3，双端同文案）：字段缺失的段落不拼，不自造数
+  function oldAccountTextM(oa) {
+    if (!oa || typeof oa !== "object") return "";
+    var parts = [];
+    if (oa.open_promises != null) parts.push("未了诺言 " + oa.open_promises);
+    if (oa.chains_with_npc != null) parts.push("与他发酵中因果 " + oa.chains_with_npc);
+    else if (oa.fermenting_chains != null) parts.push("发酵中因果 " + oa.fermenting_chains);
+    if (oa.nearest_chain_game_days != null) parts.push("最近一条约 " + oa.nearest_chain_game_days + " 游戏日");
+    if (oa.last_relation) parts.push("最近：" + oa.last_relation);
+    return parts.length ? "旧账：" + parts.join(" · ") : "";
+  }
+  // 主动戏剧当面行（§5.4/§8.2）：复用 entry.proactive 结构，drama_id 在场才渲染为戏剧行
+  function dramaRowHtmlM(pv) {
+    if (!pv || !pv.drama_id) return "";
+    return '<div class="drama-row"><span class="entry-kind">戏剧' + (pv.drama_type ? "·" + esc(DRAMA_TYPE_CN_M[pv.drama_type] || pv.drama_type) : "") + '</span><span class="tx">' + (pv.npc ? "<b>" + esc(pv.npc) + "</b> " : "") + esc(pv.text || pv.line || "") + '</span><button type="button" class="chip primary" data-fill="/回应 ">去回应</button></div>';
   }
   function renderEntryCardM() {
     var host = $("entryCard");
@@ -866,8 +906,10 @@
     if (lines.fate) html += '<p class="world-para">' + esc(lines.fate) + "</p>";
     if (lines.chains && (lines.chains.text || lines.chains.fermenting != null)) html += '<p class="world-para">' + esc(lines.chains.text || ("发酵中因果链 " + lines.chains.fermenting + " 条")) + "</p>";
     if (Array.isArray(lines.relations)) lines.relations.forEach(function (r) { if (r && r.summary) html += '<p class="world-para">' + esc(r.summary) + "</p>"; });
-    var pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
-    if (pv) html += '<p class="world-para">' + esc(pv) + "</p>";
+    var pvObj = e.proactive && typeof e.proactive === "object" ? e.proactive : null;
+    var pv = typeof e.proactive === "string" ? e.proactive : (pvObj && pvObj.text) || "";
+    if (pvObj && pvObj.drama_id) html += dramaRowHtmlM(pvObj);
+    else if (pv) html += '<p class="world-para">' + esc(pv) + "</p>";
     var queue = Array.isArray(e.queue) ? e.queue : [];
     var hl = Array.isArray(e.highlight) && e.highlight.length ? e.highlight : queue.slice(0, 3);
     if (e.empty || !queue.length) html += '<p class="muted">' + esc(e.empty_text || "江湖无事，可自由行动") + "</p>";
@@ -905,7 +947,8 @@
     if (o.debt && o.debt.amount) rel.push("欠" + (o.debt.creditor_name || "旧债主") + " " + o.debt.amount + " 灵石（旧债）");
     if (Array.isArray(o.relations) && o.relations.length) {
       var rc = { kin: "亲缘", foe: "宿怨", witness: "知情" };
-      rel.push(o.relations.map(function (r) { return (r.npc_name || "") + "·" + (rc[r.role] || r.role || "") + (r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : ""); }).join("、"));
+      // 世仇植入条目（game-feel-phase2 §4.3）：relations[].vendetta 在场才加世仇行标记
+      rel.push(o.relations.map(function (r) { return (r.npc_name || "") + "·" + (rc[r.role] || r.role || "") + (r.init_value != null ? " " + (r.init_value > 0 ? "+" : "") + r.init_value : "") + (r.vendetta ? "·世仇" + (r.vendetta_for ? "（替" + r.vendetta_for + "讨前世血债）" : "（前世血债未清）") : ""); }).join("、"));
     }
     if (rel.length) rows.push(["债与关系", rel.join("；")]);
     if (Array.isArray(o.path_gates) && o.path_gates.length) {
@@ -960,6 +1003,29 @@
       });
       else html += '<p class="muted">后续待选：' + cands.map(function (c) { return esc(c.name || c.key || ""); }).join("、") + "（先择前一抽）</p>";
     });
+    return html + "</div>";
+  }
+  // 命途主线全量段（game-feel-phase2 §8.1）：只认 fate.thread 下发，null/缺失不渲染，字段缺失不自造
+  var THREAD_SEED_CN_M = { unfinished: "未竟之志", vendetta: "世仇", karma_shadow: "前世影子", blood_feud: "血仇", sect: "宗门风云", origin: "出身旧事" };
+  var THREAD_STATUS_CN_M = { active: "进行中", shelved: "已搁置", completed: "已了结", broken: "中道崩殂", inherited: "留待来世", done: "已成", failed: "未成" };
+  var CHAPTER_STATUS_CN_M = { done: "已成", active: "进行中", locked: "未启", failed: "未成" };
+  var CHAPTER_TIER_CN_M = { short: "短期", mid: "中期", final: "终局" };
+  function fateThreadHtmlM(fate) {
+    var th = fate && typeof fate === "object" ? fate.thread : null;
+    if (!th || typeof th !== "object") return "";
+    var html = '<div class="card"><p class="card-eyebrow">命途主线</p><h3>' + esc(th.title || "命途") + "</h3>";
+    html += kv("种子来源", esc((THREAD_SEED_CN_M[th.seed_source] || th.seed_source || "—") + (th.status ? " · " + (THREAD_STATUS_CN_M[th.status] || th.status) : "")));
+    if (th.antagonist && th.antagonist.name) html += kv("对手", esc(th.antagonist.name));
+    if (th.patron && th.patron.name) html += kv("引路人", esc(th.patron.name));
+    (Array.isArray(th.chapters) ? th.chapters : []).forEach(function (c) {
+      if (!c) return;
+      var cur = c.status === "active" && (th.current_chapter == null || c.idx === th.current_chapter);
+      html += '<div class="kv thread-ch' + (cur ? " cur" : "") + '"><span class="k">第' + esc((c.idx != null ? c.idx : 0) + 1) + "章" + (c.tier ? " · " + esc(CHAPTER_TIER_CN_M[c.tier] || c.tier) : "") + '</span><span class="v">' + esc(c.title || "") + ' <span class="muted">' + esc(CHAPTER_STATUS_CN_M[c.status] || c.status || "") + "</span>" + (c.goal_text ? '<br><span class="muted">' + esc(c.goal_text) + "</span>" : "") + "</span></div>";
+    });
+    var fp = th.final_proposition || {};
+    if (fp.text) html += kv("终局命题", esc(fp.text) + (fp.status ? "（" + esc(THREAD_STATUS_CN_M[fp.status] || fp.status) + "）" : ""));
+    if (th.shelvable) html += '<button type="button" class="btn secondary block" data-cmd="/命途 搁置">搁置命途</button>';
+    else if (th.status === "shelved") html += '<button type="button" class="btn primary block" data-cmd="/命途 续">续接命途</button>';
     return html + "</div>";
   }
   function maybeShowCeremonyM(cer) {
@@ -1030,6 +1096,8 @@
       if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
       if (data.origin_card) { state.originCard = data.origin_card; if (data.origin_card.just_created) showOriginOverlayM(); }
       if (data.ceremony) maybeShowCeremonyM(data.ceremony);
+      // 交谈旧账行（game-feel-phase2 §8.3）：交谈开启响应 old_account 在场才渲染，置于交谈文本之前
+      if (data.old_account) pushFeed(oldAccountTextM(data.old_account), "ok");
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
       else if (data.ok === false && data.error)
         pushFeed("敕令失败：" + data.error, "bad");
@@ -1065,6 +1133,8 @@
         { cmd: "/坊市", desc: "查看诸天商会与寄售" },
         { cmd: "/领俸禄", desc: "领取宗门月俸" },
         { cmd: "/交谈", desc: "与同场修士传音" },
+        { cmd: "/命途", desc: "查看此世命途主线与章节" },
+        { cmd: "/回应", desc: "回应找上门的主动戏剧" },
         { cmd: "/帮助", desc: "查阅全部天道敕令" },
       ];
       return;
@@ -1308,7 +1378,7 @@
       skills: ["吐纳术", "御剑术"],
       gender: "male",
       portrait: "/assets/portraits/male-zhuji.webp",
-      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 38, title: "", newly: [] },
+      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 139, title: "", newly: [] },
       art_images: { "吐纳术": "/assets/arts/earth.webp", "御剑术": "/assets/arts/sword.webp" },
       spells_catalog: [],
       items: [],

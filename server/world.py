@@ -528,10 +528,31 @@ class World:
                     from core.origin import OriginEngine
 
                     _acc = LegacyRepository.get_or_create(snap["user_id"])
-                    OriginEngine.generate_for_new_life(fresh, _acc)
+                    # 世仇选人（二期 §4.3）：有前世留痕时先选人再生成出身
+                    _vendetta = None
+                    try:
+                        from core.fate_thread import FateThreadEngine as _FTEv
+
+                        _vendetta = _FTEv.select_vendetta(_acc, fresh)
+                    except Exception:
+                        _vendetta = None
+                    OriginEngine.generate_for_new_life(fresh, _acc, vendetta=_vendetta)
                     CharacterRepository.save(fresh)
                 except Exception:
                     pass  # 出身是增益层：失败留空、建角照常成功（§3.10）
+            # 命途建线（二期 §3.8 调用点①）：origin 生成之后、入局拼装
+            # 之前；新号/老号登录均在此首次建线，失败吞掉不阻断登录
+            # （主线是增益层，不是登录门禁）。建线新挂的 goals 随 fresh 回存。
+            try:
+                from core.fate_thread import FateThreadEngine as _FTEj
+
+                _acc_j = LegacyRepository.get_or_create(snap["user_id"])
+                _goals_before = len(getattr(fresh, "goals", None) or [])
+                _FTEj.ensure_thread(fresh, _acc_j)
+                if len(getattr(fresh, "goals", None) or []) != _goals_before:
+                    CharacterRepository.save(fresh)
+            except Exception:
+                pass
             try:
                 _acc2 = LegacyRepository.get(snap["user_id"])
                 if _acc2 and _acc2.traces:
@@ -570,6 +591,41 @@ class World:
             "entry": entry,
             "origin_card": origin_card,
         }
+
+    def _schedule_epitaph_polish(self, user_id: str) -> None:
+        """评语润色单飞调度（二期 §7.2）：同账户同时只跑一条守护线程；
+        润色失败/超时在 LegacyEngine.try_polish_epitaph 内静默降级。"""
+        inflight = getattr(self, "_epitaph_polish_inflight", None)
+        if inflight is None:
+            inflight = self._epitaph_polish_inflight = set()
+            self._epitaph_polish_lock = threading.Lock()
+        with self._epitaph_polish_lock:
+            if user_id in inflight:
+                return
+            inflight.add(user_id)
+        t = threading.Thread(
+            target=self._run_epitaph_polish,
+            args=(user_id,),
+            daemon=True,
+            name=f"epitaph-polish-{user_id[:8]}",
+        )
+        t.start()
+
+    def _run_epitaph_polish(self, user_id: str) -> None:
+        """锁外执行评语润色：重读账户行后单次尝试，任何异常静默。"""
+        try:
+            from core.legacy import LegacyEngine as _LEp
+
+            account = LegacyRepository.get_or_create(user_id)
+            _LEp.try_polish_epitaph(account)
+        except Exception:
+            pass
+        finally:
+            try:
+                with self._epitaph_polish_lock:
+                    self._epitaph_polish_inflight.discard(user_id)
+            except Exception:
+                pass
 
     def first_night_status(self, character_id: str) -> Optional[str]:
         """first-night 异步任务终态查询（测试/运维用）：pending|done|failed。
@@ -749,6 +805,13 @@ class World:
         )
         LegacyRepository.save(account)
         CharacterRepository.save(char)
+        # 评语润色（二期 §7.2 调用点）：结算完成落盘之后调度单飞守护
+        # 线程异步润色一次；润色本身在线程内（锁外）执行，绝不在
+        # settle_death 同步路径 / 登录路径 / tick 路径内跑。
+        try:
+            self._schedule_epitaph_polish(char.user_id)
+        except Exception:
+            pass
         if sweep.get("errors"):
             ChronicleRepository.record(
                 "WALLET_SWEEP_PARTIAL", char.name,
@@ -983,10 +1046,27 @@ class World:
             )
             # 出身生成（game-feel §3.10 时机二）：影子之后、统一 save 之前；
             # 纯规则毫秒级，失败不阻断转世。影子覆盖者由生成器排除。
+            # 世仇选人（二期 §4.3）：apply_karma_shadow 之后、出身生成之前
+            # 算出 vendetta 经新入参进 foe 名额（bounds/种子边走既有通道）。
+            _vendetta = None
+            try:
+                from core.fate_thread import FateThreadEngine as _FTEr
+
+                _vendetta = _FTEr.select_vendetta(account, char)
+            except Exception:
+                _vendetta = None
             try:
                 from core.origin import OriginEngine
 
-                OriginEngine.generate_for_new_life(char, account)
+                OriginEngine.generate_for_new_life(char, account, vendetta=_vendetta)
+            except Exception:
+                pass
+            # 命途建线（二期 §3.8 调用点②）：origin 之后、统一 save 之前，
+            # 纯本地规则 + 既有仓储写，失败不阻断转世。
+            try:
+                from core.fate_thread import FateThreadEngine as _FTEr2
+
+                _FTEr2.ensure_thread(char, account)
             except Exception:
                 pass
             LegacyRepository.save(account)
@@ -1154,6 +1234,22 @@ class World:
 
                                 if evaluate_checked_goals(char):
                                     CharacterRepository.save(char)
+                            except Exception:
+                                pass
+                            # 命途求值 T2（二期 §3.6）：与 E3 同位（出口二）
+                            try:
+                                from core.fate_thread import FateThreadEngine as _FTEh
+
+                                if _FTEh.evaluate_for(char).get("changed"):
+                                    CharacterRepository.save(char)
+                            except Exception:
+                                pass
+                            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口②·心魔后继段）
+                            try:
+                                from core import rumors as _rumors_mod2
+
+                                _rumors_mod2.note_breakthrough(
+                                    char.name, char.realm.name, char.location)
                             except Exception:
                                 pass
                         _trib_settle = None
@@ -1460,6 +1556,78 @@ class World:
                     "fate": fate_block(char),
                     "status": self._status_dict(char),
                 }
+            if action in ("/命途", "/fate_thread"):
+                # 命途主线（二期 §8.4）：无参面板（与 fate.thread 同源）、
+                # 搁置/续走线级开关（§3.9，assert_alive 门禁沿道体守恒律）。
+                from core.fate_thread import FateThreadEngine as _FTEm
+
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("搁置", "续"):
+                    from core.character_integrity import (
+                        CharacterIntegrity,
+                        CharacterIntegrityError,
+                    )
+
+                    try:
+                        CharacterIntegrity.assert_alive(char)
+                    except CharacterIntegrityError as _ie:
+                        return {"ok": False, "error": str(_ie),
+                                "status": self._status_dict(char)}
+                    if sub == "搁置":
+                        _sr = _FTEm.shelve_thread(char)
+                    else:
+                        _sr = _FTEm.resume_thread(char)
+                        if _sr.get("success"):
+                            CharacterRepository.save(char)
+                    return {
+                        "ok": bool(_sr.get("success")),
+                        "text": _sr.get("message", ""),
+                        "fate_thread": _FTEm.thread_status_dict(char),
+                        "status": self._status_dict(char),
+                    }
+                return {
+                    "ok": True,
+                    "text": _FTEm.panel_text(char),
+                    "fate_thread": _FTEm.thread_status_dict(char),
+                    "status": self._status_dict(char),
+                }
+            if action in ("/回应", "/respond_drama"):
+                # 主动戏剧回应（二期 §8.4/§5.3，集成裁决：A/B 两岗同名分发
+                # 合并为本处单一分发）：后果落账在 DramaEngine.respond 内
+                # （既有系统入口）；fight 经 fight_fn 转调既有 _fight 分发。
+                from core.npc_proactive import DramaEngine as _DE
+
+                if len(parts) < 2:
+                    _pending = _DE.list_pending(char) or []
+                    if _pending:
+                        _lines = ["【待回应之事】"]
+                        for _it in _pending:
+                            _opts = "/".join(
+                                str(o.get("key", "")) for o in (_it.get("options") or []))
+                            _lines.append(
+                                f"· {_it.get('id', '')} {_it.get('npc_name', '')}："
+                                f"{_it.get('text', '')}（/回应 {_it.get('id', '')} <{_opts}>）")
+                        return {"ok": True, "text": "\n".join(_lines),
+                                "drama_pending": _pending,
+                                "status": self._status_dict(char)}
+                    return {"ok": True, "text": "眼下无人找上门，无待回应之事。",
+                            "drama_pending": [],
+                            "status": self._status_dict(char)}
+                if len(parts) < 3:
+                    return {"ok": False,
+                            "error": "用法：/回应 <drama_id> <option_key>（事件不存在或选项非法均不落账）",
+                            "status": self._status_dict(char)}
+                _rr = _DE.respond(
+                    char, parts[1], parts[2],
+                    fight_fn=lambda _n: self._fight(char, _n))
+                if not _rr.get("success"):
+                    return {"ok": False, "error": _rr.get("error") or "回应失败。",
+                            "status": self._status_dict(char)}
+                CharacterRepository.save(char)
+                if _rr.get("action") == "fight" and isinstance(_rr.get("fight"), dict):
+                    return _rr["fight"]
+                return {"ok": True, "text": _rr.get("message") or "已回应。",
+                        "status": self._status_dict(char), "drama": _rr}
             if action in ("/寻宝", "/clue"):
                 # 寻宝线索链推进（gallery-gameplay §5.3）：无参查看（纯读）、
                 # 数字抉择、弃链；门禁在引擎内，写路径 save 收尾（§11）。
@@ -1886,6 +2054,14 @@ class World:
                 # 选项
                 if sub.isdigit():
                     res = omen_choose(char, sub)
+                    # 命途求值 T4（二期 §3.6）：奇遇结算返回组装点
+                    try:
+                        from core.fate_thread import FateThreadEngine as _FTEo
+
+                        if _FTEo.evaluate_for(char).get("changed"):
+                            CharacterRepository.save(char)
+                    except Exception:
+                        pass
                     still_open = bool(get_scene(char.id))
                     from core.omen_scene import current_choices, scene_image_path
 
@@ -2533,6 +2709,7 @@ class World:
                         res = SecretRealmEngine.abandon(char)
                         return {"ok": res.get("success"), "text": res.get("message", "")}
                     res = SecretRealmEngine.enter(char, sub)
+                    _scene_image = ""
                     if res.get("success"):
                         CharacterRepository.save(char)
                         try:
@@ -2542,7 +2719,18 @@ class World:
                             CharacterRepository.save(char)
                         except Exception:
                             pass
-                    return {"ok": res.get("success"), "text": res.get("message", "")}
+                        # 图库（二期 §9.4）：秘境进入点亮其场景图，进入
+                        # 返回只增 scene_image（无映射为空串，前端不渲染）。
+                        try:
+                            from core import gallery as _gallery_sr
+                            from core.gallery_assets import scene_path_for_realm as _spr
+
+                            _realm_name = (res.get("chain") or {}).get("realm_id") or sub
+                            _gallery_sr.note_realm_visit(char, _realm_name)
+                            _scene_image = _spr(_realm_name)
+                        except Exception:
+                            _scene_image = ""
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "scene_image": _scene_image}
                 return {"ok": True, "text": SecretRealmEngine.board_text()}
             if action in ("/dungeon", "/禁地", "/锁妖塔", "/古窟"):
                 from core.dungeon import DungeonEngine, DUNGEON_FLOORS
@@ -2552,7 +2740,19 @@ class World:
                     if len(parts) > 2 and parts[2].isdigit():
                         fl = int(parts[2])
                     res = DungeonEngine.start_dungeon(char, floor=fl)
-                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                    # 图库（二期 §9.4）：副本进入点亮锁妖古窟场景图，
+                    # 返回只增 scene_image（口径同秘境进入）。
+                    _dg_scene_image = ""
+                    if res.get("success"):
+                        try:
+                            from core import gallery as _gallery_dg
+                            from core.gallery_assets import scene_path_for_realm as _spr_dg
+
+                            _gallery_dg.note_realm_visit(char, "锁妖古窟")
+                            _dg_scene_image = _spr_dg("锁妖古窟")
+                        except Exception:
+                            _dg_scene_image = ""
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char), "scene_image": _dg_scene_image}
                 if sub in ("撤离", "遁出", "retreat", "走"):
                     res = DungeonEngine.retreat(char)
                     return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
@@ -2970,6 +3170,60 @@ class World:
 
                     _target_avatar = _avatar_fn(target)
 
+                    # 旧账行数据（二期 §8.3，只增 old_account）：与该 NPC
+                    # 相关的未了诺言数 / 发酵中因果（总数 + 与他相关数 +
+                    # 最近到期）/ 最近一条该 NPC 的 RELATION summary；
+                    # 数据全为既有账只读拼装，失败即 None（前端不渲染）。
+                    _old_account = None
+                    try:
+                        from core.promises import PromiseEngine as _PEo
+                        from core.karma_chains import KarmaChainEngine as _KCEo
+
+                        _open_n = 0
+                        for _p in _PEo._involving(char.id):
+                            _pst = (
+                                _p.status.value if hasattr(_p.status, "value")
+                                else str(_p.status))
+                            if _pst in ("PENDING", "ACTIVE") and target.id in (
+                                _p.promiser_id, _p.promisee_id
+                            ):
+                                _open_n += 1
+                        _summ_o = _KCEo.status_summary(char)
+                        _with_npc = 0
+                        try:
+                            from storage.db import KarmaChainRepository as _KCRo
+
+                            _with_npc = sum(
+                                1 for _c in _KCRo.list_by_player(char.id)
+                                if _c.counterparty_id == target.id
+                                and _c.status == "fermenting")
+                        except Exception:
+                            _with_npc = 0
+                        _last_rel = ""
+                        try:
+                            from core.relations import (
+                                relations_recent_and_marks as _rrmo,
+                            )
+
+                            _recent_o, _marks_o = _rrmo(
+                                char.id, recent_limit=30, pool=30)
+                            for _it_o in _recent_o:
+                                if _it_o.get("npc_id") == target.id:
+                                    _last_rel = _it_o.get("summary") or ""
+                                    break
+                        except Exception:
+                            _last_rel = ""
+                        _old_account = {
+                            "open_promises": _open_n,
+                            "fermenting_chains": int(_summ_o.get("fermenting") or 0),
+                            "chains_with_npc": _with_npc,
+                            "nearest_chain_game_days": _summ_o.get(
+                                "nearest_mature_game_days"),
+                            "last_relation": _last_rel,
+                        }
+                    except Exception:
+                        _old_account = None
+
                     greet = (
                         f"【会话开始】与【{target.name}】交谈中。\n"
                         f"用 /说 <内容> 继续，/挂断 结束；聊天窗可直接打字。"
@@ -2987,6 +3241,7 @@ class World:
                                 "avatar": _target_avatar,
                                 "is_player": True,
                                 "source": "player_direct",
+                                "old_account": _old_account,
                             }
                         res = NpcDialogueEngine.talk(target, char, words)
                         log_event("DECISION", "talk", name=char.name, target=target.name, words_len=len(words), source=res.get("source"))
@@ -3013,6 +3268,7 @@ class World:
                             "attitude": res.get("attitude"),
                             "source": res.get("source"),
                             "bystanders": res.get("bystanders") or [],
+                            "old_account": _old_account,
                         }
                     history_msgs = opened.get("session", {}).get("messages", [])
                     return {
@@ -3023,6 +3279,7 @@ class World:
                         "avatar": _target_avatar,
                         "is_player": not is_target_npc,
                         "messages": history_msgs[-10:],
+                        "old_account": _old_account,
                     }
                 except Exception as _talk_ex:
                     return {"ok": False, "error": f"交谈异常：{type(_talk_ex).__name__}: {_talk_ex}"}
@@ -4429,7 +4686,7 @@ class World:
             _gallery_newly = _gallery_mod.unlock_from_character(c)
             _gallery_block = _gallery_mod.summary(c.user_id, newly=_gallery_newly)
         except Exception:
-            _gallery_block = {"unlocked": [], "count": 0, "total": 38, "title": "", "newly": []}
+            _gallery_block = {"unlocked": [], "count": 0, "total": 139, "title": "", "newly": []}
         # 功法图（§3.7/§10.1）：art_images 以功法名为键覆盖 skills+custom_arts
         _art_images: Dict[str, str] = {}
         try:
@@ -4476,6 +4733,42 @@ class World:
             _fate_block = _fate_block_fn(c)
         except Exception:
             _fate_block = {"boons": [], "pending": [], "power_bonus": 1.0}
+        # 二期 §8.1（fate 区段）：fate 只增 thread 子键，无线为 null，
+        # 既有 boons/pending/power_bonus 三子键一字不动。ceremony.py
+        # 本轮不改，thread 子键在此组装（数据源 FateThreadRepository，
+        # 走 player_id 列查询，与 karma_chains 块同量级）。
+        _fate_block = dict(_fate_block)
+        try:
+            from core.fate_thread import FateThreadEngine as _FTE_sd
+
+            _fate_block["thread"] = _FTE_sd.thread_status_dict(c)
+        except Exception:
+            _fate_block["thread"] = None
+        # 二期 §8.1（status 区段）：location_image 只增一键——场景映射
+        # 唯一事实源在 gallery_assets（图库岗 §9.4），未就位时为空串。
+        _location_image = ""
+        try:
+            from core.gallery_assets import LOCATION_SCENE_KEYS as _LSCK
+            from core.gallery_assets import asset_path as _ap_sd
+
+            _scene_key = _LSCK.get(c.location or "")
+            if _scene_key:
+                _location_image = _ap_sd(_scene_key)
+        except Exception:
+            _location_image = ""
+        # 二期 §9.3（pet 区段）：pet 块只增 img——灵宠物种图完整路径；
+        # 解析口径唯一在 gallery.pet_image_key（出战宠优先、无出战取
+        # 首只活宠），无图为空串（前端不渲染图位）。
+        _pet_img = ""
+        try:
+            from core import gallery as _gallery_pet
+            from core.gallery_assets import asset_path as _ap_pet
+
+            _pet_key = _gallery_pet.pet_image_key(c)
+            if _pet_key:
+                _pet_img = _ap_pet(_pet_key)
+        except Exception:
+            _pet_img = ""
         try:
             from core.relations import relations_recent_and_marks as _rrm
 
@@ -4488,6 +4781,7 @@ class World:
             "realm": c.realm.name,
             "origin": _origin_block,
             "fate": _fate_block,
+            "location_image": _location_image,
             "relations_recent": _rel_recent,
             "relations_marks": _rel_marks,
             "location": c.location,
@@ -4525,6 +4819,7 @@ class World:
                     "species": _ap.species,
                     "level": pet_level_for(_ap.growth),
                     "intimacy": _ap.intimacy,
+                    "img": _pet_img,
                 }
                 if (_ap := pet_active(c)) is not None
                 else None
@@ -4793,6 +5088,24 @@ class World:
             promise_line = PromiseEngine.note_arrival(c, matched) or ""
         except Exception:
             promise_line = ""
+        # 命途落点（二期 §3.6 T5）：先把落点记入 thread.visited 再求值，
+        # 与下方 maybe_engage 迁跃触发同点同段；有推进才回存。
+        try:
+            from core.fate_thread import FateThreadEngine as _FTEg
+
+            _fate_go_res = _FTEg.record_visit(c, matched)
+            if _fate_go_res.get("changed"):
+                CharacterRepository.save(c)
+        except Exception:
+            pass
+        # 图库点亮（二期 §9.4）：迁跃落点点亮落点地点场景图，与上方
+        # 命途 T5 同点位同段；无映射地点钩子自返 []，失败不影响迁跃本体。
+        try:
+            from core import gallery as _gallery_go
+
+            _gallery_go.note_location_visit(c, matched)
+        except Exception:
+            pass
         text = f"御剑化虹，抵达【{matched}】。"
         if promise_line:
             text += f"\n{promise_line}"
@@ -4831,6 +5144,20 @@ class World:
             opens = NpcProactiveEngine.maybe_engage(c, max_speakers=1)
             for o in opens:
                 text += "\n" + o.get("text", "")
+        except Exception:
+            pass
+        # 主动戏剧评估（game-feel-phase2 §5.4 迁跃落点触发点，与 maybe_engage 同段；
+        # 同场事件 text 经本通道下发，异地事件只入待回应队列）
+        try:
+            from core.npc_proactive import DramaEngine
+
+            for _dev in (DramaEngine.evaluate(c, trigger="travel") or [])[:1]:
+                _dnpc = CharacterRepository.get_by_id(_dev.get("npc_id") or "")
+                if _dnpc is not None and _dnpc.location == c.location:
+                    text += "\n" + str(_dev.get("text") or "")
+                else:
+                    text += (f"\n【江湖有事】{_dev.get('npc_name', '有人')}"
+                             f"遣人传话，事已入待回应（/回应 查看）。")
         except Exception:
             pass
         # 因果回访（小概率）
@@ -4963,10 +5290,25 @@ class World:
                     CharacterRepository.save(c)
             except Exception:
                 pass
+            # 命途求值 T2（二期 §3.6）：与 E3 同位（出口一）
+            try:
+                from core.fate_thread import FateThreadEngine as _FTEb
+
+                if _FTEb.evaluate_for(c).get("changed"):
+                    CharacterRepository.save(c)
+            except Exception:
+                pass
             try:
                 from core.player_echo import record_player_breakthrough
 
                 record_player_breakthrough(c, realm_name=c.realm.name)
+            except Exception:
+                pass
+            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口①）
+            try:
+                from core import rumors as _rumors_mod
+
+                _rumors_mod.note_breakthrough(c.name, c.realm.name, c.location)
             except Exception:
                 pass
             # 大境界突破：尝试触发天道导演（仍受冷却）+ 惊动天道

@@ -33,6 +33,25 @@ def test_catalog_and_fuzzy():
     print("✓ 指令目录与模糊搜索")
 
 
+def test_catalog_phase2_new_commands():
+    """二期 §8.4 目录侧断言（集成岗收口）：主命令 106→108（实测口径）。
+
+    Spec §8.4 的名义计数为 100→102，与目录在一期基线的实测 106 条
+    主命令相差 6 条既有命令（all_entries 按主命令去重、别名不另计行）；
+    此处以实测口径落断言，并逐条验新命令的主命令/别名/用法齐备。
+    """
+    cj = catalog_json()
+    assert cj["count"] == 108
+    by_cmd = {e["cmd"]: e for e in cj["commands"]}
+    assert "/命途" in by_cmd and "/回应" in by_cmd
+    assert "/fate_thread" in by_cmd["/命途"]["aliases"]
+    assert "/respond_drama" in by_cmd["/回应"]["aliases"]
+    assert any(h["cmd"] == "/命途" for h in search_commands("命途"))
+    assert any(h["cmd"] == "/回应" for h in search_commands("回应"))
+    assert "命途" in format_help("命途") and "回应" in format_help("回应")
+    print("✓ 二期新命令目录补登：/命途 /回应（108 条主命令）")
+
+
 def test_server_help_and_commands_route():
     import config
 

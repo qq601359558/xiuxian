@@ -1,5 +1,26 @@
 # 更新日志
 
+## v0.3.9-gray.16（2026-11-08）— 游戏感改造第二期（命途主线全量 + 主动戏剧五类 + 世仇植入 + 图库扩充至 139 张）
+
+定位：游戏感改造第二期。上一稳定点 v0.3.8-gray.15（c4c4571）。规格：docs/compose/spec/game-feel-phase2.md。
+
+### 变更
+- 命途主线全量：新表 fate_threads + 新模块 core/fate_thread.py——种子六级优先级（未竟之志 / 世仇 / 影子最强 / 本世血仇 / 宗门大势 / 出身兜底）、6 章骨架（立命 / 经营×2 / 冲突 / 高潮 / 暮年）、章节状态派生自 checked goal（新增 check kind：visit_location / promise_kept_count / chain_resolved）、窗口到期改道不断线、/命途 搁置与续（不删不罚、顺延窗口）、死亡封存（结局入 LifeTrace、未竟之志回流下世）；主线模块自身零数值（静态检索 + 无线对照组逐项对账双证）、零 tick 扫描
+- 前置收紧 S-4：goals 幂等键由 (source, kind, ref) 收紧为 (source, kind, ref, instance)，存量无 instance 目标归一回退，一期 origin/fate 目标行为不回归
+- 世仇强制植入：转世时按三来源（上世血仇链 / KarmaLink 仇孤儿行 / 负值影子）选人，经 origin 既有通道植入（foe bounds 硬校验、超界降级同门/后人、影子覆盖者不叠加态度），出身关系、态度账、KarmaLink 仇边、主线种子四处一致对账
+- NPC 主动戏剧五类：DramaEngine（背叛 / 挑衅 / 牵连 / 求助 / 示好）扩 NpcProactiveEngine，频控三闸（总闸 3 件/日、同人同日 1 件、示好不占总闸），待回应队列常驻入局 + 新命令 /回应 单一分发落账；后果全走既有系统（斗法 / 态度账 / 诺言与因果链结算 / 钳制内发酵微调），戏剧本身零数值发放
+- 传闻写入口补全：突破 / 因果链了结 / 世界弧参与 / 避战四入口（引擎单点 + 去重），玩家事迹经 lore_prompt_block 进入 NPC 交谈上下文，他人可引用
+- 一生评语 AI 润色（可选路径）：评语分段（head / line / tail）落 LifeTrace 新字段，润色只替换定性段，请求 payload 数值白名单、违规输出逐字保留模板，死亡流程锁外异步单次调用、失败不阻塞结算与转世
+- 呈现契约（双端，只增不改）：_status_dict 增 fate.thread 与 location_image、入局 queue 增 fate_chapter / drama 两 kind、交谈开启响应增旧账行（未了诺言 / 发酵中因果 / 最近关系变化）；新命令 /命途、/回应（命令目录 106 → 108）
+- 图库扩充 38 → 139 张：NPC 单人图 37 张（uid ↔ 资产键 ↔ 文件三方一致）、玩家立绘补满 20 组合（合体 / 大乘 / 渡劫专图不再借图）、灵宠 4、地点与秘境场景 15、法宝器型 10 → 20 键、功法 8 → 10、藏宝图 4 → 8、补足包 21（奇遇剧本专图 6 + 丹药分类 8 + 材料分类 7）；图鉴分组程序化扩至 139 与五档称号；/assets 托管闸扩展新目录（pets / scenes / omen / goods）
+- 移动端预算豁免（Spec §10 总管批准）：mobile.js 上限 1562 → 1892 行、mobile.css 上限 27400B → 28800B；token 纪律不豁免
+
+### 测试
+- 最终全量回归（新鲜 DB，分支尖端复跑定版）：1311 passed / 8 failed——失败集与 v0.3.8 基线（1217 passed / 8 failed）逐条相同，新增失败 0（基线 8 条 = 裁决遗留 ×2、status_dict rich-object ×2、natural_omen 出厂背包 ×1、karma C-1 分歧 ×1、karma resolution_traces ×1、workbench live-server smoke ×1）
+- 本轮新测试：test_game_feel_phase2_fate.py 35 条（S4 / FT / VD / EP / UI 组）、test_game_feel_phase2_drama.py 27 条（DR / RM 组）、test_game_feel_phase2_gallery.py 31 条（GL-01 ~ GL-14），全绿
+- 独立评审：主体 must-fix 2 条（M-1 章节求值补搁置豁免、M-2 图鉴旧总数文案）已修复销账；截图验收问题 2 条（待回应戏剧常驻列出、桌面交谈旧账行重渲染）与示好排除出身植入关系 1 条均已修复，尖端形态经收尾独立复审通过、无 must-fix
+- 截图验收 15 张（~/workspace/ui-shots/game-feel-phase2/，桌面 S-D1 ~ D7 + 移动 S-M1 ~ M6 + 补充 2 张）
+
 ## v0.3.8-gray.15（2026-11-08）— 游戏感改造第一期（入局主界面 + 简版人生开局 + 仪式两幕 + 关系可见化）
 
 定位：游戏感改造第一期。上一稳定点 v0.3.7-gray.14（90ce9c8）。规格：docs/compose/spec/game-feel-phase1.md（派生自《游戏感改造方案》第一期）。

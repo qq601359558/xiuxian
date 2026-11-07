@@ -78,7 +78,7 @@ def _get(path):
 def test_g1_asset_keys_match_disk_both_ways():
     from core.gallery_assets import GALLERY_ASSET_KEYS
 
-    assert len(GALLERY_ASSET_KEYS) == 38
+    assert len(GALLERY_ASSET_KEYS) == 139  # §9.2 契约变更表第3行：38→139（§9.9 总账）
     disk = {
         str(p.relative_to(ASSETS_DIR))[:-len(".webp")]
         for p in ASSETS_DIR.rglob("*.webp")
@@ -151,13 +151,17 @@ def test_g7_prototype_still_unreachable():
 def test_g3_player_portrait_matrix_and_clamps():
     from core.gallery_assets import player_portrait_path, PLACEHOLDER_PORTRAIT
 
-    realms = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu"]
+    realms = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu", "heti", "dacheng", "dujie"]
     for gender in ("male", "female"):
         for tier, rk in enumerate(realms, start=1):
             assert player_portrait_path(gender, tier) == f"/assets/portraits/{gender}-{rk}.webp"
-    # tier 0 按 lianqi、tier ≥7 封顶 lianxu
-    assert player_portrait_path("male", 0) == "/assets/portraits/male-lianqi.webp"
-    assert player_portrait_path("female", 7) == "/assets/portraits/female-lianxu.webp"
+    # §9.2 契约变更表第1/2行：tier 0 → fanren（不再借 lianqi）；
+    # tier 7 → heti（不再封顶借 lianxu），另补 tier 8/9/10+ 三例
+    assert player_portrait_path("male", 0) == "/assets/portraits/male-fanren.webp"
+    assert player_portrait_path("female", 7) == "/assets/portraits/female-heti.webp"
+    assert player_portrait_path("male", 8) == "/assets/portraits/male-dacheng.webp"
+    assert player_portrait_path("female", 9) == "/assets/portraits/female-dujie.webp"
+    assert player_portrait_path("male", 12) == "/assets/portraits/male-dujie.webp"
     # 未定相不猜：占位图
     assert player_portrait_path("", 3) == PLACEHOLDER_PORTRAIT
 
@@ -238,9 +242,10 @@ def test_g5_name_keyword_priority_for_absent_subtypes():
     # 关键字优先于 subtype/槽位
     assert artifact_key_for("照妖镜", subtype="宝珠", slot="weapon") == "artifacts/mirror"
     # subtype 二级、槽位三级、无信息兜底 sword
-    assert artifact_key_for("无名物", subtype="法杖") == "artifacts/orb"
-    assert artifact_key_for("无名物", slot="armor") == "artifacts/mirror"
-    assert artifact_key_for("无名物", slot="boots") == "artifacts/fan"
+    # §9.2 契约变更表第7行（§9.5）：法杖→staff、armor→armor、boots→boots（不再借代）
+    assert artifact_key_for("无名物", subtype="法杖") == "artifacts/staff"
+    assert artifact_key_for("无名物", slot="armor") == "artifacts/armor"
+    assert artifact_key_for("无名物", slot="boots") == "artifacts/boots"
     assert artifact_key_for("无名物", slot="flying_treasure") == "artifacts/pagoda"
     assert artifact_key_for("无名物") == "artifacts/sword"
 
@@ -262,7 +267,7 @@ def test_art_and_map_key_resolution():
     c.spiritual_root.elements = [Element.THUNDER]
     assert art_key_for("吐纳术", c) == "arts/thunder"
     c.spiritual_root.elements = [Element.WIND]
-    assert art_key_for("吐纳术", c) == "arts/sword"  # 风无专图归 sword
+    assert art_key_for("吐纳术", c) == "arts/wind"  # §9.2 契约变更表第9行：风有专图（§9.6）
     # 无灵根信息 → earth
     assert art_key_for("吐纳术") == "arts/earth"
     # 宝图 rarity
@@ -270,4 +275,4 @@ def test_art_and_map_key_resolution():
     assert map_key_for_tier(2) == "maps/map-fine"
     assert map_key_for_tier(3) == "maps/map-rare"
     assert map_key_for_tier(4) == "maps/map-ancient"
-    assert map_key_for_tier(5) == "maps/map-ancient"
+    assert map_key_for_tier(5) == "maps/map-celestial"  # §9.2 契约变更表第8行：tier5 独立键（§9.7）

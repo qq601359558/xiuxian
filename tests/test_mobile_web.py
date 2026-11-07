@@ -377,7 +377,7 @@ def test_mobile_redesign_rework_m1_m5_qa02_qa03():
 
 
 def test_mobile_redesign_budgets():
-    """R-21：体积预算——CSS ≤27400B；html 净增 ≤60 行；js 文件 ≤1562 行。
+    """R-21：体积预算——CSS ≤28800B；html 净增 ≤60 行；js 文件 ≤1892 行。
     豁免沿革：原 20KB → 返修轮总管一次性豁免 20.6KB（21094B）→ gallery-gameplay
     收尾轮（rebase 至 v0.3.6）第二次豁免：CSS 25.1KB（25702B，实测 25566B）、
     js 净增 ≤190（实测 +186）——图鉴/立绘/器灵/线索链为新增功能面，增量为其
@@ -386,12 +386,17 @@ def test_mobile_redesign_budgets():
     第三次豁免（game-feel-phase1）：CSS 上限 25702B → 27400B、mobile.js 净增
     上限 190 行 → 390 行（即文件 ≤1562 行）——入局卡/出身卡/仪式卡/关系可见化
     为新增功能面；出处：docs/compose/spec/game-feel-phase1.md §9.1 总管批准
-    记录（2026-11-08），token 纪律不豁免照旧。"""
+    记录（2026-11-08），token 纪律不豁免照旧。
+    第四次豁免（game-feel-phase2）：CSS 上限 27400B → 28800B、mobile.js 文件
+    上限 1562 行 → 1892 行（净增上限 390 → 720 行）——命途呈现/入局新 kind/
+    戏剧当面行/图鉴扩充分组/场景头图/旧账行为新增功能面；出处：
+    docs/compose/spec/game-feel-phase2.md §10 总管批准记录（2026-11-08），
+    token 纪律不豁免照旧。"""
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert css_bytes <= 27400, f"mobile.css {css_bytes}B 超 27400B 豁免预算（game-feel-phase1 §9.1）"
+    assert css_bytes <= 28800, f"mobile.css {css_bytes}B 超 28800B 豁免预算（game-feel-phase2 §10）"
     html_lines = len((WEB / "mobile.html").read_text(encoding="utf-8").splitlines())
     js_lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
-    assert js_lines <= 1562, f"mobile.js {js_lines} 行超 1562 行豁免上限（game-feel-phase1 §9.1）"
-    assert js_lines - 1172 <= 390, f"mobile.js 净增 {js_lines - 1172} 行超 390（game-feel-phase1 §9.1）"
+    assert js_lines <= 1892, f"mobile.js {js_lines} 行超 1892 行豁免上限（game-feel-phase2 §10）"
+    assert js_lines - 1172 <= 720, f"mobile.js 净增 {js_lines - 1172} 行超 720（game-feel-phase2 §10）"
     print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js {js_lines} 行（净增 +{js_lines - 1172}）")

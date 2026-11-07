@@ -32,13 +32,17 @@ KINDS = {
     # 游戏感第一期（§3.7 契约变更④）：出身短期目标 / 终局命题展示名
     "origin": "出身",
     "fate": "命途",
+    # 游戏感第二期（§3.5 契约变更②）：命途章节目标展示名
+    "thread": "命途",
 }
 
-# 不可拒绝的目标源（§3.7 契约变更③：fate 命题同 dao 口径不可弃）
-NON_REJECTABLE = {"dao", "fate"}
+# 不可拒绝的目标源（§3.7 契约变更③：fate 命题同 dao 口径不可弃；
+# 二期 §3.5 契约变更③：thread 章节目标同口径，搁置走线级开关）
+NON_REJECTABLE = {"dao", "fate", "thread"}
 
 # 判定式目标源（§3.7）：豁免 7 日过期与 GOAL_MAX_ACTIVE 计数
-CHECKED_SOURCES = ("origin", "fate")
+# 二期 §3.5 契约变更①：新增 thread 源，一期四点契约同等适用
+CHECKED_SOURCES = ("origin", "fate", "thread")
 
 SOURCE_TEMPLATES = {
     "dao": ("问道长生", "稳固道基，勤修不辍，境界自会有进。"),
@@ -207,23 +211,34 @@ class GoalEngine:
         check: Dict[str, Any],
         deadline_days: Optional[float] = None,
         now: Optional[float] = None,
+        instance: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """挂一条 check 判定式目标（origin 短期 / fate 命题）。
+        """挂一条 check 判定式目标（origin 短期 / fate 命题 / thread 章节）。
 
-        幂等：同 source + 同 check.kind + 同 check.ref 已有 active 项时
-        直接返回既有项，不重复挂（生成重入防线）。
+        幂等键（game-feel-phase2 §2.2 写死）：四元组
+        (source, check.kind, check.ref, check.instance)，缺失的
+        ref/instance 一律以 "" 归一后比较——存量无 instance 目标与
+        同样无 instance 的新目标仍互斥（一期行为逐字不变），与带
+        instance 的新目标不互斥（二期章节目标可并存）。
+        instance 只参与幂等与章节派生映射，求值器不读它。
         """
         t = now if now is not None else time.time()
         if not isinstance(character.goals, list):
             character.goals = []
         chk = dict(check or {})
+        if instance is not None:
+            chk["instance"] = instance
         if deadline_days is not None:
             chk.setdefault("deadline_days", deadline_days)
         for g in character.goals:
             if g.get("status") != "active" or g.get("source") != source:
                 continue
             gc = g.get("check") or {}
-            if gc.get("kind") == chk.get("kind") and gc.get("ref") == chk.get("ref"):
+            if (
+                gc.get("kind") == chk.get("kind")
+                and str(gc.get("ref") or "") == str(chk.get("ref") or "")
+                and str(gc.get("instance") or "") == str(chk.get("instance") or "")
+            ):
                 return g
         from config import SECONDS_PER_GAME_DAY
 
@@ -258,6 +273,22 @@ class GoalEngine:
         """
         t = now if now is not None else time.time()
         flipped: List[Dict[str, Any]] = []
+        # 二期 §3.9：搁置中的主线，其章节目标跳过求值与到期判定
+        # （恢复时 deadline 顺延，见 FateThreadEngine.resume_thread）。
+        shelved_thread_ids: set = set()
+        if any(
+            g.get("source") == "thread" and g.get("status") == "active"
+            for g in (character.goals or [])
+        ):
+            try:
+                from storage.db import FateThreadRepository
+
+                shelved_thread_ids = {
+                    th.id for th in FateThreadRepository.list_by_player(character.id)
+                    if th.status == "shelved"
+                }
+            except Exception:
+                shelved_thread_ids = set()
         for g in list(character.goals or []):
             if g.get("status") != "active" or g.get("source") not in CHECKED_SOURCES:
                 continue
@@ -265,6 +296,11 @@ class GoalEngine:
             kind = check.get("kind")
             if not kind:
                 continue
+            if g.get("source") == "thread" and shelved_thread_ids:
+                _inst = str(check.get("instance") or "")
+                _tid = _inst.rsplit(":", 1)[0] if ":" in _inst else ""
+                if _tid in shelved_thread_ids:
+                    continue
             outcome = GoalEngine._eval_check(character, check, t, final=final)
             if outcome == "done":
                 g["status"] = "done"
@@ -292,12 +328,33 @@ class GoalEngine:
         """E4 专用：只求值 npc_attitude_at_least 类（态度移位点）。"""
         t = now if now is not None else time.time()
         flipped: List[Dict[str, Any]] = []
+        # 二期 §3.9（评审 M-1 销账）：搁置中的主线章节目标在 E4 同样跳过
+        # 求值——与 evaluate_checked_goals 同口径（按本角色 list_by_player）。
+        shelved_thread_ids: set = set()
+        if any(
+            g.get("source") == "thread" and g.get("status") == "active"
+            for g in (character.goals or [])
+        ):
+            try:
+                from storage.db import FateThreadRepository
+
+                shelved_thread_ids = {
+                    th.id for th in FateThreadRepository.list_by_player(character.id)
+                    if th.status == "shelved"
+                }
+            except Exception:
+                shelved_thread_ids = set()
         for g in list(character.goals or []):
             if g.get("status") != "active" or g.get("source") not in CHECKED_SOURCES:
                 continue
             check = g.get("check") or {}
             if check.get("kind") != "npc_attitude_at_least":
                 continue
+            if g.get("source") == "thread" and shelved_thread_ids:
+                _inst = str(check.get("instance") or "")
+                _tid = _inst.rsplit(":", 1)[0] if ":" in _inst else ""
+                if _tid in shelved_thread_ids:
+                    continue
             if GoalEngine._eval_check(character, check, t, final=False) == "done":
                 g["status"] = "done"
                 g["done_at"] = t
@@ -369,6 +426,71 @@ class GoalEngine:
             if kind == "sect_joined":
                 ref = str(check.get("ref") or "")
                 if character.sect and (not ref or character.sect == ref):
+                    return "done"
+                return None
+            # ---- 二期新 kind（§3.5）：只读既有账，AI 零参与判定 ----
+            if kind == "visit_location":
+                ref = str(check.get("ref") or "")
+                if not ref:
+                    return None
+                from storage.db import FateThreadRepository
+
+                thread = next(
+                    (th for th in FateThreadRepository.list_by_player(character.id)
+                     if th.status in ("active", "shelved")),
+                    None,
+                )
+                if thread is None or ref not in (thread.visited or []):
+                    return None
+                npc_id = str(check.get("npc_id") or "")
+                if npc_id:
+                    from storage.db import CharacterRepository
+
+                    npc = CharacterRepository.get_by_id(npc_id)
+                    if npc is None or npc.location != ref:
+                        return None
+                return "done"
+            if kind == "promise_kept_count":
+                from core.promises import PromiseEngine
+
+                kept = 0
+                for p in PromiseEngine._involving(character.id):
+                    st = p.status.value if hasattr(p.status, "value") else str(p.status)
+                    if st == "KEPT":
+                        kept += 1
+                return "done" if kept >= int(check.get("count") or 1) else None
+            if kind == "chain_resolved":
+                from storage.db import KarmaChainRepository
+
+                terminal = ("resolved", "dissipated")
+                ref = str(check.get("ref") or "")
+                if ref:
+                    one = KarmaChainRepository.get(ref)
+                    chains = [one] if one is not None else []
+                else:
+                    npc_id = str(check.get("npc_id") or "")
+                    chains = [
+                        c for c in KarmaChainRepository.list_by_player(character.id)
+                        if not npc_id or c.counterparty_id == npc_id
+                    ]
+                outcome_req = str(check.get("outcome") or "any")
+                for c in chains:
+                    if c.status not in terminal:
+                        continue
+                    if outcome_req in ("en", "chou") and c.kind != outcome_req:
+                        continue
+                    return "done"
+                return None
+            if kind == "thread_climax":
+                # 只许出现在 fate 命题目标上；章节派生后才可能 done
+                # （调用序由 FateThreadEngine.evaluate_for 写死，§3.5）。
+                from storage.db import FateThreadRepository
+
+                th = FateThreadRepository.get_by_id(str(check.get("ref") or ""))
+                if (
+                    th is not None and len(th.chapters or []) > 4
+                    and (th.chapters[4] or {}).get("status") == "done"
+                ):
                     return "done"
                 return None
         except Exception:

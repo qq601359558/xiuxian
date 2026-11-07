@@ -93,12 +93,15 @@ def test_ceremony_skip_key_shared_both_ends():
 
 
 def test_mobile_budgets_game_feel_phase1():
-    """§9.1 总管批准豁免：mobile.css ≤27400B、mobile.js ≤1562 行；新 CSS 类齐全。"""
+    """§9.1 总管批准豁免：mobile.css ≤27400B、mobile.js ≤1562 行；新 CSS 类齐全。
+    二期修订（game-feel-phase2 spec §10 总管批准豁免，集成收口销账）：上限改为
+    mobile.css ≤28800B、mobile.js ≤1892 行；本测试保留一期类齐全断言，预算数值
+    以二期 §10 为准（test_mobile_web.py 同口径）。"""
     css = _read("mobile.css")
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert css_bytes <= 27400, f"mobile.css {css_bytes}B 超 27400B（§9.1）"
+    assert css_bytes <= 28800, f"mobile.css {css_bytes}B 超 28800B（二期 §10）"
     js_lines = len(_read("mobile.js").splitlines())
-    assert js_lines <= 1562, f"mobile.js {js_lines} 行超 1562 行（§9.1）"
+    assert js_lines <= 1892, f"mobile.js {js_lines} 行超 1892 行（二期 §10）"
     for cls in (".gf-overlay", ".gf-card", ".rel-mark", "#entryCard"):
         assert cls in css, f"mobile.css 缺第一期样式：{cls}"
-    print(f"✓ 预算实测：css {css_bytes}B / 27400B，js {js_lines} 行 / 1562 行")
+    print(f"✓ 预算实测：css {css_bytes}B / 28800B，js {js_lines} 行 / 1892 行（二期 §10）")

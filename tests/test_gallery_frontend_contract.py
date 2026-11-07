@@ -24,12 +24,24 @@ def _read(name):
 
 
 def _gallery_table_keys(js):
-    """从 JS 图鉴展示表重构 38 键：境界模板键 + 显式字面键。"""
+    """从 JS 图鉴展示表重构 139 键：境界模板键 + NPC 单人 slug 表 + 显式字面键。
+
+    集成收口（game-feel-phase2 §9）：二期展示表的新类目键以
+    pets/scenes/omen/goods 前缀字面呈现、NPC 单人键由 GALLERY_NPC_SINGLE
+    slug 表程序化生成（与后端 §9.1/§9.10 同口径），旧重构口径只认
+    portraits|artifacts|arts|maps 四前缀且不展开 slug 表，必然少算 77 键，
+    故在此扩全前缀并展开 slug 表；断言口径（键集与后端逐字一致）不变。
+    """
     m = re.search(r"GALLERY_REALM_KEYS\s*=\s*\[([^\]]+)\]", js)
     assert m, "JS 缺 GALLERY_REALM_KEYS 展示表常量"
     realms = re.findall(r'"([a-z]+)"', m.group(1))
     keys = {f"portraits/{g}-{r}" for g in ("male", "female") for r in realms}
-    keys |= set(re.findall(r"(?:portraits|artifacts|arts|maps)/[a-z0-9-]+", js))
+    m2 = re.search(r"GALLERY_NPC_SINGLE\s*=\s*\[(.*?)\]\];", js, re.S)
+    assert m2, "JS 缺 GALLERY_NPC_SINGLE 展示表常量"
+    slugs = re.findall(r'"([a-z]+-\d+)"', m2.group(1))
+    keys |= {f"portraits/npc-{s}" for s in slugs}
+    keys |= set(re.findall(
+        r"(?:portraits|artifacts|arts|maps|pets|scenes|omen|goods)/[a-z0-9-]+", js))
     keys.discard("portraits/male-")
     keys.discard("portraits/female-")
     return keys
@@ -44,7 +56,7 @@ def test_gallery_display_table_keys_match_backend_both_ends():
             f"{fname} 图鉴展示表键集与后端不一致：多 {sorted(keys - set(GALLERY_ASSET_KEYS))}，"
             f"少 {sorted(set(GALLERY_ASSET_KEYS) - keys)}"
         )
-    print("✓ G-9：双端图鉴展示表键集 == 后端 GALLERY_ASSET_KEYS（38）")
+    print("✓ G-9：双端图鉴展示表键集 == 后端 GALLERY_ASSET_KEYS（139）")
 
 
 def test_no_web_assets_prefix_anywhere():
@@ -60,7 +72,8 @@ def test_desktop_gallery_view_and_nav():
     assert 'data-view="gallery"' in html, "桌面顶栏缺第 6 主境「图鉴」导航"
     assert "renderGallery" in js and 'state.view === "gallery"' in js
     assert "gallery.unlocked" in js or "g.unlocked" in js, "图鉴点亮事实须读后端 gallery"
-    for marker in ("10", "初窥门径", "博览群真", "洞鉴乾坤", "图录大成"):
+    # §9.2 契约变更表第6行（前端半）：称号按 §9.10 新五档 (10/40/80/120/139) 修订
+    for marker in ("10", "40", "80", "120", "139", "初窥门径", "博览群真", "洞鉴乾坤", "博物通览", "图录大成"):
         assert marker in js, f"图鉴称号档缺 {marker}"
     assert "gallery-silhouette" in js, "未点亮须剪影呈现"
     print("✓ 桌面图鉴视图：导航 + renderGallery + 进度称号档 + 未点亮剪影")

@@ -44,7 +44,7 @@ def test_c1_empty_atlas_and_kv_structure():
     c = _player()
     try:
         s = gallery.summary(c.user_id)
-        assert s["count"] == 0 and s["total"] == 38 and s["unlocked"] == []
+        assert s["count"] == 0 and s["total"] == 139 and s["unlocked"] == []  # §9.2 表第3行总账连带：total 随常量 38→139
         newly = gallery.unlock(c.user_id, ["arts/fire"])
         assert newly == ["arts/fire"]
         raw = WorldStateRepository.get(gallery.ATLAS_KEY_PREFIX + c.user_id)
@@ -100,7 +100,8 @@ def test_c3_self_portraits_by_gender_and_tier():
         gallery.set_gender(c, "女")
         c.realm.tier = 3
         keys = set(gallery.derive_keys_from_character(c))
-        assert {"portraits/female-lianqi", "portraits/female-zhuji", "portraits/female-jindan"} <= keys
+        # §9.2 契约变更表第4行：tier3 点亮集合另含 fanren（§9.2 派生口径）
+        assert {"portraits/female-fanren", "portraits/female-lianqi", "portraits/female-zhuji", "portraits/female-jindan"} <= keys
         assert "portraits/female-yuanying" not in keys
         assert not any(k.startswith("portraits/male-") for k in keys)
         # 未定相不点亮任何本人图
@@ -121,7 +122,8 @@ def test_c4_event_unlock_npc_and_player():
         npc.sect = "四海散修商会"
         npc.sect_rank = "会长"
         newly = gallery.note_npc_encounter(viewer, npc)
-        assert newly == ["portraits/npc-shanggu"]
+        # §9.2 契约变更表第5行：金满堂命中 ROSTER → 点亮单人键（§9.1）
+        assert newly == ["portraits/npc-sh-01"]
 
         other = _player()
         gallery.set_gender(other, "女")
@@ -152,15 +154,18 @@ def test_c5_titles_are_display_only_zero_numeric():
             c.social.dao_title,
         )
         keys = sorted(GALLERY_ASSET_KEYS)
+        # §9.2 契约变更表第6行：称号按 §9.10 新五档 (10/40/80/120/139) 修订
         gallery.unlock(c.user_id, keys[:10])
         assert gallery.summary(c.user_id)["title"] == "初窥门径"
-        gallery.unlock(c.user_id, keys[:20])
+        gallery.unlock(c.user_id, keys[:40])
         assert gallery.summary(c.user_id)["title"] == "博览群真"
-        gallery.unlock(c.user_id, keys[:30])
+        gallery.unlock(c.user_id, keys[:80])
         assert gallery.summary(c.user_id)["title"] == "洞鉴乾坤"
+        gallery.unlock(c.user_id, keys[:120])
+        assert gallery.summary(c.user_id)["title"] == "博物通览"
         gallery.unlock(c.user_id, keys)
         s = gallery.summary(c.user_id)
-        assert s["count"] == 38 and s["title"] == "图录大成"
+        assert s["count"] == 139 and s["title"] == "图录大成"
         after = (
             c.spirit_stones, c.realm.current_exp, c.lifespan.death_timestamp,
             c.karma.sin_value, c.karma.merit_value, c.karma.dao_heart,
@@ -211,7 +216,7 @@ def test_panel_text_progress_and_groups():
     try:
         gallery.unlock(c.user_id, ["arts/fire"])
         text = gallery.panel_text(c)
-        assert "1/38" in text
+        assert "1/139" in text  # §9.2 表第3行总账连带：面板进度分母随常量 38→139
         assert "法宝" in text and "藏宝图" in text and "NPC" in text
     finally:
         _cleanup(c.user_id)

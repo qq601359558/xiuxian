@@ -514,6 +514,17 @@ def _settle_climax(arc: Dict[str, Any], *, now: Optional[float], reason: str = "
     arc["updated_at"] = t
     arc["stage_deadline"] = 0
     arc["log"].append(f"决算：{climax[:40]}")
+    # 传闻写入口（game-feel-phase2 §6）：决算参与前 3 名逐人入池（失败不炸主流程）
+    try:
+        from core import rumors as _rumors_mod
+
+        for _p in (arc.get("participants") or [])[:3]:
+            _who = str(_p.get("who") or "")
+            _choice = str(_p.get("choice") or "")
+            if _who and _choice:
+                _rumors_mod.note_arc_participation(_who, title, _choice)
+    except Exception:
+        pass
     level = "epic" if kind == "calamity_arc" else "major"
     _post(f"【世界弧·决算】{title}：{climax}" + (f" @{loc}" if loc else ""), level, loc)
     _chronicle("决算", f"{title}：{climax[:100]}")
