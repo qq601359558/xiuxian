@@ -96,6 +96,86 @@ def pick_for_npc(n: int = 1, min_truth: float = 0.0) -> List[Dict[str, Any]]:
     return picked
 
 
+def _note_once(
+    text: str,
+    origin: str = "",
+    tags: Optional[List[str]] = None,
+    truth: float = 0.9,
+    now: Optional[float] = None,
+) -> None:
+    """§6 去重写入口：同 tags 集合 + 同文本已在池中（未过期）时不重复
+    append，只给既有条目 heat+1（沿 pick 的 heat 机制）。失败不炸主流程。"""
+    try:
+        t = now if now is not None else time.time()
+        text = (text or "").strip()[:120]
+        if not text:
+            return
+        pool = _purge(_load(), t)
+        tag_set = set(tags or [])
+        for r in pool:
+            if (r.get("text") or "") == text and set(r.get("tags") or []) == tag_set:
+                r["heat"] = int(r.get("heat") or 0) + 1
+                _save(pool)
+                return
+        add_rumor(text, origin=origin, tags=list(tags or []), truth=truth, now=t)
+    except Exception:
+        pass
+
+
+def note_breakthrough(name: str, realm_name: str, location: str) -> None:
+    """§6：大境界突破（truth 1.0，天道昭告类，同 apocalypse 先例）。"""
+    try:
+        _note_once(
+            f"听闻【{name}】于{location}突破至{realm_name}，天象为之一动。",
+            origin=location or "天道",
+            tags=["breakthrough", name],
+            truth=1.0,
+        )
+    except Exception:
+        pass
+
+
+def note_chain_resolved(player_name: str, npc_name: str, kind_cn: str,
+                        polarity: int) -> None:
+    """§6：因果链了结（truth 0.9，系统裁决事实的转述，同 auction 先例）。"""
+    try:
+        tail = "恩怨两清" if int(polarity or 0) >= 0 else "梁子更深"
+        _note_once(
+            f"听说【{player_name}】与【{npc_name}】的一桩{kind_cn}因果已了——{tail}。",
+            origin=player_name,
+            tags=["chain", player_name],
+            truth=0.9,
+        )
+    except Exception:
+        pass
+
+
+def note_arc_participation(name: str, arc_title: str, choice: str) -> None:
+    """§6：世界弧决算参与（truth 0.85，转述类）。"""
+    try:
+        _note_once(
+            f"{arc_title}决算之时，【{name}】曾{choice}，江湖记下了这一笔。",
+            origin=arc_title,
+            tags=["arc", name],
+            truth=0.85,
+        )
+    except Exception:
+        pass
+
+
+def note_avoid_fight(name: str, npc_name: str) -> None:
+    """§6/§5.3：挑衅避战（truth 0.85）。"""
+    try:
+        _note_once(
+            f"【{name}】遇【{npc_name}】挑衅，避而不战，有人说他怯，也有人说他稳。",
+            origin=npc_name,
+            tags=["avoid", name],
+            truth=0.85,
+        )
+    except Exception:
+        pass
+
+
 def note_kill(killer: str, victim: str, location: str) -> None:
     add_rumor(
         f"据说【{killer}】在{location}斩了【{victim}】，血溅三尺。",
