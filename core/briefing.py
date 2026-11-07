@@ -165,15 +165,41 @@ def build_entry(
     # 同一性）：③ 据兑现后数值求值；join 等调用方以同一对象经
     # CharacterRepository.save 回存时即最新行，不再整行覆写回滚链兑现。
     # ① settle_due 对角色的落账已由其内部分支 save 落盘，重读不丢。
+    # MF-R1 修复（第二轮，取舍 (c) 重读合并策略）：briefing() 在本拼装前
+    # 已调 GoalEngine.sync_progress——只改内存补目标 + E6 求值、未落盘。
+    # 无条件逐字段同步会把内存 goals 整表冲回 DB 旧值（DB goals=[] 的无
+    # origin 老角 fate 行误报「尚未立命」、与同响应 goals 字段矛盾）。
+    # 故 goals 一字段不整表覆盖，改按 id 并集、内存优先：内存 goals
+    # （sync_progress 补出/① E2 翻转的活对象状态）保序在前，DB 独有项
+    # 补在后；其余字段仍以 DB 为准——MF-1 的链兑现数值不回滚、③ 仍基于
+    # 兑现后数值求值（且对并集后的 goals 求值，DB 独有判定式目标不漏）。
+    # 未取 (b) briefing 侧落盘：/近况 与 GET /world/briefing 是读面，
+    # 不为修展示口径新增写行为与锁内耗时。
     try:
         from storage.db import CharacterRepository as _CharRepo
 
+        _mem_goals = list(character.goals) if isinstance(character.goals, list) else []
         _latest = _CharRepo.get_by_id(character.id)
         if _latest is not None and _latest is not character:
             for _field in type(character).model_fields:
                 setattr(character, _field, getattr(_latest, _field))
+            _mem_ids = {
+                g.get("id") for g in _mem_goals
+                if isinstance(g, dict) and g.get("id")
+            }
+            _merged_goals = list(_mem_goals)
+            for _g in (_latest.goals or []):
+                if isinstance(_g, dict) and _g.get("id"):
+                    if _g.get("id") not in _mem_ids:
+                        _merged_goals.append(_g)
+                elif _g not in _merged_goals:
+                    _merged_goals.append(_g)
+            character.goals = _merged_goals
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "build_entry 重读同步失败，降级沿用入参对象", exc_info=True)
 
     # ③ 判定式求值（E1）
     try:
