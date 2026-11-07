@@ -60,7 +60,8 @@ def test_desktop_gallery_view_and_nav():
     assert 'data-view="gallery"' in html, "桌面顶栏缺第 6 主境「图鉴」导航"
     assert "renderGallery" in js and 'state.view === "gallery"' in js
     assert "gallery.unlocked" in js or "g.unlocked" in js, "图鉴点亮事实须读后端 gallery"
-    for marker in ("10", "初窥门径", "博览群真", "洞鉴乾坤", "图录大成"):
+    # §9.2 契约变更表第6行（前端半）：称号按 §9.10 新五档 (10/40/80/120/139) 修订
+    for marker in ("10", "40", "80", "120", "139", "初窥门径", "博览群真", "洞鉴乾坤", "博物通览", "图录大成"):
         assert marker in js, f"图鉴称号档缺 {marker}"
     assert "gallery-silhouette" in js, "未点亮须剪影呈现"
     print("✓ 桌面图鉴视图：导航 + renderGallery + 进度称号档 + 未点亮剪影")
