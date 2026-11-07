@@ -42,12 +42,16 @@ PROMISE_KINDS: Dict[str, Dict[str, Any]] = {
     "arrive": {"cn": "抵达", "ttl": 3 * 86400.0},
     "quest": {"cn": "委托", "ttl": 3 * 86400.0},
     "no_attack": {"cn": "不攻", "ttl": 7 * 86400.0},
+    # 游戏感第一期（§3.5）：出身旧债。ttl 仅作面板文案/兜底；生成器直写
+    # deadline = generated_at + 10 游戏日（SECONDS_PER_GAME_DAY 口径）。
+    "debt": {"cn": "旧债", "ttl": 10 * 86400.0},
 }
 PROMISE_KIND_ALIASES = {
     "赠物": "gift", "gift": "gift",
     "抵达": "arrive", "到达": "arrive", "arrive": "arrive",
     "委托": "quest", "quest": "quest",
     "不攻": "no_attack", "不战": "no_attack", "no_attack": "no_attack", "noattack": "no_attack",
+    "旧债": "debt", "debt": "debt",
 }
 
 TERMINAL_STATUSES = ("KEPT", "BROKEN", "DISSOLVED")
@@ -78,6 +82,7 @@ class Promise(BaseModel):
     deadline: float = 0.0       # PENDING 时为 0，应诺后写入
     settled_at: float = 0.0
     settle_note: str = ""
+    paid: int = 0               # 旧债已还累计（仅 debt 类使用，旧档默认 0）
 
 
 def _is_npc(c: Character) -> bool:
@@ -106,6 +111,8 @@ def describe_promise(kind: str, param: str, promisee_name: str) -> str:
         return f"{days} 日内抵达【{param}】（【{promisee_name}】见证）"
     if kind == "quest":
         return f"{days} 日内办成一单连环委托（【{promisee_name}】见证）"
+    if kind == "debt":
+        return f"旧债：欠【{promisee_name}】{param} 灵石（出身）"
     return f"{days} 日不向【{promisee_name}】出手"
 
 
@@ -387,6 +394,18 @@ class PromiseEngine:
 
                 logging.getLogger(__name__).warning(
                     "karma chain S3 hook failed", exc_info=True)
+        # 判定式求值点 E2（game-feel-phase1 §3.7）：诺言终态后对 promiser
+        # 活对象（若可得）求值其 checked 目标；不可得时跳过，E1/E6 兜底。
+        if promiser_obj is not None and promiser_obj.id == p.promiser_id:
+            try:
+                from core.goals import evaluate_checked_goals
+
+                if evaluate_checked_goals(promiser_obj, t):
+                    from storage.db import CharacterRepository
+
+                    CharacterRepository.save(promiser_obj)
+            except Exception:
+                pass
         return True
 
     @staticmethod
@@ -452,6 +471,41 @@ class PromiseEngine:
             )
         except Exception:
             pass
+
+    @staticmethod
+    def note_debt_payment(
+        payer: Character, creditor: Character, amount: int, now: Optional[float] = None,
+    ) -> Optional[str]:
+        """旧债还款事实钩子（game-feel-phase1 §3.5）：灵石/财货真实流向
+        债主时累计 paid，paid ≥ param 时走唯一终态入口判 KEPT。
+
+        挂点：专柜买入结算（付款额）、会话赠礼结算（计价折算值）。
+        无对应 ACTIVE debt 时静默返回 None。
+        """
+        t = now if now is not None else time.time()
+        try:
+            amt = int(amount or 0)
+        except (TypeError, ValueError):
+            amt = 0
+        if amt <= 0 or payer is None or creditor is None:
+            return None
+        for p in PromiseEngine._open_of(payer.id):
+            if p.kind != "debt" or p.promisee_id != creditor.id:
+                continue
+            if p.status != PromiseStatus.ACTIVE:
+                continue
+            p.paid = int(p.paid or 0) + amt
+            try:
+                due = int(p.param or 0)
+            except (TypeError, ValueError):
+                due = 0
+            if due > 0 and p.paid >= due:
+                if PromiseEngine._settle(p, PromiseStatus.KEPT, "旧债已清", t, promiser_obj=payer):
+                    return f"【旧债已清】对【{creditor.name}】的旧债 {due} 灵石已还清，天道销账。"
+                return None
+            PromiseEngine._repo().save(p)
+            return f"【抵旧债】此笔往来抵旧债：已还 {p.paid}/{due} 灵石。"
+        return None
 
     # ---------------- 事实钩子（各既有落账点调用，均只认真实落账） ----------------
     @staticmethod

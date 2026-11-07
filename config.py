@@ -198,6 +198,26 @@ NPC_PROACTIVE_LOCAL_ONLY_AFTER = True  # 超预算后降级本地模板
 GOAL_MAX_ACTIVE = 6
 GOAL_SOURCES = ("dao", "omen", "bounty", "sect", "season", "newbie")
 
+# ==================== 游戏感第一期（game-feel-phase1） ====================
+# 出身路径开关：sect/favored 的道心判定减免（只减判定门槛，不改角色道心）
+ORIGIN_SECT_FAVORED_DAO_WAIVER = 10
+# 命格战力乘子表（F5 修正口径：借 DAO_BOON/AFFIX 身份，数值走本表，
+# 生效点为 CombatEngine.calculate_power 乘子链尾；dao 五键小额、affix 恒 1.02）
+FATE_BOON_POWER = {
+    "pure_yang": 1.03,
+    "iron_wall": 1.04,
+    "sword_heart": 1.04,
+    "spirit_well": 1.02,
+    "ice_soul": 1.03,
+    "fate_pierce": 1.02,
+    "fate_lifesteal": 1.02,
+    "fate_mind_guard": 1.02,
+    "fate_defense": 1.02,
+    "fate_charm": 1.02,
+}
+FATE_BOON_POWER_CAP = 1.15   # 命格乘子总顶
+FATE_BOON_MAX = 5            # 已选命格硬顶
+
 # ==================== 转世与道统点 ====================
 # 一世结算所得道统点：基础 + 境界贡献 + 功德加成 - 业力折损，单世封顶
 LEGACY_BASE_POINTS = 1

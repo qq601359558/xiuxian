@@ -70,6 +70,12 @@ class LifeTrace(BaseModel):
     belongings: List[str] = Field(default_factory=list)  # 行囊+穿戴名快照（去重保序，截 20；遗物候选池）
     shadow: List[ShadowEntry] = Field(default_factory=list)
     open_promises: List[PromiseEcho] = Field(default_factory=list)
+    # 游戏感第一期（§3.9）：评语四字段，默认值保证旧档零迁移；
+    # 在 settle_death 的 _build_trace 同次生成，异常只留空、不阻断结算。
+    fate_summary: str = ""
+    life_epitaph: str = ""
+    origin_signature: str = ""
+    unfinished_prop: Dict[str, Any] = Field(default_factory=dict)
 
 
 class WalletEntry(BaseModel):
@@ -194,6 +200,152 @@ class LegacyEngine:
         out = sorted(merged.values(), key=lambda e: -abs(e.value))
         return out[:SHADOW_MAX_ENTRIES]
 
+    # ---------------- 评语与命途总结（game-feel-phase1 §3.9） ----------------
+    _EPITAPH_BY_KIND: Dict[Optional[str], Dict[bool, List[str]]] = {
+        "debt_clear": {True: ["债清身轻，这一世把欠天下的都还上了。"],
+                       False: ["债未清，人已去，账还留在世上。"]},
+        "foe_reckoning": {True: ["该讨的说法都讨到了，恩怨两清。"],
+                          False: ["那个名字，到死也没能再当面叫一声。"]},
+        "lost_relic": {True: ["遗物归怀，家里的灯又亮了一盏。"],
+                       False: ["那件旧物，终究没能找回来。"]},
+        "family_revive": {True: ["家业重振，灶火重新旺了起来。"],
+                          False: ["家道未复，这一世只来得及挣扎。"]},
+        "sect_inner": {True: ["有门有派，这一世站住了。"],
+                       False: ["山门终究没能收留他。"]},
+        "stand_firm": {True: ["从任人摆布到立身于世，他做到了。"],
+                       False: ["立身未成，命已先尽。"]},
+        None: {True: ["这一世有始有终。"], False: ["这一世匆匆而过。"]},
+    }
+    _EPITAPH_TAIL = {
+        "natural": "寿终正寝，也算善终。",
+        "tribulation": "殁于天劫，是修士的葬礼。",
+        "heart_demon": "败给了心里的那个自己。",
+        "violent": "死于人手，江湖恩怨从不等人。",
+        "misc": "世事无常，道途如此。",
+    }
+
+    @staticmethod
+    def _cause_category(death_cause: str) -> str:
+        c = death_cause or ""
+        if "天劫" in c or "渡劫" in c:
+            return "tribulation"
+        if "心魔" in c:
+            return "heart_demon"
+        if any(k in c for k in ("斩", "斗法", "擒", "仇")):
+            return "violent"
+        if "寿" in c or "坐化" in c:
+            return "natural"
+        return "misc"
+
+    @staticmethod
+    def _prop_kind(goal: Dict[str, Any], origin: Dict[str, Any]) -> str:
+        """目标 → 命题 kind 名（未竟之志重实例化口径）。"""
+        if goal.get("source") == "fate":
+            if origin.get("fate_kind"):
+                return str(origin["fate_kind"])
+            ck = (goal.get("check") or {}).get("kind")
+            return {
+                "promise_settled": "debt_clear",
+                "npc_attitude_at_least": "foe_reckoning",
+                "item_in_bag_at_death": "lost_relic",
+                "sect_joined": "sect_inner",
+                "realm_at_least": "stand_firm",
+                "stones_at_least": "family_revive",
+            }.get(ck, "stand_firm")
+        return str((goal.get("check") or {}).get("kind") or "")
+
+    @staticmethod
+    def _fate_fields(
+        account: LegacyAccount, character: Character, death_cause: str, current_time: float,
+    ) -> Dict[str, Any]:
+        """E5 终判 + fate_summary / life_epitaph / signature / unfinished 同次生成。
+
+        任何异常由 _build_trace 的 try/except 兜底为四字段留空。
+        """
+        from core.goals import GoalEngine
+
+        # 1. E5 终判（final=True：态度死亡特例与遗物终判在此生效）
+        GoalEngine.evaluate_checked_goals(character, current_time, final=True)
+        origin = getattr(character, "origin", None) or {}
+        goals = list(character.goals or [])
+        fate_goals = [g for g in goals if g.get("source") == "fate"]
+        short_goals = [g for g in goals if g.get("source") == "origin"]
+        fate_goal = fate_goals[0] if fate_goals else None
+        fate_done = bool(fate_goal and fate_goal.get("status") == "done")
+        fate_kind = (
+            LegacyEngine._prop_kind(fate_goal, origin) if fate_goal else None)
+
+        # 3. 未竟之志：failed 的 fate > failed 的 origin > 仍 active 的 fate
+        unfinished_goal = None
+        for g in fate_goals:
+            if g.get("status") == "failed":
+                unfinished_goal = g
+                break
+        if unfinished_goal is None:
+            for g in short_goals:
+                if g.get("status") == "failed":
+                    unfinished_goal = g
+                    break
+        if unfinished_goal is None:
+            for g in fate_goals:
+                if g.get("status") == "active":
+                    unfinished_goal = g
+                    break
+        unfinished_prop: Dict[str, Any] = {}
+        if unfinished_goal is not None:
+            unfinished_prop = {
+                "kind": LegacyEngine._prop_kind(unfinished_goal, origin),
+                "text": unfinished_goal.get("title", ""),
+                "check": dict(unfinished_goal.get("check") or {}),
+            }
+
+        realm_name = character.realm.name
+        if origin:
+            fate_word = "成" if fate_done else "憾"
+            if fate_goal:
+                fate_seg = f"终局命题「{fate_goal.get('title', '')}」{fate_word}"
+            else:
+                fate_seg = "终局命题未立"
+            if not short_goals:
+                short_word = "未立"
+            elif short_goals[0].get("status") == "done":
+                short_word = "成"
+            elif short_goals[0].get("status") == "rejected":
+                short_word = "未立"
+            else:
+                short_word = "憾"
+            fate_summary = (
+                f"出身{origin.get('family_text', '')}，"
+                f"{(origin.get('old_story') or {}).get('kind', '')}起；"
+                f"{fate_seg}；短期目标{short_word}；最高{realm_name}。"
+            )
+            if unfinished_prop:
+                fate_summary += f"未竟之志：{unfinished_prop.get('text', '')}。"
+            compressed = (
+                f"{origin.get('family_text', '')}出身，命题{fate_word}，"
+                f"止步{realm_name}，殁于{death_cause}。"
+            )
+        else:
+            fate_summary = f"无出身记录；最高{realm_name}。"
+            compressed = f"无出身记录，止步{realm_name}，殁于{death_cause}。"
+
+        life_no = account.total_lives + 1
+        cell = LegacyEngine._EPITAPH_BY_KIND.get(fate_kind) or LegacyEngine._EPITAPH_BY_KIND[None]
+        cands = cell[bool(fate_done)]
+        # 确定性选句（§3.9）：crc32 稳定哈希同形替代内置 hash()
+        # （后者对 str 有进程级盐化，不满足「同输入恒同输出，可复算」）
+        import zlib
+
+        pick = cands[zlib.crc32(f"{character.id}:{life_no}".encode("utf-8")) % len(cands)]
+        tail = LegacyEngine._EPITAPH_TAIL[LegacyEngine._cause_category(death_cause)]
+        life_epitaph = f"{compressed}{pick}{tail}"
+        return {
+            "fate_summary": fate_summary,
+            "life_epitaph": life_epitaph,
+            "origin_signature": str(origin.get("signature", "") or ""),
+            "unfinished_prop": unfinished_prop,
+        }
+
     @staticmethod
     def _build_trace(
         account: LegacyAccount,
@@ -225,6 +377,16 @@ class LegacyEngine:
                     kind=str(d.get("kind") or ""),
                     role=str(d.get("role") or ""),
                 ))
+        # 评语四字段同次生成（§3.9）：异常只留空，不阻断结算
+        fate_fields: Dict[str, Any] = {
+            "fate_summary": "", "life_epitaph": "",
+            "origin_signature": "", "unfinished_prop": {},
+        }
+        try:
+            fate_fields.update(LegacyEngine._fate_fields(
+                account, character, death_cause, current_time))
+        except Exception:
+            pass
         return LifeTrace(
             life_no=account.total_lives + 1,
             character_id=character.id,
@@ -241,6 +403,10 @@ class LegacyEngine:
             belongings=belongings,
             shadow=LegacyEngine._snapshot_shadow(character),
             open_promises=echoes,
+            fate_summary=fate_fields["fate_summary"],
+            life_epitaph=fate_fields["life_epitaph"],
+            origin_signature=fate_fields["origin_signature"],
+            unfinished_prop=fate_fields["unfinished_prop"],
         )
 
     @staticmethod
