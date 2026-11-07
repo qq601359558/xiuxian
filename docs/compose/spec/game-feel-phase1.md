@@ -479,10 +479,10 @@ result_ref：`{name, realm, legacy_points, boosts_applied, shadow_count, origin_
 
 ### 7.5 回归口径（写死）
 
-- **P5-01（回归口径）** 全量回归基线有两份口径，实现岗开工前必须先在本 worktree 复跑一遍并以复跑结果为执行基线（两份口径总用例数同为 1188，失败集不同，属本仓已知的状态/顺序敏感类）：
-  - 发布记录口径（v0.3.7 发版实测，总管转交）：**1179 passed / 9 failed**，其中 2 条已知 flaky、**有效基线失败 7 条**——其逐条名单未随发版记录存入仓库，本 Spec 不代拟；总管须在实现开工前补交该名单，或以下方复测口径为准销账此项。
-  - 本 Spec 定稿时在本 worktree（基线 `90ce9c8`，`.venv` 全量 `pytest tests/ -q`，2026-11-08 实测）：**1185 passed / 3 failed**，3 条逐条列名：① `tests/test_qa2_fix_regressions.py::test_qa2_sanctum_bag_full_core_items_fixed`；② `tests/test_treasure_direction.py::TestCompass::test_treasure_map_initial_state_has_riddle_and_active`；③ `tests/test_world_persist.py::test_fresh_persist_roundtrip`。
-  - 执行口径：交付时全量失败集 ⊆（开工复跑基线失败集 ∪ 已知 flaky 复跑可绿者）即视为不新增失败；基线内的条目在本轮转绿不算功劳、转红的非基线条目逐条归因。
+- **P5-01（回归口径）** 全量回归基线 = v0.3.7 发布实测，且已由本 Spec 定稿时在本 worktree（基线 `90ce9c8`，`.venv` 全量 `pytest tests/ -q`，2026-11-08，耗时 1114s）逐字复现：**1179 passed / 9 failed**。9 条逐条列名，并已逐条单跑复验定性（单跑 2 passed / 7 failed，与发布口径「7 有效 + 2 flaky」严丝合缝）：
+  - **有效基线失败 7 条**（单跑复验仍红，本轮不得新增、亦不要求修复，但若因本轮改动面扩大须逐条归因）：① `tests/test_auth_hardening.py::test_world_join_requires_explicit_nonempty_authenticated_uid`；② `tests/test_karma_chains.py::test_kill_and_bounty_single_chain`；③ `tests/test_natural_omen.py::test_initial_character_and_config`（建角自带藏宝图断言，clock 建角处的合并裁定已知牺牲项）；④ `tests/test_qa_account_death_acceptance.py::test_qa2_join_dead_http_and_anonymous_unchanged`；⑤ `tests/test_status_dict_gray.py::test_status_dict_includes_bag_and_marks`；⑥ `tests/test_status_dict_gray.py::test_status_dict_follows_real_equip_flow`；⑦ `tests/test_workbench_api.py::test_login_then_look_here`。
+  - **已知 flaky 2 条**（全量红、单跑复验绿）：⑧ `tests/test_farm.py::test_settle_meditation_cave_bonus_and_chain`；⑨ `tests/test_world_director.py::test_local_director_run_persists_and_channel`。
+  - 执行口径：交付时全量失败集 ⊆（上述 7 条 ∪ 上述 2 条 flaky）即视为不新增失败；基线内的条目在本轮转绿不算功劳、转红的非基线条目逐条归因；flaky 在交付跑中出现时须单跑复验并注明结果，不得静默放过。
 - **P5-02（回归口径）** 本轮交付时全量重跑：新增失败（P5-01 执行基线之外、且非已知 flaky 的复跑可绿者）必须为 0；已知 flaky 须单跑复验并在报告中逐条注明复跑结果，不得静默放过。
 - **P5-03（回归口径）** 既有契约不回退专项：`tests/test_login_latency_fix.py`（登录去锁化）、`tests/test_mobile_web.py`（含预算断言——若 §9.1 豁免获总管批准，断言按新上限同步修订并注明出处，未批不得改）、`tests/test_gallery_frontend_contract.py`、`tests/test_reincarnation_inheritance.py`、`tests/test_promises.py`、`tests/test_karma_chains.py` 五组定向套件全绿（基线内既有失败除外并逐条注明）。
 
