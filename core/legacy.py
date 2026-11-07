@@ -76,6 +76,12 @@ class LifeTrace(BaseModel):
     life_epitaph: str = ""
     origin_signature: str = ""
     unfinished_prop: Dict[str, Any] = Field(default_factory=dict)
+    # 游戏感第二期（§7.2）：评语分段三段 + 润色状态，默认值保旧档零迁移；
+    # life_epitaph 恒 = head+line+tail，润色只许动 line 段。
+    epitaph_head: str = ""   # 汇总句
+    epitaph_line: str = ""   # 定性句（唯一可润色段）
+    epitaph_tail: str = ""   # 尾句（死因类）
+    epitaph_polish: str = ""  # "" 未试 / "done" / "failed" / "skipped"
 
 
 class WalletEntry(BaseModel):
@@ -353,6 +359,10 @@ class LegacyEngine:
             "life_epitaph": life_epitaph,
             "origin_signature": str(origin.get("signature", "") or ""),
             "unfinished_prop": unfinished_prop,
+            # 二期 §7.2 分段：head=汇总句 / line=定性句 / tail=尾句
+            "epitaph_head": compressed,
+            "epitaph_line": pick,
+            "epitaph_tail": tail,
         }
 
     @staticmethod
@@ -390,6 +400,7 @@ class LegacyEngine:
         fate_fields: Dict[str, Any] = {
             "fate_summary": "", "life_epitaph": "",
             "origin_signature": "", "unfinished_prop": {},
+            "epitaph_head": "", "epitaph_line": "", "epitaph_tail": "",
         }
         try:
             fate_fields.update(LegacyEngine._fate_fields(
@@ -416,6 +427,9 @@ class LegacyEngine:
             life_epitaph=fate_fields["life_epitaph"],
             origin_signature=fate_fields["origin_signature"],
             unfinished_prop=fate_fields["unfinished_prop"],
+            epitaph_head=fate_fields["epitaph_head"],
+            epitaph_line=fate_fields["epitaph_line"],
+            epitaph_tail=fate_fields["epitaph_tail"],
         )
 
     @staticmethod
@@ -501,6 +515,22 @@ class LegacyEngine:
             )
             trace_is_new = True
 
+        # 命途封存（二期 §3.8）：_fate_fields 生成之后追加 thread 分支——
+        # fate_summary 前缀命途段、unfinished_prop 以 thread 未竟优先；
+        # try/except 包裹，异常不阻断结算（沿一期评语字段纪律）。
+        if trace_is_new:
+            try:
+                from core.fate_thread import FateThreadEngine
+
+                sealed = FateThreadEngine.seal_for_death(character, current_time)
+                if sealed:
+                    if sealed.get("prefix"):
+                        trace.fate_summary = sealed["prefix"] + trace.fate_summary
+                    if sealed.get("unfinished_prop"):
+                        trace.unfinished_prop = sealed["unfinished_prop"]
+            except Exception:
+                pass
+
         account.points += gained
         account.total_points_earned += gained
         account.total_lives += 1
@@ -552,6 +582,140 @@ class LegacyEngine:
             "total_lives": account.total_lives,
             "cause": death_cause,
         }
+
+    # ---------------- 一生评语 AI 润色（game-feel-phase2 §7，可选路径） ----------------
+    _POLISH_BANNED_WORDS = ("灵石", "修为", "寿元", "功德", "业力")
+
+    @staticmethod
+    def _polish_payload(trace: "LifeTrace") -> Dict[str, Any]:
+        """润色输入白名单（§7.2）：只许规则汇总定性字段，禁止任何数值
+        字段与玩家自由文本。family_text / old_story_kind 由 fate_summary
+        的一期拼装格式（出身X，Y起；…）解析，解析不出留空串。"""
+        import re
+
+        summary = getattr(trace, "fate_summary", "") or ""
+        family_text = ""
+        old_story_kind = ""
+        m = re.search(r"出身([^，]*)，([^；]*?)起；", summary)
+        if m:
+            family_text = m.group(1)
+            old_story_kind = m.group(2)
+        prop_done = bool(re.search(r"终局命题「[^」]*」成", summary))
+        unfinished = getattr(trace, "unfinished_prop", None) or {}
+        return {
+            "family_text": family_text,
+            "proposition_kind": str(unfinished.get("kind") or ""),
+            "proposition_done": prop_done,
+            "realm_name": str(getattr(trace, "realm", "") or ""),
+            "cause_category": LegacyEngine._cause_category(
+                getattr(trace, "cause", "") or ""),
+            "old_story_kind": old_story_kind,
+        }
+
+    @staticmethod
+    def _validate_polished_line(line: Any) -> Optional[str]:
+        """输出校验（§7.2 全过才采纳）：str、1–60 字、无数字、
+        无数值词、无换行。"""
+        import re
+
+        if not isinstance(line, str):
+            return None
+        s = line.strip()
+        if not s or len(s) > 60:
+            return None
+        if "\n" in s or "\r" in s:
+            return None
+        if re.search(r"[0-9０-９]", s):
+            return None
+        if any(w in s for w in LegacyEngine._POLISH_BANNED_WORDS):
+            return None
+        return s
+
+    @staticmethod
+    def _ensure_polish_scene() -> bool:
+        """scene 注册（ai 层既有先例：registry.register 补新 scene）。"""
+        try:
+            from ai.registry import SceneSpec, get_scene, register
+
+            if get_scene("epitaph_polish") is not None:
+                return True
+
+            def _builder(**payload: Any) -> str:
+                return (
+                    "你是一位为修士写墓志的史官。下面是一位修士一世的定性事实"
+                    "（无任何数值）：\n"
+                    f"出身：{payload.get('family_text') or '无记录'}；"
+                    f"旧事：{payload.get('old_story_kind') or '无'}；"
+                    f"终局命题类别：{payload.get('proposition_kind') or '无'}，"
+                    f"命题{'已成' if payload.get('proposition_done') else '未成'}；"
+                    f"止步境界：{payload.get('realm_name') or ''}；"
+                    f"死因类别：{payload.get('cause_category') or ''}。\n"
+                    "请只写一句不超过 60 字的定性评语：不得出现任何数字，"
+                    "不得提及灵石、修为、寿元、功德、业力等数值概念，"
+                    "不得换行。以 JSON 返回：{\"line\": \"评语\"}。"
+                )
+
+            register(SceneSpec(
+                scene_id="epitaph_polish", builder=_builder, max_tokens=200))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def try_polish_epitaph(account: LegacyAccount, *, now: Optional[float] = None) -> bool:
+        """评语润色单次尝试（§7.2）：只处理 traces[-1] 且分段非空、
+        polish == "" 者。采纳时只换 line 段并经账户仓储落盘；失败/
+        超时/异常一律 polish="failed" 且三段与 life_epitaph 逐字不变。
+        调用红线：只许死亡结算落盘后、锁外异步调用（见 server 编排），
+        禁止出现在 settle_death 同步路径 / 登录路径 / tick 路径。"""
+        if account is None or not account.traces:
+            return False
+        trace = account.traces[-1]
+
+        def _save() -> None:
+            try:
+                from storage.db import LegacyRepository
+
+                LegacyRepository.save(account)
+            except Exception:
+                pass
+
+        if not trace.epitaph_head or not trace.epitaph_line:
+            # 老 trace（四字段为空）：直接 skipped，不发 AI 请求（EP-04）
+            if not trace.epitaph_polish:
+                trace.epitaph_polish = "skipped"
+                _save()
+            return False
+        if trace.epitaph_polish:
+            return trace.epitaph_polish == "done"
+        payload = LegacyEngine._polish_payload(trace)
+        line: Any = None
+        try:
+            LegacyEngine._ensure_polish_scene()
+            from ai.router import invoke
+
+            res = invoke(
+                "epitaph_polish", payload=payload,
+                actor_id=trace.character_id)
+            if res and res.get("ok"):
+                data = res.get("data")
+                if isinstance(data, dict):
+                    line = data.get("line") or data.get("text") or data.get("epitaph")
+                elif isinstance(data, str):
+                    line = data
+        except Exception:
+            line = None
+        validated = LegacyEngine._validate_polished_line(line)
+        if validated is not None:
+            trace.epitaph_line = validated
+            trace.life_epitaph = (
+                trace.epitaph_head + validated + trace.epitaph_tail)
+            trace.epitaph_polish = "done"
+            _save()
+            return True
+        trace.epitaph_polish = "failed"
+        _save()
+        return False
 
     @staticmethod
     def check_reincarnate_gate(

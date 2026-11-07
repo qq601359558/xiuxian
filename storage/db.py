@@ -135,6 +135,17 @@ def init_db():
     );
     """)
 
+    # 6f. 命途主线（game-feel-phase2 §3.2；只加新表：一世一线，照 karma_chains 先例）
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS fate_threads (
+        id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS auction_lots (
         id TEXT PRIMARY KEY,
@@ -1003,6 +1014,108 @@ class KarmaChainRepository:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM karma_chains WHERE id = ?", (chain_id,))
+        conn.commit()
+        conn.close()
+
+
+class FateThreadRepository:
+    """命途主线仓储（game-feel-phase2 §3.2，照 KarmaChainRepository 写法）。
+
+    list_by_user 以 data_json 内的 user_id 匹配（建表列不增）：主线表
+    量级为每账户每世 1 行、全服低千量级，故许此一处全表读；其余查询
+    一律走 player_id 列。模型惰性导入，避免 storage ↔ core 循环。
+    """
+
+    @staticmethod
+    def _model():
+        from core.fate_thread import FateThread
+
+        return FateThread
+
+    @staticmethod
+    def save(thread):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO fate_threads (id, data_json, status, player_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            data_json = excluded.data_json,
+            status = excluded.status,
+            player_id = excluded.player_id;
+        """, (
+            thread.id,
+            thread.model_dump_json(),
+            thread.status,
+            thread.player_id,
+            thread.created_at,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def get_by_id(thread_id: str):
+        if not thread_id:
+            return None
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM fate_threads WHERE id = ?", (thread_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            try:
+                return FateThreadRepository._model().model_validate_json(row[0])
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
+    def list_all():
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT data_json FROM fate_threads ORDER BY created_at ASC")
+        rows = cursor.fetchall()
+        conn.close()
+        model = FateThreadRepository._model()
+        out = []
+        for r in rows:
+            try:
+                out.append(model.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_player(player_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data_json FROM fate_threads WHERE player_id = ? ORDER BY created_at ASC",
+            (player_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        model = FateThreadRepository._model()
+        out = []
+        for r in rows:
+            try:
+                out.append(model.model_validate_json(r[0]))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def list_by_user(user_id: str):
+        return [
+            th for th in FateThreadRepository.list_all()
+            if th.user_id == user_id
+        ]
+
+    @staticmethod
+    def delete(thread_id: str):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM fate_threads WHERE id = ?", (thread_id,))
         conn.commit()
         conn.close()
 

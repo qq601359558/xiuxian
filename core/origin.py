@@ -213,6 +213,7 @@ class OriginEngine:
         force_family: Optional[str] = None,
         force_story: Optional[str] = None,
         pool: Optional[List[Character]] = None,
+        vendetta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if pool is None:
             pool = OriginEngine._npc_pool(now)
@@ -282,15 +283,44 @@ class OriginEngine:
                 "init_value": v, "is_creditor": bool(creditor and npc.id == creditor.id),
             })
 
+        # ---- 世仇植入（game-feel-phase2 §4.3）：先试 vendetta 植入者，
+        # 过既有硬校验（在世=已在 pool / bounds / 未被影子覆盖，
+        # shadow_covered 标记的来源 3 植入者例外，落账时不叠加 shift）
+        # 则直接占 foe 名额；不通过丢弃走原随机并记 vendetta_dropped。
+        vendetta_npc: Optional[Character] = None
+        vendetta_dropped = False
+        vendetta_drop_reason = ""
+        if vendetta and vendetta.get("npc_id"):
+            cand = next((c for c in pool if c.id == vendetta["npc_id"]), None)
+            if cand is None:
+                vendetta_dropped, vendetta_drop_reason = True, "not_alive"
+            elif cand.realm.tier > char.realm.tier + 1:
+                vendetta_dropped, vendetta_drop_reason = True, "over_bounds"
+            elif cand.id in used and not vendetta.get("shadow_covered"):
+                vendetta_dropped, vendetta_drop_reason = True, "shadow_covered"
+            else:
+                vendetta_npc = cand
+                used.add(cand.id)
+                relations.append({
+                    "npc_id": cand.id, "npc_name": cand.name, "role": "foe",
+                    "init_value": rng.randint(-45, -30),
+                    "is_creditor": bool(creditor and cand.id == creditor.id),
+                    "vendetta": True,
+                    "vendetta_for": str(vendetta.get("for_name") or cand.name),
+                })
+
         bind_role = STORY_BIND[story_kind]
         story_npc: Optional[Character] = None
         if bind_role == "creditor":
             story_npc = creditor
+        elif bind_role == "foe" and vendetta_npc is not None:
+            story_npc = vendetta_npc
         else:
             story_npc = pick(bind_role)
             if story_npc is not None:
                 add_rel(story_npc, bind_role)
-        if story_kind == "背案在身" and rng.random() < 0.5 and len(relations) < 4:
+        if (story_kind == "背案在身" and vendetta_npc is None
+                and rng.random() < 0.5 and len(relations) < 4):
             extra_foe = pick("foe")
             if extra_foe is not None:
                 add_rel(extra_foe, "foe")
@@ -298,6 +328,8 @@ class OriginEngine:
                     story_npc = extra_foe
         pattern = rng.choice(RELATION_PATTERNS)
         for role in pattern:
+            if role == "foe" and vendetta_npc is not None:
+                continue  # 世仇已占 foe 名额，pattern 其余 foe 位不再另抽（§4.3）
             have = sum(1 for r in relations if r["role"] == role)
             want = pattern.count(role)
             while have < want and len(relations) < 4:
@@ -400,6 +432,9 @@ class OriginEngine:
             "generated_at": now,
             "life_no": 1,
         }
+        if vendetta_dropped:
+            origin["vendetta_dropped"] = True
+            origin["vendetta_drop_reason"] = vendetta_drop_reason
         return origin
 
     @staticmethod
@@ -411,6 +446,7 @@ class OriginEngine:
         now: Optional[float] = None,
         force_family: Optional[str] = None,
         force_story: Optional[str] = None,
+        vendetta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """为新一世生成出身包并落账（不落盘 char，调用方统一 save）。
 
@@ -450,7 +486,8 @@ class OriginEngine:
             tries += 1
             cand = OriginEngine._build_package(
                 char, r, t, covered_ids,
-                force_family=force_family, force_story=force_story, pool=pool)
+                force_family=force_family, force_story=force_story, pool=pool,
+                vendetta=vendetta)
             last = cand
             if not (-20 <= cand["strength_score"] <= 20):
                 if tries >= 20:
@@ -527,24 +564,35 @@ class OriginEngine:
 
         # 初始关系：逐人 shift_attitude(reason="origin")；foe 另加种子边
         foe_npc = None
+        foe_rel: Optional[Dict[str, Any]] = None
         for rel in pkg["relations"]:
             npc = CharacterRepository.get_by_id(rel["npc_id"])
             if npc is None:
                 continue
-            try:
-                from core.npc_mind import shift_attitude
+            # 世仇 + 影子覆盖同人（VD-05）：态度以影子值为准，
+            # origin 不对其再调 shift_attitude（防双重落账）。
+            if not (rel.get("vendetta") and rel["npc_id"] in covered_ids):
+                try:
+                    from core.npc_mind import shift_attitude
 
-                shift_attitude(npc, char.id, int(rel["init_value"]), reason="origin")
-            except Exception:
-                pass
+                    shift_attitude(npc, char.id, int(rel["init_value"]), reason="origin")
+                except Exception:
+                    pass
             if rel["role"] == "foe" and foe_npc is None:
                 foe_npc = npc
+                foe_rel = rel
         if foe_npc is not None:
             try:
                 from core.collusion import ensure_link
 
-                ensure_link(char, foe_npc, "仇",
-                            note=f"出身旧怨：{pkg['old_story']['kind']}")
+                if foe_rel is not None and foe_rel.get("vendetta"):
+                    _for = str(foe_rel.get("vendetta_for") or foe_npc.name)
+                    _note = (
+                        "世仇：前世血债未清" if _for == foe_npc.name
+                        else f"世仇：替{_for}讨前世血债")
+                else:
+                    _note = f"出身旧怨：{pkg['old_story']['kind']}"
+                ensure_link(char, foe_npc, "仇", note=_note)
             except Exception:
                 pass
 
