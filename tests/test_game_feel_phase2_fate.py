@@ -929,6 +929,25 @@ def test_ui04_fate_commands_via_handle():
     assert "/命途" in _cmds and "/回应" in _cmds
 
 
+def test_ui04_cli_dispatch_same_engine_source():
+    """§8.4 CLI 分发（集成岗收口）：cli/main.py 交互循环不可直接驱动，
+    按仓内先例（test_karma_chains_ui）以同引擎源码对齐断言钉住——
+    /命途 面板与 server 同源（FateThreadEngine.panel_text）、搁置/续同
+    引擎、/回应 同 DramaEngine 且 fight 经 resolve_ambush 斗法入口。"""
+    import pathlib
+
+    cli_src = pathlib.Path(__file__).resolve().parent.parent.joinpath(
+        "cli", "main.py").read_text(encoding="utf-8")
+    assert 'action in ["/命途", "/fate_thread"]' in cli_src
+    assert "FateThreadEngine.panel_text(player)" in cli_src
+    assert "FateThreadEngine.shelve_thread(player)" in cli_src
+    assert "FateThreadEngine.resume_thread(player)" in cli_src
+    assert 'action in ["/回应", "/respond_drama"]' in cli_src
+    assert "DramaEngine.panel_text(player)" in cli_src
+    assert "DramaEngine.respond(" in cli_src
+    assert "CombatFateEngine.resolve_ambush" in cli_src
+
+
 def test_ui05_location_image_key():
     import server.world as world_mod
 

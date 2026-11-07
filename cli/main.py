@@ -187,6 +187,8 @@ def print_help():
   [bold yellow]/因果[/bold yellow]                 - 查看因果关系列表（KarmaLink 仇/恩/师徒/宗门边；回访请用 /回访；server 端 /因果 为回访别名）
   [bold yellow]/回访[/bold yellow]                 - 依事件账触发因果回访（寻仇/旧怨）
   [bold yellow]/因果链[/bold yellow]               - 天道事件链面板（恩/仇/诺/血仇的发酵进度与近史；与 /因果 关系列表不同）
+  [bold yellow]/命途 [搁置|续][/bold yellow]        - 命途主线面板：本世章节、终局命题与搁置状态（搁置不删不罚）
+  [bold yellow]/回应 [id 选项][/bold yellow]        - 回应 NPC 主动戏剧：无参列待回应之事，带参按选项落账
   [bold yellow]/坊市[/bold yellow]                 - 商会货单（当地市价）、金库寄存、玩家寄售
   [bold yellow]/行情[/bold yellow]                 - 天下行情：各区域产地价与价差、跑商路线
   [bold yellow]/版图 [区域][/bold yellow]           - 宗门势力版图：各区域主导宗门与本宗影响力
@@ -662,6 +664,108 @@ def run_mud():
                         console.print(f"[red]{res.get('message', '选择失败')}[/red]")
                 else:
                     console.print(fate_panel_text(player))
+
+            elif action in ["/命途", "/fate_thread"]:
+                # 命途主线（game-feel-phase2 §8.4）：与 server 同命令同引擎同文案；
+                # 无参面板 FateThreadEngine.panel_text 与 server / fate.thread 同源，
+                # 搁置/续为线级开关（§3.9，assert_alive 门禁与落盘口径同 server 分发）
+                from core.fate_thread import FateThreadEngine
+
+                sub = parts[1] if len(parts) > 1 else ""
+                if sub in ("搁置", "续"):
+                    from core.character_integrity import (
+                        CharacterIntegrity,
+                        CharacterIntegrityError,
+                    )
+
+                    try:
+                        CharacterIntegrity.assert_alive(player)
+                    except CharacterIntegrityError as _ie:
+                        console.print(f"[red]{_ie}[/red]")
+                        continue
+                    if sub == "搁置":
+                        res = FateThreadEngine.shelve_thread(player)
+                    else:
+                        res = FateThreadEngine.resume_thread(player)
+                        if res.get("success"):
+                            CharacterRepository.save(player)
+                    if res.get("success"):
+                        console.print(res.get("message", ""))
+                    else:
+                        console.print(f"[red]{res.get('message', '命途切换失败')}[/red]")
+                else:
+                    console.print(FateThreadEngine.panel_text(player))
+
+            elif action in ["/回应", "/respond_drama"]:
+                # 主动戏剧回应（game-feel-phase2 §8.4/§5.3）：与 server 调同一
+                # DramaEngine；无参列待回应（引擎 panel_text 含 id 与选项），
+                # 带参 respond 落账并销项；fight 经 fight_fn 转调 CLI 既有斗法
+                # 路径（CombatFateEngine.resolve_ambush，与 /斗法 同一入口）
+                from core.npc_proactive import DramaEngine
+
+                if len(parts) < 2:
+                    console.print(DramaEngine.panel_text(player))
+                elif len(parts) < 3:
+                    console.print("[red]用法：/回应 <drama_id> <option_key>（事件不存在或选项非法均不落账）[/red]")
+                else:
+                    def _cli_drama_fight(target_name):
+                        target = CharacterRepository.get_by_name(target_name)
+                        if not target:
+                            console.print(f"[red]方圆百里并未探查到名为【{target_name}】的修士踪迹！[/red]")
+                            return {"success": False}
+                        if target.id == player.id:
+                            console.print("[red]自残元神，恐生心魔！[/red]")
+                            return {"success": False}
+                        fres = CombatFateEngine.resolve_ambush(
+                            player, target, use_ai=True, context="野外伏击")
+                        if not fres.get("success"):
+                            console.print(f"[bold red]{fres.get('message', '动手失败')}[/bold red]")
+                            return fres
+                        CharacterRepository.save(player)
+                        CharacterRepository.save(target)
+                        spawned = fres.get("spawned")
+                        if spawned:
+                            CharacterRepository.save(spawned)
+                        render_combat_result({
+                            "report": fres.get("report") or fres.get("narrative", ""),
+                            "outcome": fres.get("outcome"),
+                            "source": fres.get("source"),
+                        })
+                        console.print(f"[dim]天命来源：{fres.get('source')} · 结局 {fres.get('outcome')}[/dim]")
+                        if fres.get("target_died", False):
+                            ChronicleRepository.record("KILL", player.name, f"修士【{player.name}】于伏击中斩杀【{target.name}】！")
+                            open_bs = BountyRepository.list_open_for_target(target.id)
+                            if open_bs:
+                                pay = BountyEngine.settle_on_kill(player, target, open_bs)
+                                BountyRepository.save_many(open_bs)
+                                CharacterRepository.save(player)
+                                if pay.get("message"):
+                                    console.print(f"[bold gold1]{pay['message']}[/bold gold1]")
+                            all_links = KarmaLinkRepository.list_all()
+                            feud = BountyEngine.ensure_feud_link(
+                                all_links, player, target, note=f"伏击杀戮于 {player.location}"
+                            )
+                            if feud:
+                                KarmaLinkRepository.save(feud)
+                        if spawned:
+                            ChronicleRepository.record(
+                                "SPAWN", spawned.name,
+                                f"【{spawned.name}】现身【{spawned.location}】——{spawned.realm.name}，来意不善！",
+                            )
+                            console.print(
+                                f"[bold red]⚠ 新角色入世：【{spawned.name}】在【{spawned.location}】"
+                                f"（{spawned.realm.name}）[/bold red]"
+                            )
+                        return fres
+
+                    res = DramaEngine.respond(
+                        player, parts[1], parts[2], fight_fn=_cli_drama_fight)
+                    if not res.get("success"):
+                        console.print(f"[red]{res.get('error') or '回应失败。'}[/red]")
+                    else:
+                        CharacterRepository.save(player)
+                        if res.get("action") != "fight":
+                            console.print(res.get("message") or "已回应。")
 
             elif action in ["/寻宝", "/clue"]:
                 # 寻宝线索链（gallery-gameplay §5.3）：与 server 调同一引擎
