@@ -207,23 +207,34 @@ class GoalEngine:
         check: Dict[str, Any],
         deadline_days: Optional[float] = None,
         now: Optional[float] = None,
+        instance: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """挂一条 check 判定式目标（origin 短期 / fate 命题）。
+        """挂一条 check 判定式目标（origin 短期 / fate 命题 / thread 章节）。
 
-        幂等：同 source + 同 check.kind + 同 check.ref 已有 active 项时
-        直接返回既有项，不重复挂（生成重入防线）。
+        幂等键（game-feel-phase2 §2.2 写死）：四元组
+        (source, check.kind, check.ref, check.instance)，缺失的
+        ref/instance 一律以 "" 归一后比较——存量无 instance 目标与
+        同样无 instance 的新目标仍互斥（一期行为逐字不变），与带
+        instance 的新目标不互斥（二期章节目标可并存）。
+        instance 只参与幂等与章节派生映射，求值器不读它。
         """
         t = now if now is not None else time.time()
         if not isinstance(character.goals, list):
             character.goals = []
         chk = dict(check or {})
+        if instance is not None:
+            chk["instance"] = instance
         if deadline_days is not None:
             chk.setdefault("deadline_days", deadline_days)
         for g in character.goals:
             if g.get("status") != "active" or g.get("source") != source:
                 continue
             gc = g.get("check") or {}
-            if gc.get("kind") == chk.get("kind") and gc.get("ref") == chk.get("ref"):
+            if (
+                gc.get("kind") == chk.get("kind")
+                and str(gc.get("ref") or "") == str(chk.get("ref") or "")
+                and str(gc.get("instance") or "") == str(chk.get("instance") or "")
+            ):
                 return g
         from config import SECONDS_PER_GAME_DAY
 
