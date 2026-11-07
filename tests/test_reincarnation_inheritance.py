@@ -37,10 +37,20 @@ from core.inheritance import (
     causality_text,
     current_karma_shadow,
     find_tombstone,
+    label_for_value,
+    shadow_value,
     tombstone_text,
 )
 from core.ascension import AscensionEngine
-from config import DB_PATH, LEGACY_BOOSTS
+from config import (
+    DB_PATH,
+    LEGACY_BOOSTS,
+    SHADOW_APPLY_MIN,
+    SHADOW_CAP,
+    SHADOW_MAX_ENTRIES,
+    SHADOW_MIN_ABS,
+    SHADOW_RETENTION,
+)
 
 init_db()
 
@@ -478,6 +488,67 @@ def test_r9_server_integration():
     dead = CharacterRepository.get_by_user_id(uid)
     dead.status = CharacterStatus.DEAD
     CharacterRepository.save(dead)
+
+    # 按 Spec §7.5 总管裁决修订（新契约「出身恩怨随影入轮回」）：
+    # 期望影子集合由结算时该角色的态度账按既有继承规则独立推导——
+    # 态度 |v|≥SHADOW_MIN_ABS 入选、KarmaLink 按类型折算（强度×10 钳 [10,40]）
+    # 与态度同 NPC 取绝对值大者、按 |value| 降序截 SHADOW_MAX_ENTRIES；
+    # 出身初始关系经 shift_attitude 落入态度账，同样合法入影，不得硬编码计数。
+    def _expected_shadow(char_id):
+        merged = {}
+        for mind in NpcMindRepository.list_all():
+            npc_id = mind.get("npc_id") or ""
+            att = (mind.get("attitudes") or {}).get(char_id)
+            if not att:
+                continue
+            try:
+                value = int(att.get("value") or 0)
+            except (TypeError, ValueError):
+                continue
+            if abs(value) < SHADOW_MIN_ABS:
+                continue
+            npc_obj = CharacterRepository.get_by_id(npc_id)
+            if npc_obj is None:
+                continue
+            merged[npc_id] = (npc_id, npc_obj.name, value, "attitude")
+        sign_by_type = {"恩": 1, "师徒": 1, "结拜": 1, "仇": -1, "怨": -1}
+        for link in KarmaLinkRepository.list_all():
+            if not link.involves(char_id):
+                continue
+            sign = sign_by_type.get(link.link_type)
+            if sign is None:
+                continue
+            other_id, other_name = link.other_side(char_id)
+            other = CharacterRepository.get_by_id(other_id)
+            if other is None:
+                continue
+            if not str(other.user_id or "").startswith(("npc_", "ai_npc_")):
+                continue
+            value = sign * max(10, min(40, int(link.strength or 0) * 10))
+            cur = merged.get(other_id)
+            if cur is None or abs(value) > abs(cur[2]):
+                merged[other_id] = (other_id, other_name, value, "link")
+        return sorted(merged.values(), key=lambda e: -abs(e[2]))[:SHADOW_MAX_ENTRIES]
+
+    expected_shadow = _expected_shadow(char.id)
+    # 手工缘（态度 50）必须在期望集合内——原断言的对象校验不削弱
+    assert (npc.id, npc.name, 50, "attitude") in expected_shadow
+    # 施加口径推导：×SHADOW_RETENTION 衰减、±SHADOW_CAP 钳制、|v|<SHADOW_APPLY_MIN 不落账
+    expected_applied_full = [
+        {
+            "npc_id": _id,
+            "npc_name": name_,
+            "value": shadow_value(value_, SHADOW_RETENTION, SHADOW_CAP),
+            "label": label_for_value(shadow_value(value_, SHADOW_RETENTION, SHADOW_CAP)),
+        }
+        for (_id, name_, value_, _kind) in expected_shadow
+        if abs(shadow_value(value_, SHADOW_RETENTION, SHADOW_CAP)) >= SHADOW_APPLY_MIN
+    ]
+    expected_applied = [
+        {"npc_name": a["npc_name"], "value": a["value"], "label": a["label"]}
+        for a in expected_applied_full
+    ]
+
     settle = w._settle_if_needed(dead, cause="寿尽坐化")
     assert settle is not None
     # R-2：server 编排重入不双记
@@ -485,6 +556,10 @@ def test_r9_server_integration():
     assert again is None or not again.get("points_gained")
     account = LegacyRepository.get_or_create(uid)
     assert len(account.traces) == 1
+    # trace 影子集合与结算时态度账推导逐项一致（顺序、对象、原值、kind 全比）
+    assert [
+        (e.npc_id, e.npc_name, e.value, e.kind) for e in account.traces[-1].shadow
+    ] == expected_shadow
     assert _tombstone_count(name) == 1
 
     # dead_payload.legacy 补 trace 与 past_lives
@@ -497,7 +572,7 @@ def test_r9_server_integration():
     # legacy_info 补 traces / karma_shadow
     info = w.legacy_info(token)
     assert info["ok"] and len(info["traces"]) == 1
-    assert info["traces"][0]["shadow_count"] == 1
+    assert info["traces"][0]["shadow_count"] == len(expected_shadow)
     assert isinstance(info["karma_shadow"], list)
     info_id = w.legacy_info_id(uid)
     assert len(info_id["traces"]) == 1 and "karma_shadow" in info_id
@@ -507,7 +582,8 @@ def test_r9_server_integration():
     assert st["past_life"]["lives"] == 1
     assert st["past_life"]["last_name"] == name
     assert st["past_life"]["last_cause"] == "寿尽坐化"
-    assert st["past_life"]["shadow_count"] == 1
+    # _status_dict 的 shadow_count 走 applied 口径（衰减后 <SHADOW_APPLY_MIN 不计）
+    assert st["past_life"]["shadow_count"] == len(expected_applied)
 
     # /道统 文本含前世因果段；/前世 别名同源
     legacy_res = w.handle(token, "/道统")
@@ -522,14 +598,20 @@ def test_r9_server_integration():
     none_res = w.handle(guest["token"], f"/墓碑 无此道号{_tag()}")
     assert none_res["ok"] and none_res["text"] == "江湖无此碑。"
 
-    # 转世：响应带 karma_shadow，NPC 对新角态度 == 50*0.4 = 20
+    # 转世：响应带 karma_shadow（全集与推导的施加清单逐项一致，含出身恩怨）；
+    # 手工缘 NPC 对新角态度 == 50*0.4 = 20（原衰减值校验不削弱，改按名定位不靠排序）
     reborn = w.reincarnate(token, name=f"承集成{_tag()}", boosts=[])
     assert reborn["ok"] is True
     shadow = reborn.get("karma_shadow")
-    assert shadow and shadow[0]["npc_name"] == npc.name and shadow[0]["value"] == 20
+    assert shadow == expected_applied
+    by_name = {s["npc_name"]: s for s in shadow}
+    assert by_name[npc.name]["value"] == 20
     new_char = CharacterRepository.get_by_user_id(uid)
     assert new_char is not None and new_char.id != char.id
     assert _att_of(npc.id, new_char.id) == 20
+    # 施加清单内每名 NPC 对新角的态度账 == 衰减后值，逐项对账
+    for applied in expected_applied_full:
+        assert _att_of(applied["npc_id"], new_char.id) == applied["value"]
     # 活角重入转世被「此世尚存」拦截（既有）
     blocked = w.reincarnate(token, name="再转者", boosts=[])
     assert blocked["ok"] is False
