@@ -2709,6 +2709,7 @@ class World:
                         res = SecretRealmEngine.abandon(char)
                         return {"ok": res.get("success"), "text": res.get("message", "")}
                     res = SecretRealmEngine.enter(char, sub)
+                    _scene_image = ""
                     if res.get("success"):
                         CharacterRepository.save(char)
                         try:
@@ -2718,7 +2719,18 @@ class World:
                             CharacterRepository.save(char)
                         except Exception:
                             pass
-                    return {"ok": res.get("success"), "text": res.get("message", "")}
+                        # 图库（二期 §9.4）：秘境进入点亮其场景图，进入
+                        # 返回只增 scene_image（无映射为空串，前端不渲染）。
+                        try:
+                            from core import gallery as _gallery_sr
+                            from core.gallery_assets import scene_path_for_realm as _spr
+
+                            _realm_name = (res.get("chain") or {}).get("realm_id") or sub
+                            _gallery_sr.note_realm_visit(char, _realm_name)
+                            _scene_image = _spr(_realm_name)
+                        except Exception:
+                            _scene_image = ""
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "scene_image": _scene_image}
                 return {"ok": True, "text": SecretRealmEngine.board_text()}
             if action in ("/dungeon", "/禁地", "/锁妖塔", "/古窟"):
                 from core.dungeon import DungeonEngine, DUNGEON_FLOORS
@@ -2728,7 +2740,19 @@ class World:
                     if len(parts) > 2 and parts[2].isdigit():
                         fl = int(parts[2])
                     res = DungeonEngine.start_dungeon(char, floor=fl)
-                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                    # 图库（二期 §9.4）：副本进入点亮锁妖古窟场景图，
+                    # 返回只增 scene_image（口径同秘境进入）。
+                    _dg_scene_image = ""
+                    if res.get("success"):
+                        try:
+                            from core import gallery as _gallery_dg
+                            from core.gallery_assets import scene_path_for_realm as _spr_dg
+
+                            _gallery_dg.note_realm_visit(char, "锁妖古窟")
+                            _dg_scene_image = _spr_dg("锁妖古窟")
+                        except Exception:
+                            _dg_scene_image = ""
+                    return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char), "scene_image": _dg_scene_image}
                 if sub in ("撤离", "遁出", "retreat", "走"):
                     res = DungeonEngine.retreat(char)
                     return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
@@ -4732,6 +4756,19 @@ class World:
                 _location_image = _ap_sd(_scene_key)
         except Exception:
             _location_image = ""
+        # 二期 §9.3（pet 区段）：pet 块只增 img——灵宠物种图完整路径；
+        # 解析口径唯一在 gallery.pet_image_key（出战宠优先、无出战取
+        # 首只活宠），无图为空串（前端不渲染图位）。
+        _pet_img = ""
+        try:
+            from core import gallery as _gallery_pet
+            from core.gallery_assets import asset_path as _ap_pet
+
+            _pet_key = _gallery_pet.pet_image_key(c)
+            if _pet_key:
+                _pet_img = _ap_pet(_pet_key)
+        except Exception:
+            _pet_img = ""
         try:
             from core.relations import relations_recent_and_marks as _rrm
 
@@ -4782,6 +4819,7 @@ class World:
                     "species": _ap.species,
                     "level": pet_level_for(_ap.growth),
                     "intimacy": _ap.intimacy,
+                    "img": _pet_img,
                 }
                 if (_ap := pet_active(c)) is not None
                 else None
@@ -5058,6 +5096,14 @@ class World:
             _fate_go_res = _FTEg.record_visit(c, matched)
             if _fate_go_res.get("changed"):
                 CharacterRepository.save(c)
+        except Exception:
+            pass
+        # 图库点亮（二期 §9.4）：迁跃落点点亮落点地点场景图，与上方
+        # 命途 T5 同点位同段；无映射地点钩子自返 []，失败不影响迁跃本体。
+        try:
+            from core import gallery as _gallery_go
+
+            _gallery_go.note_location_visit(c, matched)
         except Exception:
             pass
         text = f"御剑化虹，抵达【{matched}】。"

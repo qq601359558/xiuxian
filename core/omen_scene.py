@@ -460,14 +460,23 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
 
 # ==================== 奇遇补强（gallery-gameplay §7，E 组） ====================
 #: 预置 6 部剧本定稿配图（§7.2）：剧本 id → 资产相对键
-OMEN_SCRIPT_IMAGES: Dict[str, str] = {
-    "black_market": "portraits/npc-shanggu",
-    "orphan_trust": "portraits/npc-shaonian",
-    "spring_dispute": "arts/water",
-    "stele": "maps/map-ancient",
-    "escort_deal": "artifacts/banner",
-    "inn_whisper": "portraits/npc-laodao",
-}
+#: 二期 §9.8 起六值改指专图键：唯一事实源为
+#: core.gallery_assets.OMEN_SCRIPT_ASSET_KEYS（omen/* 专图），此处直接
+#: 取该表为值，不再借代 portraits/arts/maps/artifacts 键；事实源不可用
+#: 时以同值字面表兜底（呈现口径不变，不炸奇遇本体）。
+try:
+    from core.gallery_assets import OMEN_SCRIPT_ASSET_KEYS as _OMEN_DEDICATED_KEYS
+
+    OMEN_SCRIPT_IMAGES: Dict[str, str] = dict(_OMEN_DEDICATED_KEYS)
+except Exception:
+    OMEN_SCRIPT_IMAGES = {
+        "black_market": "omen/black-market",
+        "orphan_trust": "omen/orphan-trust",
+        "spring_dispute": "omen/spring-dispute",
+        "stele": "omen/stele",
+        "escort_deal": "omen/escort-deal",
+        "inn_whisper": "omen/inn-whisper",
+    }
 
 #: 自然奇遇每日开启上限（§7.4，自然触发计；force 豁免）
 OMEN_DAILY_OPEN_MAX = 5

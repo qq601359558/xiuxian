@@ -6,7 +6,8 @@
   GL-13 单张大小）已按定稿写死：资产岗图片未到位前如实失败，
   失败清单即缺图清单，不削弱断言、不造假占位。
 - world.py / omen_scene / treasure_system 侧的下发与调用接线属集成项，
-  以 xfail(strict=False) 契约测试钉住，集成落地后自动转 XPASS 提示。
+  原以 xfail(strict=False) 契约测试钉住；集成岗收口落地后已去标记转正
+  为常驻断言（见文末 test_integration_* 两条）。
 """
 import http.client
 import os
@@ -607,17 +608,22 @@ def test_gl14_nine_revisions_present_in_existing_tests():
 
 
 # ---------------------------------------------------------------------------
-# 待集成契约（world.py / omen_scene / treasure_system 接线，非本岗文件）
+# 集成契约（world.py / omen_scene / treasure_system 接线，集成岗收口后转正）
 # ---------------------------------------------------------------------------
-@pytest.mark.xfail(strict=False, reason="待集成：world.py 须下发 location_image/scene_image 与 pet.img（§8.1/§9.3/§9.4），调用 note_location_visit/note_realm_visit/note_map_read 的接线亦在彼处")
 def test_integration_world_side_wiring_present():
     world_src = (ROOT / "server" / "world.py").read_text(encoding="utf-8")
     assert "location_image" in world_src
     assert "scene_image" in world_src
     assert "note_location_visit" in world_src
+    # 集成岗收口补强（§9.3/§9.4/§9.7）：pet.img 下发、秘境进入点亮、
+    # treasure_system 读图点亮三处接线同批转正
+    assert "note_realm_visit" in world_src
+    assert "scene_path_for_realm" in world_src
+    assert "pet_image_key" in world_src
+    treasure_src = (ROOT / "core" / "treasure_system.py").read_text(encoding="utf-8")
+    assert "note_map_read" in treasure_src
 
 
-@pytest.mark.xfail(strict=False, reason="待集成：core/omen_scene.OMEN_SCRIPT_IMAGES 六值须改指 omen/* 专图键（§9.8），本岗只提供 gallery_assets.OMEN_SCRIPT_ASSET_KEYS 事实源")
 def test_integration_omen_script_images_point_to_dedicated_keys():
     from core.omen_scene import script_image_key
 

@@ -333,6 +333,18 @@ class TreasureEngine:
             chain_summary = _cs(tmap)
         except Exception:
             pass
+        # 图库点亮（game-feel-phase2 §9.7）：读图/线索链激活路径点亮该
+        # 宝图的原型键（archetype 未知时钩子不点亮，稀有度键由持有派生
+        # 负责）；钩子失败不影响读图本体。
+        try:
+            from core import gallery as _gallery_tm
+            from core.gallery_assets import treasure_map_archetype_of as _arch_of
+
+            _gallery_tm.note_map_read(
+                c.user_id, getattr(tmap, "tier", None), _arch_of(tmap),
+                actor_name=c.name)
+        except Exception:
+            pass
         return {
             "success": True,
             "item": tmap,

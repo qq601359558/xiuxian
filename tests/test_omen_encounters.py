@@ -34,13 +34,15 @@ from storage.db import (
 init_db()
 
 DAY = 86400.0
+# 二期 §9.8 契约变更：六剧本配图由一期借代键改指 omen/* 专图键
+# （唯一事实源 core.gallery_assets.OMEN_SCRIPT_ASSET_KEYS），本表随之修订。
 EXPECTED_IMAGES = {
-    "black_market": "portraits/npc-shanggu",
-    "orphan_trust": "portraits/npc-shaonian",
-    "spring_dispute": "arts/water",
-    "stele": "maps/map-ancient",
-    "escort_deal": "artifacts/banner",
-    "inn_whisper": "portraits/npc-laodao",
+    "black_market": "omen/black-market",
+    "orphan_trust": "omen/orphan-trust",
+    "spring_dispute": "omen/spring-dispute",
+    "stele": "omen/stele",
+    "escort_deal": "omen/escort-deal",
+    "inn_whisper": "omen/inn-whisper",
 }
 
 
@@ -125,7 +127,8 @@ def test_e4_any_terminal_leaves_trace_and_ledger():
         ])
         os_mod.start_scene(CharacterRepository.get_by_id(c.id), script_id="stele", allow_ai=False)
         res = os_mod.choose(CharacterRepository.get_by_id(c.id), "3")  # 绕道 leave 终局
-        assert res["ended"] and res["omen_image"] == asset_path("maps/map-ancient")
+        # 二期 §9.8：stele 配图已改指专图键 omen/stele（原借代 maps/map-ancient）
+        assert res["ended"] and res["omen_image"] == asset_path("omen/stele")
         assert _trace_count(c.id) == before_trace + 1
         after_ledger = len([
             r for r in EventLedgerRepository.query_for_memory(c.id, limit=50)
