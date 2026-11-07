@@ -108,8 +108,8 @@
     { title: "藏宝图", keys: [
       ["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"],
       ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"],
-      ["maps/map-celestial", "宝图·仙图", "持有仙品藏宝图"], ["maps/arch-puzzle", "宝图·五行解谜", "研读五行解谜类宝图"],
-      ["maps/arch-combat", "宝图·凶地守护", "研读凶地守护类宝图"], ["maps/arch-hazard", "宝图·遗迹涉险", "研读遗迹涉险类宝图"],
+      ["maps/map-celestial", "宝图·仙图", "持有仙品藏宝图"], ["maps/arch-puzzle", "宝图·解谜", "研读五行解谜类宝图"],
+      ["maps/arch-combat", "宝图·凶地", "研读凶地守护类宝图"], ["maps/arch-hazard", "宝图·涉险", "研读遗迹涉险类宝图"],
     ]},
     { title: "灵宠", keys: [
       ["pets/pet-qinglinmang", "灵宠·青鳞蟒", "收服青鳞蟒"], ["pets/pet-jifengxun", "灵宠·疾风隼", "收服疾风隼"],
@@ -123,26 +123,26 @@
       ["scenes/heifeng-abyss", "场景·黑风绝渊", "到访黑风绝渊"], ["scenes/wanxing-isle", "场景·万星古岛", "到访万星古岛"],
     ]},
     { title: "场景·秘境", keys: [
-      ["scenes/realm-luoxia-cave", "秘境·落霞古洞", "进入秘境落霞古洞"], ["scenes/realm-sword-tomb", "秘境·剑冢残碑", "进入秘境剑冢残碑"],
-      ["scenes/realm-wanxing-ruins", "秘境·万星遗迹残址", "进入秘境万星遗迹"], ["scenes/realm-ghost-market", "秘境·幽冥鬼市", "进入秘境幽冥鬼市"],
-      ["scenes/dungeon-entrance", "副本·锁妖古窟", "进入锁妖古窟"],
+      ["scenes/realm-luoxia-cave", "场景·落霞古洞", "进入秘境落霞古洞"], ["scenes/realm-sword-tomb", "场景·剑冢残碑", "进入秘境剑冢残碑"],
+      ["scenes/realm-wanxing-ruins", "场景·万星遗迹残址", "进入秘境万星遗迹"], ["scenes/realm-ghost-market", "场景·幽冥鬼市", "进入秘境幽冥鬼市"],
+      ["scenes/dungeon-entrance", "场景·锁妖古窟", "进入锁妖古窟"],
     ]},
     { title: "奇遇", keys: [
-      ["omen/black-market", "奇遇·黑市", "逢黑市奇遇"], ["omen/orphan-trust", "奇遇·孤托", "逢孤托奇遇"],
-      ["omen/spring-dispute", "奇遇·灵泉之争", "逢灵泉之争奇遇"], ["omen/stele", "奇遇·残碑", "逢残碑奇遇"],
-      ["omen/escort-deal", "奇遇·护送交易", "逢护送交易奇遇"], ["omen/inn-whisper", "奇遇·客栈耳语", "逢客栈耳语奇遇"],
+      ["omen/black-market", "奇遇·黑市兜售", "逢黑市奇遇"], ["omen/orphan-trust", "奇遇·旧友托孤", "逢孤托奇遇"],
+      ["omen/spring-dispute", "奇遇·灵泉争饮", "逢灵泉之争奇遇"], ["omen/stele", "奇遇·残碑悟道", "逢残碑奇遇"],
+      ["omen/escort-deal", "奇遇·镖银争议", "逢护送交易奇遇"], ["omen/inn-whisper", "奇遇·客栈夜话", "逢客栈耳语奇遇"],
     ]},
     { title: "丹药", keys: [
-      ["goods/pill-breakthrough", "丹药·破境", "持有破境类丹药"], ["goods/pill-cultivation", "丹药·修行", "持有修行类丹药"],
-      ["goods/pill-recovery", "丹药·疗复", "持有疗复类丹药"], ["goods/pill-lifespan", "丹药·延寿", "持有延寿类丹药"],
-      ["goods/pill-soul", "丹药·养魂", "持有养魂类丹药"], ["goods/pill-detox", "丹药·解毒", "持有解毒类丹药"],
-      ["goods/pill-root", "丹药·洗根", "持有洗根类丹药"], ["goods/pill-combat", "丹药·战辅", "持有战辅类丹药"],
+      ["goods/pill-breakthrough", "丹药·破境", "持有破境类丹药"], ["goods/pill-cultivation", "丹药·修炼", "持有修行类丹药"],
+      ["goods/pill-recovery", "丹药·疗愈", "持有疗复类丹药"], ["goods/pill-lifespan", "丹药·延寿", "持有延寿类丹药"],
+      ["goods/pill-soul", "丹药·神魂", "持有养魂类丹药"], ["goods/pill-detox", "丹药·解毒", "持有解毒类丹药"],
+      ["goods/pill-root", "丹药·洗髓", "持有洗根类丹药"], ["goods/pill-combat", "丹药·战斗", "持有战辅类丹药"],
     ]},
     { title: "材料", keys: [
       ["goods/mat-herb", "材料·灵草", "持有灵草类材料"], ["goods/mat-ore", "材料·矿石", "持有矿石类材料"],
-      ["goods/mat-metal", "材料·金石", "持有金石类材料"], ["goods/mat-beast", "材料·兽材", "持有兽材类材料"],
+      ["goods/mat-metal", "材料·金属", "持有金石类材料"], ["goods/mat-beast", "材料·兽材", "持有兽材类材料"],
       ["goods/mat-liquid", "材料·灵液", "持有灵液类材料"], ["goods/mat-wood", "材料·灵木", "持有灵木类材料"],
-      ["goods/mat-aura", "材料·灵蕴", "持有灵蕴类材料"],
+      ["goods/mat-aura", "材料·灵气", "持有灵蕴类材料"],
     ]},
   ];
   const GALLERY_ALL_KEYS = GALLERY_GROUPS.flatMap((g) => g.keys.map((k) => k[0]));
