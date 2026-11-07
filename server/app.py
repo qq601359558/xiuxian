@@ -205,7 +205,7 @@ class GameHandler(BaseHTTPRequestHandler):
                     decoded = unquote(decoded)
             if "%" in decoded:
                 return False
-            if not re.fullmatch(r"/assets/(portraits|artifacts|arts|maps)/[a-z0-9-]+\.webp", decoded):
+            if not re.fullmatch(r"/assets/(portraits|artifacts|arts|maps|pets|scenes|omen|goods)/[a-z0-9-]+\.webp", decoded):
                 return False
             relative = decoded[len("/assets/"):]
             # 常量闸比对不带扩展名的相对键（GALLERY_ASSET_KEYS 口径）；
