@@ -113,6 +113,9 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
                 "effects": {"sin": 5, "dao_heart": -3},
                 "choices": [],
                 "edges": [],
+                # 后果（§7.3）：惊动巡修 → 与黑市汉子结仇边 + 态度 -10（子顶）
+                "consequence": {"type": "karma_link", "npc_name": "黑市汉子",
+                                "link_type": "仇", "attitude": -10, "note": "黑市惊动巡修"},
             },
         },
     },
@@ -165,6 +168,10 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
                 "effects": {"merit": 12},
                 "choices": [],
                 "edges": [],
+                # 后果（gallery-gameplay §7.3）：应下托孤且护行至此 → 立真实
+                # 抵达诺（见证人按名取同场既有 NPC 柳三娘；取不到降级痕迹）
+                "consequence": {"type": "promise", "kind": "arrive", "param": "落霞山",
+                                "npc_name": "柳三娘", "note": "护送孤儿赴落霞山外柳家"},
             },
             "betray": {
                 "prompt": "你交出孩子。林中只余风声。",
@@ -210,6 +217,9 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
                 "effects": {"lifespan_years": -0.5},
                 "choices": [],
                 "edges": [],
+                # 后果（§7.3）：夺泉伤人 → 与涉事 NPC 结仇边 + 态度 -10（子顶）
+                "consequence": {"type": "karma_link", "npc_name": "对峙散修",
+                                "link_type": "仇", "attitude": -10, "note": "灵泉夺泉伤人"},
             },
             "peace": {
                 "prompt": "均分之下，虽只得一口，却无人记恨。",
@@ -332,6 +342,9 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
                 "effects": {},
                 "choices": [],
                 "edges": [],
+                # 后果（§7.3）：为镖头站队到底 → 立委托诺（见证人驼爷；取不到降级痕迹）
+                "consequence": {"type": "promise", "kind": "quest", "param": "",
+                                "npc_name": "驼爷", "note": "应下为驼爷镖队再护一程"},
             },
             "side_liu": {
                 "speaker": "柳三娘",
@@ -445,6 +458,165 @@ SCRIPTS: Dict[str, Dict[str, Any]] = {
 }
 
 
+# ==================== 奇遇补强（gallery-gameplay §7，E 组） ====================
+#: 预置 6 部剧本定稿配图（§7.2）：剧本 id → 资产相对键
+OMEN_SCRIPT_IMAGES: Dict[str, str] = {
+    "black_market": "portraits/npc-shanggu",
+    "orphan_trust": "portraits/npc-shaonian",
+    "spring_dispute": "arts/water",
+    "stele": "maps/map-ancient",
+    "escort_deal": "artifacts/banner",
+    "inn_whisper": "portraits/npc-laodao",
+}
+
+#: 自然奇遇每日开启上限（§7.4，自然触发计；force 豁免）
+OMEN_DAILY_OPEN_MAX = 5
+_DAILY_KEY_PREFIX = "omen_daily:"
+
+#: AI 剧本注入时一律剥离的后果字段（§7.3：后果只认预置剧本标注）
+_CONSEQUENCE_KEYS = ("consequence", "consequences", "karma_link", "promise", "omen_consequence")
+
+
+def script_image_key(script_id: str, title: str = "") -> str:
+    """剧本配图相对键：预置 6 部按 §7.2 定稿表；AI 剧本按标题关键字走
+    §3.7 功法图同序规则兜底，未命中取 maps/map-common（仅呈现）。"""
+    if script_id in OMEN_SCRIPT_IMAGES:
+        return OMEN_SCRIPT_IMAGES[script_id]
+    try:
+        from core.gallery_assets import _ART_NAME_RULES
+
+        for words, kind in _ART_NAME_RULES:
+            if any(w in (title or "") for w in words):
+                return f"arts/{kind}"
+    except Exception:
+        pass
+    return "maps/map-common"
+
+
+def scene_image_key(scene: Optional[Dict[str, Any]]) -> str:
+    if not scene:
+        return ""
+    key = scene.get("image_key")
+    if key:
+        return str(key)
+    return script_image_key(str(scene.get("script_id") or ""), str(scene.get("title") or ""))
+
+
+def scene_image_path(scene: Optional[Dict[str, Any]]) -> str:
+    """场景配图完整路径（/assets/...）；无场景为空串（§10.1 omen_image）。"""
+    key = scene_image_key(scene)
+    if not key:
+        return ""
+    try:
+        from core.gallery_assets import asset_path
+
+        return asset_path(key)
+    except Exception:
+        return ""
+
+
+def _daily_open_count(char_id: str, now: Optional[float] = None) -> int:
+    from datetime import date as _date
+
+    try:
+        raw = WorldStateRepository.get(_DAILY_KEY_PREFIX + str(char_id)) or {}
+        if isinstance(raw, dict) and raw.get("date") == _date.fromtimestamp(now or time.time()).isoformat():
+            return int(raw.get("opens") or 0)
+    except Exception:
+        pass
+    return 0
+
+
+def _bump_daily_open(char_id: str, now: Optional[float] = None) -> None:
+    from datetime import date as _date
+
+    t = now or time.time()
+    try:
+        WorldStateRepository.set(
+            _DAILY_KEY_PREFIX + str(char_id),
+            {"date": _date.fromtimestamp(t).isoformat(), "opens": _daily_open_count(char_id, t) + 1},
+        )
+    except Exception:
+        pass
+
+
+def _find_npc_by_name(name: str, location: str) -> Optional[Character]:
+    """后果落点 NPC 解析：按名取同场存活角色实体；取不到返回 None（降级）。"""
+    if not name:
+        return None
+    try:
+        for other in CharacterRepository.list_all_alive():
+            if other.name == name and other.location == location:
+                return other
+    except Exception:
+        pass
+    return None
+
+
+def _execute_consequence(c: Character, scene: Dict[str, Any], node: Dict[str, Any]) -> List[str]:
+    """终局后果统一执行（§7.3）：江湖痕迹（通用）+ 指定抉择后果（预置剧本）。
+
+    幂等由 _finish 的 consequence_done 先置位保证（本函数只在置位后调一次）。
+    执行前 assert_alive 复核（§7.5）；指定后果的 NPC 实体取不到 → 只留痕迹、
+    不报错断场。寿元恒 0；态度 |Δ|≤10 子顶；KarmaLink 只经 ensure_link +1。
+    """
+    notes: List[str] = []
+    try:
+        from core.character_integrity import CharacterIntegrity
+
+        CharacterIntegrity.assert_alive(c)
+    except Exception:
+        return notes
+    # 通用江湖痕迹（全部剧本任意终局一条；append_event 内部同步
+    # EventLedger 角色账与 public chronicle，均为既有写入口）
+    try:
+        import core.jianghu as jianghu
+
+        jianghu.append_event(
+            kind="omen_encounter",
+            actor_ids=[c.id],
+            actor_names=[c.name],
+            location=c.location,
+            summary=f"【奇遇】{c.name} 历「{scene.get('title') or '奇遇'}」一场，江湖留痕。",
+            rule_result={"script_id": scene.get("script_id") or "", "digest": "omen_encounter"},
+            ref_ids=[c.id],
+            visibility="public",
+            source="rule",
+        )
+    except Exception:
+        pass
+    cons = node.get("consequence") if isinstance(node, dict) else None
+    if not cons or scene.get("ai_generated"):
+        return notes
+    npc = _find_npc_by_name(str(cons.get("npc_name") or ""), c.location)
+    if npc is None:
+        return notes
+    ctype = cons.get("type")
+    if ctype == "promise":
+        try:
+            from core.promises import PromiseEngine
+
+            res = PromiseEngine.make_promise(c, npc, str(cons.get("kind") or "quest"), str(cons.get("param") or ""))
+            if res.get("success"):
+                notes.append(f"【奇遇留诺】{res.get('message', '')}")
+        except Exception:
+            pass
+    elif ctype == "karma_link":
+        try:
+            from core.collusion import ensure_link
+            from core.npc_mind import shift_attitude
+
+            delta = max(-10, min(10, int(cons.get("attitude") or 0)))
+            ensure_link(c, npc, str(cons.get("link_type") or "仇"), note=str(cons.get("note") or "奇遇结怨"))
+            if delta:
+                shift_attitude(npc, c.id, delta, reason=f"奇遇:{scene.get('title') or ''}")
+                CharacterRepository.save(npc)
+            notes.append(f"【奇遇结缘】与【{npc.name}】因此结下因果（{cons.get('link_type')}），其对你的态度移位 {delta:+d}。")
+        except Exception:
+            pass
+    return notes
+
+
 def _clamp(effects: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     from core.event_chains import _clamp_effects
 
@@ -535,14 +707,26 @@ def start_scene(c: Character, script_id: Optional[str] = None, allow_ai: bool = 
         "created_at": time.time(),
         "end_reason": "",
         "ai_generated": bool(ai_sid),
+        # 奇遇补强（§7.2/§7.3）：本场配图键（开启时定，推进不换图）与后果幂等锚
+        "image_key": script_image_key(sid, sc.get("title") or ""),
+        "consequence_done": False,
     }
     d = _load()
     d[c.id] = scene
     _save(d)
+    # 图鉴事件点亮（§8.3）：仅预置 6 部剧本的配图点亮，AI 剧本不点亮
+    if sid in OMEN_SCRIPT_IMAGES:
+        try:
+            from core import gallery as _gallery
+
+            _gallery.note_omen_image(str(c.user_id), scene["image_key"], actor_name=c.name)
+        except Exception:
+            pass
     return {
         "success": True,
         "scene": scene,
         "opened": True,
+        "omen_image": scene_image_path(scene),
         "message": _render(scene, c),
     }
 
@@ -593,6 +777,16 @@ def ingest_ai_script(data: Dict[str, Any], c: Character) -> Optional[str]:
         for e in nd.get("edges") or []:
             if str(e.get("to")) not in nids:
                 return None
+    # 后果剥离（§7.3）：AI 剧本一律不得携带后果标注，后果只认预置剧本
+    for _nd in nodes.values():
+        if not isinstance(_nd, dict):
+            continue
+        for _k in _CONSEQUENCE_KEYS:
+            _nd.pop(_k, None)
+        for _holder in list(_nd.get("choices") or []) + list(_nd.get("edges") or []):
+            if isinstance(_holder, dict):
+                for _k in _CONSEQUENCE_KEYS:
+                    _holder.pop(_k, None)
     speakers = data.get("speakers") or []
     if not isinstance(speakers, list):
         speakers = []
@@ -717,6 +911,17 @@ def _finish(c: Character, scene: Dict[str, Any], status: str, reason: str, effec
     scene["end_reason"] = reason
     save_scene(c.id, scene)
     CharacterRepository.save(c)
+    # 后果接链（§7.3）：consequence_done 先置位随场景落盘，再执行后果——
+    # 终局处理重入时短路，不重复立诺/结边/留痕（与 §5.6 同范式）。
+    consequence_notes: List[str] = []
+    if not scene.get("consequence_done"):
+        scene["consequence_done"] = True
+        save_scene(c.id, scene)
+        try:
+            terminal_node = _node(scene.get("script_id") or "", scene.get("node_id") or "")
+            consequence_notes = _execute_consequence(c, scene, terminal_node)
+        except Exception:
+            consequence_notes = []
     tag = "奇遇了结" if status == "success" else ("奇遇散场" if status == "forced" else "奇遇终")
     try:
         from core.world_channel import WorldChannel
@@ -731,11 +936,15 @@ def _finish(c: Character, scene: Dict[str, Any], status: str, reason: str, effec
             )
     except Exception:
         pass
+    msg = f"【{tag}】{reason}\n落账：{summary}"
+    if consequence_notes:
+        msg += "\n" + "\n".join(consequence_notes)
     return {
         "success": True,
         "ended": True,
         "omen_status": status,
-        "message": f"【{tag}】{reason}\n落账：{summary}",
+        "omen_image": scene_image_path(scene),
+        "message": msg,
         "scene": scene,
     }
 
@@ -987,6 +1196,21 @@ def maybe_trigger_natural_omen(
     if get_scene(c.id):
         return None
 
+    if not force and in_chat_npc is None:
+        # 频控（§7.4）：OMEN_COOLDOWN_SECONDS 正式生效——距上次自然奇遇
+        # 开启 <600s 不再开启；自然开启每日 ≤5 场。force 路径与交谈内
+        # 奇遇分支（in_chat_npc 非空，MF-1）豁免两者。
+        try:
+            from config import OMEN_COOLDOWN_SECONDS as _omen_cd
+
+            _cd = float(_omen_cd)
+        except Exception:
+            _cd = 600.0
+        if c.last_omen_at and time.time() - float(c.last_omen_at) < _cd:
+            return None
+        if _daily_open_count(c.id) >= OMEN_DAILY_OPEN_MAX:
+            return None
+
     from config import omen_chance
 
     r = rng or random
@@ -1038,6 +1262,8 @@ def maybe_trigger_natural_omen(
     if not started.get("success"):
         return None
     scene = started["scene"]
+    if not force and started.get("opened"):
+        _bump_daily_open(c.id)
     CharacterRepository.save(c)
     choices = current_choices(c.id)
     header = "【首图奇遇 · 机缘天降】" if force else f"【天机奇遇 · 偶发于{context or c.location}】"
@@ -1045,6 +1271,7 @@ def maybe_trigger_natural_omen(
         "triggered": True,
         "mode": "inline",
         "title": scene.get("title") or "奇遇",
+        "omen_image": scene_image_path(scene),
         "scene": scene,
         "text": f"{header}\n{started.get('message', '')}",
         "omen_inline": True,

@@ -71,6 +71,64 @@
       }[c];
     });
   }
+
+  // ---- 图库接入（gallery-gameplay §3/§8/§10.4）----
+  // 路径一律用后端下发字段（st.portrait / items[].img / equipped[].img /
+  // art_images / spells_catalog[].img / here[].avatar / omen_image）；
+  // 唯一例外是图鉴段的 38 键展示表（§10.5）。图片 onerror 隐藏图位（§3.8）。
+  var GALLERY_REALM_CN = ["练气", "筑基", "金丹", "元婴", "化神", "炼虚"];
+  var GALLERY_REALM_KEYS = ["lianqi", "zhuji", "jindan", "yuanying", "huashen", "lianxu"];
+  var GALLERY_GROUPS = [
+    { title: "人物", keys: [].concat(
+      GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/male-" + r, "男相·" + GALLERY_REALM_CN[i], "定相男后随境界点亮，或同场遇见男修"]; }),
+      GALLERY_REALM_KEYS.map(function (r, i) { return ["portraits/female-" + r, "女相·" + GALLERY_REALM_CN[i], "定相女后随境界点亮，或同场遇见女修"]; }),
+      [["portraits/npc-laodao", "NPC·老道", "与老道原型 NPC 同场或交谈"],
+       ["portraits/npc-shanggu", "NPC·商贾", "与商贾原型 NPC 同场或交谈"],
+       ["portraits/npc-nvxiu", "NPC·女修", "与女修原型 NPC 同场或交谈"],
+       ["portraits/npc-shaonian", "NPC·少年", "与少年原型 NPC 同场或交谈"]]) },
+    { title: "法宝", keys: [["artifacts/sword", "法宝·剑", "拥有剑类法宝"], ["artifacts/cauldron", "法宝·鼎炉", "拥有鼎炉类法宝"], ["artifacts/banner", "法宝·幡旗", "拥有幡旗类法宝"], ["artifacts/orb", "法宝·珠戒", "拥有珠戒类法宝"], ["artifacts/mirror", "法宝·镜", "拥有镜类法宝"], ["artifacts/bell", "法宝·铃钟", "拥有铃钟类法宝"], ["artifacts/pagoda", "法宝·塔", "拥有塔类法宝"], ["artifacts/gourd", "法宝·葫芦", "拥有葫芦类法宝"], ["artifacts/fan", "法宝·扇", "拥有扇类法宝"], ["artifacts/seal", "法宝·印玺", "拥有印玺类法宝"]] },
+    { title: "功法", keys: [["arts/metal", "功法·金", "习得金系功法"], ["arts/wood", "功法·木", "习得木系功法"], ["arts/water", "功法·水", "习得水系功法"], ["arts/fire", "功法·火", "习得火系功法"], ["arts/earth", "功法·土", "习得土系功法"], ["arts/thunder", "功法·雷", "习得雷系功法"], ["arts/sword", "功法·剑", "习得剑系功法"], ["arts/ice", "功法·冰", "习得冰系功法"]] },
+    { title: "藏宝图", keys: [["maps/map-common", "宝图·凡图", "持有凡品藏宝图"], ["maps/map-fine", "宝图·良图", "持有良品藏宝图"], ["maps/map-rare", "宝图·珍图", "持有珍品藏宝图"], ["maps/map-ancient", "宝图·古图", "持有古品藏宝图或逢残碑奇遇"]] },
+  ];
+  function galleryAssetPath(key) { return "/assets/" + key + ".webp"; }
+  function galleryFrameClass(tier) {
+    var t = parseInt(tier, 10);
+    if (!isFinite(t) || t < 1) t = 1;
+    if (t > 5) t = 5;
+    return "frame-tier-" + t;
+  }
+  function galleryImg(src, cls, alt) {
+    if (!src) return "";
+    return '<img class="gallery-img ' + (cls || "") + '" src="' + esc(src) + '" alt="' + esc(alt || "") + '" loading="lazy" onerror="this.style.display=\'none\'" />';
+  }
+  function spiritHtmlM(eq) {
+    var sp = eq && eq.spirit;
+    if (!sp) return "";
+    var mood = Number(sp.mood != null ? sp.mood : 0);
+    return '<div class="spirit-block"><div class="spirit-head"><span>器灵 · ' + esc(sp.name || "无名灵") + '</span><span>' + esc(sp.stage_cn || "") + '</span></div>' +
+      '<div class="muted">性格 ' + esc(sp.personality_cn || "—") + ' · 成长 ' + esc(sp.growth != null ? sp.growth : 0) + ' · 心情 ' + esc(mood) + (mood < 40 ? "（器灵怠工）" : "") + '</div>' +
+      '<div class="spirit-mood"><i style="width:' + Math.max(0, Math.min(100, mood)) + '%"></i></div>' +
+      '<div class="chiprow"><button type="button" class="chip" data-cmd="/器灵">器灵面板</button>' +
+      '<button type="button" class="chip" data-cmd="/温养 ' + esc(eq.name) + '">温养</button>' +
+      '<button type="button" class="chip" data-fill="/灵语 ">灵语</button></div></div>';
+  }
+  function clueChainHtmlM(it) {
+    var cc = it && it.clue_chain;
+    if (!cc) return '<div class="muted">线索链未激活：研读宝图（/宝图）后顺带激活。</div>';
+    var statusCn = { active: "进行中", awaiting_chest: "线索已尽 · 待开匣", completed: "已完成", abandoned: "已弃链" }[cc.status] || cc.status || "";
+    return '<div class="clue-chain">寻宝线索链：' + esc(statusCn) + ' · 第 ' + esc(cc.step != null ? cc.step : 0) + '/' + esc(cc.total_steps != null ? cc.total_steps : 0) + ' 步' +
+      (cc.current_node_name ? ' · 当前节点【' + esc(cc.current_node_name) + '】' : "") +
+      '<div class="chiprow" style="margin-top:6px"><button type="button" class="chip" data-cmd="/寻宝">寻宝进度</button></div></div>';
+  }
+  var galleryNewlySeenKey = "";
+  function checkGalleryNewly(st) {
+    var g = st && st.gallery;
+    if (!g || !Array.isArray(g.newly) || !g.newly.length) return;
+    var key = g.newly.slice().sort().join(",") + "|" + (g.count || "");
+    if (key === galleryNewlySeenKey) return;
+    galleryNewlySeenKey = key;
+    toast("图鉴新点亮：" + g.newly.length + " 图（" + (g.count || g.newly.length) + "/" + (g.total || 38) + "）", "ok");
+  }
   function setText(id, v) {
     var el = $(id);
     if (el) el.textContent = v;
@@ -128,11 +186,12 @@
     if (/天道|世界弧|异象|大劫|血煞|机缘/.test(t)) return "ai";
     return "ok";
   }
-  function pushFeed(text, kind) {
+  function pushFeed(text, kind, img) {
     if (!text) return;
     state.feed.push({
       text: String(text),
       kind: kind || kindOf(text),
+      img: img || "",
       ts: Date.now() / 1000,
     });
     if (state.feed.length > 200) state.feed = state.feed.slice(-200);
@@ -153,6 +212,7 @@
   // ---- 状态同步：只读后端下发字段，不自造数值 ----
   function applyStatus(st) {
     if (!st) return;
+    checkGalleryNewly(st);
     state.status = Object.assign({}, state.status || {}, st);
     setText("topDaoName", st.name || state.name || "—");
     setText(
@@ -210,6 +270,8 @@
           '<span class="ts">' +
           esc(fmtTime(f.ts)) +
           "</span>" +
+          // 奇遇配图（omen_image，后端下发完整路径；失败 onerror 隐藏）
+          (f.img ? galleryImg(f.img, "feed-omen-img", "奇遇配图") : "") +
           (f.kind === "cmd"
             ? '<span class="cmd-mark">»</span> ' + esc(String(f.text).replace(/^»\s?/, ""))
             : esc(f.text)) +
@@ -256,6 +318,23 @@
     var arts = st.arts || {};
     var med = st.meditating || st.is_meditating;
     var html = "";
+    // 人物立绘 + 定相 + 图鉴进度（§10.4-1）：portrait/gender/gallery 只认后端下发
+    html += '<div class="card portrait-card">';
+    if (st.portrait) html += galleryImg(st.portrait, "portrait-img", st.name || "人物立绘");
+    html += '<div class="portrait-meta">';
+    if (st.gender) {
+      html += '<div class="muted">已定' + (st.gender === "female" ? "女" : "男") + '相 · 立绘随境界而变</div>';
+    } else {
+      html += '<div class="muted">尚未定相：当前为既有修行图占位。/定相 男|女 自选相貌（纯外观）。</div>';
+    }
+    html += '<div class="chiprow"><button type="button" class="chip" data-cmd="/定相 男">定相 · 男</button>' +
+      '<button type="button" class="chip" data-cmd="/定相 女">定相 · 女</button></div>';
+    if (st.gallery) {
+      html += '<button type="button" class="gallery-progress-row" data-mview="ops">图鉴 ' +
+        esc(st.gallery.count != null ? st.gallery.count : 0) + "/" + esc(st.gallery.total || 38) +
+        (st.gallery.title ? " · " + esc(st.gallery.title) : "") + " ›</button>";
+    }
+    html += "</div></div>";
     html +=
       '<div class="card"><p class="card-eyebrow">道身</p><h3>' +
       esc(st.name || state.name || "—") +
@@ -335,6 +414,21 @@
       html += kv("辅修心法", esc(arts.sub.join("、")));
     if (st.skills && st.skills.length)
       html += kv("法门", esc(st.skills.join("、")));
+    if (st.skills && st.skills.length) {
+      // 功法图（art_images，后端下发）
+      var artImgs = st.art_images || {};
+      html += '<div class="kv"><span class="k">法门图</span><span class="v art-chips">' +
+        st.skills.map(function (n) {
+          return '<span class="art-chip">' + galleryImg(artImgs[n], "art-thumb", n) + "<span>" + esc(n) + "</span></span>";
+        }).join("") + "</span></div>";
+    }
+    if (st.spells_catalog && st.spells_catalog.length) {
+      // 神通图（spells_catalog[].img，后端下发）
+      html += '<div class="kv"><span class="k">神通图</span><span class="v art-chips">' +
+        st.spells_catalog.map(function (sp) {
+          return '<span class="art-chip">' + galleryImg(sp.img, "art-thumb", sp.name || "神通") + "<span>" + esc(sp.name || "") + "</span></span>";
+        }).join("") + "</span></div>";
+    }
     html += "</div>";
     html += '<div class="card"><p class="card-eyebrow">前世因果</p>';
     if (past.lives) {
@@ -411,7 +505,9 @@
         '<div class="empty"><div class="empty-seal">戒</div><p class="empty-title">未穿戴任何法宝</p><p class="muted">去探险寻宝，或入纳戒挑选</p><button type="button" class="chip ghost" data-cmd="/探险">去探险寻宝</button></div>';
     equipped.forEach(function (eq) {
       html +=
-        '<div class="eq-row"><span><span class="slot">' +
+        '<div class="eq-row"><span class="eq-main">' +
+        (eq.img ? '<span class="' + galleryFrameClass(eq.tier) + '">' + galleryImg(eq.img, "equip-thumb", eq.name) + "</span>" : "") +
+        '<span class="slot">' +
         esc(eq.slotCn || eq.slot || "法宝") +
         '</span><span class="nm">' +
         esc(eq.name) +
@@ -420,6 +516,9 @@
         '">' +
         esc(eq.tierName || "") +
         "</span></div>";
+      html += spiritHtmlM(eq);
+      if (!eq.spirit && (eq.tier || 0) >= 4)
+        html += '<div class="chiprow"><button type="button" class="chip" data-cmd="/器灵 唤 ' + esc(eq.name) + '">唤灵</button></div>';
     });
     html += "</div>";
     // 同名合并 ×n
@@ -458,6 +557,7 @@
         '" data-bag="' +
         esc(name) +
         '">' +
+        (it.img ? '<span class="' + galleryFrameClass(it.tier) + '">' + galleryImg(it.img, "bag-thumb", name) + "</span>" : "") +
         '<span class="tg ' +
         tierClass(it.tierName) +
         '">' +
@@ -472,9 +572,16 @@
         "</span></button>";
       if (sel) {
         html +=
-          '<div class="card bag-detail"><div class="muted">' +
+          '<div class="card bag-detail">' +
+          (it.img ? '<div class="' + galleryFrameClass(it.tier) + '">' + galleryImg(it.img, "detail-img", name) + "</div>" : "") +
+          '<div class="muted">' +
           esc(it.desc || it.lore || "") +
           "</div>";
+        // 已穿戴同名器物的器灵（spirit 只在 equipped[] 下发）
+        var selEq = equipped.filter(function (e) { return e.name === name; })[0];
+        if (selEq) html += spiritHtmlM(selEq);
+        if (it.kind === "treasure_map" || it.kind === "map" || name.indexOf("图") >= 0)
+          html += clueChainHtmlM(it);
         html += '<div class="chiprow" style="margin-top:8px">';
         if (it.kind === "equip")
           html +=
@@ -498,6 +605,7 @@
             '<button type="button" class="chip primary" data-cmd="/宝图 ' +
             esc(name) +
             '">研读宝图</button>' +
+            '<button type="button" class="chip" data-cmd="/寻宝">寻宝</button>' +
             '<button type="button" class="chip" data-cmd="/挖宝 ' +
             esc(name) +
             '">挖宝</button>';
@@ -546,6 +654,7 @@
       var tagCls = r.blood_marked ? " danger" : !r.is_npc ? " gold" : r.attitude_cn === "友善" ? " friend" : r.attitude_cn === "仇视" ? " danger" : "";
       html +=
         '<div class="person"><div class="row1"><span class="nm">' +
+        (r.avatar ? galleryImg(r.avatar, "here-avatar", r.name) : "") +
         esc(r.name) +
         '</span><span class="tag' +
         tagCls +
@@ -592,9 +701,33 @@
     host.innerHTML = html;
   }
 
+  // 图鉴段（§10.4-4）：操作分区整页段，四类紧凑列表；点亮只认 st.gallery.unlocked
+  function renderGalleryOps() {
+    var host = $("galleryOps");
+    if (!host) return;
+    var st = state.status || {};
+    var g = st.gallery || { unlocked: [], count: 0, total: 38, title: "" };
+    var unlocked = {};
+    (Array.isArray(g.unlocked) ? g.unlocked : []).forEach(function (k) { unlocked[k] = true; });
+    var html = '<div class="muted">进度 ' + esc(g.count != null ? g.count : 0) + "/" + esc(g.total || 38) +
+      (g.title ? " · 称号【" + esc(g.title) + "】（仅展示）" : " · 称号档：10 初窥门径 / 20 博览群真 / 30 洞鉴乾坤 / 38 图录大成") + "</div>";
+    GALLERY_GROUPS.forEach(function (grp) {
+      html += '<div class="section-title">' + esc(grp.title) + "</div>";
+      grp.keys.forEach(function (entry) {
+        var key = entry[0], cn = entry[1], cond = entry[2];
+        var lit = !!unlocked[key];
+        html += '<div class="gallery-row">' + galleryImg(galleryAssetPath(key), lit ? "gallery-thumb" : "gallery-thumb gallery-silhouette", cn) +
+          '<span class="nm">' + esc(cn) + '</span><span class="muted">' + (lit ? "◆ 已点亮" : "◇ " + esc(cond)) + "</span></div>";
+      });
+    });
+    html += '<button type="button" class="btn secondary block" data-cmd="/图鉴">图鉴文本（/图鉴）</button>';
+    host.innerHTML = html;
+  }
+
   function renderOps() {
     var host = $("opsBody");
-    if (!host || state.opsBuilt) return;
+    if (!host) return;
+    if (state.opsBuilt) { renderGalleryOps(); return; }
     state.opsBuilt = true;
     var opts = PLACES.map(function (p) {
       return '<option value="' + esc(p.name) + '">' + esc(p.name) + "</option>";
@@ -649,6 +782,13 @@
         .join("") +
       '<button type="button" class="chip" data-fill="/灵鹤 ">灵鹤</button>' +
       "</div>" +
+      '<div class="card"><p class="card-eyebrow">定相（纯外观，随时可改）</p>' +
+      '<div class="chiprow">' +
+      '<button type="button" class="chip" data-cmd="/定相 男">定相 · 男</button>' +
+      '<button type="button" class="chip" data-cmd="/定相 女">定相 · 女</button>' +
+      "</div></div>" +
+      '<div class="card"><p class="card-eyebrow">天道图鉴</p>' +
+      '<div id="galleryOps"></div></div>' +
       '<div class="card"><p class="card-eyebrow">显示与切换</p>' +
       '<button type="button" class="display-row" data-theme-toggle="1">昼夜天象切换<span class="arr">›</span></button>' +
       '<button type="button" class="display-row" data-view-switch="desktop">桌面版<span class="arr">›</span></button>' +
@@ -669,6 +809,7 @@
     $("btnCrane").addEventListener("click", function () {
       sendCmd("/灵鹤 " + $("goSelect").value);
     });
+    renderGalleryOps();
   }
 
   function setView(v) {
@@ -710,7 +851,7 @@
       if (state.demo) data = demoResult(c);
       else data = await api("/action", { token: state.token, command: c });
       if (data.status) applyStatus(data.status);
-      if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
+      if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
       else if (data.ok === false && data.error)
         pushFeed("敕令失败：" + data.error, "bad");
       if (data.dead)
@@ -980,6 +1121,11 @@
       pets_count: 0,
       arts: { main: "吐纳术", sub: ["御剑术"] },
       skills: ["吐纳术", "御剑术"],
+      gender: "male",
+      portrait: "/assets/portraits/male-zhuji.webp",
+      gallery: { unlocked: ["portraits/male-lianqi", "portraits/male-zhuji"], count: 2, total: 38, title: "", newly: [] },
+      art_images: { "吐纳术": "/assets/arts/earth.webp", "御剑术": "/assets/arts/sword.webp" },
+      spells_catalog: [],
       items: [],
       equipped: [],
       max_bag_slots: 64,
@@ -994,6 +1140,7 @@
         is_npc: true,
         personality: "和气生财",
         attitude_cn: "友善",
+        avatar: "/assets/portraits/npc-nvxiu.webp",
       },
       {
         name: "凌剑心",

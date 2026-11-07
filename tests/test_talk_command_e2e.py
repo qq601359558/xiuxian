@@ -58,6 +58,73 @@ def test_talk_command_end_to_end():
     print("✓ 链路：/交谈 道号 内容 可用；空话/有话/错误道号/闭关均已覆盖")
 
 
+def test_talk_open_includes_avatar_matching_here():
+    """SF-1（spec §10.3-5）：交谈开启/会话结构下发 avatar，与同场逐字一致。"""
+    import uuid
+
+    import config
+
+    config.ALLOW_LOCAL_AI = True
+    config.LLM_API_KEY = ""
+    config.USE_CCSWITCH = False
+    from core.here import list_here
+    from core import npc_chat
+    from storage.db import WorldStateRepository
+
+    tag = uuid.uuid4().hex[:8]
+    loc = f"头像地{tag}"  # 唯一地点隔离同场列表（避免客栈积压角色超 list_here 上限）
+    w = World(auto_tick=False)
+    r = w.join(f"头像客{tag}", user_id=f"talk_avatar_player_{tag}")
+    tok = r["token"]
+    char = w.get_char(tok)
+    char.location = loc
+    CharacterRepository.save(char)
+
+    npc = WorldClock.create_new_character(f"npc_talk_avatar_{tag}", f"头像掌柜{tag}")
+    npc.location = loc
+    npc.sect = "四海散修商会"
+    npc.sect_rank = "掌柜"
+    CharacterRepository.save(npc)
+
+    peer = WorldClock.create_new_character(f"ch_talk_avatar_{tag}", f"同场道友{tag}")
+    peer.location = loc
+    CharacterRepository.save(peer)
+    try:
+        rows = {x["name"]: x for x in list_here(char)}
+        assert npc.name in rows and peer.name in rows
+        npc_avatar = rows[npc.name]["avatar"]
+        peer_avatar = rows[peer.name]["avatar"]
+        assert npc_avatar.startswith("/assets/")  # 完整路径（NPC 原型图）
+
+        # /交谈 无话开启
+        r1 = w.handle(tok, f"/交谈 {npc.name}")
+        assert r1.get("ok") is True, r1
+        assert r1.get("avatar") == npc_avatar, r1
+        # /说 会话内发言（最终 payload）
+        r2 = w.handle(tok, "/说 这聚气丹什么价？坊市行情如何")
+        assert r2.get("ok") is True, r2
+        assert r2.get("avatar") == npc_avatar, r2
+        w.handle(tok, "/挂断")
+        # /交谈 带话开启
+        r3 = w.handle(tok, f"/交谈 {npc.name} 打听血刀老祖下落")
+        assert r3.get("ok") is True, r3
+        assert r3.get("avatar") == npc_avatar, r3
+        w.handle(tok, "/挂断")
+        # 真人目标开启：avatar 走玩家定相口径，仍与同场逐字一致
+        r4 = w.handle(tok, f"/交谈 {peer.name}")
+        assert r4.get("ok") is True, r4
+        assert r4.get("is_player") is True
+        assert r4.get("avatar") == peer_avatar, r4
+        # 真人目标带话开启（player_direct）
+        r5 = w.handle(tok, f"/交谈 {peer.name} 道友安好")
+        assert r5.get("ok") is True, r5
+        assert r5.get("avatar") == peer_avatar, r5
+        print("✓ 交谈开启/会话 avatar 与同场逐字一致（NPC + 真人）")
+    finally:
+        WorldStateRepository.delete(npc_chat._KEY)
+
+
 if __name__ == "__main__":
     test_talk_command_end_to_end()
+    test_talk_open_includes_avatar_matching_here()
     print("\n✅ 交谈链路测试通过")

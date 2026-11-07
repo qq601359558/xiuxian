@@ -17,6 +17,9 @@
   --shadow-btn: 0 4px 14px rgba(20,106,89,.25);
   --focus-ring: 0 0 0 2px rgba(197,155,39,.35);
   --gold-a08: rgba(197,155,39,.08); --gold-a12: rgba(212,175,55,.12);
+  --frame-1: #8a7f72; --frame-2: #b0763a; --frame-3: #c0c7ce; --frame-4: #e0b43c; --frame-5: #a678e8; /* gallery: 品阶图框 */
+  --frame-4-glow: rgba(224,180,60,.55); --frame-4-glow-strong: rgba(224,180,60,.75); --frame-5-glow: rgba(150,90,230,.6); --frame-5-glow-soft: rgba(150,90,230,.45); /* gallery: 品阶图框光晕 */
+  --spirit-muted: #cbd5e1; --spirit-track: rgba(255,255,255,.18); /* gallery: 器灵面板次级色/轨道 */
   --font-display: "Noto Serif SC",STSong,SimSun,serif;
   --font-ui: "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
   --font-num: ui-monospace,"SF Mono",Consolas,monospace;
@@ -37,6 +40,9 @@ html[data-theme="dark"] {
   --shadow-card: 0 4px 16px rgba(0,0,0,.45); --shadow-btn: 0 4px 14px rgba(0,0,0,.45);
   --focus-ring: 0 0 0 2px rgba(212,175,55,.45);
   --gold-a08: rgba(212,175,55,.08); --gold-a12: rgba(212,175,55,.12);
+  --frame-1: #998e81; --frame-2: #bf8348; --frame-3: #cfd6dd; --frame-4: #efc44b; --frame-5: #b587f7; /* gallery: 品阶图框 */
+  --frame-4-glow: rgba(224,180,60,.55); --frame-4-glow-strong: rgba(224,180,60,.75); --frame-5-glow: rgba(150,90,230,.6); --frame-5-glow-soft: rgba(150,90,230,.45); /* gallery: 品阶图框光晕 */
+  --spirit-muted: #cbd5e1; --spirit-track: rgba(255,255,255,.18); /* gallery: 器灵面板次级色/轨道 */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -287,3 +293,37 @@ body.kb-open #toasts { bottom: 120px; /* QA-02：键盘态 120px = 60 坞 + 48 �
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- 图库接入（gallery-gameplay §3.6/§3.8/§8/§10.4） ---- */
+.gallery-img { object-fit: cover; background: var(--jade-900); max-width: 100%; }
+.frame-tier-1 { border: 2px solid var(--frame-1); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-2 { border: 2px solid var(--frame-2); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-3 { border: 2px solid var(--frame-3); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-4 { border: 2px solid var(--frame-4); box-shadow: 0 0 12px var(--frame-4-glow); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; }
+.frame-tier-5 { border: 2px solid var(--frame-5); box-shadow: 0 0 16px var(--frame-5-glow); border-radius: 10px; display: inline-block; overflow: hidden; flex: none; animation: frameFlowM 3.2s ease-in-out infinite; }
+@keyframes frameFlowM { 0%, 100% { box-shadow: 0 0 9px var(--frame-5-glow-soft); } 50% { box-shadow: 0 0 20px var(--frame-4-glow-strong); } }
+@media (prefers-reduced-motion: reduce) { .frame-tier-5 { animation: none; } }
+.portrait-card { display: flex; gap: 12px; align-items: flex-start; }
+.portrait-img { width: 84px; height: 112px; border-radius: 10px; flex: none; }
+.portrait-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.gallery-progress-row { min-height: 44px; text-align: left; background: var(--jade-100); border: 1px solid var(--input-line); border-radius: 10px; color: var(--jade-700); font-size: 14px; font-weight: 700; padding: 8px 10px; }
+.art-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.art-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--jade-100); border: 1px solid var(--input-line); border-radius: 999px; padding: 2px 8px 2px 2px; }
+.art-thumb { width: 24px; height: 24px; border-radius: 50%; }
+.bag-thumb, .equip-thumb { width: 40px; height: 40px; display: block; }
+.detail-img { width: 100%; max-height: 180px; display: block; }
+.eq-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.here-avatar { width: 32px; height: 32px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.feed-omen-img { width: 100%; max-height: 160px; border-radius: 8px; display: block; margin-bottom: 6px; }
+.spirit-block { background: var(--jade-900); color: var(--on-jade); border: 1px solid var(--line-gold); border-radius: 10px; padding: 10px; margin: 6px 0 10px; font-size: 13px; }
+.spirit-block .muted { color: var(--spirit-muted); }
+.spirit-head { display: flex; justify-content: space-between; font-weight: 700; color: var(--gold-soft); }
+.spirit-mood { height: 6px; border-radius: 3px; background: var(--spirit-track); overflow: hidden; margin: 6px 0 8px; }
+.spirit-mood > i { display: block; height: 100%; background: var(--grad-bar); }
+.clue-chain { font-size: 13px; color: var(--gold-700); background: var(--gold-a12); border: 1px solid var(--line-gold); border-radius: 10px; padding: 8px 10px; margin-top: 8px; overflow-wrap: anywhere; }
+.gallery-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.gallery-row:last-of-type { border-bottom: none; }
+.gallery-row .nm { flex: none; font-weight: 700; }
+.gallery-row .muted { flex: 1; min-width: 0; text-align: right; }
+.gallery-thumb { width: 44px; height: 44px; border-radius: 8px; flex: none; }
+.gallery-silhouette { filter: grayscale(1) brightness(.45) contrast(.9); }

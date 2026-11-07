@@ -316,10 +316,29 @@ class TreasureEngine:
         elif target_node:
             distance_info = f"\n\n【天机未测】宝图所示机缘深藏于【{target_name}】。请先动身前往。"
 
+        message = f"{tmap.format_tooltip()}{distance_info}"
+        # 寻宝线索链（gallery-gameplay §5.3）：未激活顺带激活、已激活追加
+        # 进度段；钩子失败不影响读图本体。changed 时调用方须 save 落盘。
+        chain_changed = False
+        chain_summary = None
+        try:
+            from core.treasure_clue import TreasureClueEngine
+
+            act = TreasureClueEngine.maybe_activate_on_read(c, tmap)
+            if act.get("text"):
+                message += act["text"]
+            chain_changed = bool(act.get("changed"))
+            from core.treasure_clue import chain_summary as _cs
+
+            chain_summary = _cs(tmap)
+        except Exception:
+            pass
         return {
             "success": True,
             "item": tmap,
-            "message": f"{tmap.format_tooltip()}{distance_info}",
+            "message": message,
+            "chain_changed": chain_changed,
+            "clue_chain": chain_summary,
         }
 
     @staticmethod
