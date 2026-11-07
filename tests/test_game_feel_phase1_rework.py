@@ -265,3 +265,37 @@ def test_mf3_mapped_unfinished_falls_through_when_condition_mismatch():
         unfinished=unfinished)
     assert kind == "stand_firm", f"无 foe 时不得命中 foe_reckoning，实际 {kind}"
     assert check == {"kind": "realm_at_least", "tier": 2}
+
+
+# ================= S-2 entry.proactive 形状 =================
+
+def test_s2_entry_proactive_single_object_or_none(monkeypatch):
+    """有来访时 entry.proactive 为单对象 {text, npc}（取第一条），
+    无来访时为 None；queue 里的 npc_visit 项逻辑不动。"""
+    from core.briefing import build_entry
+    from core.npc_proactive import NpcProactiveEngine
+
+    char = _char("来访形状")
+    monkeypatch.setattr(
+        NpcProactiveEngine, "maybe_engage",
+        staticmethod(lambda c, force=False: [{
+            "npc": "来访者甲", "line": "道友别来无恙",
+            "text": "【来访者甲】道友别来无恙", "delta": 0,
+        }]),
+    )
+    entry = build_entry(char, since=char.born_at, allow_proactive=True)
+    assert isinstance(entry["proactive"], dict), (
+        f"proactive 应为单对象 dict，实际 {type(entry['proactive'])}")
+    assert entry["proactive"]["npc"] == "来访者甲"
+    assert "道友别来无恙" in entry["proactive"]["text"]
+    assert any(q["kind"] == "npc_visit" for q in entry["queue"]), (
+        "queue 的 npc_visit 项不得受 proactive 形状变更影响")
+
+    monkeypatch.setattr(
+        NpcProactiveEngine, "maybe_engage",
+        staticmethod(lambda c, force=False: []),
+    )
+    entry2 = build_entry(char, since=char.born_at, allow_proactive=True)
+    assert entry2["proactive"] is None
+    entry3 = build_entry(char, since=char.born_at, allow_proactive=False)
+    assert entry3["proactive"] is None

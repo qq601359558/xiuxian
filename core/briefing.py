@@ -301,6 +301,16 @@ def build_entry(
             queue.append(_item(
                 "npc_visit", 5, f"{pv.get('npc', '有人')} 来访",
                 pv.get("line") or pv.get("text") or "", "", {"view": "world"}))
+    # S-2：entry.proactive 对外形状为单对象 {text, npc}（取第一条来访），
+    # 无来访时为 None——双端前端按 string 或 .text 取值，list 恒空。
+    # queue 的 npc_visit 项仍由上方完整列表驱动，逻辑不动。
+    proactive_obj: Dict[str, Any] | None = None
+    if proactive:
+        _pv0 = proactive[0] or {}
+        proactive_obj = {
+            "text": _pv0.get("text") or _pv0.get("line") or "",
+            "npc": _pv0.get("npc", ""),
+        }
 
     queue.sort(key=lambda q: q["priority"])
     queue = queue[:8]
@@ -322,7 +332,7 @@ def build_entry(
         "rest_count": max(0, len(queue) - 3),
         "empty": len(queue) == 0,
         "empty_text": "江湖无事，可自由行动",
-        "proactive": proactive,
+        "proactive": proactive_obj,
     }
     if _out_dirty is not None:
         _out_dirty.append(changed)
