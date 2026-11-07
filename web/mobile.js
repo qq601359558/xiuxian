@@ -48,6 +48,9 @@
     mode: "login",
     view: "feed",
     status: null,
+    entry: null,
+    entryPending: false,
+    originCard: null,
     here: [],
     feed: [],
     world: null,
@@ -252,6 +255,7 @@
   }
 
   function renderFeed() {
+    renderEntryCardM();
     var host = $("feedLog");
     if (!host) return;
     if (!state.feed.length) {
@@ -827,6 +831,80 @@
       refreshAll();
   }
 
+  // ---- 游戏感第一期（game-feel-phase1）：只认后端下发结构渲染，缺失即不渲染 ----
+  var CEREMONY_CN_M = { breakthrough: "突破", death: "归府", rebirth: "转世" };
+  var STAGE_CN_M = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
+  function ceremonySkippedM(kind) {
+    try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; }
+  }
+  function closeOverlayM(id) { var el = $(id); if (el) el.remove(); }
+  // 件一 · 移动入局卡（§2.5）：feed 置顶，数据同 state.entry
+  function entryTargetAttrsM(t) {
+    if (!t) return "";
+    if (t.command) return ' data-cmd="' + esc(t.command) + '"';
+    if (t.view) {
+      var map = { entry: "feed", inventory: "bag", bazaar: "ops", gallery: "ops" };
+      var v = map[t.view] || t.view;
+      if (["feed", "sanctum", "bag", "world", "ops"].indexOf(v) >= 0)
+        return ' data-mview="' + esc(v) + '"';
+      return ' data-entry-view="' + esc(t.view) + '"';
+    }
+    return "";
+  }
+  function entryItemHtmlM(it) {
+    if (!it) return "";
+    var attrs = entryTargetAttrsM(it.target);
+    return '<div class="entry-act"><span class="tx"><b>' + esc(it.title || it.kind || "待办") + "</b>" +
+      (it.text ? '<br><span class="muted">' + esc(it.text) + "</span>" : "") + "</span>" +
+      (attrs ? '<button type="button" class="chip primary"' + attrs + ">前往</button>" : "") + "</div>";
+  }
+  function renderEntryCardM() {
+    var host = $("entryCard");
+    if (!host) return;
+    var e = state.entry;
+    if (!e) {
+      host.innerHTML = state.entryPending
+        ? '<div class="card"><p class="muted">天道繁忙，入局信息待补——可先自由行动。</p></div>' : "";
+      return;
+    }
+    var lines = e.lines || {};
+    var html = '<div class="card"><p class="card-eyebrow">入局 · 当下之事</p>';
+    if (lines.fate) html += '<p class="world-para">' + esc(lines.fate) + "</p>";
+    if (lines.chains && (lines.chains.text || lines.chains.fermenting != null))
+      html += '<p class="world-para">' + esc(lines.chains.text || ("发酵中因果链 " + lines.chains.fermenting + " 条")) + "</p>";
+    if (Array.isArray(lines.relations))
+      lines.relations.forEach(function (r) { if (r && r.summary) html += '<p class="world-para">' + esc(r.summary) + "</p>"; });
+    var pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
+    if (pv) html += '<p class="world-para">' + esc(pv) + "</p>";
+    var queue = Array.isArray(e.queue) ? e.queue : [];
+    var hl = Array.isArray(e.highlight) && e.highlight.length ? e.highlight : queue.slice(0, 3);
+    if (e.empty || !queue.length) {
+      html += '<p class="muted">' + esc(e.empty_text || "江湖无事，可自由行动") + "</p>";
+    } else {
+      hl.forEach(function (it) { html += entryItemHtmlM(it); });
+      var rest = queue.slice(hl.length);
+      if (rest.length) {
+        html += "<details><summary>另有 " + esc(e.rest_count != null ? e.rest_count : rest.length) + " 件待办</summary>";
+        rest.forEach(function (it) { html += entryItemHtmlM(it); });
+        html += "</details>";
+      }
+    }
+    host.innerHTML = html + "</div>";
+  }
+  async function refreshEntryM() {
+    if (state.demo || !state.token) return;
+    try {
+      var base = (state.base || "").trim().replace(/\/$/, "");
+      if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
+      var res = await fetch(base + "/world/briefing", {
+        headers: { Authorization: "Bearer " + state.token }, cache: "no-store",
+      });
+      if (!res.ok) return;
+      var b = await res.json();
+      if (b && b.entry) { state.entry = b.entry; state.entryPending = false; }
+    } catch (_) {}
+  }
+
   // ---- 命令通道 ----
   function demoResult(c) {
     var st = state.status || {};
@@ -851,6 +929,7 @@
       if (state.demo) data = demoResult(c);
       else data = await api("/action", { token: state.token, command: c });
       if (data.status) applyStatus(data.status);
+      if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
       else if (data.ok === false && data.error)
         pushFeed("敕令失败：" + data.error, "bad");
@@ -990,6 +1069,7 @@
       var world = await api("/world/director");
       if (world && world.ok !== false) state.world = world;
     } catch (_) {}
+    await refreshEntryM();
     renderCurrent();
   }
 
@@ -1044,6 +1124,9 @@
       localStorage.setItem("wb.base", state.base);
       state.demo = false;
       localStorage.removeItem("wb.demo");
+      if (payload.entry !== undefined) state.entry = payload.entry;
+      if (payload.entry_pending !== undefined) state.entryPending = !!payload.entry_pending;
+      if (payload.origin_card) state.originCard = payload.origin_card;
       applyStatus({
         name: state.name,
         realm: payload.realm || "练气期",
