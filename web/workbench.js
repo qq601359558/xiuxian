@@ -255,8 +255,15 @@
     uid: localStorage.getItem("wb.uid") || "",
     theme: localStorage.getItem("wb.theme") === "dark" ? "dark" : "light",
     mode: "login",
-    view: "sanctum", // 'sanctum', 'wilderness', 'inventory', 'bazaar'
+    view: "sanctum", // 'entry', 'sanctum', 'wilderness', 'inventory', 'bazaar'
     status: null,
+    // 游戏感第一期（game-feel-phase1 §2.5）：登录响应只增 entry；缺失即不渲染入局层
+    entry: null,
+    entryPending: false,
+    // §3.11 出身卡（origin_card）与 §4 仪式（ceremony，均只认后端下发结构）
+    originCard: null,
+    originCardDismissed: false,
+    ceremony: null,
     here: [],
     feed: [],
     world: null,
@@ -504,6 +511,7 @@
   // ---------- 视图切换 ----------
     // ---------- 视图切换与主境导航联动 ----------
   const VIEW_CRUMBS = {
+    entry: "入局",
     sanctum: "玄阁洞府",
     sect: "宗门大殿",
     wilderness: "十方大荒",
@@ -513,9 +521,12 @@
   };
 
   function setView(v) {
-    const valid = ["sanctum", "sect", "wilderness", "inventory", "bazaar", "gallery"];
+    const valid = ["entry", "sanctum", "sect", "wilderness", "inventory", "bazaar", "gallery"];
     if (!valid.includes(v)) v = "sanctum";
+    // §2.5 降级：entry 缺失且无待补标记/出身卡时不进入入局层，回退洞府
+    if (v === "entry" && !state.entry && !state.entryPending && !state.originCard) v = "sanctum";
     state.view = v;
+    if (v === "entry") refreshEntry();
     document.querySelectorAll(".nav-tab[data-view]").forEach((b) => {
       const isCur = b.getAttribute("data-view") === v;
       b.classList.toggle("active", isCur);
@@ -539,12 +550,120 @@
     if ($("topStones")) setText("topStones", (s.stones != null ? s.stones : 0) + " 灵石");
     if ($("topDaoRealm")) setText("topDaoRealm", (s.realm || "—") + (s.rank && s.rank !== "散修" ? " · " + s.rank : ""));
 
-    if (state.view === "sanctum") host.innerHTML = renderSanctum();
+    if (state.view === "entry") host.innerHTML = renderEntry();
+    else if (state.view === "sanctum") host.innerHTML = renderSanctum() + renderSanctumExtras();
     else if (state.view === "sect") host.innerHTML = renderSect();
     else if (state.view === "wilderness") host.innerHTML = renderWilderness();
     else if (state.view === "inventory") host.innerHTML = renderInventory();
     else if (state.view === "bazaar") host.innerHTML = renderBazaar();
     else if (state.view === "gallery") host.innerHTML = renderGallery();
+  }
+
+  // ==========================================================================
+  // 游戏感第一期（game-feel-phase1）：入局 / 出身卡 / 仪式 / 关系可见化。
+  // 只认后端下发结构渲染（entry / origin_card / ceremony / status.origin /
+  // status.fate / status.relations_recent / status.relations_marks）；
+  // 字段缺失即不渲染，不自造默认值掩盖后端缺失（沿既有降级惯例）。
+  // ==========================================================================
+
+  // 命盘追加段（出身/命格/关系/仪式偏好在后续段落拼入；renderSanctum 本体不改）
+  function renderSanctumExtras() {
+    const s = state.status || {};
+    const parts = [originFoldHtml(s.origin), fateSectionHtml(s.fate),
+      relationsSectionHtml(s.relations_recent), ceremonySkipSectionHtml()];
+    const html = parts.filter(Boolean).join("");
+    return html ? `<div class="w-full flex flex-col gap-5 mt-6">${html}</div>` : "";
+  }
+
+  // 出身卡/命格/关系/仪式偏好的渲染函数在下方各件段落定义（函数声明提升，此处先声明占位由后续段落实现）
+  function originCardHtml() { return ""; }
+  function originFoldHtml() { return ""; }
+  function fateSectionHtml() { return ""; }
+  function relationsSectionHtml() { return ""; }
+  function ceremonySkipSectionHtml() { return ""; }
+  function maybeShowCeremony() {}
+
+  // ---- 件一 · 入局（§2.5 桌面） ----
+  async function fetchBriefingEntry() {
+    if (state.demo || !state.token) return;
+    try {
+      let base = (state.base || "").trim().replace(/\/$/, "");
+      if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
+      const res = await fetch(base + "/world/briefing", {
+        headers: { Authorization: "Bearer " + state.token }, cache: "no-store",
+      });
+      if (!res.ok) return;
+      const b = await res.json();
+      if (b && b.entry) { state.entry = b.entry; state.entryPending = false; }
+    } catch (_) {}
+  }
+
+  async function refreshEntry() {
+    await fetchBriefingEntry();
+    if (state.view === "entry") renderBody();
+  }
+
+  function entryItemHtml(item, highlight) {
+    if (!item) return "";
+    const t = item.target || {};
+    let attrs = "";
+    if (t.command) attrs = `data-cmd="${esc(t.command)}"`;
+    else if (t.view) attrs = `data-entry-view="${esc(t.view)}"`;
+    return `
+    <div class="jade-panel rounded-2xl p-4 shadow-sm flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-sm font-bold text-jade-950">${esc(item.title || item.kind || "待办")}</div>
+        ${item.text ? `<p class="text-xs text-slate-600 mt-1 leading-relaxed">${esc(item.text)}</p>` : ""}
+      </div>
+      ${attrs ? `<button type="button" class="btn sm ${highlight ? "primary" : "secondary"} flex-none" ${attrs}>前往</button>` : ""}
+    </div>`;
+  }
+
+  function renderEntry() {
+    const e = state.entry;
+    let html = `<div class="w-full flex flex-col gap-5">`;
+    html += originCardHtml();
+    if (!e) {
+      html += `
+      <div class="jade-panel rounded-2xl p-5 shadow-sm">
+        <h1 class="text-xl font-bold text-jade-950">入局</h1>
+        <p class="text-xs text-slate-600 mt-2">${state.entryPending ? "天道繁忙，入局信息待补——可先自由行动，稍后回到入局查看。" : "入局信息未至，可先前往洞府自由行动。"}</p>
+      </div>`;
+      return html + `</div>`;
+    }
+    const lines = e.lines || {};
+    const relTexts = Array.isArray(lines.relations)
+      ? lines.relations.map((r) => (r && r.summary) || "").filter(Boolean) : [];
+    const chainsText = lines.chains
+      ? (lines.chains.text || (lines.chains.fermenting != null ? `发酵中因果链 ${lines.chains.fermenting} 条` : "")) : "";
+    const pv = typeof e.proactive === "string" ? e.proactive : (e.proactive && e.proactive.text) || "";
+    html += `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h1 class="text-xl font-bold text-jade-950">入局 · 当下之事</h1>
+      <div class="mt-3 space-y-2 text-sm text-slate-700 leading-relaxed">
+        ${lines.fate ? `<p>${esc(lines.fate)}</p>` : ""}
+        ${chainsText ? `<p>${esc(chainsText)}</p>` : ""}
+        ${relTexts.length ? `<p>${relTexts.map((t) => esc(t)).join("；")}</p>` : ""}
+        ${pv ? `<p>${esc(pv)}</p>` : ""}
+      </div>
+    </div>`;
+    const queue = Array.isArray(e.queue) ? e.queue : [];
+    const highlight = Array.isArray(e.highlight) && e.highlight.length ? e.highlight : queue.slice(0, 3);
+    const rest = queue.slice(highlight.length);
+    const restCount = e.rest_count != null ? e.rest_count : rest.length;
+    if (e.empty || !queue.length) {
+      html += `<div class="jade-panel rounded-2xl p-5 shadow-sm text-center text-sm text-slate-600">${esc(e.empty_text || "江湖无事，可自由行动")}</div>`;
+    } else {
+      html += highlight.map((it) => entryItemHtml(it, true)).join("");
+      if (rest.length) {
+        html += `
+        <details class="jade-panel rounded-2xl p-4 shadow-sm">
+          <summary class="text-xs font-semibold text-jade-800 cursor-pointer">另有 ${esc(restCount)} 件待办</summary>
+          <div class="mt-3 flex flex-col gap-3">${rest.map((it) => entryItemHtml(it, false)).join("")}</div>
+        </details>`;
+      }
+    }
+    return html + `</div>`;
   }
 
   // ==========================================================================
@@ -6216,6 +6335,10 @@
       if (data.status) applyStatus(data.status, reqEpoch);
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
       applyOmenPayload(data);
+      // 游戏感第一期只增字段：/action 响应可携带 entry / origin_card / ceremony
+      if (data.entry) { state.entry = data.entry; state.entryPending = false; }
+      if (data.origin_card) { state.originCard = data.origin_card; state.originCardDismissed = false; }
+      if (data.ceremony) maybeShowCeremony(data.ceremony);
       if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
       if (c.startsWith("/突破") || c.startsWith("/break")) {
@@ -6836,7 +6959,16 @@
         stones: 100,
       });
 
+      // 游戏感第一期：登录响应只增字段（§2.3/§3.11/§4.4）——entry 落点、
+      // origin_card 出身卡、ceremony 仪式；缺失即按既有口径降级。
+      if (payload.entry !== undefined) state.entry = payload.entry;
+      if (payload.entry_pending !== undefined) state.entryPending = !!payload.entry_pending;
+      if (payload.origin_card) state.originCard = payload.origin_card;
+
       showApp();
+      // §2.5：登录成功默认入局；entry 缺失回退洞府（setView 内亦有降级）
+      setView(state.entry || state.entryPending || (state.originCard && state.originCard.just_created) ? "entry" : "sanctum");
+      if (payload.ceremony) maybeShowCeremony(payload.ceremony);
       toast("已入世 · " + state.name, "ok");
       await loadCommands();
       await refreshAll();
@@ -7242,6 +7374,53 @@
             inp.focus();
           }
         }
+      }
+    });
+
+    // 游戏感第一期新增委托（与上方既有委托属性不重叠）：入局视图跳转等
+    document.addEventListener("click", (e) => {
+      const viewEl = e.target.closest && e.target.closest("[data-entry-view]");
+      if (viewEl) {
+        const v = viewEl.getAttribute("data-entry-view");
+        if (v === "world") {
+          // 桌面无 world 视图：NPC 来访落到同场抽屉（§2.3 前端既有打开方式）
+          const btn = $("btnOpenDrawer");
+          if (btn) btn.click();
+        } else {
+          setView(v);
+        }
+        return;
+      }
+      const originCloseEl = e.target.closest && e.target.closest("[data-origin-close]");
+      if (originCloseEl) {
+        state.originCardDismissed = true;
+        renderBody();
+        return;
+      }
+      const fateEl = e.target.closest && e.target.closest("[data-fate-choice]");
+      if (fateEl) {
+        const key = fateEl.getAttribute("data-fate-choice");
+        if (key) {
+          sendCmd("/命格 " + key).then((res) => {
+            if (res && res.ok !== false) closeJadeDialog();
+          });
+        }
+        return;
+      }
+      const unskipEl = e.target.closest && e.target.closest("[data-ceremony-unskip]");
+      if (unskipEl) {
+        try { localStorage.removeItem("ceremony_skip_" + unskipEl.getAttribute("data-ceremony-unskip")); } catch (_) {}
+        renderBody();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-ceremony-autoskip")) {
+        const kind = t.getAttribute("data-ceremony-autoskip");
+        try {
+          if (t.checked) localStorage.setItem("ceremony_skip_" + kind, "1");
+          else localStorage.removeItem("ceremony_skip_" + kind);
+        } catch (_) {}
       }
     });
 
