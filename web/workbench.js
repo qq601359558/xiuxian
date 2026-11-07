@@ -699,7 +699,36 @@
     </div>`;
   }
 
-  function relationsSectionHtml() { return ""; }
+  // ---- 件四 · 关系可见化（§5.4）：命盘近 5 条 + 同场箭头，同源 status 两键 ----
+  function relationsSectionHtml(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    const rows = list.slice(0, 5).map((r) => {
+      const d = typeof r.delta === "number" ? r.delta : 0;
+      const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "·";
+      const cls = d > 0 ? "text-emerald-600" : d < 0 ? "text-rose-600" : "text-slate-400";
+      return `
+      <div class="flex items-center gap-2 text-xs py-1.5 border-b border-jade-100">
+        <span class="font-bold ${cls} flex-none">${arrow}${d ? Math.abs(d) : ""}</span>
+        <span class="flex-1 text-slate-700">${esc(r.summary || "")}</span>
+        ${r.after_cn ? `<span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 flex-none">${esc(r.after_cn)}</span>` : ""}
+      </div>`;
+    }).join("");
+    return `
+    <div class="jade-panel rounded-2xl p-5 shadow-sm">
+      <h3 class="text-sm font-bold text-jade-950">关系动态</h3>
+      <div class="mt-1">${rows}</div>
+    </div>`;
+  }
+
+  // 同场近变箭头：按 relations_marks 以 NPC id 对齐（name 兜底），无 mark 不显示
+  function relationMarkHtml(row) {
+    const marks = (state.status && state.status.relations_marks) || null;
+    if (!marks || !row) return "";
+    const m = (row.id != null && marks[row.id]) || (row.name && marks[row.name]) || null;
+    if (!m || typeof m.delta !== "number" || m.delta === 0) return "";
+    const up = m.delta > 0;
+    return `<span class="text-[11px] font-bold ${up ? "text-emerald-600" : "text-rose-600"}" title="近期态度变化">${up ? "↑" : "↓"}${Math.abs(m.delta)}</span>`;
+  }
 
   // 命盘仪式偏好段：已设自动略过的 kind 在此取消（同 localStorage 键）
   function ceremonySkipSectionHtml() {
@@ -6098,6 +6127,7 @@
             <span style="font-size:12px;color:var(--ink-500);margin-left:6px">${esc(r.realm || "")}</span>
           </div>
           <span class="card-tag ${tagCls}">${att}</span>
+          ${relationMarkHtml(r)}
         </div>
         <div style="font-size:11px;color:var(--ink-500)">
           ${esc(r.sect || "散修")}${r.rank ? " · " + esc(r.rank) : ""} · ${isPlayer ? '道气清圆 · 真人修士' : '秉性：' + esc(r.personality || '行止难测')}
