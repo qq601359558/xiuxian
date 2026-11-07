@@ -610,6 +610,72 @@ class KarmaChainEngine:
                     pass
         return True
 
+    # ---------------- 戏剧微调口（game-feel-phase2 §5.3，唯一新增链写口） ----------------
+    # 只许被 core.npc_proactive.DramaEngine 调用；钳制写死：
+    # nudge_ferment 只许提前不许延后（days ∈ [−3, 0]，新值 ∈ [now, 原值]）；
+    # nudge_strength delta 只许 ±1，结果钳 [1, KARMA_CHAIN_STRENGTH_CAP]。
+    # 每次实际调用写一条 Chronicle 留痕（actor=戏剧，含 chain id 与前后值）。
+
+    @staticmethod
+    def _nudge_chronicle(chain_id: str, what: str, before: Any, after: Any) -> None:
+        try:
+            from storage.db import ChronicleRepository
+
+            ChronicleRepository.record(
+                "因果链微调", "戏剧",
+                f"戏剧微调 chain={chain_id} {what} {before}->{after}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def nudge_ferment(chain_id: str, *, days: float,
+                      now: Optional[float] = None) -> bool:
+        """提前发酵/兑现时点：fermenting 链改 mature_at、latent 链改
+        ferment_at；新值钳 [now, 原值]（只许提前不许延后）。"""
+        t = now if now is not None else time.time()
+        d = max(-3.0, min(0.0, float(days)))
+        try:
+            chain = KarmaChainEngine._repo().get(chain_id)
+        except Exception:
+            chain = None
+        if chain is None or chain.status not in ACTIVE_STATUSES:
+            return False
+        field = "mature_at" if chain.status == "fermenting" else "ferment_at"
+        old = float(getattr(chain, field) or 0.0)
+        new = max(t, min(old, old + d * SECONDS_PER_GAME_DAY))
+        if new == old:
+            KarmaChainEngine._nudge_chronicle(chain_id, field, old, new)
+            return True
+        setattr(chain, field, new)
+        try:
+            KarmaChainEngine._repo().save(chain)
+        except Exception:
+            return False
+        KarmaChainEngine._nudge_chronicle(chain_id, field, old, new)
+        return True
+
+    @staticmethod
+    def nudge_strength(chain_id: str, *, delta: int,
+                       now: Optional[float] = None) -> bool:
+        """强度微调：delta 只许 ±1，结果钳 [1, KARMA_CHAIN_STRENGTH_CAP]。"""
+        if int(delta) not in (-1, 1):
+            return False
+        try:
+            chain = KarmaChainEngine._repo().get(chain_id)
+        except Exception:
+            chain = None
+        if chain is None or chain.status not in ACTIVE_STATUSES:
+            return False
+        old = int(chain.strength)
+        new = max(1, min(KARMA_CHAIN_STRENGTH_CAP, old + int(delta)))
+        chain.strength = new
+        try:
+            KarmaChainEngine._repo().save(chain)
+        except Exception:
+            return False
+        KarmaChainEngine._nudge_chronicle(chain_id, "strength", old, new)
+        return True
+
     # ---------------- 每日兑现预算（现实日口径） ----------------
     @staticmethod
     def _resolved_on_day(player_id: str, now: float) -> List[KarmaChain]:
@@ -754,6 +820,16 @@ class KarmaChainEngine:
         KarmaChainEngine._append_node(
             chain, "resolve", narrative, t, effects=dict(effects), force=True)
         repo.save(chain)
+        # 传闻写入口（game-feel-phase2 §6）：了结传闻的引擎内单点——tick 与
+        # 惰性 advance 两路同经 _resolve，天然只落一条（_note_once 再去重）。
+        try:
+            from core import rumors as _rumors_mod
+
+            _rumors_mod.note_chain_resolved(
+                chain.player_name, chain.counterparty_name,
+                KIND_CN.get(chain.kind, chain.kind), chain.polarity)
+        except Exception:
+            pass
         # 发效（任一子项异常只丢该子项，不回滚锚、不重发）
         if effects:
             try:
