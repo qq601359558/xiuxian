@@ -1244,6 +1244,14 @@ class World:
                                     CharacterRepository.save(char)
                             except Exception:
                                 pass
+                            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口②·心魔后继段）
+                            try:
+                                from core import rumors as _rumors_mod2
+
+                                _rumors_mod2.note_breakthrough(
+                                    char.name, char.realm.name, char.location)
+                            except Exception:
+                                pass
                         _trib_settle = None
                         if trib_dead:
                             _trib_settle = self._settle_if_needed(char, cause="渡劫陨落")
@@ -1583,24 +1591,14 @@ class World:
                     "fate_thread": _FTEm.thread_status_dict(char),
                     "status": self._status_dict(char),
                 }
-            if action in ("/回应",):
-                # 主动戏剧回应（二期 §8.4/§5.3）：后果落账在戏剧岗的
-                # DramaEngine.respond 内（既有系统入口）；本处只分发。
-                # 引擎未就位时：无参列空、带参明确报错且零落账。
-                _DE = None
-                try:
-                    from core.npc_proactive import DramaEngine as _DEcls
+            if action in ("/回应", "/respond_drama"):
+                # 主动戏剧回应（二期 §8.4/§5.3，集成裁决：A/B 两岗同名分发
+                # 合并为本处单一分发）：后果落账在 DramaEngine.respond 内
+                # （既有系统入口）；fight 经 fight_fn 转调既有 _fight 分发。
+                from core.npc_proactive import DramaEngine as _DE
 
-                    _DE = _DEcls
-                except Exception:
-                    _DE = None
                 if len(parts) < 2:
-                    _pending: list = []
-                    if _DE is not None:
-                        try:
-                            _pending = _DE.list_pending(char) or []
-                        except Exception:
-                            _pending = []
+                    _pending = _DE.list_pending(char) or []
                     if _pending:
                         _lines = ["【待回应之事】"]
                         for _it in _pending:
@@ -1615,31 +1613,21 @@ class World:
                     return {"ok": True, "text": "眼下无人找上门，无待回应之事。",
                             "drama_pending": [],
                             "status": self._status_dict(char)}
-                if _DE is None or len(parts) < 3:
+                if len(parts) < 3:
                     return {"ok": False,
                             "error": "用法：/回应 <drama_id> <option_key>（事件不存在或选项非法均不落账）",
                             "status": self._status_dict(char)}
-                try:
-                    _rr = _DE.respond(char, parts[1], parts[2])
-                except TypeError:
-                    try:
-                        _rr = _DE().respond(char, parts[1], parts[2])
-                    except Exception as _re:
-                        return {"ok": False, "error": f"回应失败：{_re}",
-                                "status": self._status_dict(char)}
-                except Exception as _re:
-                    return {"ok": False, "error": f"回应失败：{_re}",
+                _rr = _DE.respond(
+                    char, parts[1], parts[2],
+                    fight_fn=lambda _n: self._fight(char, _n))
+                if not _rr.get("success"):
+                    return {"ok": False, "error": _rr.get("error") or "回应失败。",
                             "status": self._status_dict(char)}
-                if isinstance(_rr, dict) and _rr.get("success"):
-                    CharacterRepository.save(char)
-                    return {"ok": True,
-                            "text": _rr.get("message") or _rr.get("text") or "已回应。",
-                            "status": self._status_dict(char)}
-                _rmsg = (
-                    (_rr.get("message") or _rr.get("error") or "回应失败")
-                    if isinstance(_rr, dict) else "回应失败")
-                return {"ok": False, "error": _rmsg,
-                        "status": self._status_dict(char)}
+                CharacterRepository.save(char)
+                if _rr.get("action") == "fight" and isinstance(_rr.get("fight"), dict):
+                    return _rr["fight"]
+                return {"ok": True, "text": _rr.get("message") or "已回应。",
+                        "status": self._status_dict(char), "drama": _rr}
             if action in ("/寻宝", "/clue"):
                 # 寻宝线索链推进（gallery-gameplay §5.3）：无参查看（纯读）、
                 # 数字抉择、弃链；门禁在引擎内，写路径 save 收尾（§11）。
@@ -5112,6 +5100,20 @@ class World:
                 text += "\n" + o.get("text", "")
         except Exception:
             pass
+        # 主动戏剧评估（game-feel-phase2 §5.4 迁跃落点触发点，与 maybe_engage 同段；
+        # 同场事件 text 经本通道下发，异地事件只入待回应队列）
+        try:
+            from core.npc_proactive import DramaEngine
+
+            for _dev in (DramaEngine.evaluate(c, trigger="travel") or [])[:1]:
+                _dnpc = CharacterRepository.get_by_id(_dev.get("npc_id") or "")
+                if _dnpc is not None and _dnpc.location == c.location:
+                    text += "\n" + str(_dev.get("text") or "")
+                else:
+                    text += (f"\n【江湖有事】{_dev.get('npc_name', '有人')}"
+                             f"遣人传话，事已入待回应（/回应 查看）。")
+        except Exception:
+            pass
         # 因果回访（小概率）
         try:
             rv = RevengeEngine.maybe_callback(c, chance=0.25)
@@ -5254,6 +5256,13 @@ class World:
                 from core.player_echo import record_player_breakthrough
 
                 record_player_breakthrough(c, realm_name=c.realm.name)
+            except Exception:
+                pass
+            # 传闻写入口（game-feel-phase2 §6）：大境界突破入池（出口①）
+            try:
+                from core import rumors as _rumors_mod
+
+                _rumors_mod.note_breakthrough(c.name, c.realm.name, c.location)
             except Exception:
                 pass
             # 大境界突破：尝试触发天道导演（仍受冷却）+ 惊动天道
