@@ -417,6 +417,35 @@ def build_entry(
             _ditem["options"] = list(_ev.get("options") or [])
             queue.append(_ditem)
 
+    # ⑤.6 待回应戏剧常驻（截图验收问题 1 销账）：已生成未回应的戏剧是
+    # 持久状态而非一次性通知——任何一次 entry 拼装（含 allow_proactive
+    # =False 的 briefing 刷新）都须把待回应项列入 queue，否则前端以
+    # 刷新版 entry 覆盖登录版后戏剧条目即消失。本段只读列出、不生成
+    # 新事件；与 ⑤.5 新建项按 id 去重，至多补 2 条。
+    try:
+        from core.npc_proactive import DramaEngine as _DE2
+
+        _pending_drama = _DE2.list_pending(character, now=t) or []
+    except Exception:
+        _pending_drama = []
+    _queued_refs = {str(q.get("ref_id") or "") for q in queue}
+    _added_pending = 0
+    for _ev in _pending_drama:
+        if _added_pending >= 2:
+            break
+        if not isinstance(_ev, dict):
+            continue
+        if str(_ev.get("id") or "") in _queued_refs:
+            continue
+        _ditem = _item(
+            "drama", 2,
+            f"{_ev.get('npc_name') or _ev.get('npc') or '有人'} 有事相商",
+            _ev.get("text") or "", str(_ev.get("id") or ""),
+            {"command": f"/回应 {_ev.get('id') or ''}"})
+        _ditem["options"] = list(_ev.get("options") or [])
+        queue.append(_ditem)
+        _added_pending += 1
+
     queue.sort(key=lambda q: q["priority"])
     queue = queue[:8]
     entry = {

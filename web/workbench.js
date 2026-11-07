@@ -6472,7 +6472,11 @@
     }
     if (data.is_player) {
       if (data.chat_open) {
-        if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, true);
+        if (data.npc && data.npc !== state.chat.npc) {
+          openChat(data.npc, true);
+          // openChat 会清空旧账行，同响应刚渲染的须在开启后重渲染（截图验收问题 2）
+          if (data.old_account) renderOldAccount(data.old_account);
+        }
         if (Array.isArray(data.messages) && data.messages.length > 0) {
           data.messages.forEach((m) => {
             const isMe = m.who === (state.status?.name || "你");
@@ -6485,7 +6489,11 @@
       return;
     }
     if (data.chat_open) {
-      if (data.npc && data.npc !== state.chat.npc) openChat(data.npc, false);
+      if (data.npc && data.npc !== state.chat.npc) {
+        openChat(data.npc, false);
+        // 同上：开启后重渲染本响应的旧账行（截图验收问题 2）
+        if (data.old_account) renderOldAccount(data.old_account);
+      }
       String(text).split("\n").filter(Boolean).forEach((ln) => {
         if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字|天机偶发/.test(ln)) chatMsg("", ln, "sys");
         else chatMsg(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");

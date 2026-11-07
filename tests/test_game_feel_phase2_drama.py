@@ -745,3 +745,30 @@ def test_rm_note_avoid_fight_entry():
     hits = _rumor_find(f"避者{t}", tag="avoid")
     assert hits and abs(float(hits[0]["truth"]) - 0.85) < 1e-9
     assert "避而不战" in hits[0]["text"]
+
+
+def test_dr08_pending_drama_relisted_in_entry_without_proactive():
+    """截图验收问题 1 销账（briefing ⑤.6）：已生成未回应的戏剧是持久
+    状态——allow_proactive=False 的 briefing 刷新版 entry 也必须列出
+    待回应项，且与登录版不重复。"""
+    from core.npc_proactive import DramaEngine
+    from core.briefing import build_entry
+
+    now = time.time()
+    player = _player("常驻客")
+    npc = _npc("常驻翁")
+    _set_att(npc, player.id, -50)
+    try:
+        evs = DramaEngine.evaluate(player, trigger="travel", now=now)
+        assert len(evs) == 1
+        dr_id = evs[0]["id"]
+        entry = build_entry(player, since=0, allow_proactive=False, now=now)
+        items = [q for q in entry["queue"]
+                 if q.get("kind") == "drama" and q.get("ref_id") == dr_id]
+        assert len(items) == 1, "待回应戏剧未在刷新版 entry 中常驻列出"
+        entry2 = build_entry(player, since=0, allow_proactive=True, now=now)
+        items2 = [q for q in entry2["queue"]
+                  if q.get("kind") == "drama" and q.get("ref_id") == dr_id]
+        assert len(items2) == 1, "待回应戏剧在登录版 entry 中重复列出"
+    finally:
+        _cleanup(player, npc)
