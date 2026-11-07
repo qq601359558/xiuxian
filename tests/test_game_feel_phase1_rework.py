@@ -299,3 +299,23 @@ def test_s2_entry_proactive_single_object_or_none(monkeypatch):
     assert entry2["proactive"] is None
     entry3 = build_entry(char, since=char.born_at, allow_proactive=False)
     assert entry3["proactive"] is None
+
+
+# ================= 文案项 转世返回文案动态灵石 =================
+
+def test_reincarnate_text_uses_actual_spirit_stones():
+    """转世返回文案须以新角实际 spirit_stones 拼写，不得写死 150。"""
+    dead = _char("转世文案")
+    dead.status = CharacterStatus.DEAD
+    dead.death_cause = "寿尽坐化"
+    dead.lifespan.death_timestamp = 0.0
+    CharacterRepository.save(dead)
+    payload = WORLD.dead_payload(dead.user_id)
+    assert payload is not None and payload.get("settled")
+    reb = WORLD.reincarnate(payload["token"])
+    assert reb.get("ok"), reb
+    new_char = CharacterRepository.get_by_user_id(dead.user_id)
+    assert new_char is not None and new_char.id != dead.id
+    assert f"新角随身 {new_char.spirit_stones} 灵石" in reb["text"], (
+        f"文案应含新角实际灵石 {new_char.spirit_stones}：{reb['text']}")
+    assert "新角随身 150 灵石不变" not in reb["text"]

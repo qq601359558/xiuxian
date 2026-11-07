@@ -1037,7 +1037,7 @@ class World:
                     f"{boost_res.get('message', '')}\n"
                     f"{shadow_text}"
                     f"道统池剩余 {account.points} 点（第 {account.total_lives + 1} 世）\n"
-                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 150 灵石不变）；"
+                    f"账户钱包 {wallet_block['balance']} 灵石（新角随身 {char.spirit_stones} 灵石）；"
                     f"入世后用 /钱包提取 <金额> 取用账户金额。"
                 ),
                 "karma_shadow": karma_shadow,
