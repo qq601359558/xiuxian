@@ -1196,9 +1196,10 @@ def maybe_trigger_natural_omen(
     if get_scene(c.id):
         return None
 
-    if not force:
+    if not force and in_chat_npc is None:
         # 频控（§7.4）：OMEN_COOLDOWN_SECONDS 正式生效——距上次自然奇遇
-        # 开启 <600s 不再开启；自然开启每日 ≤5 场。force 路径豁免两者。
+        # 开启 <600s 不再开启；自然开启每日 ≤5 场。force 路径与交谈内
+        # 奇遇分支（in_chat_npc 非空，MF-1）豁免两者。
         try:
             from config import OMEN_COOLDOWN_SECONDS as _omen_cd
 

@@ -364,6 +364,55 @@ def test_e7_daily_open_cap_and_next_day(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# E-6 扩展（MF-1，§7.4）：交谈内奇遇分支豁免冷却与日限
+# ---------------------------------------------------------------------------
+def test_e6_chat_omen_exempt_from_cooldown(monkeypatch):
+    _force_chance(monkeypatch)
+    _reset_scene()
+    c = _player()
+    npc = _npc("柳三娘", c.location)
+    try:
+        c.last_omen_at = time.time()  # 刚刚开启过一场，600s 冷却生效中
+        CharacterRepository.save(c)
+        res = os_mod.maybe_trigger_natural_omen(CharacterRepository.get_by_id(c.id), allow_ai=False, rng=random.Random(0))
+        assert res is None  # 自然触发仍被冷却拦截（对照）
+        res = os_mod.maybe_trigger_natural_omen(
+            CharacterRepository.get_by_id(c.id), in_chat_npc=CharacterRepository.get_by_id(npc.id),
+            allow_ai=False, rng=random.Random(0),
+        )
+        assert res is not None and res["triggered"] and res["mode"] == "chat"  # 交谈分支豁免冷却
+        assert os_mod.get_scene(c.id) is None  # 交谈奇遇不占用主界面场景
+    finally:
+        _cleanup(c)
+
+
+def test_e6_chat_omen_exempt_from_daily_cap(monkeypatch):
+    _force_chance(monkeypatch)
+    _reset_scene()
+    c = _player()
+    npc = _npc("驼爷", c.location)
+    try:
+        c.last_omen_at = 0.0  # 隔离变量：本例只顶日限，不触发冷却
+        CharacterRepository.save(c)
+        from datetime import date as _date
+
+        WorldStateRepository.set("omen_daily:" + c.id, {
+            "date": _date.fromtimestamp(time.time()).isoformat(), "opens": 5,
+        })
+        assert os_mod._daily_open_count(c.id) == 5  # 当日自然开启已达上限
+        res = os_mod.maybe_trigger_natural_omen(CharacterRepository.get_by_id(c.id), allow_ai=False, rng=random.Random(0))
+        assert res is None  # 自然触发仍被日限拦截（对照）
+        res = os_mod.maybe_trigger_natural_omen(
+            CharacterRepository.get_by_id(c.id), in_chat_npc=CharacterRepository.get_by_id(npc.id),
+            allow_ai=False, rng=random.Random(0),
+        )
+        assert res is not None and res["triggered"] and res["mode"] == "chat"  # 交谈分支豁免日限
+        assert os_mod.get_scene(c.id) is None
+    finally:
+        _cleanup(c)
+
+
+# ---------------------------------------------------------------------------
 # E-8 存量零回归：抉择效果口径不变 + event_chains 只多配图键
 # ---------------------------------------------------------------------------
 def test_e8_baseline_effects_unchanged_and_event_chain_image():
