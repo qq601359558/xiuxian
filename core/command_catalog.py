@@ -85,6 +85,7 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/温养", "aliases": ["/nourish"], "usage": "/温养 [器物名]", "desc": "温养器灵：tier4 30 灵石 / tier5 50 灵石，每器每日一次，成长封顶 100/150", "category": "cultivate"},
     {"cmd": "/灵语", "aliases": ["/spirit_say"], "usage": "/灵语 [器物名 ·] <话>", "desc": "与器灵交谈：缺省找已唤灵中品阶最高者，可用「器物名 · 话」指定；每日首次对话涨成长", "category": "cultivate"},
     {"cmd": "/定相", "aliases": ["/gender"], "usage": "/定相 男|女", "desc": "自选男相/女相（纯外观，命盘人物图随之而变）", "category": "core"},
+    {"cmd": "/命格", "aliases": ["/fate"], "usage": "/命格 [key]", "desc": "命格：查看待选/已选；带 key 从最老一抽中择定命格（突破大境界成功时抽定）", "category": "cultivate"},
     {"cmd": "/图鉴", "aliases": ["/gallery"], "usage": "/图鉴", "desc": "天道图鉴：38 图点亮进度与展示称号（账户级，只记眼界不予数值）", "category": "core"},
 
     # 社交

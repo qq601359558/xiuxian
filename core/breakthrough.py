@@ -153,6 +153,19 @@ class BreakthroughEngine:
                     )
             except Exception:
                 pass
+            # 命格抽定（game-feel-phase1 §4.2）：大境界成功分支尾部追加，
+            # 只写 fate_pending 新字段，不改任何既有返回键与数值；
+            # 待选已满 2 抽时不抽（message 尾行注记为只增键 fate_note）。
+            _fate_note = ""
+            try:
+                from core.ceremony import draw_fate_pending
+
+                if len(getattr(character, "fate_pending", None) or []) >= 2:
+                    _fate_note = "命格待选已满"
+                else:
+                    draw_fate_pending(character)
+            except Exception:
+                _fate_note = ""
             return {
                 "success": True,
                 "is_major": True,
@@ -168,6 +181,7 @@ class BreakthroughEngine:
                     f"九霄雷云汇聚，劫雷轰然劈落！道友凭借浑厚根基硬抗雷劫，金光淬体！\n"
                     f"成功突破至【{character.realm.name}】！\n"
                     f"天道赐福：寿元暴涨 +{lifespan_gain} 岁！{judge_line}"
+                    + ("\n命格待选已满" if _fate_note else "")
                 )
             }
         else:
