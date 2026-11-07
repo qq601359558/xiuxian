@@ -159,6 +159,22 @@ def build_entry(
             "karma_maturing", 3, "因果将至",
             f"有因果链约 {nearest} 游戏日后到期。", "", {"command": "/因果链"}))
 
+    # MF-1 修复（返工口径 a）：②的 advance_for 由 KarmaChainEngine 以另一
+    # 实例自读自存完成兑现落账，入参 character 仍是拼装前快照（灵石/修为/
+    # 功德皆兑现前值）。③ 求值前重读角色行、就地同步回入参对象（保对象
+    # 同一性）：③ 据兑现后数值求值；join 等调用方以同一对象经
+    # CharacterRepository.save 回存时即最新行，不再整行覆写回滚链兑现。
+    # ① settle_due 对角色的落账已由其内部分支 save 落盘，重读不丢。
+    try:
+        from storage.db import CharacterRepository as _CharRepo
+
+        _latest = _CharRepo.get_by_id(character.id)
+        if _latest is not None and _latest is not character:
+            for _field in type(character).model_fields:
+                setattr(character, _field, getattr(_latest, _field))
+    except Exception:
+        pass
+
     # ③ 判定式求值（E1）
     try:
         from core.goals import evaluate_checked_goals
