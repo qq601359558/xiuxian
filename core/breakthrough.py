@@ -154,8 +154,9 @@ class BreakthroughEngine:
             except Exception:
                 pass
             # 命格抽定（game-feel-phase1 §4.2）：大境界成功分支尾部追加，
-            # 只写 fate_pending 新字段，不改任何既有返回键与数值；
-            # 待选已满 2 抽时不抽（message 尾行注记为只增键 fate_note）。
+            # 只写 fate_pending 新字段，不新增任何返回键、既有数值键不变；
+            # 待选已满 2 抽时不抽，仅在既有 message 文案尾行追加
+            # 「命格待选已满」注记（_fate_note 为本地标记字符串，非返回键）。
             _fate_note = ""
             try:
                 from core.ceremony import draw_fate_pending
