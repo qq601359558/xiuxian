@@ -1,7 +1,7 @@
 # Spec：游戏感改造第二期（game-feel-phase2）
 
 - 基线：worktree `.worktrees/game-feel-phase2`，分支 `feat/game-feel-phase2`，基线 main `c4c4571` = v0.3.8-gray.15（一期已合入并发版）。
-- 状态：**待实现**（本文件为唯一产出；本轮不写任何业务代码）。
+- 状态：**已实现，已发布 v0.3.9-gray.16**（实现与验收见 CHANGELOG v0.3.9-gray.16 条目；文末「裁决记录」含集成与收口裁决）。
 - 定稿依据：`~/workspace/天道因果录-游戏感改造方案.md`（下称「方案」）§4a、§4d、§7 第二期、§9 已定口径；`docs/compose/spec/game-feel-phase1.md`（下称「一期 Spec」）全部裁决记录；`~/workspace/天道因果录-内容与玩法盘点.md`（下称「盘点」）第三节。**口径冲突时以方案为准；方案与代码现状冲突时按 §0.2 的实测口径施工并逐条记账。**
 - 红线（全 Spec 通用，沿一期）：寿元是硬通货（规则一字不改）、规则引擎裁决数值、LLM 只叙事/言行；登录路径零新增 AI 调用（唯一例外仍是方案明列的 `NpcProactiveEngine.maybe_engage` 既有预算闸）；零新增 tick 扫描；涉及角色数据遵循 `AGENTS.md` 道体合规守恒律（写路径统一 `CharacterRepository.save`）。
 - 本轮两条线（定死，不扩不缩）：**线一**＝命途主线全量（§2–§8：S-4 收紧前置、fate_threads 状态机、世仇强制植入、NPC 主动戏剧五类、传闻写入口补全、一生评语 AI 润色可选路径、呈现契约）；**线二**＝图库扩充至 139 张（§9）。Out of Scope 见 §13。
