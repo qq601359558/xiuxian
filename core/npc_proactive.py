@@ -595,6 +595,11 @@ class DramaEngine:
                     item = parse_relation_row(row)
                     if item is None:
                         continue
+                    # 出身植入的初始关系（reason="origin"）是本世初始条件，
+                    # 不是世中挣来的善意——不触发示好（集成裁决：否则新角
+                    # 首登即被赠礼，出身灵石对账被概率性打破）。
+                    if item.get("reason") == "origin":
+                        continue
                     if float(item["ts"]) < t - SECONDS_PER_GAME_DAY:
                         continue
                     if int(item["delta"]) <= 0 \

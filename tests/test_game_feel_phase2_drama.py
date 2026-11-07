@@ -322,6 +322,25 @@ def test_dr03_favor_via_relation_trace():
         _cleanup(player, npc)
 
 
+def test_dr03b_origin_relation_does_not_trigger_favor():
+    """集成裁决回归：出身植入关系（reason="origin"）不触发示好——
+    新角首登不得被出身关系概率性赠礼（qa5 出身灵石对账曾被打破）。"""
+    from core.npc_proactive import DramaEngine
+
+    now = time.time()
+    player = _player("出身客")
+    npc = _npc("出身翁", stones=100)
+    stones0 = int(player.spirit_stones or 0)
+    try:
+        shift_attitude(npc, player.id, 50, reason="origin")  # 同 (b) 形状，唯 reason 不同
+        evs = DramaEngine.evaluate(player, trigger="login", now=now)
+        assert all(e["type"] != "favor" for e in evs), \
+            "出身初始关系不得触发示好"
+        assert int(player.spirit_stones or 0) == stones0, "不得发生赠礼转移"
+    finally:
+        _cleanup(player, npc)
+
+
 # ================= DR-04 背叛 =================
 
 def test_dr04_betrayal_omen_and_nudge_and_confront_no_settle():
