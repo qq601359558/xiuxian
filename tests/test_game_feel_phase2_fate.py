@@ -916,12 +916,17 @@ def test_ui04_fate_commands_via_handle():
     assert res4.get("ok"), res4  # 引擎未就位：列空、ok=True
     res5 = W.handle(token, "/回应 some_id fight")
     assert res5.get("ok") is False  # 引擎未就位时带参零落账
-    # 命令目录计数 100→102 为 Spec 契约：目录侧断言由集成岗落（本岗服务端已实现分发）
+    # 命令目录计数（集成岗收口，§8.4）：/命途 /回应 两条主命令已补登。
+    # 计数口径记账：Spec §8.4 名义计数作 100→102，但 catalog_json 实测
+    # 基线在一期交付时即为 106 条主命令（all_entries 按主命令去重、别名
+    # 不另计行，与名义口径差 6 条既有命令）；目录侧断言以实测口径落：
+    # 106 + 2 = 108，且两条新命令的主命令与别名均可检索。
     from core.command_catalog import catalog_json
 
-    # 目录条目数含别名行（基线 106）；100→102 的主命令计数口径由集成岗
-    # 在目录侧落断言——本岗只断言目录可读且两条新命令服务端已可达（见上）
-    assert catalog_json()["count"] >= 100
+    _cj = catalog_json()
+    assert _cj["count"] == 108
+    _cmds = {e["cmd"] for e in _cj["commands"]}
+    assert "/命途" in _cmds and "/回应" in _cmds
 
 
 def test_ui05_location_image_key():
