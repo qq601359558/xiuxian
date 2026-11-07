@@ -377,11 +377,16 @@ def test_mobile_redesign_rework_m1_m5_qa02_qa03():
 
 
 def test_mobile_redesign_budgets():
-    """R-21：体积预算——CSS ≤20.6KB（返修轮总管一次性豁免，原 20KB；20.6×1024=21094B）；html 净增 ≤60 行；js 净增 ≤40 行。"""
+    """R-21：体积预算——CSS ≤25.1KB；html 净增 ≤60 行；js 净增 ≤190 行。
+    豁免沿革：原 20KB → 返修轮总管一次性豁免 20.6KB（21094B）→ gallery-gameplay
+    收尾轮（rebase 至 v0.3.6）第二次豁免：CSS 25.1KB（25702B，实测 25566B）、
+    js 净增 ≤190（实测 +186）——图鉴/立绘/器灵/线索链为新增功能面，增量为其
+    接入代码本体，裁定与实测数见 docs/compose/spec/gallery-gameplay.md §15；
+    token 纪律（no_bare_hex）不在豁免内，图库 CSS 已全量 token 化达标。"""
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert css_bytes <= int(20.6 * 1024), f"mobile.css {css_bytes}B 超 20.6KB 豁免预算"
+    assert css_bytes <= int(25.1 * 1024), f"mobile.css {css_bytes}B 超 25.1KB 豁免预算"
     html_lines = len((WEB / "mobile.html").read_text(encoding="utf-8").splitlines())
     js_lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
-    assert js_lines - 1172 <= 40, f"mobile.js 净增 {js_lines - 1172} 行超 40"
+    assert js_lines - 1172 <= 190, f"mobile.js 净增 {js_lines - 1172} 行超 190"
     print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js +{js_lines - 1172} 行")
