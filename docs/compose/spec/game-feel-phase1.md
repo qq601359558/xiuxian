@@ -484,6 +484,7 @@ result_ref：`{name, realm, legacy_points, boosts_applied, shadow_count, origin_
   - **已知 flaky 2 条**（全量红、单跑复验绿）：⑧ `tests/test_farm.py::test_settle_meditation_cave_bonus_and_chain`；⑨ `tests/test_world_director.py::test_local_director_run_persists_and_channel`。
   - 执行口径：交付时全量失败集 ⊆（上述 7 条 ∪ 上述 2 条 flaky）即视为不新增失败；基线内的条目在本轮转绿不算功劳、转红的非基线条目逐条归因；flaky 在交付跑中出现时须单跑复验并注明结果，不得静默放过。
 - **P5-02（回归口径）** 本轮交付时全量重跑：新增失败（P5-01 执行基线之外、且非已知 flaky 的复跑可绿者）必须为 0；已知 flaky 须单跑复验并在报告中逐条注明复跑结果，不得静默放过。
+- **总管裁决（2026-11-08 · r9 契约冲突）**：`tests/test_reincarnation_inheritance.py::test_r9_server_integration` 在本分支失败（shadow_count 期望 1、实际 4），根因为契约冲突而非实现缺陷：出身初始关系是经 `shift_attitude` 落入态度账的真实态度，死亡结算时按 v0.3.0 既有继承规则（|v|≥30、top 6）合法结转入影——此行为与方案 §4a 的设计意图一致（影子是下一世主线的一号种子来源；本 Spec §4.4 死亡幕回望亦以 trace.shadow 含出身关系为前提）。裁决：**接受新契约「出身恩怨随影入轮回」**，r9 的 `==1` 断言编码的是前出身世界假设，由 QA 岗按新契约修订该断言（修订口径：期望影子集合应由结算时态度账按既有继承规则推导，不得硬编码计数、不得削弱对影子衰减值与对象的校验）；修订后 r9 转绿即销账，本项不计新增失败。不取「出身关系排除出影子」（与方案种子优先级冲突）与「压低出身值域」（与 §3.6 写死值域冲突）两案。
 - **P5-03（回归口径）** 既有契约不回退专项：`tests/test_login_latency_fix.py`（登录去锁化）、`tests/test_mobile_web.py`（含预算断言——若 §9.1 豁免获总管批准，断言按新上限同步修订并注明出处，未批不得改）、`tests/test_gallery_frontend_contract.py`、`tests/test_reincarnation_inheritance.py`、`tests/test_promises.py`、`tests/test_karma_chains.py` 五组定向套件全绿（基线内既有失败除外并逐条注明）。
 
 ### 7.6 截图验收清单（双端，实现岗交付时随附）
