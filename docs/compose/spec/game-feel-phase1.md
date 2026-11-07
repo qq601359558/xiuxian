@@ -516,6 +516,8 @@ result_ref：`{name, realm, legacy_points, boosts_applied, shadow_count, origin_
 
 **豁免申请（须总管批准后实现岗才可动 mobile 文件，批准记录回填本节）**：`mobile.css` 上限 25702B → **27400B**（+1698B）；`mobile.js` 净增上限 190 行 → **390 行**（即文件 ≤1562 行，+200 行）。token 纪律（no_bare_hex）**不在豁免内**，新增 CSS 必须全量 var() 引用（昼夜双 token 表）。桌面端 workbench.js/css 无行数/字节预算约束（仓内现状），但只许增量追加，不许重构既有渲染函数。
 
+**总管批准记录（2026-11-08）**：批准上述豁免——mobile.css 上限 27400B、mobile.js 文件 ≤1562 行，自本记录起生效；前端岗可据此同步修订 `tests/test_mobile_web.py` 的预算断言（断言处须注明出处为本节）。token 纪律不豁免照旧。另总管确认接受本 Spec 的两处对方案字面的施工修正并记账：F5（命格数值改挂 `calculate_power` 乘子链 + `FATE_BOON_POWER` config 表，理由为局内会话生效点结构上无法承载跨会话命格；数值小额、封顶 1.15、P3-06 守无命格零漂移）与新增命令 `/命格` 1 条（命格待选在仪式外可达的必需接口，B4 按 100 条验收）。
+
 ### 9.2 登录耗时 B2 的测法（与 P1-03 对应，写死防口径漂移）
 
 基线与本轮必须同机、同法、同角色状态各测一遍并留原始输出：① 拼装层——脚本直调 `build_entry(char, since, allow_proactive=False)` 与 `briefing(char)` 各 20 次取中位数；② 链路层——服务起于测试 GAME_ENV，先以同账号登录一次（吃掉 proactive 90 秒冷却与 first-night 等一次性项），再连测 10 次 /login 取中位数比对。通过线见 P1-03。禁止用「tick 锁忙时段的单次最大值」冒充中位数劣化（v0.3.5 已证锁忙走回退快照口径，回退路 entry 为 null 不拼装）。
