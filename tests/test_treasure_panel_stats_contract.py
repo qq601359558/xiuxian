@@ -14,6 +14,8 @@
 1. 静态契约：面板渲染只引用真实键集合；写死中文键与写死词缀芯片消失；
    本地 fallback 对象的 stats 键 ⊆ 真实键集合；无装备/无丹药/无灵石
    的 outcome 分支不再由前端凭空捏造战利品（仅 Demo 模式允许本地推断）。
+   其中中文键断言为全仓扫描（M-1：根目录旧副本 workbench.js 曾漏网，
+   本轮已删；扫描集 = git ls-files 全部 *.js ∪ 工作树现存 *.js）。
 2. 渲染执行：把 workbench.js 里的纯函数 treasurePanelStatLine 抽出，
    用 node 对真实 payload 跑渲染断言——任何输入不得出现 undefined/NaN。
 """
@@ -35,6 +37,33 @@ from core.items import AFFIX_POOL, ItemEntity, ItemFactory, ItemKind  # noqa: E4
 
 def _read_js():
     return (WEB / "workbench.js").read_text(encoding="utf-8")
+
+
+def _all_js_files():
+    """全仓待扫描的 *.js 清单：git 追踪集 ∪ 工作树现存集。
+
+    两路并集，缺一不可：
+    - git ls-files：覆盖已追踪的全部 *.js（含 web/ 与任何已入仓的副本）；
+    - 工作树 rglob：覆盖未追踪复现的文件——根目录旧副本若以未追踪
+      形式悄悄恢复，git ls-files 看不到它，rglob 能看到。
+    排除 .git；测试文件自身是 .py，本来就不在 *.js 扫描集内，
+    其断言字面量（「攻伐威能」/ stats['攻伐威能']）与渲染用例里的
+    {"攻伐威能": 160} 输入都不会被扫描误伤。
+    """
+    found = set()
+    try:
+        r = subprocess.run(
+            ["git", "ls-files", "*.js"], cwd=str(ROOT),
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode == 0:
+            found.update(ROOT / p for p in r.stdout.splitlines() if p.strip())
+    except Exception:
+        pass
+    found.update(
+        p for p in ROOT.rglob("*.js") if ".git" not in p.parts
+    )
+    return sorted(found)
 
 
 def _collect_stats_keys(obj, out):
@@ -100,13 +129,51 @@ def test_treasure_drop_real_stats_are_renderable():
 
 
 def test_panel_has_no_hardcoded_chinese_stat_key():
-    """面板不得再引用服务端不存在的中文 stat 键。"""
+    """面板不得再引用服务端不存在的中文 stat 键——全仓断言。
+
+    M-1 返工：此前只扫 web/workbench.js，根目录旧副本 workbench.js
+    （:2571/:3015/:3077）仍含本缺陷却漏网——它又是 server/app.py
+    在 web/ 缺失时的兜底服务文件，缺陷以可达 fallback 形式留仓。
+    本轮根副本已删（见 test_root_stale_frontend_duplicates_removed），
+    本断言改为扫描全仓全部 *.js：git ls-files 追踪集 ∪ 工作树现存集
+    （_all_js_files），逐文件断言无「攻伐威能」与 stats['攻伐威能']；
+    任一副本（根目录或 web/，已追踪或未追踪复现）回退旧内容即变红。
+    """
     js = _read_js()
     assert "攻伐威能" not in js, "workbench.js 仍含服务端不存在的「攻伐威能」键"
     assert "stats['攻伐威能']" not in js, "开箱面板仍在写死 stats['攻伐威能']"
     assert "treasurePanelStatLine(excavatedEquip.stats" in js, \
         "开箱面板须经 treasurePanelStatLine 渲染主属性"
-    print("✓ 面板无写死中文 stat 键，改走 treasurePanelStatLine")
+    js_files = _all_js_files()
+    assert js_files, "全仓 *.js 扫描集为空，断言无意义"
+    assert WEB / "workbench.js" in js_files, "扫描集须含 web/workbench.js"
+    offenders = []
+    for path in js_files:
+        text = path.read_text(encoding="utf-8")
+        if "攻伐威能" in text or "stats['攻伐威能']" in text:
+            offenders.append(str(path.relative_to(ROOT)))
+    assert not offenders, f"以下 *.js 仍含写死中文 stat 键「攻伐威能」：{offenders}"
+    print(f"✓ 全仓 {len(js_files)} 个 *.js 无写死中文 stat 键，改走 treasurePanelStatLine：" +
+          ", ".join(str(p.relative_to(ROOT)) for p in js_files))
+
+
+def test_root_stale_frontend_duplicates_removed():
+    """M-1 方案 a 删除守卫：根目录三份陈旧前端副本须不存在。
+
+    根 index.html / workbench.js / workbench.css 是 web/ 的过期副本
+    （最后实质改动 2026-09-24 / 2026-10-13，web/ 对应文件为
+    2026-11-06~08），其中根 workbench.js 含本缺陷；
+    server/app.py:254-259 在 web/ 缺失时兜底服务根目录同名文件，
+    故删除是根除缺陷的必要一步。server/app.py 的兜底分支本身保留
+    （不改行为；其行为由 tests/test_auth_hardening.py 以 tmp_path
+    合成文件覆盖，不依赖本仓根副本），缺失时只会 404，不会复活旧缺陷。
+    """
+    stale = ["index.html", "workbench.js", "workbench.css"]
+    present = [name for name in stale if (ROOT / name).is_file()]
+    assert not present, (
+        f"根目录陈旧前端副本复现，须删除（web/ 为唯一现役副本）：{present}"
+    )
+    print("✓ 根目录无陈旧前端副本，web/ 为唯一现役副本")
 
 
 def test_local_fallback_stats_use_real_engine_keys():
