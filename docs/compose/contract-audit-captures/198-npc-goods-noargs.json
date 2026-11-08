@@ -1,0 +1,15 @@
+{
+ "slug": "npc-goods-noargs",
+ "command": "/npc货单",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/npc货单 <道号>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

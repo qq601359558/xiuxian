@@ -1,0 +1,15 @@
+{
+ "slug": "place-bounty-noargs",
+ "command": "/挂赏",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/挂赏 <道号> <赏金> [缘由]（句末加「匿」匿名）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "auction-list",
+ "command": "/上拍 审计试剑 100",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "list granted item (may fail if not in bag)",
+ "response": {
+  "ok": true,
+  "text": "【上拍成功】#8c12f579【审计试剑】起拍 100，120 分钟后落槌。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "gen-monster",
+ "command": "/生成妖兽",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "gen monster flow",
+ "response": {
+  "ok": false,
+  "error": "妖兽不可人造。可 /探险 遭遇，或 /悟丹 /悟器 开炉。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

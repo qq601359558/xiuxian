@@ -1,0 +1,15 @@
+{
+ "slug": "acceptorder-noargs",
+ "command": "/接宗门令",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/接宗门令 <令id>（/势力 或 /宗门令 查看）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

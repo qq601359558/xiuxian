@@ -1,0 +1,241 @@
+{
+ "slug": "join",
+ "command": "/join 审计员",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "join payload incl. entry + origin_card (build_entry)",
+ "response": {
+  "token": "1a72684e2fc443529c8e78a758e76fce",
+  "user_id": "audit_user_1",
+  "character_id": "3f9bb89d",
+  "name": "审计员",
+  "realm": "练气期初期",
+  "location": "青云坊市客栈",
+  "rem_years": 70.41,
+  "legacy_points": 0,
+  "lives": 0,
+  "is_new_life": true,
+  "resumed": false,
+  "lock_fallback": false,
+  "session_issued": true,
+  "newbie_feed": "【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。",
+  "first_night": {
+   "pending": true
+  },
+  "entry": {
+   "version": 1,
+   "since": 1794120908.2896082,
+   "generated_at": 1794120908.429532,
+   "lines": {
+    "fate": "命途「出身牵命」：千里访旧（进行中） · 命题：向铁算盘讨个说法，让其再不敢轻慢你（进行中）",
+    "chains": {
+     "fermenting": 0,
+     "nearest_mature_game_days": null,
+     "text": "发酵中因果链 0 条"
+    },
+    "relations": [
+     {
+      "npc_id": "ee748f37",
+      "npc_name": "赤霄",
+      "delta": 15,
+      "before_label": "neutral",
+      "after_label": "friendly",
+      "before_cn": "中立",
+      "after_cn": "友善",
+      "reason": "origin",
+      "summary": "赤霄对你由中立转友善：origin",
+      "ts": 1794120908.4063401
+     },
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "delta": -42,
+      "before_label": "neutral",
+      "after_label": "hostile",
+      "before_cn": "中立",
+      "after_cn": "仇视",
+      "reason": "origin",
+      "summary": "铁算盘对你由中立转仇视：origin",
+      "ts": 1794120908.3944297
+     },
+     {
+      "npc_id": "6da59e83",
+      "npc_name": "山君",
+      "delta": 53,
+      "before_label": "neutral",
+      "after_label": "ally",
+      "before_cn": "中立",
+      "after_cn": "亲近",
+      "reason": "origin",
+      "summary": "山君对你由中立转亲近：origin",
+      "ts": 1794120908.385638
+     }
+    ]
+   },
+   "queue": [
+    {
+     "kind": "drama",
+     "priority": 2,
+     "title": "铁算盘 有事相商",
+     "text": "铁算盘按剑而立，扬声道：「审计员！旧怨未消，今日便要讨个说法！」",
+     "ref_id": "dr_77b4a024f2",
+     "target": {
+      "command": "/回应 dr_77b4a024f2"
+     },
+     "ts": 1794120908.429532,
+     "options": [
+      {
+       "key": "fight",
+       "label": "应战"
+      },
+      {
+       "key": "avoid",
+       "label": "避走"
+      }
+     ]
+    },
+    {
+     "kind": "npc_visit",
+     "priority": 5,
+     "title": "铁算盘 来访",
+     "text": "铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」",
+     "ref_id": "",
+     "target": {
+      "view": "world"
+     },
+     "ts": 1794120908.429532
+    }
+   ],
+   "highlight": [
+    {
+     "kind": "drama",
+     "priority": 2,
+     "title": "铁算盘 有事相商",
+     "text": "铁算盘按剑而立，扬声道：「审计员！旧怨未消，今日便要讨个说法！」",
+     "ref_id": "dr_77b4a024f2",
+     "target": {
+      "command": "/回应 dr_77b4a024f2"
+     },
+     "ts": 1794120908.429532,
+     "options": [
+      {
+       "key": "fight",
+       "label": "应战"
+      },
+      {
+       "key": "avoid",
+       "label": "避走"
+      }
+     ]
+    },
+    {
+     "kind": "npc_visit",
+     "priority": 5,
+     "title": "铁算盘 来访",
+     "text": "铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」",
+     "ref_id": "",
+     "target": {
+      "view": "world"
+     },
+     "ts": 1794120908.429532
+    }
+   ],
+   "rest_count": 0,
+   "empty": false,
+   "empty_text": "江湖无事，可自由行动",
+   "proactive": {
+    "text": "【铁算盘·贪财好利】铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」",
+    "npc": "铁算盘"
+   }
+  },
+  "origin_card": {
+   "origin": {
+    "family": "商贾",
+    "family_text": "行商之子",
+    "signature": "商贾|背案在身|c4904fff|nodebt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 145,
+    "debt": null,
+    "relations": [
+     {
+      "npc_id": "806ffd38",
+      "npc_name": "金满堂",
+      "role": "witness",
+      "init_value": -6,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "6da59e83",
+      "npc_name": "山君",
+      "role": "kin",
+      "init_value": 53,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "role": "foe",
+      "init_value": -42,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "ee748f37",
+      "npc_name": "赤霄",
+      "role": "witness",
+      "init_value": 15,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "背案在身",
+     "npc_id": "806ffd38",
+     "item_ref": "",
+     "summary": "身上背着一桩说不清的旧案，金满堂知情"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "青云宗",
+      "effect": "favored"
+     },
+     {
+      "gate": "vendor",
+      "target_ref": "c4904fff",
+      "target_name": "铁算盘",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": 2,
+    "short_goal_id": "g_origin_8be2792f",
+    "fate_goal_id": "g_fate_6113083b",
+    "fate_text": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "extreme_bad": false,
+    "dedup_retries": 0,
+    "generated_at": 1794120908.334402,
+    "life_no": 1,
+    "fate_kind": "foe_reckoning"
+   },
+   "prev_epitaph": "",
+   "just_created": true
+  }
+ },
+ "top_keys": [
+  "character_id",
+  "entry",
+  "first_night",
+  "is_new_life",
+  "legacy_points",
+  "lives",
+  "location",
+  "lock_fallback",
+  "name",
+  "newbie_feed",
+  "origin_card",
+  "realm",
+  "rem_years",
+  "resumed",
+  "session_issued",
+  "token",
+  "user_id"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "ro-links",
+ "command": "/links",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【因果】审计员 的牵缠：\n· 仇 · 铁算盘 · 强度1  出身旧怨：背案在身"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

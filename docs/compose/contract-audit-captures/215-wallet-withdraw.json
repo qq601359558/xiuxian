@@ -1,0 +1,644 @@
+{
+ "slug": "wallet-withdraw",
+ "command": "/钱包提取 10",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "withdraw with (likely) empty wallet",
+ "response": {
+  "ok": true,
+  "text": "【钱包提取】钱包 −10 灵石／随身 ＋10 灵石。钱包余额 99988｜随身 100010。",
+  "status": {
+   "name": "审计员",
+   "version": 6,
+   "realm": "练气期初期",
+   "origin": {
+    "family": "猎户",
+    "family_text": "山野猎户之子",
+    "signature": "猎户|恩人救命|969cadfd|debt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 153,
+    "debt": {
+     "creditor_npc_id": "806ffd38",
+     "creditor_name": "金满堂",
+     "amount": 114,
+     "promise_id": "a23b142b"
+    },
+    "relations": [
+     {
+      "npc_id": "969cadfd",
+      "npc_name": "柳三娘",
+      "role": "foe",
+      "init_value": -45,
+      "is_creditor": false,
+      "vendetta": true,
+      "vendetta_for": "铁算盘"
+     },
+     {
+      "npc_id": "fa2dfacc",
+      "npc_name": "赤练子",
+      "role": "kin",
+      "init_value": 55,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "d11bf9f5",
+      "npc_name": "小环",
+      "role": "witness",
+      "init_value": 15,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "45b811aa",
+      "npc_name": "小雀儿",
+      "role": "witness",
+      "init_value": 2,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "恩人救命",
+     "npc_id": "fa2dfacc",
+     "item_ref": "",
+     "summary": "幼年落难，蒙赤练子出手相救，恩未报"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "青云宗",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": -16,
+    "short_goal_id": "g_origin_3490ffcf",
+    "fate_goal_id": "g_fate_5437469c",
+    "fate_text": "「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。",
+    "extreme_bad": true,
+    "dedup_retries": 0,
+    "generated_at": 1794120910.5870435,
+    "life_no": 2,
+    "extreme_bad_seed": true,
+    "fate_kind": "debt_clear"
+   },
+   "fate": {
+    "boons": [],
+    "pending": [],
+    "power_bonus": 1.0,
+    "thread": {
+     "id": "ft_803499949192",
+     "title": "未竟之志",
+     "status": "active",
+     "seed_source": "unfinished",
+     "seed_ref": "",
+     "antagonist": {
+      "id": "969cadfd",
+      "name": "柳三娘"
+     },
+     "patron": {
+      "id": "fa2dfacc",
+      "name": "赤练子"
+     },
+     "final_proposition": {
+      "text": "「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。",
+      "status": "active"
+     },
+     "current_chapter": 0,
+     "chapters": [
+      {
+       "idx": 0,
+       "group": "setup",
+       "kind": "visit",
+       "tier": "short",
+       "title": "去见那个人",
+       "goal_text": "前往柳三娘所在之地，当面照一照这一世的因果。",
+       "status": "active",
+       "deadline_at": 1794124510.629771
+      },
+      {
+       "idx": 1,
+       "group": "manage",
+       "kind": "visit",
+       "tier": "short",
+       "title": "去见那个人",
+       "goal_text": "前往柳三娘所在之地，当面照一照这一世的因果。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 2,
+       "group": "manage",
+       "kind": "choice",
+       "tier": "mid",
+       "title": "十字路口",
+       "goal_text": "一桩牵连多方的事将至，届时须亲手做出抉择。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 3,
+       "group": "conflict",
+       "kind": "feud",
+       "tier": "mid",
+       "title": "旧账初鸣",
+       "goal_text": "与柳三娘的旧账已经摆上台面，先去探一探虚实。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 4,
+       "group": "climax",
+       "kind": "climax",
+       "tier": "final",
+       "title": "高潮决算",
+       "goal_text": "所有线索汇于一处，成败在此一举。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 5,
+       "group": "finale",
+       "kind": "finale",
+       "tier": "final",
+       "title": "终局之命",
+       "goal_text": "终局命题高悬，成败由这一世的行止裁决。",
+       "status": "locked",
+       "deadline_at": 0.0
+      }
+     ],
+     "shelvable": true,
+     "origin_present": true
+    }
+   },
+   "location_image": "/assets/scenes/market-inn.webp",
+   "relations_recent": [
+    {
+     "npc_id": "45b811aa",
+     "npc_name": "小雀儿",
+     "delta": 2,
+     "before_label": "neutral",
+     "after_label": "neutral",
+     "before_cn": "中立",
+     "after_cn": "中立",
+     "reason": "origin",
+     "summary": "小雀儿对你态度升温：origin",
+     "ts": 1794120910.6269345
+    },
+    {
+     "npc_id": "d11bf9f5",
+     "npc_name": "小环",
+     "delta": 15,
+     "before_label": "neutral",
+     "after_label": "friendly",
+     "before_cn": "中立",
+     "after_cn": "友善",
+     "reason": "origin",
+     "summary": "小环对你由中立转友善：origin",
+     "ts": 1794120910.623511
+    },
+    {
+     "npc_id": "fa2dfacc",
+     "npc_name": "赤练子",
+     "delta": 55,
+     "before_label": "neutral",
+     "after_label": "ally",
+     "before_cn": "中立",
+     "after_cn": "亲近",
+     "reason": "origin",
+     "summary": "赤练子对你由中立转亲近：origin",
+     "ts": 1794120910.6204906
+    },
+    {
+     "npc_id": "969cadfd",
+     "npc_name": "柳三娘",
+     "delta": -45,
+     "before_label": "neutral",
+     "after_label": "hostile",
+     "before_cn": "中立",
+     "after_cn": "仇视",
+     "reason": "origin",
+     "summary": "柳三娘对你由中立转仇视：origin",
+     "ts": 1794120910.6166704
+    }
+   ],
+   "relations_marks": {
+    "45b811aa": {
+     "delta": 2,
+     "ts": 1794120910.6269345
+    },
+    "d11bf9f5": {
+     "delta": 15,
+     "ts": 1794120910.623511
+    },
+    "fa2dfacc": {
+     "delta": 55,
+     "ts": 1794120910.6204906
+    },
+    "969cadfd": {
+     "delta": -45,
+     "ts": 1794120910.6166704
+    }
+   },
+   "location": "青云坊市客栈",
+   "stones": 100010,
+   "vault": 0,
+   "wallet": {
+    "balance": 99988,
+    "entries": [
+     {
+      "ts": 1794120910.521665,
+      "kind": "death_sweep",
+      "amount": 99998,
+      "ref": "3f9bb89d",
+      "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+     },
+     {
+      "ts": 1794120910.7488482,
+      "kind": "wallet_withdraw",
+      "amount": -10,
+      "ref": "withdraw:1794120910.748849",
+      "note": "提取到角色【审计员】随身"
+     }
+    ],
+    "ledger": [
+     {
+      "ts": 1794120910.521665,
+      "kind": "death_sweep",
+      "amount": 99998,
+      "ref": "3f9bb89d",
+      "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+     },
+     {
+      "ts": 1794120910.7488482,
+      "kind": "wallet_withdraw",
+      "amount": -10,
+      "ref": "withdraw:1794120910.748849",
+      "note": "提取到角色【审计员】随身"
+     }
+    ],
+    "username": ""
+   },
+   "past_life": {
+    "lives": 1,
+    "last_name": "审计员",
+    "last_cause": "审计坐化",
+    "shadow_count": 2
+   },
+   "karma_chains": {
+    "active": 0,
+    "fermenting": 0,
+    "nearest_mature_game_days": null
+   },
+   "gender": "male",
+   "portrait": "/assets/portraits/male-lianqi.webp",
+   "gallery": {
+    "unlocked": [
+     "artifacts/sword",
+     "arts/earth",
+     "arts/fire",
+     "arts/metal",
+     "arts/sword",
+     "arts/water",
+     "arts/wood",
+     "goods/pill-cultivation",
+     "maps/map-fine",
+     "omen/orphan-trust",
+     "portraits/male-fanren",
+     "portraits/male-lianqi",
+     "portraits/npc-sh-01",
+     "portraits/npc-sh-02",
+     "portraits/npc-sh-03",
+     "portraits/npc-sh-04",
+     "portraits/npc-sh-05",
+     "portraits/npc-sh-06",
+     "scenes/market-inn"
+    ],
+    "count": 19,
+    "total": 139,
+    "title": "初窥门径",
+    "newly": []
+   },
+   "art_images": {
+    "吐纳术": "/assets/arts/wood.webp",
+    "御剑术": "/assets/arts/sword.webp"
+   },
+   "sin": 0,
+   "merit": 0,
+   "exp": "0/600",
+   "rem_years": 76.6,
+   "dead": false,
+   "status": "IDLE",
+   "status_cn": "闲适",
+   "root": "真灵根 (木·土)",
+   "root_eff": 1.1,
+   "dao_heart": 100,
+   "skills": [
+    "吐纳术",
+    "御剑术"
+   ],
+   "inventory": [],
+   "arrays": [],
+   "pet": null,
+   "pets_count": 0,
+   "cave": null,
+   "arts": {
+    "main": "",
+    "sub": []
+   },
+   "body_soul": {
+    "body": 0,
+    "soul": 0
+   },
+   "heart_demon_state": {
+    "stage": 0,
+    "stage_name": "无种",
+    "seed": 0
+   },
+   "books": {
+    "inspiration": 0,
+    "prestige": 0
+   },
+   "season_theme": {
+    "name": "静默纪元",
+    "key": "silence",
+    "effect": "无天象修正",
+    "season_number": 1
+   },
+   "blood_marked": false,
+   "lifespan_warning": false,
+   "meditating": false,
+   "is_meditating": false,
+   "sect": "",
+   "rank": "散修",
+   "sect_contribution": 0,
+   "sect_streak": 0,
+   "salary": 0,
+   "salary_claimable": false,
+   "salary_cd_sec": 0,
+   "can_promote": false,
+   "next_rank": null,
+   "promote_req_tier": 0,
+   "sect_ring": {},
+   "sects_catalog": [
+    {
+     "name": "青云宗",
+     "alignment": "正道名门",
+     "desc": "道法自然，清静修身，门规森严，禁止同道相残。坐拥东荒三阶灵脉。",
+     "headquarters": "青云宗外门山门",
+     "cave_location": "宗门玄元洞府",
+     "req_dao_heart": 60,
+     "max_sin": 30,
+     "min_sin": 0,
+     "monthly_salary": 25,
+     "starter_array": "一阶青木迷踪阵",
+     "rules_tip": "道心需≥60，业力需<30且无血煞，同门相残将遭执法堂追杀！"
+    },
+    {
+     "name": "万剑仙门",
+     "alignment": "杀伐中立",
+     "desc": "以剑入道，宁折不弯。门人皆擅杀伐御剑，攻守兼备，以战养战。",
+     "headquarters": "万剑仙门峰",
+     "cave_location": "洗剑池洞天",
+     "req_dao_heart": 70,
+     "max_sin": 100,
+     "min_sin": 0,
+     "monthly_salary": 30,
+     "starter_array": "一阶庚金剑煞阵",
+     "rules_tip": "道心需≥70或身具金/雷灵根，入门战力攻伐提升20%！"
+    },
+    {
+     "name": "九幽天魔宗",
+     "alignment": "魔道巨擘",
+     "desc": "弱肉强食，胜者为尊。盘踞极煞绝渊，允许同门夺宝，唯力是从。",
+     "headquarters": "九幽天魔宗坛",
+     "cave_location": "黑风绝渊",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 40,
+     "monthly_salary": 35,
+     "starter_array": "一阶白骨戮仙阵",
+     "rules_tip": "业力需≥40（双手沾血），杀人不损道心，但天劫威力增加20%！"
+    },
+    {
+     "name": "四海散修商会",
+     "alignment": "散修同盟",
+     "desc": "无拘无束的散修中立商会，一切以灵石说话，自由自在，不沾因果。",
+     "headquarters": "青云坊市客栈",
+     "cave_location": "青云坊市客栈",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 0,
+     "monthly_salary": 0,
+     "starter_array": null,
+     "rules_tip": "无任何门槛，无月俸，无免费洞府，自食其力。"
+    }
+   ],
+   "unread_messages": [],
+   "newbie_protected": true,
+   "newbie_left_hours": 72.0,
+   "protect": "新手庇护 72.0h",
+   "conflict_zone": false,
+   "qi_mult": 0.556,
+   "crane_pending_item": null,
+   "max_bag_slots": 64,
+   "is_bag_full": false,
+   "equipped": [],
+   "items": [],
+   "stall_earnings": 0,
+   "stall_items": [],
+   "market_listings": [],
+   "dungeon": null,
+   "spells_catalog": [
+    {
+     "key": "metal_sword",
+     "name": "太乙破虚剑气",
+     "element": "metal",
+     "element_cn": "金",
+     "cost_mp": 15,
+     "cooldown": 1,
+     "base_mult": 1.6,
+     "desc": "凝聚庚金剑芒破空斩击。造成 160% 破甲杀伤；若敌方身负护盾，额外造成 50% 破盾斩击！",
+     "img": "/assets/arts/metal.webp"
+    },
+    {
+     "key": "wood_heal",
+     "name": "青帝长生引",
+     "element": "wood",
+     "element_cn": "木",
+     "cost_mp": 20,
+     "cooldown": 2,
+     "heal_pct": 0.3,
+     "desc": "引动乙木长生之气化入肉身，恢复 30% 最大气血，并驱散一层负面负累。",
+     "img": "/assets/arts/wood.webp"
+    },
+    {
+     "key": "water_freeze",
+     "name": "玄冰寒煞魄",
+     "element": "water",
+     "element_cn": "水",
+     "cost_mp": 18,
+     "cooldown": 2,
+     "base_mult": 1.2,
+     "desc": "以玄阴真水凝聚寒煞，造成 120% 冰霜伤害，并冻结目标神魂（下回合无法出手）。",
+     "img": "/assets/arts/water.webp"
+    },
+    {
+     "key": "fire_blast",
+     "name": "九幽地煞火",
+     "element": "fire",
+     "element_cn": "火",
+     "cost_mp": 20,
+     "cooldown": 1,
+     "base_mult": 1.4,
+     "burn_dot": 2,
+     "desc": "催动地心煞火焚天煮海，造成 140% 火伤并施加灼烧；若目标处于冻结状态，将触发【真火爆燃】造成双倍额外暴击！",
+     "img": "/assets/arts/fire.webp"
+    },
+    {
+     "key": "earth_shield",
+     "name": "不动明王罡",
+     "element": "earth",
+     "element_cn": "土",
+     "cost_mp": 20,
+     "cooldown": 3,
+     "shield_pct": 0.35,
+     "reflect_pct": 0.2,
+     "desc": "借大地戊土灵脉化为明王护体罡气，生成相当于自身 35% 气血的坚固灵盾，并反震 20% 伤害。",
+     "img": "/assets/arts/earth.webp"
+    }
+   ],
+   "dungeon_floors": [
+    {
+     "floor": 1,
+     "name": "锁妖古窟 · 幽暗外穴",
+     "tier_name": "炼气期试炼",
+     "min_tier": 1
+    },
+    {
+     "floor": 2,
+     "name": "锁妖古窟 · 赤岩裂谷",
+     "tier_name": "炼气圆满 / 准筑基",
+     "min_tier": 1
+    },
+    {
+     "floor": 3,
+     "name": "锁妖古窟 · 煞骨灵冢",
+     "tier_name": "筑基初期守关层",
+     "min_tier": 1
+    },
+    {
+     "floor": 4,
+     "name": "锁妖古窟 · 万毒渊薮",
+     "tier_name": "筑基中期深探",
+     "min_tier": 2
+    },
+    {
+     "floor": 5,
+     "name": "锁妖古窟 · 焚天炎池",
+     "tier_name": "筑基后期搏杀",
+     "min_tier": 2
+    },
+    {
+     "floor": 6,
+     "name": "锁妖古窟 · 绝阴冰窟",
+     "tier_name": "结丹初期大妖关",
+     "min_tier": 2
+    },
+    {
+     "floor": 7,
+     "name": "锁妖古窟 · 幽冥绝渊",
+     "tier_name": "结丹中期凶险",
+     "min_tier": 3
+    },
+    {
+     "floor": 8,
+     "name": "锁妖古窟 · 太古雷狱",
+     "tier_name": "结丹圆满 / 准元婴",
+     "min_tier": 3
+    },
+    {
+     "floor": 9,
+     "name": "锁妖古窟 · 封魔古殿",
+     "tier_name": "元婴总魔尊决战",
+     "min_tier": 3
+    }
+   ],
+   "combat": {
+    "max_hp": 100,
+    "current_hp": 100,
+    "max_mp": 50,
+    "current_mp": 50,
+    "phys_atk": 15,
+    "spell_atk": 20,
+    "phys_def": 10,
+    "spell_def": 10,
+    "speed": 10,
+    "crit_rate": 0.05,
+    "crit_damage": 1.5
+   },
+   "soul": {
+    "divine_sense": 20,
+    "sense_range": 50,
+    "illusion_resist": 0.1
+   },
+   "equip_slots": {
+    "weapon": null,
+    "armor": null,
+    "trinket": null,
+    "boots": null,
+    "flying_treasure": null
+   },
+   "professions": {
+    "alchemy_level": 0,
+    "alchemy_exp": 0,
+    "forge_level": 0,
+    "forge_exp": 0,
+    "array_level": 0,
+    "array_exp": 0,
+    "talisman_level": 0,
+    "talisman_exp": 0
+   },
+   "quest": null
+  },
+  "wallet": {
+   "balance": 99988,
+   "entries": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    }
+   ],
+   "ledger": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    }
+   ],
+   "username": ""
+  }
+ },
+ "top_keys": [
+  "ok",
+  "status",
+  "text",
+  "wallet"
+ ]
+}

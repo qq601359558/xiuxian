@@ -1,0 +1,15 @@
+{
+ "slug": "release-captive",
+ "command": "/释放",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "release (alias /release shadowed by pet /放生, see ledger)",
+ "response": {
+  "ok": false,
+  "error": "用法：/释放 <道号>（同场且由你擒住）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

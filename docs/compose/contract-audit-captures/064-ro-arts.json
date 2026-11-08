@@ -1,0 +1,17 @@
+{
+ "slug": "ro-arts",
+ "command": "/arts",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "尚未自创任何功法。可用 /自创功法 <理念>。",
+  "arts": []
+ },
+ "top_keys": [
+  "arts",
+  "ok",
+  "text"
+ ]
+}

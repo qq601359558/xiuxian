@@ -1,0 +1,562 @@
+{
+ "slug": "ro-图鉴",
+ "command": "/图鉴",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【天道图鉴】进度 6/139 · 尚未得图鉴称号（10 张起）\n\n■ 人物·男相（0/10）\n  ◇ 未点亮 男相·凡人（/assets/portraits/male-fanren.webp）\n  ◇ 未点亮 男相·练气（/assets/portraits/male-lianqi.webp）\n  ◇ 未点亮 男相·筑基（/assets/portraits/male-zhuji.webp）\n  ◇ 未点亮 男相·金丹（/assets/portraits/male-jindan.webp）\n  ◇ 未点亮 男相·元婴（/assets/portraits/male-yuanying.webp）\n  ◇ 未点亮 男相·化神（/assets/portraits/male-huashen.webp）\n  ◇ 未点亮 男相·炼虚（/assets/portraits/male-lianxu.webp）\n  ◇ 未点亮 男相·合体（/assets/portraits/male-heti.webp）\n  ◇ 未点亮 男相·大乘（/assets/portraits/male-dacheng.webp）\n  ◇ 未点亮 男相·渡劫（/assets/portraits/male-dujie.webp）\n\n■ 人物·女相（0/10）\n  ◇ 未点亮 女相·凡人（/assets/portraits/female-fanren.webp）\n  ◇ 未点亮 女相·练气（/assets/portraits/female-lianqi.webp）\n  ◇ 未点亮 女相·筑基（/assets/portraits/female-zhuji.webp）\n  ◇ 未点亮 女相·金丹（/assets/portraits/female-jindan.webp）\n  ◇ 未点亮 女相·元婴（/assets/portraits/female-yuanying.webp）\n  ◇ 未点亮 女相·化神（/assets/portraits/female-huashen.webp）\n  ◇ 未点亮 女相·炼虚（/assets/portraits/female-lianxu.webp）\n  ◇ 未点亮 女相·合体（/assets/portraits/female-heti.webp）\n  ◇ 未点亮 女相·大乘（/assets/portraits/female-dacheng.webp）\n  ◇ 未点亮 女相·渡劫（/assets/portraits/female-dujie.webp）\n\n■ 人物·NPC单人（0/37）\n  ◇ 未点亮 NPC·玄清子（/assets/portraits/npc-qy-01.webp）\n  ◇ 未点亮 NPC·静虚真人（/assets/portraits/npc-qy-02.webp）\n  ◇ 未点亮 NPC·云鹤道人（/assets/portraits/npc-qy-03.webp）\n  ◇ 未点亮 NPC·丹霞子（/assets/portraits/npc-qy-04.webp）\n  ◇ 未点亮 NPC·林惊羽（/assets/portraits/npc-qy-05.webp）\n  ◇ 未点亮 NPC·苏婉清（/assets/portraits/npc-qy-06.webp）\n  ◇ 未点亮 NPC·石猛（/assets/portraits/npc-qy-07.webp）\n  ◇ 未点亮 NPC·赵小满（/assets/portraits/npc-qy-08.webp）\n  ◇ 未点亮 NPC·青萝（/assets/portraits/npc-qy-09.webp）\n  ◇ 未点亮 NPC·剑圣·独孤败（/assets/portraits/npc-wj-01.webp）\n  ◇ 未点亮 NPC·断岳剑尊（/assets/portraits/npc-wj-02.webp）\n  ◇ 未点亮 NPC·白霜（/assets/portraits/npc-wj-03.webp）\n  ◇ 未点亮 NPC·赤霄（/assets/portraits/npc-wj-04.webp）\n  ◇ 未点亮 NPC·墨离（/assets/portraits/npc-wj-05.webp）\n  ◇ 未点亮 NPC·剑奴阿七（/assets/portraits/npc-wj-06.webp）\n  ◇ 未点亮 NPC·小环（/assets/portraits/npc-wj-07.webp）\n  ◇ 未点亮 NPC·幽冥老祖（/assets/portraits/npc-jy-01.webp）\n  ◇ 未点亮 NPC·血衣侯（/assets/portraits/npc-jy-02.webp）\n  ◇ 未点亮 NPC·厉无锋（/assets/portraits/npc-jy-03.webp）\n  ◇ 未点亮 NPC·骨姬（/assets/portraits/npc-jy-04.webp）\n  ◇ 未点亮 NPC·血刀老祖（/assets/portraits/npc-jy-05.webp）\n  ◇ 未点亮 NPC·毒娘子（/assets/portraits/npc-jy-06.webp）\n  ◇ 未点亮 NPC·阿骨（/assets/portraits/npc-jy-07.webp）\n  ◇ 未点亮 NPC·金满堂（/assets/portraits/npc-sh-01.webp）\n  ◇ 未点亮 NPC·铁算盘（/assets/portraits/npc-sh-02.webp）\n  ◇ 未点亮 NPC·柳三娘（/assets/portraits/npc-sh-03.webp）\n  ◇ 未点亮 NPC·陆仁贾（/assets/portraits/npc-sh-04.webp）\n  ◇ 未点亮 NPC·驼爷（/assets/portraits/npc-sh-05.webp）\n  ◇ 未点亮 NPC·小雀儿（/assets/portraits/npc-sh-06.webp）\n  ◇ 未点亮 NPC·采药翁（/assets/portraits/npc-wd-01.webp）\n  ◇ 未点亮 NPC·赤练子（/assets/portraits/npc-wd-02.webp）\n  ◇ 未点亮 NPC·山君（/assets/portraits/npc-wd-03.webp）\n  ◇ 未点亮 NPC·蜃楼客（/assets/portraits/npc-wd-04.webp）\n  ◇ 未点亮 NPC·海娘子（/assets/portraits/npc-wd-05.webp）\n  ◇ 未点亮 NPC·盲眼琴师（/assets/portraits/npc-wd-06.webp）\n  ◇ 未点亮 NPC·盗墓贼·孙九（/assets/portraits/npc-wd-07.webp）\n  ◇ 未点亮 NPC·青州游侠·燕十三（/assets/portraits/npc-wd-08.webp）\n\n■ 人物·NPC原型（0/4）\n  ◇ 未点亮 NPC·老道（/assets/portraits/npc-laodao.webp）\n  ◇ 未点亮 NPC·商贾（/assets/portraits/npc-shanggu.webp）\n  ◇ 未点亮 NPC·女修（/assets/portraits/npc-nvxiu.webp）\n  ◇ 未点亮 NPC·少年（/assets/portraits/npc-shaonian.webp）\n\n■ 法宝（0/20）\n  ◇ 未点亮 法宝·剑（/assets/artifacts/sword.webp）\n  ◇ 未点亮 法宝·鼎炉（/assets/artifacts/cauldron.webp）\n  ◇ 未点亮 法宝·幡旗（/assets/artifacts/banner.webp）\n  ◇ 未点亮 法宝·珠戒（/assets/artifacts/orb.webp）\n  ◇ 未点亮 法宝·镜（/assets/artifacts/mirror.webp）\n  ◇ 未点亮 法宝·铃钟（/assets/artifacts/bell.webp）\n  ◇ 未点亮 法宝·塔（/assets/artifacts/pagoda.webp）\n  ◇ 未点亮 法宝·葫芦（/assets/artifacts/gourd.webp）\n  ◇ 未点亮 法宝·扇（/assets/artifacts/fan.webp）\n  ◇ 未点亮 法宝·印玺（/assets/artifacts/seal.webp）\n  ◇ 未点亮 法宝·甲胄（/assets/artifacts/armor.webp）\n  ◇ 未点亮 法宝·靴履（/assets/artifacts/boots.webp）\n  ◇ 未点亮 法宝·法杖（/assets/artifacts/staff.webp）\n  ◇ 未点亮 法宝·舟舰（/assets/artifacts/vessel.webp）\n  ◇ 未点亮 法宝·战刃（/assets/artifacts/blade.webp）\n  ◇ 未点亮 法宝·戈枪（/assets/artifacts/spear.webp）\n  ◇ 未点亮 法宝·剑匣（/assets/artifacts/case.webp）\n  ◇ 未点亮 法宝·灵刺（/assets/artifacts/needle.webp）\n  ◇ 未点亮 法宝·破空梭（/assets/artifacts/shuttle.webp）\n  ◇ 未点亮 法宝·符箓（/assets/artifacts/talisman.webp）\n\n■ 功法（6/10）\n  ◆ 已点亮 功法·金（/assets/arts/metal.webp）\n  ◆ 已点亮 功法·木（/assets/arts/wood.webp）\n  ◆ 已点亮 功法·水（/assets/arts/water.webp）\n  ◆ 已点亮 功法·火（/assets/arts/fire.webp）\n  ◆ 已点亮 功法·土（/assets/arts/earth.webp）\n  ◇ 未点亮 功法·雷（/assets/arts/thunder.webp）\n  ◆ 已点亮 功法·剑（/assets/arts/sword.webp）\n  ◇ 未点亮 功法·冰（/assets/arts/ice.webp）\n  ◇ 未点亮 功法·风（/assets/arts/wind.webp）\n  ◇ 未点亮 功法·神魂（/assets/arts/spirit.webp）\n\n■ 藏宝图（0/8）\n  ◇ 未点亮 宝图·凡图（/assets/maps/map-common.webp）\n  ◇ 未点亮 宝图·良图（/assets/maps/map-fine.webp）\n  ◇ 未点亮 宝图·珍图（/assets/maps/map-rare.webp）\n  ◇ 未点亮 宝图·古图（/assets/maps/map-ancient.webp）\n  ◇ 未点亮 宝图·仙图（/assets/maps/map-celestial.webp）\n  ◇ 未点亮 宝图·解谜（/assets/maps/arch-puzzle.webp）\n  ◇ 未点亮 宝图·凶地（/assets/maps/arch-combat.webp）\n  ◇ 未点亮 宝图·涉险（/assets/maps/arch-hazard.webp）\n\n■ 灵宠（0/4）\n  ◇ 未点亮 灵宠·青鳞蟒（/assets/pets/pet-qinglinmang.webp）\n  ◇ 未点亮 灵宠·疾风隼（/assets/pets/pet-jifengxun.webp）\n  ◇ 未点亮 灵宠·玄甲龟（/assets/pets/pet-xuanjiagui.webp）\n  ◇ 未点亮 灵宠·寻宝鼠（/assets/pets/pet-xunbaoshu.webp）\n\n■ 场景·地点（0/10）\n  ◇ 未点亮 场景·青云坊市客栈（/assets/scenes/market-inn.webp）\n  ◇ 未点亮 场景·青云宗外门山门（/assets/scenes/qingyun-gate.webp）\n  ◇ 未点亮 场景·宗门玄元洞府（/assets/scenes/xuanyuan-cave.webp）\n  ◇ 未点亮 场景·落霞山灵泉（/assets/scenes/luoxia-spring.webp）\n  ◇ 未点亮 场景·黑水沼泽（/assets/scenes/heishui-swamp.webp）\n  ◇ 未点亮 场景·万剑仙门峰（/assets/scenes/wanjian-peak.webp）\n  ◇ 未点亮 场景·洗剑池洞天（/assets/scenes/xijian-pool.webp）\n  ◇ 未点亮 场景·九幽天魔宗坛（/assets/scenes/jiuyou-altar.webp）\n  ◇ 未点亮 场景·黑风绝渊（/assets/scenes/heifeng-abyss.webp）\n  ◇ 未点亮 场景·万星古岛（/assets/scenes/wanxing-isle.webp）\n\n■ 场景·秘境（0/5）\n  ◇ 未点亮 场景·落霞古洞（/assets/scenes/realm-luoxia-cave.webp）\n  ◇ 未点亮 场景·剑冢残碑（/assets/scenes/realm-sword-tomb.webp）\n  ◇ 未点亮 场景·万星遗迹残址（/assets/scenes/realm-wanxing-ruins.webp）\n  ◇ 未点亮 场景·幽冥鬼市（/assets/scenes/realm-ghost-market.webp）\n  ◇ 未点亮 场景·锁妖古窟（/assets/scenes/dungeon-entrance.webp）\n\n■ 奇遇（0/6）\n  ◇ 未点亮 奇遇·黑市兜售（/assets/omen/black-market.webp）\n  ◇ 未点亮 奇遇·旧友托孤（/assets/omen/orphan-trust.webp）\n  ◇ 未点亮 奇遇·灵泉争饮（/assets/omen/spring-dispute.webp）\n  ◇ 未点亮 奇遇·残碑悟道（/assets/omen/stele.webp）\n  ◇ 未点亮 奇遇·镖银争议（/assets/omen/escort-deal.webp）\n  ◇ 未点亮 奇遇·客栈夜话（/assets/omen/inn-whisper.webp）\n\n■ 丹药（0/8）\n  ◇ 未点亮 丹药·破境（/assets/goods/pill-breakthrough.webp）\n  ◇ 未点亮 丹药·修炼（/assets/goods/pill-cultivation.webp）\n  ◇ 未点亮 丹药·疗愈（/assets/goods/pill-recovery.webp）\n  ◇ 未点亮 丹药·延寿（/assets/goods/pill-lifespan.webp）\n  ◇ 未点亮 丹药·神魂（/assets/goods/pill-soul.webp）\n  ◇ 未点亮 丹药·解毒（/assets/goods/pill-detox.webp）\n  ◇ 未点亮 丹药·洗髓（/assets/goods/pill-root.webp）\n  ◇ 未点亮 丹药·战斗（/assets/goods/pill-combat.webp）\n\n■ 材料（0/7）\n  ◇ 未点亮 材料·灵草（/assets/goods/mat-herb.webp）\n  ◇ 未点亮 材料·矿石（/assets/goods/mat-ore.webp）\n  ◇ 未点亮 材料·金属（/assets/goods/mat-metal.webp）\n  ◇ 未点亮 材料·兽材（/assets/goods/mat-beast.webp）\n  ◇ 未点亮 材料·灵液（/assets/goods/mat-liquid.webp）\n  ◇ 未点亮 材料·灵木（/assets/goods/mat-wood.webp）\n  ◇ 未点亮 材料·灵气（/assets/goods/mat-aura.webp）\n\n点亮之法：定相后随境界自明、纳戒藏品自录、同场交谈识人、奇遇逢图留痕。图鉴只记眼界，不予数值。",
+  "status": {
+   "name": "审计员",
+   "version": 8,
+   "realm": "练气期初期",
+   "origin": {
+    "family": "商贾",
+    "family_text": "行商之子",
+    "signature": "商贾|背案在身|c4904fff|nodebt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 145,
+    "debt": null,
+    "relations": [
+     {
+      "npc_id": "806ffd38",
+      "npc_name": "金满堂",
+      "role": "witness",
+      "init_value": -6,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "6da59e83",
+      "npc_name": "山君",
+      "role": "kin",
+      "init_value": 53,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "role": "foe",
+      "init_value": -42,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "ee748f37",
+      "npc_name": "赤霄",
+      "role": "witness",
+      "init_value": 15,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "背案在身",
+     "npc_id": "806ffd38",
+     "item_ref": "",
+     "summary": "身上背着一桩说不清的旧案，金满堂知情"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "青云宗",
+      "effect": "favored"
+     },
+     {
+      "gate": "vendor",
+      "target_ref": "c4904fff",
+      "target_name": "铁算盘",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": 2,
+    "short_goal_id": "g_origin_8be2792f",
+    "fate_goal_id": "g_fate_6113083b",
+    "fate_text": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "extreme_bad": false,
+    "dedup_retries": 0,
+    "generated_at": 1794120908.334402,
+    "life_no": 1,
+    "fate_kind": "foe_reckoning"
+   },
+   "fate": {
+    "boons": [],
+    "pending": [],
+    "power_bonus": 1.0,
+    "thread": {
+     "id": "ft_96b1072cdf5d",
+     "title": "出身牵命",
+     "status": "active",
+     "seed_source": "origin",
+     "seed_ref": "806ffd38",
+     "antagonist": {
+      "id": "c4904fff",
+      "name": "铁算盘"
+     },
+     "patron": {
+      "id": "6da59e83",
+      "name": "山君"
+     },
+     "final_proposition": {
+      "text": "向铁算盘讨个说法，让其再不敢轻慢你",
+      "status": "active"
+     },
+     "current_chapter": 0,
+     "chapters": [
+      {
+       "idx": 0,
+       "group": "setup",
+       "kind": "visit",
+       "tier": "short",
+       "title": "千里访旧",
+       "goal_text": "动身去寻铁算盘，有些话须当面说清。",
+       "status": "active",
+       "deadline_at": 1794124508.415741
+      },
+      {
+       "idx": 1,
+       "group": "manage",
+       "kind": "treasure",
+       "tier": "short",
+       "title": "山中访宝",
+       "goal_text": "听闻近处有宝光隐现，去碰一碰运气。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 2,
+       "group": "manage",
+       "kind": "choice",
+       "tier": "mid",
+       "title": "两难之局",
+       "goal_text": "进退之间，须以一诺或一链定下取舍。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 3,
+       "group": "conflict",
+       "kind": "feud",
+       "tier": "mid",
+       "title": "恩怨有头",
+       "goal_text": "血债有头，冤家有主——先找到铁算盘。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 4,
+       "group": "climax",
+       "kind": "climax",
+       "tier": "final",
+       "title": "决战之时",
+       "goal_text": "与铁算盘的这一笔账，到了当面了结的时候。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 5,
+       "group": "finale",
+       "kind": "finale",
+       "tier": "final",
+       "title": "暮年回望",
+       "goal_text": "走到这一世的尽头前，把该了的都了了吧。",
+       "status": "locked",
+       "deadline_at": 0.0
+      }
+     ],
+     "shelvable": true,
+     "origin_present": true
+    }
+   },
+   "location_image": "/assets/scenes/market-inn.webp",
+   "relations_recent": [
+    {
+     "npc_id": "ee748f37",
+     "npc_name": "赤霄",
+     "delta": 15,
+     "before_label": "neutral",
+     "after_label": "friendly",
+     "before_cn": "中立",
+     "after_cn": "友善",
+     "reason": "origin",
+     "summary": "赤霄对你由中立转友善：origin",
+     "ts": 1794120908.4063401
+    },
+    {
+     "npc_id": "c4904fff",
+     "npc_name": "铁算盘",
+     "delta": -42,
+     "before_label": "neutral",
+     "after_label": "hostile",
+     "before_cn": "中立",
+     "after_cn": "仇视",
+     "reason": "origin",
+     "summary": "铁算盘对你由中立转仇视：origin",
+     "ts": 1794120908.3944297
+    },
+    {
+     "npc_id": "6da59e83",
+     "npc_name": "山君",
+     "delta": 53,
+     "before_label": "neutral",
+     "after_label": "ally",
+     "before_cn": "中立",
+     "after_cn": "亲近",
+     "reason": "origin",
+     "summary": "山君对你由中立转亲近：origin",
+     "ts": 1794120908.385638
+    },
+    {
+     "npc_id": "806ffd38",
+     "npc_name": "金满堂",
+     "delta": -6,
+     "before_label": "neutral",
+     "after_label": "neutral",
+     "before_cn": "中立",
+     "after_cn": "中立",
+     "reason": "origin",
+     "summary": "金满堂对你态度降温：origin",
+     "ts": 1794120908.3778126
+    }
+   ],
+   "relations_marks": {
+    "ee748f37": {
+     "delta": 15,
+     "ts": 1794120908.4063401
+    },
+    "c4904fff": {
+     "delta": -42,
+     "ts": 1794120908.3944297
+    },
+    "6da59e83": {
+     "delta": 53,
+     "ts": 1794120908.385638
+    },
+    "806ffd38": {
+     "delta": -6,
+     "ts": 1794120908.3778126
+    }
+   },
+   "location": "青云坊市客栈",
+   "stones": 100000,
+   "vault": 0,
+   "wallet": {
+    "balance": 0,
+    "entries": [],
+    "ledger": [],
+    "username": ""
+   },
+   "past_life": {
+    "lives": 0,
+    "last_name": "",
+    "last_cause": "",
+    "shadow_count": 0
+   },
+   "karma_chains": {
+    "active": 0,
+    "fermenting": 0,
+    "nearest_mature_game_days": null
+   },
+   "gender": "",
+   "portrait": "/images/cultivator_meditating.png",
+   "gallery": {
+    "unlocked": [
+     "arts/earth",
+     "arts/fire",
+     "arts/metal",
+     "arts/sword",
+     "arts/water",
+     "arts/wood"
+    ],
+    "count": 6,
+    "total": 139,
+    "title": "",
+    "newly": []
+   },
+   "art_images": {
+    "吐纳术": "/assets/arts/water.webp",
+    "御剑术": "/assets/arts/sword.webp"
+   },
+   "sin": 0,
+   "merit": 0,
+   "exp": "0/600",
+   "rem_years": 70.41,
+   "dead": false,
+   "status": "IDLE",
+   "status_cn": "闲适",
+   "root": "真灵根 (水·土·木)",
+   "root_eff": 1.1,
+   "dao_heart": 100,
+   "skills": [
+    "吐纳术",
+    "御剑术"
+   ],
+   "inventory": [],
+   "arrays": [],
+   "pet": null,
+   "pets_count": 0,
+   "cave": null,
+   "arts": {
+    "main": "",
+    "sub": []
+   },
+   "body_soul": {
+    "body": 0,
+    "soul": 0
+   },
+   "heart_demon_state": {
+    "stage": 0,
+    "stage_name": "无种",
+    "seed": 0
+   },
+   "books": {
+    "inspiration": 0,
+    "prestige": 0
+   },
+   "season_theme": {
+    "name": "静默纪元",
+    "key": "silence",
+    "effect": "无天象修正",
+    "season_number": 1
+   },
+   "blood_marked": false,
+   "lifespan_warning": false,
+   "meditating": false,
+   "is_meditating": false,
+   "sect": "",
+   "rank": "散修",
+   "sect_contribution": 0,
+   "sect_streak": 0,
+   "salary": 0,
+   "salary_claimable": false,
+   "salary_cd_sec": 0,
+   "can_promote": false,
+   "next_rank": null,
+   "promote_req_tier": 0,
+   "sect_ring": {},
+   "sects_catalog": [
+    {
+     "name": "青云宗",
+     "alignment": "正道名门",
+     "desc": "道法自然，清静修身，门规森严，禁止同道相残。坐拥东荒三阶灵脉。",
+     "headquarters": "青云宗外门山门",
+     "cave_location": "宗门玄元洞府",
+     "req_dao_heart": 60,
+     "max_sin": 30,
+     "min_sin": 0,
+     "monthly_salary": 25,
+     "starter_array": "一阶青木迷踪阵",
+     "rules_tip": "道心需≥60，业力需<30且无血煞，同门相残将遭执法堂追杀！"
+    },
+    {
+     "name": "万剑仙门",
+     "alignment": "杀伐中立",
+     "desc": "以剑入道，宁折不弯。门人皆擅杀伐御剑，攻守兼备，以战养战。",
+     "headquarters": "万剑仙门峰",
+     "cave_location": "洗剑池洞天",
+     "req_dao_heart": 70,
+     "max_sin": 100,
+     "min_sin": 0,
+     "monthly_salary": 30,
+     "starter_array": "一阶庚金剑煞阵",
+     "rules_tip": "道心需≥70或身具金/雷灵根，入门战力攻伐提升20%！"
+    },
+    {
+     "name": "九幽天魔宗",
+     "alignment": "魔道巨擘",
+     "desc": "弱肉强食，胜者为尊。盘踞极煞绝渊，允许同门夺宝，唯力是从。",
+     "headquarters": "九幽天魔宗坛",
+     "cave_location": "黑风绝渊",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 40,
+     "monthly_salary": 35,
+     "starter_array": "一阶白骨戮仙阵",
+     "rules_tip": "业力需≥40（双手沾血），杀人不损道心，但天劫威力增加20%！"
+    },
+    {
+     "name": "四海散修商会",
+     "alignment": "散修同盟",
+     "desc": "无拘无束的散修中立商会，一切以灵石说话，自由自在，不沾因果。",
+     "headquarters": "青云坊市客栈",
+     "cave_location": "青云坊市客栈",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 0,
+     "monthly_salary": 0,
+     "starter_array": null,
+     "rules_tip": "无任何门槛，无月俸，无免费洞府，自食其力。"
+    }
+   ],
+   "unread_messages": [],
+   "newbie_protected": true,
+   "newbie_left_hours": 72.0,
+   "protect": "新手庇护 72.0h",
+   "conflict_zone": false,
+   "qi_mult": 0.556,
+   "crane_pending_item": null,
+   "max_bag_slots": 64,
+   "is_bag_full": false,
+   "equipped": [],
+   "items": [],
+   "stall_earnings": 0,
+   "stall_items": [],
+   "market_listings": [],
+   "dungeon": null,
+   "spells_catalog": [
+    {
+     "key": "metal_sword",
+     "name": "太乙破虚剑气",
+     "element": "metal",
+     "element_cn": "金",
+     "cost_mp": 15,
+     "cooldown": 1,
+     "base_mult": 1.6,
+     "desc": "凝聚庚金剑芒破空斩击。造成 160% 破甲杀伤；若敌方身负护盾，额外造成 50% 破盾斩击！",
+     "img": "/assets/arts/metal.webp"
+    },
+    {
+     "key": "wood_heal",
+     "name": "青帝长生引",
+     "element": "wood",
+     "element_cn": "木",
+     "cost_mp": 20,
+     "cooldown": 2,
+     "heal_pct": 0.3,
+     "desc": "引动乙木长生之气化入肉身，恢复 30% 最大气血，并驱散一层负面负累。",
+     "img": "/assets/arts/wood.webp"
+    },
+    {
+     "key": "water_freeze",
+     "name": "玄冰寒煞魄",
+     "element": "water",
+     "element_cn": "水",
+     "cost_mp": 18,
+     "cooldown": 2,
+     "base_mult": 1.2,
+     "desc": "以玄阴真水凝聚寒煞，造成 120% 冰霜伤害，并冻结目标神魂（下回合无法出手）。",
+     "img": "/assets/arts/water.webp"
+    },
+    {
+     "key": "fire_blast",
+     "name": "九幽地煞火",
+     "element": "fire",
+     "element_cn": "火",
+     "cost_mp": 20,
+     "cooldown": 1,
+     "base_mult": 1.4,
+     "burn_dot": 2,
+     "desc": "催动地心煞火焚天煮海，造成 140% 火伤并施加灼烧；若目标处于冻结状态，将触发【真火爆燃】造成双倍额外暴击！",
+     "img": "/assets/arts/fire.webp"
+    },
+    {
+     "key": "earth_shield",
+     "name": "不动明王罡",
+     "element": "earth",
+     "element_cn": "土",
+     "cost_mp": 20,
+     "cooldown": 3,
+     "shield_pct": 0.35,
+     "reflect_pct": 0.2,
+     "desc": "借大地戊土灵脉化为明王护体罡气，生成相当于自身 35% 气血的坚固灵盾，并反震 20% 伤害。",
+     "img": "/assets/arts/earth.webp"
+    }
+   ],
+   "dungeon_floors": [
+    {
+     "floor": 1,
+     "name": "锁妖古窟 · 幽暗外穴",
+     "tier_name": "炼气期试炼",
+     "min_tier": 1
+    },
+    {
+     "floor": 2,
+     "name": "锁妖古窟 · 赤岩裂谷",
+     "tier_name": "炼气圆满 / 准筑基",
+     "min_tier": 1
+    },
+    {
+     "floor": 3,
+     "name": "锁妖古窟 · 煞骨灵冢",
+     "tier_name": "筑基初期守关层",
+     "min_tier": 1
+    },
+    {
+     "floor": 4,
+     "name": "锁妖古窟 · 万毒渊薮",
+     "tier_name": "筑基中期深探",
+     "min_tier": 2
+    },
+    {
+     "floor": 5,
+     "name": "锁妖古窟 · 焚天炎池",
+     "tier_name": "筑基后期搏杀",
+     "min_tier": 2
+    },
+    {
+     "floor": 6,
+     "name": "锁妖古窟 · 绝阴冰窟",
+     "tier_name": "结丹初期大妖关",
+     "min_tier": 2
+    },
+    {
+     "floor": 7,
+     "name": "锁妖古窟 · 幽冥绝渊",
+     "tier_name": "结丹中期凶险",
+     "min_tier": 3
+    },
+    {
+     "floor": 8,
+     "name": "锁妖古窟 · 太古雷狱",
+     "tier_name": "结丹圆满 / 准元婴",
+     "min_tier": 3
+    },
+    {
+     "floor": 9,
+     "name": "锁妖古窟 · 封魔古殿",
+     "tier_name": "元婴总魔尊决战",
+     "min_tier": 3
+    }
+   ],
+   "combat": {
+    "max_hp": 100,
+    "current_hp": 100,
+    "max_mp": 50,
+    "current_mp": 50,
+    "phys_atk": 15,
+    "spell_atk": 20,
+    "phys_def": 10,
+    "spell_def": 10,
+    "speed": 10,
+    "crit_rate": 0.05,
+    "crit_damage": 1.5
+   },
+   "soul": {
+    "divine_sense": 20,
+    "sense_range": 50,
+    "illusion_resist": 0.1
+   },
+   "equip_slots": {
+    "weapon": null,
+    "armor": null,
+    "trinket": null,
+    "boots": null,
+    "flying_treasure": null
+   },
+   "professions": {
+    "alchemy_level": 0,
+    "alchemy_exp": 0,
+    "forge_level": 0,
+    "forge_exp": 0,
+    "array_level": 0,
+    "array_exp": 0,
+    "talisman_level": 0,
+    "talisman_exp": 0
+   },
+   "quest": null
+  }
+ },
+ "top_keys": [
+  "ok",
+  "status",
+  "text"
+ ]
+}

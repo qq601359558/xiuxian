@@ -1,0 +1,15 @@
+{
+ "slug": "recruit",
+ "command": "/招徕修士",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "recruit flow",
+ "response": {
+  "ok": false,
+  "error": "道友的地摊空空如也，请先挂牌仙物再行摇铃招徕！"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

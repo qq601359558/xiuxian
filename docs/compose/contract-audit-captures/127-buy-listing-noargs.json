@@ -1,0 +1,15 @@
+{
+ "slug": "buy-listing-noargs",
+ "command": "/买寄售",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/买寄售 <编号或ID>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

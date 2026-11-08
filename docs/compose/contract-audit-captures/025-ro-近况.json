@@ -1,0 +1,249 @@
+{
+ "slug": "ro-近况",
+ "command": "/近况",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "=== 近况 · 审计员 @ 青云坊市客栈 ===\n【世间】\n  江湖无事。\n【与你何干】\n  近日暂无与你直接相关的落账。\n【世间目标】\n  · 【出身】先站稳脚跟 — 境界先到练气中，方有自保之力。\n  · 【命途】向铁算盘讨个说法，让其再不敢轻慢你 — 向铁算盘讨个说法，让其再不敢轻慢你\n  · 【命途】千里访旧 — 动身去寻铁算盘，有些话须当面说清。\n  · 【道途】问道长生 — 稳固道基，勤修不辍，境界自会有进。\n  · 【新入】初入红尘 — 先熟悉坊市与天道规则，活下去才有仙缘。\n  · 【纪元】纪元大势 — 本纪元周期有限，留意终局前的天象与榜单。\n  · 【宗门】寻一门庭 — 散修无依，可择正魔宗门拜入。\n  · 【机缘】世弧·敌门暗涌·青云宗×九幽天魔宗 — 世间异动：【青云宗】与【九幽天魔宗】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。\n  · 【机缘】世弧·秘境躁动·落霞古洞 — 世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）",
+  "goals": [
+   {
+    "id": "g_origin_8be2792f",
+    "source": "origin",
+    "title": "先站稳脚跟",
+    "detail": "境界先到练气中，方有自保之力。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.334402,
+    "tier": "short",
+    "check": {
+     "kind": "realm_at_least",
+     "tier": 1,
+     "sub": 2,
+     "deadline_days": 15
+    },
+    "deadline_at": 1794124508.334402
+   },
+   {
+    "id": "g_fate_6113083b",
+    "source": "fate",
+    "title": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "detail": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.334402,
+    "tier": "final",
+    "check": {
+     "kind": "npc_attitude_at_least",
+     "npc_id": "c4904fff",
+     "value": 0
+    },
+    "deadline_at": 0.0
+   },
+   {
+    "id": "g_thread_d4da7228",
+    "source": "thread",
+    "title": "千里访旧",
+    "detail": "动身去寻铁算盘，有些话须当面说清。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.415741,
+    "tier": "final",
+    "check": {
+     "kind": "visit_location",
+     "ref": "青云坊市客栈",
+     "npc_id": "806ffd38",
+     "instance": "ft_96b1072cdf5d:c0",
+     "deadline_days": 15
+    },
+    "deadline_at": 1794124508.415741
+   },
+   {
+    "id": "g_dao_b9ae018f",
+    "source": "dao",
+    "title": "问道长生",
+    "detail": "稳固道基，勤修不辍，境界自会有进。",
+    "status": "active",
+    "progress": 1,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_newbie_c7ce117b",
+    "source": "newbie",
+    "title": "初入红尘",
+    "detail": "先熟悉坊市与天道规则，活下去才有仙缘。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_season_560b5556",
+    "source": "season",
+    "title": "纪元大势",
+    "detail": "本纪元周期有限，留意终局前的天象与榜单。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_sect_e676a76b",
+    "source": "sect",
+    "title": "寻一门庭",
+    "detail": "散修无依，可择正魔宗门拜入。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_omen_f4e6df9e",
+    "source": "omen",
+    "title": "世弧·敌门暗涌·青云宗×九幽天魔宗",
+    "detail": "世间异动：【青云宗】与【九幽天魔宗】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6239338
+   },
+   {
+    "id": "g_omen_043dd0a2",
+    "source": "omen",
+    "title": "世弧·秘境躁动·落霞古洞",
+    "detail": "世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6428027
+   }
+  ],
+  "related": [],
+  "entry": {
+   "version": 1,
+   "since": 1794120908.2896082,
+   "generated_at": 1794120908.955476,
+   "lines": {
+    "fate": "命途「出身牵命」：千里访旧（进行中） · 命题：向铁算盘讨个说法，让其再不敢轻慢你（进行中）",
+    "chains": {
+     "fermenting": 0,
+     "nearest_mature_game_days": null,
+     "text": "发酵中因果链 0 条"
+    },
+    "relations": [
+     {
+      "npc_id": "ee748f37",
+      "npc_name": "赤霄",
+      "delta": 15,
+      "before_label": "neutral",
+      "after_label": "friendly",
+      "before_cn": "中立",
+      "after_cn": "友善",
+      "reason": "origin",
+      "summary": "赤霄对你由中立转友善：origin",
+      "ts": 1794120908.4063401
+     },
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "delta": -42,
+      "before_label": "neutral",
+      "after_label": "hostile",
+      "before_cn": "中立",
+      "after_cn": "仇视",
+      "reason": "origin",
+      "summary": "铁算盘对你由中立转仇视：origin",
+      "ts": 1794120908.3944297
+     },
+     {
+      "npc_id": "6da59e83",
+      "npc_name": "山君",
+      "delta": 53,
+      "before_label": "neutral",
+      "after_label": "ally",
+      "before_cn": "中立",
+      "after_cn": "亲近",
+      "reason": "origin",
+      "summary": "山君对你由中立转亲近：origin",
+      "ts": 1794120908.385638
+     }
+    ]
+   },
+   "queue": [
+    {
+     "kind": "drama",
+     "priority": 2,
+     "title": "铁算盘 有事相商",
+     "text": "铁算盘按剑而立，扬声道：「审计员！旧怨未消，今日便要讨个说法！」",
+     "ref_id": "dr_77b4a024f2",
+     "target": {
+      "command": "/回应 dr_77b4a024f2"
+     },
+     "ts": 1794120908.955476,
+     "options": [
+      {
+       "key": "fight",
+       "label": "应战"
+      },
+      {
+       "key": "avoid",
+       "label": "避走"
+      }
+     ]
+    },
+    {
+     "kind": "opportunity",
+     "priority": 6,
+     "title": "世弧·秘境躁动·落霞古洞",
+     "text": "世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）",
+     "ref_id": "g_omen_043dd0a2",
+     "target": {
+      "command": "/目标"
+     },
+     "ts": 1794120908.955476
+    }
+   ],
+   "highlight": [
+    {
+     "kind": "drama",
+     "priority": 2,
+     "title": "铁算盘 有事相商",
+     "text": "铁算盘按剑而立，扬声道：「审计员！旧怨未消，今日便要讨个说法！」",
+     "ref_id": "dr_77b4a024f2",
+     "target": {
+      "command": "/回应 dr_77b4a024f2"
+     },
+     "ts": 1794120908.955476,
+     "options": [
+      {
+       "key": "fight",
+       "label": "应战"
+      },
+      {
+       "key": "avoid",
+       "label": "避走"
+      }
+     ]
+    },
+    {
+     "kind": "opportunity",
+     "priority": 6,
+     "title": "世弧·秘境躁动·落霞古洞",
+     "text": "世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）",
+     "ref_id": "g_omen_043dd0a2",
+     "target": {
+      "command": "/目标"
+     },
+     "ts": 1794120908.955476
+    }
+   ],
+   "rest_count": 0,
+   "empty": false,
+   "empty_text": "江湖无事，可自由行动",
+   "proactive": null
+  }
+ },
+ "top_keys": [
+  "entry",
+  "goals",
+  "ok",
+  "related",
+  "text"
+ ]
+}

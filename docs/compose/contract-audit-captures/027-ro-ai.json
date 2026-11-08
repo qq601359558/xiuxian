@@ -1,0 +1,92 @@
+{
+ "slug": "ro-ai",
+ "command": "/ai",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【AI 自检】模式：OpenAI 兼容直连\n地址：https://api.deepseek.com/v1 · 模型：deepseek-chat\n对话测试：失败 — 【天道未启】未配置服务器 AI（LLM_API_KEY），交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、LLM_MODEL。\n\n【天道导演链路】10/11 项通过 · 真AI就绪=False · 本地降级=True\n  ✓ ai_channel_configured  仅本地降级\n  ✗ ai_health_probe  【天道未启】未配置服务器 AI（LLM_API_KEY），交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、\n  ✓ director_types  types=['blood_tide', 'calamity_forecast', 'faction_order', 'omen', 'secret_realm_pressure', 'sect_siege', 'sect_tension'\n  ✓ active_directives  n=2\n  ✓ director_runs  runs=1 accepted=2 rejected=0\n  ✓ world_arc  active=2\n  ✓ faction  sieges=0 hostile=1\n  ✓ player_echo  panic=0.0 hot=0\n  ✓ era_reentry  bias_keys=[]\n  ✓ gate_rejects_illegal  illegal_type:nuke\n  ✓ gate_strips_numeric  \n\n若用 CC Switch：.env 设 USE_CCSWITCH=1，并保持 CC Switch 在线、\n当前 Claude 账号可用（在 CC Switch 界面切换账号）。\n健康结果已写入 world_state，失败时交谈/事件会降级并提示。\n网页 HUD：/world/director · 按钮：天道/势力/望气/世界弧/纪元回流",
+  "ai_ok": false,
+  "ai_data": {
+   "checked_at": 1794120908.9650304,
+   "mode": "OPENAI",
+   "base": "https://api.deepseek.com/v1",
+   "model": "deepseek-chat",
+   "ok": false,
+   "error": "【天道未启】未配置服务器 AI（LLM_API_KEY），交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、LLM_MODEL。"
+  },
+  "director_quality": {
+   "passed": 10,
+   "total": 11,
+   "checks": [
+    {
+     "name": "ai_channel_configured",
+     "ok": true,
+     "detail": "仅本地降级"
+    },
+    {
+     "name": "ai_health_probe",
+     "ok": false,
+     "detail": "【天道未启】未配置服务器 AI（LLM_API_KEY），交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、"
+    },
+    {
+     "name": "director_types",
+     "ok": true,
+     "detail": "types=['blood_tide', 'calamity_forecast', 'faction_order', 'omen', 'secret_realm_pressure', 'sect_siege', 'sect_tension'"
+    },
+    {
+     "name": "active_directives",
+     "ok": true,
+     "detail": "n=2"
+    },
+    {
+     "name": "director_runs",
+     "ok": true,
+     "detail": "runs=1 accepted=2 rejected=0"
+    },
+    {
+     "name": "world_arc",
+     "ok": true,
+     "detail": "active=2"
+    },
+    {
+     "name": "faction",
+     "ok": true,
+     "detail": "sieges=0 hostile=1"
+    },
+    {
+     "name": "player_echo",
+     "ok": true,
+     "detail": "panic=0.0 hot=0"
+    },
+    {
+     "name": "era_reentry",
+     "ok": true,
+     "detail": "bias_keys=[]"
+    },
+    {
+     "name": "gate_rejects_illegal",
+     "ok": true,
+     "detail": "illegal_type:nuke"
+    },
+    {
+     "name": "gate_strips_numeric",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "ready_for_ai_director": false,
+   "local_fallback_allowed": true,
+   "prompt_scene": "world_director",
+   "quota_hint": "见 ai/quota SCENE_LIMITS.world_director"
+  }
+ },
+ "top_keys": [
+  "ai_data",
+  "ai_ok",
+  "director_quality",
+  "ok",
+  "text"
+ ]
+}

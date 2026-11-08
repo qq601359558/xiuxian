@@ -1,0 +1,15 @@
+{
+ "slug": "redeem",
+ "command": "/赎回 审计试剑",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "redeem flow",
+ "response": {
+  "ok": false,
+  "error": "并无【审计试剑】的在当票据。/典当 查看。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

@@ -1,0 +1,864 @@
+{
+ "slug": "alias-help",
+ "command": "/help",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "alias /help must land on :1938, NOT :4435 duplicate",
+ "response": {
+  "ok": true,
+  "text": "【敕令目录】输入 / 后可继续键入以模糊筛选；网页输入框支持上下键选择\n\n■ 观照与出入\n  /look  — 观照自身：境界、寿元、灵石、位置、望气\n  /here  — 列出同场修士与简要状态\n  /who  — 天下名录：全服存活修士\n  /profile  — 人物详情：命盘/心智/目标/回写投影\n  /go <地点>  — 迁跃到指定地点\n  POST /join {token}  — 凭 token 续玩；换设备请用账号密匙登录，道号仅为显示名\n  /帮助 [关键字]  — 指令帮助；可按关键字模糊筛选\n  /退出  — 暂离修仙界（闭关仍按现实计时）\n\n■ 天下与演变\n  /世情 [简]  — 世界演变总览：天道/弧/势力/望气/史笔一页看\n  /天道 [推演]  — 天道导演态势；推演=强制 AI 提案一轮\n  /世界弧 [推进 <id>]  — 世界弧预兆→升级→决算；可强制推进\n  /世界弧应劫 <弧id> 应劫|避祸  — 对世界弧表态：应劫或避祸，决算时有回响\n  /望气 [己]  — 望气天下凶地/坊市恐慌；加「己」看自身回写\n  /纪元回流 [重建]  — 史笔如何影响下一拍天道提案权重\n  /传说 [纪元号]  — 跨纪元史笔与回流摘要\n  /频道 [n]  — 世界新闻流：击杀/导演/围剿等大事\n  /公告  — 系统/GM 公告\n  /传闻 [n]  — 坊间传闻池（可能被扭曲）\n  /灵气  — 全服灵气稀释：高阶修士越多修炼越慢\n  /纪元  — 赛季/大劫倒计时与天象\n  /榜 [境界|战力|凶名|道行|…]  — 六榜与势力投影\n  /秘境 [名|探|弃]  — 秘境天机榜；进入探索步进\n  /告示  — 悬赏告示榜\n  /大事记  — 天道总账：近期全界大事\n  /近况  — 世间近况 + 与你何干 + 目标\n\n■ 观照与出入\n  /任务 [接|弃] [id]  — 指引任务：初玩教学与日常委托，有明确赏格\n\n■ 天下与演变\n  /目标  — 查看/刷新世间目标（可接可拒）\n  /议程  — NPC 当前议程一览\n\n■ 修炼历练\n  /闭关 [小时]  — 挂机闭关吐纳（有有效窗口，枯坐无益）\n  /出关  — 结束闭关并结算\n  /突破  — 引动大境界天劫（须修为圆满）\n  /归隐 [h]  — 闭关归隐，进入离线庇护\n  /出隐  — 离开归隐/下线庇护状态\n  /探险 [野外|秘境]  — 外出历练：机缘、挖宝、杀劫\n  /机缘 [机缘|危机|异象]  — 主动推演一则世间事件\n  /奇遇  — 奇遇事件链（若有进行中可推进）\n  /自创功法 <理念>  — 让天道为你创一门独门功法\n  /功法  — 查看已学功法\n  /穿戴 <装备>  — 穿戴装备，获得战力加成\n  /卸下 <装备>  — 卸下指定装备\n  /挖宝 [选项]  — 使用藏宝图挖掘机缘/破阵/杀劫\n  /宝图 [图名/编号]  — 研读手中实体藏宝图，推演地脉谶语与方位\n  /寻宝 [1|2|3|弃]  — 寻宝线索链：查看当前线索，或在当前步节点作出抉择/弃链\n  /器灵 [唤 <器物名>]  — 法宝器灵面板；唤灵须已穿戴天品以上法宝（tier≥4），器灵随器而行\n  /温养 [器物名]  — 温养器灵：tier4 30 灵石 / tier5 50 灵石，每器每日一次，成长封顶 100/150\n  /灵语 [器物名 ·] <话>  — 与器灵交谈：缺省找已唤灵中品阶最高者，可用「器物名 · 话」指定；每日首次对话涨成长\n\n■ 观照与出入\n  /定相 男|女  — 自选男相/女相（纯外观，命盘人物图随之而变）\n\n■ 修炼历练\n  /命格 [key]  — 命格：查看待选/已选；带 key 从最老一抽中择定命格（突破大境界成功时抽定）\n  /命途 [搁置|续]  — 命途主线：本世章节、终局命题与搁置状态；搁置不删不罚，续走顺延当前章期限\n\n■ 观照与出入\n  /图鉴  — 天道图鉴：139 图点亮进度与展示称号（账户级，只记眼界不予数值）\n\n■ 人际因果\n  /交谈 <道号> [话]  — 与 NPC/玩家交谈（会话）\n  /回应 [drama_id option_key]  — 回应 NPC 主动戏剧：无参列待回应之事；带参按选项落账（挑衅应战转既有斗法）\n  /说 <话>  — 在当前会话中开口\n  /挂断  — 结束当前交谈会话\n  /做 <自然言行>  — 自由言行：AI 判意图，规则落账\n  /因果  — 个人仇怨恩义因果链\n  /关系 [道号]  — 查看与他人的关系边\n  /回访  — 依事件账触发因果回访\n  /拜师 <道号>  — 向对方提出拜师\n  /收徒 <道号>  — 向对方提出收徒\n  /结拜 <道号>  — 提出结拜（需同场）\n  /传功 <弟子>  — 指点后进，消耗灵石获功德\n  /师门任务  — 查看师徒日课\n  /名物  — 名物录：知名物品/人物线索\n  /追查 <线索>  — 追查名物或事件线索\n\n■ 坊市交易\n  /坊市  — 商会货单、寄存、寄售一览\n  /购买 <货名> [数量]  — 向商会购货（恐慌时可能涨价）\n  /出售 <货名> [数量]  — 回售给商会（约五折，恐慌时更低）\n  /服用 <丹药>  — 服用囊中丹药\n  /寄存 <灵石>  — 灵石存入坊市金库（不可被夺）\n  /支取 <灵石>  — 自金库取出灵石\n  /寄售 <货> <价>  — 将货物挂上寄售栏\n  /买寄售 <编号>  — 买下他人寄售货物\n  /撤单 <编号>  — 撤回自己的寄售\n  /交易 <道号>  — 向对方发起当面交易\n  /拍卖行  — 拍卖行货单\n  /npc货单  — 查看 NPC 私柜货单\n\n■ 斗法除凶\n  /斗法 <道号>  — 伏击/斗法其他修士（可夺未绑定财货）\n  /探查  — 神识外放，探查周遭\n  /除凶  — 除凶榜：血煞/重业名单\n  /接除凶 <道号>  — 接除凶令，限时缉凶\n  /弃除凶  — 放弃当前除凶令\n  /围剿 <道号>  — 同场号令围剿（须已接令且对方血煞）\n  /反悬赏  — 花灵石反悬赏盯上你的猎人\n  /挂赏 <道号> <赏金> [缘由] [匿]  — 花灵石挂血仇悬赏\n  /接令 <编号>  — 揭下告示悬赏令\n\n■ 宗门势力\n  /宗门  — 天下仙门一览与自身宗籍\n  /拜入 <宗门>  — 在总坛山门叩关拜入宗门\n  /叛门  — 脱离当前宗门（道心受损）\n  /领俸禄  — 领取宗门月俸\n  /晋升  — 宗门内阶位晋升\n  /势力 [令]  — 宗门关系/宗门令/围剿总览\n  /宗门令  — 列出可接宗门令\n  /接宗门令 <令id>  — 接取宗门令\n  /交宗门令 <令id>  — 完成宗门令并领贡献\n  /宗门势  — 各宗实力条 + 敌对/围剿摘要\n  /宗门环  — 今日宗门日环主题\n  /接宗门环 <1|2|3>  — 接取一条宗门日环\n  /贡献  — 查看宗门贡献与兑换目录\n  /上交 <物品>  — 上交物资换宗门贡献\n  /兑换 <物品>  — 用贡献兑换阵盘/丹药等\n  /大劫  — 纪元终局结算（须大劫已至）\n  /转世 [名] [加成]  — 查看道统/转世出身加成\n\n■ 天道与 AI\n  /ai  — AI 通道探测 + 天道导演链路自检\n  /AI日志 [n]  — 最近 AI 调用日志\n  /gm <token> <文案>  — 管理员发布公告\n\n■ 其他\n  /释放  — 释放被擒 NPC（若有）\n  /会话  — 查看当前交谈会话状态\n\n完整列表亦可查阅 /帮助；场景按钮见网页「世间/修行/宗门」页。",
+  "commands": [
+   {
+    "cmd": "/go",
+    "aliases": [
+     "/前往"
+    ],
+    "usage": "/go <地点>",
+    "desc": "迁跃到指定地点",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/here",
+    "aliases": [
+     "/同场"
+    ],
+    "usage": "/here",
+    "desc": "列出同场修士与简要状态",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/join",
+    "aliases": [
+     "/登入"
+    ],
+    "usage": "POST /join {token}",
+    "desc": "凭 token 续玩；换设备请用账号密匙登录，道号仅为显示名",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/look",
+    "aliases": [
+     "/道身",
+     "/look"
+    ],
+    "usage": "/look",
+    "desc": "观照自身：境界、寿元、灵石、位置、望气",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/profile",
+    "aliases": [
+     "/人物",
+     "/角色"
+    ],
+    "usage": "/profile",
+    "desc": "人物详情：命盘/心智/目标/回写投影",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/who",
+    "aliases": [
+     "/天下"
+    ],
+    "usage": "/who",
+    "desc": "天下名录：全服存活修士",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/任务",
+    "aliases": [
+     "/tasks",
+     "/quest"
+    ],
+    "usage": "/任务 [接|弃] [id]",
+    "desc": "指引任务：初玩教学与日常委托，有明确赏格",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/图鉴",
+    "aliases": [
+     "/gallery"
+    ],
+    "usage": "/图鉴",
+    "desc": "天道图鉴：139 图点亮进度与展示称号（账户级，只记眼界不予数值）",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/定相",
+    "aliases": [
+     "/gender"
+    ],
+    "usage": "/定相 男|女",
+    "desc": "自选男相/女相（纯外观，命盘人物图随之而变）",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/帮助",
+    "aliases": [
+     "/help",
+     "/helpme"
+    ],
+    "usage": "/帮助 [关键字]",
+    "desc": "指令帮助；可按关键字模糊筛选",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/退出",
+    "aliases": [
+     "/quit"
+    ],
+    "usage": "/退出",
+    "desc": "暂离修仙界（闭关仍按现实计时）",
+    "category": "core",
+    "category_cn": "观照与出入",
+    "score": 0.0
+   },
+   {
+    "cmd": "/世情",
+    "aliases": [
+     "/世界演变",
+     "/演变",
+     "/worldinfo"
+    ],
+    "usage": "/世情 [简]",
+    "desc": "世界演变总览：天道/弧/势力/望气/史笔一页看",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/世界弧",
+    "aliases": [
+     "/arc",
+     "/弧"
+    ],
+    "usage": "/世界弧 [推进 <id>]",
+    "desc": "世界弧预兆→升级→决算；可强制推进",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/世界弧应劫",
+    "aliases": [
+     "/弧应劫",
+     "/应劫"
+    ],
+    "usage": "/世界弧应劫 <弧id> 应劫|避祸",
+    "desc": "对世界弧表态：应劫或避祸，决算时有回响",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/传说",
+    "aliases": [
+     "/legend",
+     "/典籍"
+    ],
+    "usage": "/传说 [纪元号]",
+    "desc": "跨纪元史笔与回流摘要",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/传闻",
+    "aliases": [
+     "/rumors"
+    ],
+    "usage": "/传闻 [n]",
+    "desc": "坊间传闻池（可能被扭曲）",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/公告",
+    "aliases": [
+     "/notice"
+    ],
+    "usage": "/公告",
+    "desc": "系统/GM 公告",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/告示",
+    "aliases": [
+     "/bountyboard"
+    ],
+    "usage": "/告示",
+    "desc": "悬赏告示榜",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/大事记",
+    "aliases": [
+     "/chronicle"
+    ],
+    "usage": "/大事记",
+    "desc": "天道总账：近期全界大事",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/天道",
+    "aliases": [
+     "/heaven",
+     "/导演"
+    ],
+    "usage": "/天道 [推演]",
+    "desc": "天道导演态势；推演=强制 AI 提案一轮",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/望气",
+    "aliases": [
+     "/echo",
+     "/天象"
+    ],
+    "usage": "/望气 [己]",
+    "desc": "望气天下凶地/坊市恐慌；加「己」看自身回写",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/榜",
+    "aliases": [
+     "/rank",
+     "/榜单"
+    ],
+    "usage": "/榜 [境界|战力|凶名|道行|…]",
+    "desc": "六榜与势力投影",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/灵气",
+    "aliases": [
+     "/qi"
+    ],
+    "usage": "/灵气",
+    "desc": "全服灵气稀释：高阶修士越多修炼越慢",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/目标",
+    "aliases": [
+     "/goals"
+    ],
+    "usage": "/目标",
+    "desc": "查看/刷新世间目标（可接可拒）",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/秘境",
+    "aliases": [
+     "/secret"
+    ],
+    "usage": "/秘境 [名|探|弃]",
+    "desc": "秘境天机榜；进入探索步进",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/纪元",
+    "aliases": [
+     "/season"
+    ],
+    "usage": "/纪元",
+    "desc": "赛季/大劫倒计时与天象",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/纪元回流",
+    "aliases": [
+     "/era",
+     "/史笔回流"
+    ],
+    "usage": "/纪元回流 [重建]",
+    "desc": "史笔如何影响下一拍天道提案权重",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/议程",
+    "aliases": [
+     "/agenda"
+    ],
+    "usage": "/议程",
+    "desc": "NPC 当前议程一览",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/近况",
+    "aliases": [],
+    "usage": "/近况",
+    "desc": "世间近况 + 与你何干 + 目标",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/频道",
+    "aliases": [
+     "/channel"
+    ],
+    "usage": "/频道 [n]",
+    "desc": "世界新闻流：击杀/导演/围剿等大事",
+    "category": "world",
+    "category_cn": "天下与演变",
+    "score": 0.0
+   },
+   {
+    "cmd": "/出关",
+    "aliases": [],
+    "usage": "/出关",
+    "desc": "结束闭关并结算",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/出隐",
+    "aliases": [
+     "/下线"
+    ],
+    "usage": "/出隐",
+    "desc": "离开归隐/下线庇护状态",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/功法",
+    "aliases": [
+     "/arts"
+    ],
+    "usage": "/功法",
+    "desc": "查看已学功法",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/卸下",
+    "aliases": [
+     "/unequip"
+    ],
+    "usage": "/卸下 <装备>",
+    "desc": "卸下指定装备",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/命格",
+    "aliases": [
+     "/fate"
+    ],
+    "usage": "/命格 [key]",
+    "desc": "命格：查看待选/已选；带 key 从最老一抽中择定命格（突破大境界成功时抽定）",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/命途",
+    "aliases": [
+     "/fate_thread"
+    ],
+    "usage": "/命途 [搁置|续]",
+    "desc": "命途主线：本世章节、终局命题与搁置状态；搁置不删不罚，续走顺延当前章期限",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/器灵",
+    "aliases": [
+     "/spirit"
+    ],
+    "usage": "/器灵 [唤 <器物名>]",
+    "desc": "法宝器灵面板；唤灵须已穿戴天品以上法宝（tier≥4），器灵随器而行",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/奇遇",
+    "aliases": [
+     "/omen"
+    ],
+    "usage": "/奇遇",
+    "desc": "奇遇事件链（若有进行中可推进）",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/宝图",
+    "aliases": [
+     "/map",
+     "/看宝图"
+    ],
+    "usage": "/宝图 [图名/编号]",
+    "desc": "研读手中实体藏宝图，推演地脉谶语与方位",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/寻宝",
+    "aliases": [
+     "/clue"
+    ],
+    "usage": "/寻宝 [1|2|3|弃]",
+    "desc": "寻宝线索链：查看当前线索，或在当前步节点作出抉择/弃链",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/归隐",
+    "aliases": [],
+    "usage": "/归隐 [h]",
+    "desc": "闭关归隐，进入离线庇护",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/挖宝",
+    "aliases": [
+     "/dig"
+    ],
+    "usage": "/挖宝 [选项]",
+    "desc": "使用藏宝图挖掘机缘/破阵/杀劫",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/探险",
+    "aliases": [
+     "/adventure"
+    ],
+    "usage": "/探险 [野外|秘境]",
+    "desc": "外出历练：机缘、挖宝、杀劫",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/机缘",
+    "aliases": [
+     "/event"
+    ],
+    "usage": "/机缘 [机缘|危机|异象]",
+    "desc": "主动推演一则世间事件",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/温养",
+    "aliases": [
+     "/nourish"
+    ],
+    "usage": "/温养 [器物名]",
+    "desc": "温养器灵：tier4 30 灵石 / tier5 50 灵石，每器每日一次，成长封顶 100/150",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/灵语",
+    "aliases": [
+     "/spirit_say"
+    ],
+    "usage": "/灵语 [器物名 ·] <话>",
+    "desc": "与器灵交谈：缺省找已唤灵中品阶最高者，可用「器物名 · 话」指定；每日首次对话涨成长",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/穿戴",
+    "aliases": [
+     "/equip"
+    ],
+    "usage": "/穿戴 <装备>",
+    "desc": "穿戴装备，获得战力加成",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/突破",
+    "aliases": [
+     "/break"
+    ],
+    "usage": "/突破",
+    "desc": "引动大境界天劫（须修为圆满）",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/自创功法",
+    "aliases": [
+     "/createart"
+    ],
+    "usage": "/自创功法 <理念>",
+    "desc": "让天道为你创一门独门功法",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/闭关",
+    "aliases": [
+     "/meditate"
+    ],
+    "usage": "/闭关 [小时]",
+    "desc": "挂机闭关吐纳（有有效窗口，枯坐无益）",
+    "category": "cultivate",
+    "category_cn": "修炼历练",
+    "score": 0.0
+   },
+   {
+    "cmd": "/交谈",
+    "aliases": [
+     "/talk"
+    ],
+    "usage": "/交谈 <道号> [话]",
+    "desc": "与 NPC/玩家交谈（会话）",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/传功",
+    "aliases": [],
+    "usage": "/传功 <弟子>",
+    "desc": "指点后进，消耗灵石获功德",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/做",
+    "aliases": [
+     "/言行"
+    ],
+    "usage": "/做 <自然言行>",
+    "desc": "自由言行：AI 判意图，规则落账",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/关系",
+    "aliases": [],
+    "usage": "/关系 [道号]",
+    "desc": "查看与他人的关系边",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/名物",
+    "aliases": [],
+    "usage": "/名物",
+    "desc": "名物录：知名物品/人物线索",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/回应",
+    "aliases": [
+     "/respond_drama"
+    ],
+    "usage": "/回应 [drama_id option_key]",
+    "desc": "回应 NPC 主动戏剧：无参列待回应之事；带参按选项落账（挑衅应战转既有斗法）",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/回访",
+    "aliases": [
+     "/revenge"
+    ],
+    "usage": "/回访",
+    "desc": "依事件账触发因果回访",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/因果",
+    "aliases": [
+     "/关系链"
+    ],
+    "usage": "/因果",
+    "desc": "个人仇怨恩义因果链",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/师门任务",
+    "aliases": [],
+    "usage": "/师门任务",
+    "desc": "查看师徒日课",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/拜师",
+    "aliases": [],
+    "usage": "/拜师 <道号>",
+    "desc": "向对方提出拜师",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/挂断",
+    "aliases": [],
+    "usage": "/挂断",
+    "desc": "结束当前交谈会话",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/收徒",
+    "aliases": [],
+    "usage": "/收徒 <道号>",
+    "desc": "向对方提出收徒",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/结拜",
+    "aliases": [],
+    "usage": "/结拜 <道号>",
+    "desc": "提出结拜（需同场）",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/说",
+    "aliases": [],
+    "usage": "/说 <话>",
+    "desc": "在当前会话中开口",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/追查",
+    "aliases": [],
+    "usage": "/追查 <线索>",
+    "desc": "追查名物或事件线索",
+    "category": "social",
+    "category_cn": "人际因果",
+    "score": 0.0
+   },
+   {
+    "cmd": "/npc货单",
+    "aliases": [],
+    "usage": "/npc货单",
+    "desc": "查看 NPC 私柜货单",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/买寄售",
+    "aliases": [],
+    "usage": "/买寄售 <编号>",
+    "desc": "买下他人寄售货物",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/交易",
+    "aliases": [],
+    "usage": "/交易 <道号>",
+    "desc": "向对方发起当面交易",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/出售",
+    "aliases": [
+     "/sell"
+    ],
+    "usage": "/出售 <货名> [数量]",
+    "desc": "回售给商会（约五折，恐慌时更低）",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/坊市",
+    "aliases": [
+     "/market"
+    ],
+    "usage": "/坊市",
+    "desc": "商会货单、寄存、寄售一览",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/寄售",
+    "aliases": [],
+    "usage": "/寄售 <货> <价>",
+    "desc": "将货物挂上寄售栏",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/寄存",
+    "aliases": [],
+    "usage": "/寄存 <灵石>",
+    "desc": "灵石存入坊市金库（不可被夺）",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/拍卖行",
+    "aliases": [
+     "/auction"
+    ],
+    "usage": "/拍卖行",
+    "desc": "拍卖行货单",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/撤单",
+    "aliases": [],
+    "usage": "/撤单 <编号>",
+    "desc": "撤回自己的寄售",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/支取",
+    "aliases": [],
+    "usage": "/支取 <灵石>",
+    "desc": "自金库取出灵石",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/服用",
+    "aliases": [],
+    "usage": "/服用 <丹药>",
+    "desc": "服用囊中丹药",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/购买",
+    "aliases": [
+     "/buy"
+    ],
+    "usage": "/购买 <货名> [数量]",
+    "desc": "向商会购货（恐慌时可能涨价）",
+    "category": "market",
+    "category_cn": "坊市交易",
+    "score": 0.0
+   },
+   {
+    "cmd": "/反悬赏",
+    "aliases": [],
+    "usage": "/反悬赏",
+    "desc": "花灵石反悬赏盯上你的猎人",
+    "category": "combat",
+    "category_cn": "斗法除凶",
+    "score": 0.0
+   },
+   {
+    "cmd": "/围剿",
+    "aliases": [],
+    "usage": "/围剿 <道号>",
+    "desc": "同场号令围剿（须已接令且对方血煞）",
+    "category": "combat",
+    "category_cn": "斗法除凶",
+    "score": 0.0
+   },
+   {
+    "cmd": "/弃除凶",
+    "aliases": [],
+    "usage": "/弃除凶",
+    "desc": "放弃当前除凶令",
+    "category": "combat",
+    "category_cn": "斗法除凶",
+    "score": 0.0
+   }
+  ]
+ },
+ "top_keys": [
+  "commands",
+  "ok",
+  "text"
+ ]
+}

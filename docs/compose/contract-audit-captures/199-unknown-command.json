@@ -1,0 +1,15 @@
+{
+ "slug": "unknown-command",
+ "command": "/不存在的命令",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "unknown command error",
+ "response": {
+  "ok": false,
+  "error": "未知指令 /不存在的命令，输入 /帮助"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

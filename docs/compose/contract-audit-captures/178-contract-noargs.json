@@ -1,0 +1,15 @@
+{
+ "slug": "contract-noargs",
+ "command": "/契约",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/契约 <兽名>（先在 /灵宠 看待契约灵兽）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

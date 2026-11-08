@@ -1,0 +1,15 @@
+{
+ "slug": "follow-noargs",
+ "command": "/追",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/追 <编号>，先 /世情"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

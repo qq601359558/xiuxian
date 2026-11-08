@@ -1,0 +1,15 @@
+{
+ "slug": "ro-notice",
+ "command": "/notice",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【公告】暂无系统公告。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

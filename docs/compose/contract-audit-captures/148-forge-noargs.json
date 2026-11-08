@@ -1,0 +1,15 @@
+{
+ "slug": "forge-noargs",
+ "command": "/炼器",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage/error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/炼器 <配方名>，先 /配方"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

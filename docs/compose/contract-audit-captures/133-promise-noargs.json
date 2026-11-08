@@ -1,0 +1,15 @@
+{
+ "slug": "promise-noargs",
+ "command": "/许诺",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/许诺 <对象名> 赠物 <物品名> | 抵达 <地点名> | 委托 | 不攻（唯指令立诺入账，交谈口头应承不算）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "ro-rumors",
+ "command": "/rumors",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【坊间传闻】近日风平浪静，并无值得一听的闲话。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

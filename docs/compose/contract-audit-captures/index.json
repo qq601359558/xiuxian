@@ -1,0 +1,3413 @@
+{
+ "seed": 20261108,
+ "captures": [
+  {
+   "slug": "join",
+   "file": "001-join.json",
+   "command": "/join 审计员",
+   "note": "join payload incl. entry + origin_card (build_entry)",
+   "ok": false,
+   "top_keys": [
+    "character_id",
+    "entry",
+    "first_night",
+    "is_new_life",
+    "legacy_points",
+    "lives",
+    "location",
+    "lock_fallback",
+    "name",
+    "newbie_feed",
+    "origin_card",
+    "realm",
+    "rem_years",
+    "resumed",
+    "session_issued",
+    "token",
+    "user_id"
+   ]
+  },
+  {
+   "slug": "ro-look",
+   "file": "002-ro-look.json",
+   "command": "/look",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-地图",
+   "file": "003-ro-地图.json",
+   "command": "/地图",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-道身",
+   "file": "004-ro-道身.json",
+   "command": "/道身",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-legacy",
+   "file": "005-ro-legacy.json",
+   "command": "/legacy",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "alive",
+    "boosts",
+    "death_cause",
+    "earned",
+    "karma_shadow",
+    "lives",
+    "max_boosts",
+    "ok",
+    "past_lives",
+    "points",
+    "text",
+    "traces"
+   ]
+  },
+  {
+   "slug": "ro-道统",
+   "file": "006-ro-道统.json",
+   "command": "/道统",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "alive",
+    "boosts",
+    "death_cause",
+    "earned",
+    "karma_shadow",
+    "lives",
+    "max_boosts",
+    "ok",
+    "past_lives",
+    "points",
+    "text",
+    "traces"
+   ]
+  },
+  {
+   "slug": "ro-墓碑",
+   "file": "007-ro-墓碑.json",
+   "command": "/墓碑 审计员",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-因果链",
+   "file": "008-ro-因果链.json",
+   "command": "/因果链",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-图鉴",
+   "file": "009-ro-图鉴.json",
+   "command": "/图鉴",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-命格",
+   "file": "010-ro-命格.json",
+   "command": "/命格",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "fate",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-命途",
+   "file": "011-ro-命途.json",
+   "command": "/命途",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "fate_thread",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-寻宝",
+   "file": "012-ro-寻宝.json",
+   "command": "/寻宝",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-器灵",
+   "file": "013-ro-器灵.json",
+   "command": "/器灵",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-wallet",
+   "file": "014-ro-wallet.json",
+   "command": "/wallet",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "ro-钱包",
+   "file": "015-ro-钱包.json",
+   "command": "/钱包",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "ro-here",
+   "file": "016-ro-here.json",
+   "command": "/here",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "here",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-同场",
+   "file": "017-ro-同场.json",
+   "command": "/同场",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "here",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-profile",
+   "file": "018-ro-profile.json",
+   "command": "/profile",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "profile",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-人物",
+   "file": "019-ro-人物.json",
+   "command": "/人物",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "profile",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-roster",
+   "file": "020-ro-roster.json",
+   "command": "/roster",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-名录",
+   "file": "021-ro-名录.json",
+   "command": "/名录",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-who",
+   "file": "022-ro-who.json",
+   "command": "/who",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-goals",
+   "file": "023-ro-goals.json",
+   "command": "/goals",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "goals",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-目标",
+   "file": "024-ro-目标.json",
+   "command": "/目标",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "goals",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-近况",
+   "file": "025-ro-近况.json",
+   "command": "/近况",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "entry",
+    "goals",
+    "ok",
+    "related",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-ailog",
+   "file": "026-ro-ailog.json",
+   "command": "/ailog",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "items",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-ai",
+   "file": "027-ro-ai.json",
+   "command": "/ai",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ai_data",
+    "ai_ok",
+    "director_quality",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-帮助",
+   "file": "028-ro-帮助.json",
+   "command": "/帮助",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "commands",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-help",
+   "file": "029-ro-help.json",
+   "command": "/help",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "commands",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-qi",
+   "file": "030-ro-qi.json",
+   "command": "/qi",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "qi",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-灵气",
+   "file": "031-ro-灵气.json",
+   "command": "/灵气",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "qi",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-season",
+   "file": "032-ro-season.json",
+   "command": "/season",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-纪元",
+   "file": "033-ro-纪元.json",
+   "command": "/纪元",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-天象",
+   "file": "034-ro-天象.json",
+   "command": "/天象",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season_theme",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-rumors",
+   "file": "035-ro-rumors.json",
+   "command": "/rumors",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-传闻",
+   "file": "036-ro-传闻.json",
+   "command": "/传闻",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-channel",
+   "file": "037-ro-channel.json",
+   "command": "/channel",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-频道",
+   "file": "038-ro-频道.json",
+   "command": "/频道",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-notice",
+   "file": "039-ro-notice.json",
+   "command": "/notice",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-公告",
+   "file": "040-ro-公告.json",
+   "command": "/公告",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-legend",
+   "file": "041-ro-legend.json",
+   "command": "/legend",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-传说",
+   "file": "042-ro-传说.json",
+   "command": "/传说",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-links",
+   "file": "043-ro-links.json",
+   "command": "/links",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-关系",
+   "file": "044-ro-关系.json",
+   "command": "/关系",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-map",
+   "file": "045-ro-map.json",
+   "command": "/map",
+   "note": "",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-宝图",
+   "file": "046-ro-宝图.json",
+   "command": "/宝图",
+   "note": "",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-rank",
+   "file": "047-ro-rank.json",
+   "command": "/rank",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-榜单",
+   "file": "048-ro-榜单.json",
+   "command": "/榜单",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-ascend",
+   "file": "049-ro-ascend.json",
+   "command": "/ascend",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-飞升榜",
+   "file": "050-ro-飞升榜.json",
+   "command": "/飞升榜",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-sect",
+   "file": "051-ro-sect.json",
+   "command": "/sect",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-宗门",
+   "file": "052-ro-宗门.json",
+   "command": "/宗门",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-agenda",
+   "file": "053-ro-agenda.json",
+   "command": "/agenda",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "agendas",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-议程",
+   "file": "054-ro-议程.json",
+   "command": "/议程",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "agendas",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-bounty",
+   "file": "055-ro-bounty.json",
+   "command": "/bounty",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-告示",
+   "file": "056-ro-告示.json",
+   "command": "/告示",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-market",
+   "file": "057-ro-market.json",
+   "command": "/market",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-坊市",
+   "file": "058-ro-坊市.json",
+   "command": "/坊市",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-行情",
+   "file": "059-ro-行情.json",
+   "command": "/行情",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-atlas",
+   "file": "060-ro-atlas.json",
+   "command": "/atlas",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-版图",
+   "file": "061-ro-版图.json",
+   "command": "/版图",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-history",
+   "file": "062-ro-history.json",
+   "command": "/history",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-大事记",
+   "file": "063-ro-大事记.json",
+   "command": "/大事记",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-arts",
+   "file": "064-ro-arts.json",
+   "command": "/arts",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "arts",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-功法",
+   "file": "065-ro-功法.json",
+   "command": "/功法",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "arts",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-secret",
+   "file": "066-ro-secret.json",
+   "command": "/secret",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-秘境",
+   "file": "067-ro-秘境.json",
+   "command": "/秘境",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-recipes",
+   "file": "068-ro-recipes.json",
+   "command": "/recipes",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-配方",
+   "file": "069-ro-配方.json",
+   "command": "/配方",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-宗门势",
+   "file": "070-ro-宗门势.json",
+   "command": "/宗门势",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-宗门环",
+   "file": "071-ro-宗门环.json",
+   "command": "/宗门环",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-贡献",
+   "file": "072-ro-贡献.json",
+   "command": "/贡献",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-兑换",
+   "file": "073-ro-兑换.json",
+   "command": "/兑换",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-灵宠",
+   "file": "074-ro-灵宠.json",
+   "command": "/灵宠",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-心法",
+   "file": "075-ro-心法.json",
+   "command": "/心法",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-洞府",
+   "file": "076-ro-洞府.json",
+   "command": "/洞府",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-委托",
+   "file": "077-ro-委托.json",
+   "command": "/委托",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-诺言",
+   "file": "078-ro-诺言.json",
+   "command": "/诺言",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-quests",
+   "file": "079-ro-quests.json",
+   "command": "/quests",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-promises",
+   "file": "080-ro-promises.json",
+   "command": "/promises",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-宗门令",
+   "file": "081-ro-宗门令.json",
+   "command": "/宗门令",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-议政",
+   "file": "082-ro-议政.json",
+   "command": "/议政",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-除凶",
+   "file": "083-ro-除凶.json",
+   "command": "/除凶",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-追凶",
+   "file": "084-ro-追凶.json",
+   "command": "/追凶",
+   "note": "",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-反悬赏",
+   "file": "085-ro-反悬赏.json",
+   "command": "/反悬赏",
+   "note": "",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-围剿",
+   "file": "086-ro-围剿.json",
+   "command": "/围剿",
+   "note": "",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "ro-hunt",
+   "file": "087-ro-hunt.json",
+   "command": "/hunt",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-event",
+   "file": "088-ro-event.json",
+   "command": "/event",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "omen_inline",
+    "omen_open",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-机缘",
+   "file": "089-ro-机缘.json",
+   "command": "/机缘",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "omen_inline",
+    "omen_open",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-tick",
+   "file": "090-ro-tick.json",
+   "command": "/tick",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-世界弧",
+   "file": "091-ro-世界弧.json",
+   "command": "/世界弧",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-世情",
+   "file": "092-ro-世情.json",
+   "command": "/世情",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "actions",
+    "evolution",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-势力",
+   "file": "093-ro-势力.json",
+   "command": "/势力",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-纪元回流",
+   "file": "094-ro-纪元回流.json",
+   "command": "/纪元回流",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-chatpanel",
+   "file": "095-ro-chatpanel.json",
+   "command": "/chatpanel",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "ro-会话",
+   "file": "096-ro-会话.json",
+   "command": "/会话",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "go",
+   "file": "097-go.json",
+   "command": "/go 青云坊市客栈",
+   "note": "dest node node_qingyun_market (青云坊市客栈)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "omen_choices",
+    "omen_image",
+    "omen_inline",
+    "omen_title",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "here-after-go",
+   "file": "098-here-after-go.json",
+   "command": "/here",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "count",
+    "here",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "dig-wrong-location",
+   "file": "099-dig-wrong-location.json",
+   "command": "/挖宝",
+   "note": "map target != current node",
+   "ok": false,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-element-need-choice",
+   "file": "100-dig-element-need-choice.json",
+   "command": "/挖宝",
+   "note": "ELEMENT_PUZZLE, no choice -> need_choice",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-element-clever",
+   "file": "101-dig-element-clever.json",
+   "command": "/挖宝 1",
+   "note": "ELEMENT_PUZZLE choice 1 (巧破)",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-brute-force",
+   "file": "102-dig-brute-force.json",
+   "command": "/挖宝 2",
+   "note": "brute_force: stones before=100000; expect NO stone_gain key semantics (dispatch fills 0) and text says -40 (see §6.1)",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-scar-created",
+   "file": "103-dig-scar-created.json",
+   "command": "/挖宝",
+   "note": "RUIN_HAZARD -> scar_created relic 纯阳离火印 (§6.2 reproduction input)",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-combat",
+   "file": "104-dig-combat.json",
+   "command": "/挖宝",
+   "note": "COMBAT outcome as rolled (victory needs power>=~127; defeat otherwise)",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "blind-box-1",
+   "file": "105-blind-box-1.json",
+   "command": "/捡漏",
+   "note": "sample 1/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "blind-box-2",
+   "file": "106-blind-box-2.json",
+   "command": "/捡漏",
+   "note": "sample 2/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "blind-box-3",
+   "file": "107-blind-box-3.json",
+   "command": "/捡漏",
+   "note": "sample 3/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "blind-box-4",
+   "file": "108-blind-box-4.json",
+   "command": "/捡漏",
+   "note": "sample 4/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "blind-box-5",
+   "file": "109-blind-box-5.json",
+   "command": "/捡漏",
+   "note": "sample 5/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "blind-box-6",
+   "file": "110-blind-box-6.json",
+   "command": "/捡漏",
+   "note": "sample 6/6, RNG seed 20261108",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "loot",
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "equip-wear",
+   "file": "111-equip-wear.json",
+   "command": "/穿戴 审计试剑",
+   "note": "wear granted tier-3 weapon",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "look-after-equip",
+   "file": "112-look-after-equip.json",
+   "command": "/look",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "equip-remove",
+   "file": "113-equip-remove.json",
+   "command": "/卸下 审计试剑",
+   "note": "remove weapon",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "pill-use-missing",
+   "file": "114-pill-use-missing.json",
+   "command": "/服用 不存在的丹",
+   "note": "missing pill error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "meditate-1h",
+   "file": "115-meditate-1h.json",
+   "command": "/闭关 1",
+   "note": "enter meditation (TIME_SCALE test env)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "look-meditating",
+   "file": "116-look-meditating.json",
+   "command": "/look",
+   "note": "read-only while meditating",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "emerge",
+   "file": "117-emerge.json",
+   "command": "/出关",
+   "note": "leave meditation",
+   "ok": true,
+   "top_keys": [
+    "death",
+    "death_cause",
+    "legacy",
+    "ok",
+    "status",
+    "sweep",
+    "text"
+   ]
+  },
+  {
+   "slug": "breakthrough",
+   "file": "118-breakthrough.json",
+   "command": "/突破",
+   "note": "full-exp breakthrough attempt",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "ceremony_next",
+    "death",
+    "death_cause",
+    "fatal",
+    "legacy",
+    "ok",
+    "status",
+    "success",
+    "sweep",
+    "text"
+   ]
+  },
+  {
+   "slug": "buy-noargs",
+   "file": "119-buy-noargs.json",
+   "command": "/购买",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "sell-noargs",
+   "file": "120-sell-noargs.json",
+   "command": "/出售",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "auction-list",
+   "file": "121-auction-list.json",
+   "command": "/上拍 审计试剑 100",
+   "note": "list granted item (may fail if not in bag)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "auction-board",
+   "file": "122-auction-board.json",
+   "command": "/拍卖行",
+   "note": "auction board read",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "place-bounty-noargs",
+   "file": "123-place-bounty-noargs.json",
+   "command": "/挂赏",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "pawn",
+   "file": "124-pawn.json",
+   "command": "/典当 审计试剑",
+   "note": "pawn flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "redeem",
+   "file": "125-redeem.json",
+   "command": "/赎回 审计试剑",
+   "note": "redeem flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "list-item",
+   "file": "126-list-item.json",
+   "command": "/寄售 审计试剑 100",
+   "note": "consignment list flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "buy-listing-noargs",
+   "file": "127-buy-listing-noargs.json",
+   "command": "/买寄售",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "cancel-listing-noargs",
+   "file": "128-cancel-listing-noargs.json",
+   "command": "/撤单",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "join-sect-noargs",
+   "file": "129-join-sect-noargs.json",
+   "command": "/拜入",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "salary",
+   "file": "130-salary.json",
+   "command": "/领俸禄",
+   "note": "salary claim (likely not in sect)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "promote",
+   "file": "131-promote.json",
+   "command": "/晋升",
+   "note": "promote (likely not in sect)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "teach-noargs",
+   "file": "132-teach-noargs.json",
+   "command": "/传功",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "promise-noargs",
+   "file": "133-promise-noargs.json",
+   "command": "/许诺",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "acceptquest-noargs",
+   "file": "134-acceptquest-noargs.json",
+   "command": "/接委托",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "deliver-noargs",
+   "file": "135-deliver-noargs.json",
+   "command": "/交付",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "abandonquest-noargs",
+   "file": "136-abandonquest-noargs.json",
+   "command": "/弃委托",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "vote-noargs",
+   "file": "137-vote-noargs.json",
+   "command": "/投票",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "lobby-noargs",
+   "file": "138-lobby-noargs.json",
+   "command": "/游说",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "hangup",
+   "file": "139-hangup.json",
+   "command": "/挂断",
+   "note": "hangup with no session",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "release-captive",
+   "file": "140-release-captive.json",
+   "command": "/释放",
+   "note": "release (alias /release shadowed by pet /放生, see ledger)",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "pet-release-noargs",
+   "file": "141-pet-release-noargs.json",
+   "command": "/放生",
+   "note": "usage error path (pet release)",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "talk-npc",
+   "file": "142-talk-npc.json",
+   "command": "/交谈 金满堂 你好",
+   "note": "NPC chat with 金满堂 (AI off)",
+   "ok": true,
+   "top_keys": [
+    "attitude",
+    "avatar",
+    "bystanders",
+    "chat_open",
+    "npc",
+    "ok",
+    "old_account",
+    "source",
+    "text"
+   ]
+  },
+  {
+   "slug": "say-no-session",
+   "file": "143-say-no-session.json",
+   "command": "/说 你好",
+   "note": "say without session",
+   "ok": true,
+   "top_keys": [
+    "avatar",
+    "bystanders",
+    "chat_ended",
+    "chat_open",
+    "npc",
+    "ok",
+    "omen_chat",
+    "source",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "hangup-after-talk",
+   "file": "144-hangup-after-talk.json",
+   "command": "/挂断",
+   "note": "",
+   "ok": true,
+   "top_keys": [
+    "chat_ended",
+    "npc",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "free-action",
+   "file": "145-free-action.json",
+   "command": "/做 打坐调息",
+   "note": "free action (AI DM off-graceful path)",
+   "ok": true,
+   "top_keys": [
+    "intent",
+    "ok",
+    "outcome",
+    "spawned",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "fight-noargs",
+   "file": "146-fight-noargs.json",
+   "command": "/斗法",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "alchemy-noargs",
+   "file": "147-alchemy-noargs.json",
+   "command": "/炼丹",
+   "note": "usage/error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "forge-noargs",
+   "file": "148-forge-noargs.json",
+   "command": "/炼器",
+   "note": "usage/error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "cast-noargs",
+   "file": "149-cast-noargs.json",
+   "command": "/施法",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "cast-treasure-noargs",
+   "file": "150-cast-treasure-noargs.json",
+   "command": "/祭法宝",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "adventure",
+   "file": "151-adventure.json",
+   "command": "/探险",
+   "note": "adventure entry",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "secret",
+   "file": "152-secret.json",
+   "command": "/秘境",
+   "note": "secret realm entry",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "dungeon",
+   "file": "153-dungeon.json",
+   "command": "/禁地",
+   "note": "dungeon entry",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "write-book",
+   "file": "154-write-book.json",
+   "command": "/著书 测试",
+   "note": "write book flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "read-book-noargs",
+   "file": "155-read-book-noargs.json",
+   "command": "/研读",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "create-art",
+   "file": "156-create-art.json",
+   "command": "/自创功法 测试",
+   "note": "custom art flow (AI off)",
+   "ok": true,
+   "top_keys": [
+    "art",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "herbs",
+   "file": "157-herbs.json",
+   "command": "/采药",
+   "note": "herb gathering",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "scan",
+   "file": "158-scan.json",
+   "command": "/探查",
+   "note": "scan surroundings",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "scan",
+    "text"
+   ]
+  },
+  {
+   "slug": "spring",
+   "file": "159-spring.json",
+   "command": "/汲取",
+   "note": "spirit spring",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "crane",
+   "file": "160-crane.json",
+   "command": "/探路",
+   "note": "crane scout",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "overflow",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "gm",
+   "file": "161-gm.json",
+   "command": "/gm",
+   "note": "GM gate (expect denial)",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "apocalypse",
+   "file": "162-apocalypse.json",
+   "command": "/大劫",
+   "note": "apocalypse read",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season",
+    "text"
+   ]
+  },
+  {
+   "slug": "heaven",
+   "file": "163-heaven.json",
+   "command": "/天道",
+   "note": "director read",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "follow-noargs",
+   "file": "164-follow-noargs.json",
+   "command": "/追",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "apprentice-noargs",
+   "file": "165-apprentice-noargs.json",
+   "command": "/拜师",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "sworn-noargs",
+   "file": "166-sworn-noargs.json",
+   "command": "/结拜",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "sever-noargs",
+   "file": "167-sever-noargs.json",
+   "command": "/绝交",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "betray-noargs",
+   "file": "168-betray-noargs.json",
+   "command": "/叛师",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "donate-noargs",
+   "file": "169-donate-noargs.json",
+   "command": "/上交",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "acceptring-noargs",
+   "file": "170-acceptring-noargs.json",
+   "command": "/接宗门环",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "acceptorder-noargs",
+   "file": "171-acceptorder-noargs.json",
+   "command": "/接宗门令",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "doneorder-noargs",
+   "file": "172-doneorder-noargs.json",
+   "command": "/交宗门令",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "haggle-noargs",
+   "file": "173-haggle-noargs.json",
+   "command": "/议价",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "recruit",
+   "file": "174-recruit.json",
+   "command": "/招徕修士",
+   "note": "recruit flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "earnings",
+   "file": "175-earnings.json",
+   "command": "/收益",
+   "note": "stall earnings read",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok",
+    "status"
+   ]
+  },
+  {
+   "slug": "deposit-noargs",
+   "file": "176-deposit-noargs.json",
+   "command": "/寄存",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "withdraw-noargs",
+   "file": "177-withdraw-noargs.json",
+   "command": "/支取",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "contract-noargs",
+   "file": "178-contract-noargs.json",
+   "command": "/契约",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "feed-noargs",
+   "file": "179-feed-noargs.json",
+   "command": "/喂养",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "deploy-noargs",
+   "file": "180-deploy-noargs.json",
+   "command": "/出战",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "petrest-noargs",
+   "file": "181-petrest-noargs.json",
+   "command": "/休息",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "nourish",
+   "file": "182-nourish.json",
+   "command": "/温养",
+   "note": "spirit nourish",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "spirit-say",
+   "file": "183-spirit-say.json",
+   "command": "/灵语",
+   "note": "spirit say",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "main-art-noargs",
+   "file": "184-main-art-noargs.json",
+   "command": "/主修",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "sub-art-noargs",
+   "file": "185-sub-art-noargs.json",
+   "command": "/辅修",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "remove-art-noargs",
+   "file": "186-remove-art-noargs.json",
+   "command": "/卸功",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "body",
+   "file": "187-body.json",
+   "command": "/炼体",
+   "note": "body cultivation read",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "demon",
+   "file": "188-demon.json",
+   "command": "/镇魔",
+   "note": "demon suppression",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "revenge",
+   "file": "189-revenge.json",
+   "command": "/回访",
+   "note": "revenge revisit",
+   "ok": true,
+   "top_keys": [
+    "event_id",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "pick-boon-noargs",
+   "file": "190-pick-boon-noargs.json",
+   "command": "/择道韵",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "dungeon-attack-noargs",
+   "file": "191-dungeon-attack-noargs.json",
+   "command": "/出招",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "bid",
+   "file": "192-bid.json",
+   "command": "/拍 1 100",
+   "note": "bid flow (likely no auction)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "buyout-noargs",
+   "file": "193-buyout-noargs.json",
+   "command": "/一口",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "auction-cancel-noargs",
+   "file": "194-auction-cancel-noargs.json",
+   "command": "/撤拍",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "buy-listing-missing",
+   "file": "195-buy-listing-missing.json",
+   "command": "/买寄售 999",
+   "note": "missing listing",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "npc-buy-noargs",
+   "file": "196-npc-buy-noargs.json",
+   "command": "/npc买",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "npc-sell-noargs",
+   "file": "197-npc-sell-noargs.json",
+   "command": "/npc卖",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "npc-goods-noargs",
+   "file": "198-npc-goods-noargs.json",
+   "command": "/npc货单",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "unknown-command",
+   "file": "199-unknown-command.json",
+   "command": "/不存在的命令",
+   "note": "unknown command error",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "empty-command",
+   "file": "200-empty-command.json",
+   "command": "",
+   "note": "empty input",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "join-second",
+   "file": "201-join-second.json",
+   "command": "/join 审计员乙",
+   "note": "second character for trade flows",
+   "ok": false,
+   "top_keys": [
+    "character_id",
+    "entry",
+    "first_night",
+    "is_new_life",
+    "legacy_points",
+    "lives",
+    "location",
+    "lock_fallback",
+    "name",
+    "newbie_feed",
+    "origin_card",
+    "realm",
+    "rem_years",
+    "resumed",
+    "session_issued",
+    "token",
+    "user_id"
+   ]
+  },
+  {
+   "slug": "trade-init",
+   "file": "202-trade-init.json",
+   "command": "/交易 审计员乙",
+   "note": "initiate face-to-face trade",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "trade-offer",
+   "file": "203-trade-offer.json",
+   "command": "/交易出 审计试剑",
+   "note": "offer item in trade",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "trade-accept-second",
+   "file": "204-trade-accept-second.json",
+   "command": "/交易同意",
+   "note": "counterparty accept",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "trade-reject-second",
+   "file": "205-trade-reject-second.json",
+   "command": "/交易拒绝",
+   "note": "counterparty reject (after accept)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "join-dead",
+   "file": "206-join-dead.json",
+   "command": "/join 审计员 (dead)",
+   "note": "dead payload (§2.2: login/death exit)",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "character_id",
+    "consignment_open_count",
+    "dead",
+    "death_cause",
+    "is_new_life",
+    "legacy",
+    "legacy_points",
+    "lives",
+    "location",
+    "lock_fallback",
+    "name",
+    "ok",
+    "realm",
+    "rem_years",
+    "resumed",
+    "session_issued",
+    "settled",
+    "settlement",
+    "settlement_pending",
+    "token",
+    "user_id",
+    "username",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "look-while-dead",
+   "file": "207-look-while-dead.json",
+   "command": "/look",
+   "note": "dead gate: only /转世//道统 allowed",
+   "ok": false,
+   "top_keys": [
+    "dead",
+    "error",
+    "ok",
+    "status"
+   ]
+  },
+  {
+   "slug": "legacy-while-dead",
+   "file": "208-legacy-while-dead.json",
+   "command": "/道统",
+   "note": "dead-allowed read",
+   "ok": true,
+   "top_keys": [
+    "alive",
+    "boosts",
+    "death_cause",
+    "earned",
+    "karma_shadow",
+    "lives",
+    "max_boosts",
+    "ok",
+    "past_lives",
+    "points",
+    "text",
+    "traces"
+   ]
+  },
+  {
+   "slug": "reincarnate",
+   "file": "209-reincarnate.json",
+   "command": "reincarnate()",
+   "note": "reincarnate() direct call payload",
+   "ok": true,
+   "top_keys": [
+    "boosts_applied",
+    "ceremony",
+    "karma_shadow",
+    "legacy_points",
+    "location",
+    "name",
+    "ok",
+    "origin_card",
+    "realm",
+    "rem_years",
+    "settle",
+    "sweep",
+    "text",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "look-after-rebirth",
+   "file": "210-look-after-rebirth.json",
+   "command": "/look",
+   "note": "first look of new life",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "logout",
+   "file": "211-logout.json",
+   "command": "/logout",
+   "note": "logout flow",
+   "ok": true,
+   "top_keys": [
+    "logout_kind",
+    "lost_stones",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "invalid-token",
+   "file": "212-invalid-token.json",
+   "command": "/look (bad token)",
+   "note": "invalid session error",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "gender-set",
+   "file": "213-gender-set.json",
+   "command": "/定相 男",
+   "note": "set gender (branch /定相)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "respond-drama-no-drama",
+   "file": "214-respond-drama-no-drama.json",
+   "command": "/回应 1",
+   "note": "/回应 with no pending drama",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok",
+    "status"
+   ]
+  },
+  {
+   "slug": "wallet-withdraw",
+   "file": "215-wallet-withdraw.json",
+   "command": "/钱包提取 10",
+   "note": "withdraw with (likely) empty wallet",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "reclude",
+   "file": "216-reclude.json",
+   "command": "/归隐",
+   "note": "reclude flow",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "protect",
+    "text"
+   ]
+  },
+  {
+   "slug": "unreclude",
+   "file": "217-unreclude.json",
+   "command": "/出隐",
+   "note": "unreclude flow",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "tasks",
+   "file": "218-tasks.json",
+   "command": "/任务",
+   "note": "task system read (branch /任务, distinct from /委托)",
+   "ok": true,
+   "top_keys": [
+    "defs",
+    "ok",
+    "tasks",
+    "text"
+   ]
+  },
+  {
+   "slug": "mingwu",
+   "file": "219-mingwu.json",
+   "command": "/名物",
+   "note": "famous objects read",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "chase-noargs",
+   "file": "220-chase-noargs.json",
+   "command": "/追查",
+   "note": "chase flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "omen-scene-start",
+   "file": "221-omen-scene-start.json",
+   "command": "/奇遇",
+   "note": "/奇遇 starts omen scene (branch :2058; /omen alias is shadowed by :1959)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "omen_image",
+    "omen_inline",
+    "omen_open",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "omen-say",
+   "file": "222-omen-say.json",
+   "command": "/奇遇说 你好",
+   "note": "omen scene say (needs active scene)",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok",
+    "omen_open",
+    "status"
+   ]
+  },
+  {
+   "slug": "opencave",
+   "file": "223-opencave.json",
+   "command": "/开辟",
+   "note": "open cave (farm)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "sow",
+   "file": "224-sow.json",
+   "command": "/播种 灵芝",
+   "note": "sow in cave",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "harvest",
+   "file": "225-harvest.json",
+   "command": "/收获",
+   "note": "harvest cave",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "upgradecave",
+   "file": "226-upgradecave.json",
+   "command": "/升级洞府",
+   "note": "upgrade cave",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "acceptpromise-noargs",
+   "file": "227-acceptpromise-noargs.json",
+   "command": "/应诺",
+   "note": "accept promise (no pending)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "breakpromise-noargs",
+   "file": "228-breakpromise-noargs.json",
+   "command": "/毁诺",
+   "note": "break promise (no pending)",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "leave-sect",
+   "file": "229-leave-sect.json",
+   "command": "/叛门",
+   "note": "leave sect (not in sect)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "gen-monster",
+   "file": "230-gen-monster.json",
+   "command": "/生成妖兽",
+   "note": "gen monster flow",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "arc-respond",
+   "file": "231-arc-respond.json",
+   "command": "/应劫",
+   "note": "world-arc respond",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "confirm-apprentice-noargs",
+   "file": "232-confirm-apprentice-noargs.json",
+   "command": "/确认拜师",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "take-apprentice-noargs",
+   "file": "233-take-apprentice-noargs.json",
+   "command": "/收徒",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "graduate-noargs",
+   "file": "234-graduate-noargs.json",
+   "command": "/出师",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "sworn-accept-noargs",
+   "file": "235-sworn-accept-noargs.json",
+   "command": "/结拜同意",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "sect-quests",
+   "file": "236-sect-quests.json",
+   "command": "/师门任务",
+   "note": "sect quests read",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "sect-quest-done-noargs",
+   "file": "237-sect-quest-done-noargs.json",
+   "command": "/交师门",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "sworn-quests",
+   "file": "238-sworn-quests.json",
+   "command": "/结义任务",
+   "note": "sworn quests read",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "sworn-quest-done-noargs",
+   "file": "239-sworn-quest-done-noargs.json",
+   "command": "/交结义",
+   "note": "usage error path",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "accept-hunt-noargs",
+   "file": "240-accept-hunt-noargs.json",
+   "command": "/接除凶",
+   "note": "accept hunt (no args)",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "abandon-hunt-noargs",
+   "file": "241-abandon-hunt-noargs.json",
+   "command": "/弃除凶",
+   "note": "abandon hunt (no active hunt)",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "claim-bounty-numeric",
+   "file": "242-claim-bounty-numeric.json",
+   "command": "/接令 1",
+   "note": "numeric /接令 -> bounty-claim branch :3887",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "accept-hunt-name",
+   "file": "243-accept-hunt-name.json",
+   "command": "/接令 不存在的道号",
+   "note": "non-numeric /接令 -> hunt branch :3126",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "alias-omen",
+   "file": "244-alias-omen.json",
+   "command": "/omen",
+   "note": "alias /omen must land on :1959 天象, NOT :2058 奇遇",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season_theme",
+    "text"
+   ]
+  },
+  {
+   "slug": "alias-tianxiang",
+   "file": "245-alias-tianxiang.json",
+   "command": "/天象",
+   "note": "alias /天象 must land on :1959, NOT :3065 望气",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "season_theme",
+    "text"
+   ]
+  },
+  {
+   "slug": "alias-release",
+   "file": "246-alias-release.json",
+   "command": "/release",
+   "note": "alias /release must land on :2375 pet /放生, NOT :3570 /释放",
+   "ok": false,
+   "top_keys": [
+    "error",
+    "ok"
+   ]
+  },
+  {
+   "slug": "alias-help",
+   "file": "247-alias-help.json",
+   "command": "/help",
+   "note": "alias /help must land on :1938, NOT :4435 duplicate",
+   "ok": true,
+   "top_keys": [
+    "commands",
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "trade-bare",
+   "file": "248-trade-bare.json",
+   "command": "/trade",
+   "note": "bare /trade (no args) -> :4229 fallback branch",
+   "ok": false,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "trade-with-arg",
+   "file": "249-trade-with-arg.json",
+   "command": "/交易 审计员乙",
+   "note": "/交易 with arg -> :4222 guarded branch",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "join-dead-2",
+   "file": "250-join-dead-2.json",
+   "command": "/join 审计员 (dead, 2nd)",
+   "note": "second dead payload",
+   "ok": true,
+   "top_keys": [
+    "ceremony",
+    "character_id",
+    "consignment_open_count",
+    "dead",
+    "death_cause",
+    "is_new_life",
+    "legacy",
+    "legacy_points",
+    "lives",
+    "location",
+    "lock_fallback",
+    "name",
+    "ok",
+    "realm",
+    "rem_years",
+    "resumed",
+    "session_issued",
+    "settled",
+    "settlement",
+    "settlement_pending",
+    "token",
+    "user_id",
+    "username",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "reborn-via-handle",
+   "file": "251-reborn-via-handle.json",
+   "command": "/转世",
+   "note": "/转世 handle branch :1731 -> reincarnate",
+   "ok": true,
+   "top_keys": [
+    "boosts_applied",
+    "ceremony",
+    "karma_shadow",
+    "legacy_points",
+    "location",
+    "name",
+    "ok",
+    "origin_card",
+    "realm",
+    "rem_years",
+    "settle",
+    "sweep",
+    "text",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "look-after-reborn-2",
+   "file": "252-look-after-reborn-2.json",
+   "command": "/look",
+   "note": "first look after 2nd rebirth",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "status-snapshot",
+   "file": "253-status-snapshot.json",
+   "command": "/look (status snapshot)",
+   "note": "standalone _status_dict snapshot (77 top-level keys)",
+   "ok": false,
+   "top_keys": [
+    "arrays",
+    "art_images",
+    "arts",
+    "blood_marked",
+    "body_soul",
+    "books",
+    "can_promote",
+    "cave",
+    "combat",
+    "conflict_zone",
+    "crane_pending_item",
+    "dao_heart",
+    "dead",
+    "dungeon",
+    "dungeon_floors",
+    "equip_slots",
+    "equipped",
+    "exp",
+    "fate",
+    "gallery",
+    "gender",
+    "heart_demon_state",
+    "inventory",
+    "is_bag_full",
+    "is_meditating",
+    "items",
+    "karma_chains",
+    "lifespan_warning",
+    "location",
+    "location_image",
+    "market_listings",
+    "max_bag_slots",
+    "meditating",
+    "merit",
+    "name",
+    "newbie_left_hours",
+    "newbie_protected",
+    "next_rank",
+    "origin",
+    "past_life",
+    "pet",
+    "pets_count",
+    "portrait",
+    "professions",
+    "promote_req_tier",
+    "protect",
+    "qi_mult",
+    "quest",
+    "rank",
+    "realm",
+    "relations_marks",
+    "relations_recent",
+    "rem_years",
+    "root",
+    "root_eff",
+    "salary",
+    "salary_cd_sec",
+    "salary_claimable",
+    "season_theme",
+    "sect",
+    "sect_contribution",
+    "sect_ring",
+    "sect_streak",
+    "sects_catalog",
+    "sin",
+    "skills",
+    "soul",
+    "spells_catalog",
+    "stall_earnings",
+    "stall_items",
+    "status",
+    "status_cn",
+    "stones",
+    "unread_messages",
+    "vault",
+    "version",
+    "wallet"
+   ]
+  },
+  {
+   "slug": "dig-choice-3",
+   "file": "254-dig-choice-3.json",
+   "command": "/挖宝 3",
+   "note": "ELEMENT_PUZZLE choice 3 -> free-action redirect error",
+   "ok": false,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-combat-defeat",
+   "file": "255-dig-combat-defeat.json",
+   "command": "/挖宝",
+   "note": "COMBAT with dao_heart=1 -> combat_defeat outcome",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "dig-clever-for-pill",
+   "file": "256-dig-clever-for-pill.json",
+   "command": "/挖宝 1 (for pill)",
+   "note": "clever dig to obtain a real pill for /服用",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "sell-success",
+   "file": "257-sell-success.json",
+   "command": "/出售 玄元聚气丹",
+   "note": "sell real pill 玄元聚气丹 to the market",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "text"
+   ]
+  },
+  {
+   "slug": "dig-clever-for-pill-2",
+   "file": "258-dig-clever-for-pill-2.json",
+   "command": "/挖宝 1 (for pill 2)",
+   "note": "second clever dig for /服用",
+   "ok": true,
+   "top_keys": [
+    "bagua",
+    "ceremony",
+    "direction_text",
+    "equipment",
+    "ok",
+    "omen_choices",
+    "omen_inline",
+    "omen_title",
+    "pill",
+    "status",
+    "stone_gain",
+    "target_node_id",
+    "target_node_name",
+    "text",
+    "wrong_location"
+   ]
+  },
+  {
+   "slug": "pill-use-success",
+   "file": "259-pill-use-success.json",
+   "command": "/服用 玄元聚气丹",
+   "note": "use real pill 玄元聚气丹",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "list-item-2",
+   "file": "260-list-item-2.json",
+   "command": "/寄售 审计寄售剑 100",
+   "note": "char2 lists item for char1 to buy",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  },
+  {
+   "slug": "buy-listing-success",
+   "file": "261-buy-listing-success.json",
+   "command": "/买寄售 5b0604e9",
+   "note": "char1 buys char2 listing id=5b0604e9",
+   "ok": true,
+   "top_keys": [
+    "ok",
+    "status",
+    "text"
+   ]
+  }
+ ],
+ "failures": [
+  {
+   "slug": "wu-dan",
+   "command": "/悟丹 测试配方",
+   "error": "UnboundLocalError: cannot access local variable 'random' where it is not associated with a value\nTraceback (most recent call last):\n  File \"/tmp/contract-audit/harness-tree/scripts/contract_audit_capture.py\", line 110, in run\n    resp = WORLD.handle(token, cmd)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2716, in handle\n    recipe = random.choice(cand)\n             ^^^^^^\nUnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n"
+  },
+  {
+   "slug": "wu-qi",
+   "command": "/悟器 测试配方",
+   "error": "UnboundLocalError: cannot access local variable 'random' where it is not associated with a value\nTraceback (most recent call last):\n  File \"/tmp/contract-audit/harness-tree/scripts/contract_audit_capture.py\", line 110, in run\n    resp = WORLD.handle(token, cmd)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2716, in handle\n    recipe = random.choice(cand)\n             ^^^^^^\nUnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n"
+  },
+  {
+   "slug": "gen-pill",
+   "command": "/生成丹药",
+   "error": "UnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n         ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2735, in handle\n    return self.handle(token, \"/悟丹 \" + (command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else \"\"))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2716, in handle\n    recipe = random.choice(cand)\n             ^^^^^^\nUnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n"
+  },
+  {
+   "slug": "gen-equip",
+   "command": "/生成法宝",
+   "error": "UnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n         ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2737, in handle\n    return self.handle(token, \"/悟器 \" + (command.strip().split(None, 1)[1] if len(command.strip().split(None, 1)) > 1 else \"\"))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/contract-audit/harness-tree/server/world.py\", line 2716, in handle\n    recipe = random.choice(cand)\n             ^^^^^^\nUnboundLocalError: cannot access local variable 'random' where it is not associated with a value\n"
+  }
+ ]
+}

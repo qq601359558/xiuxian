@@ -1,0 +1,15 @@
+{
+ "slug": "take-apprentice-noargs",
+ "command": "/收徒",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/收徒 <道号>（对方 /确认拜师）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

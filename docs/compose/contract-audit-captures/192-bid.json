@@ -1,0 +1,15 @@
+{
+ "slug": "bid",
+ "command": "/拍 1 100",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "bid flow (likely no auction)",
+ "response": {
+  "ok": false,
+  "text": "拍品编号不存在。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

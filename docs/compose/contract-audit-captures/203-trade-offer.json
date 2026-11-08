@@ -1,0 +1,15 @@
+{
+ "slug": "trade-offer",
+ "command": "/交易出 审计试剑",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "offer item in trade",
+ "response": {
+  "ok": false,
+  "error": "灵石须为整数"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

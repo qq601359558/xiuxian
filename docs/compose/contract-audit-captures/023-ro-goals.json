@@ -1,0 +1,123 @@
+{
+ "slug": "ro-goals",
+ "command": "/goals",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "=== 世间目标（9/6）· 审计员 ===\n  · 【出身】先站稳脚跟 — 境界先到练气中，方有自保之力。（进度 0）\n  · 【命途】向铁算盘讨个说法，让其再不敢轻慢你 — 向铁算盘讨个说法，让其再不敢轻慢你（进度 0）\n  · 【命途】千里访旧 — 动身去寻铁算盘，有些话须当面说清。（进度 0）\n  · 【道途】问道长生 — 稳固道基，勤修不辍，境界自会有进。（进度 1）\n  · 【新入】初入红尘 — 先熟悉坊市与天道规则，活下去才有仙缘。（进度 0）\n  · 【纪元】纪元大势 — 本纪元周期有限，留意终局前的天象与榜单。（进度 0）\n  · 【宗门】寻一门庭 — 散修无依，可择正魔宗门拜入。（进度 0）\n  · 【机缘】世弧·敌门暗涌·青云宗×九幽天魔宗 — 世间异动：【青云宗】与【九幽天魔宗】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。（进度 0）\n  · 【机缘】世弧·秘境躁动·落霞古洞 — 世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）（进度 0）",
+  "goals": [
+   {
+    "id": "g_origin_8be2792f",
+    "source": "origin",
+    "title": "先站稳脚跟",
+    "detail": "境界先到练气中，方有自保之力。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.334402,
+    "tier": "short",
+    "check": {
+     "kind": "realm_at_least",
+     "tier": 1,
+     "sub": 2,
+     "deadline_days": 15
+    },
+    "deadline_at": 1794124508.334402
+   },
+   {
+    "id": "g_fate_6113083b",
+    "source": "fate",
+    "title": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "detail": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.334402,
+    "tier": "final",
+    "check": {
+     "kind": "npc_attitude_at_least",
+     "npc_id": "c4904fff",
+     "value": 0
+    },
+    "deadline_at": 0.0
+   },
+   {
+    "id": "g_thread_d4da7228",
+    "source": "thread",
+    "title": "千里访旧",
+    "detail": "动身去寻铁算盘，有些话须当面说清。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.415741,
+    "tier": "final",
+    "check": {
+     "kind": "visit_location",
+     "ref": "青云坊市客栈",
+     "npc_id": "806ffd38",
+     "instance": "ft_96b1072cdf5d:c0",
+     "deadline_days": 15
+    },
+    "deadline_at": 1794124508.415741
+   },
+   {
+    "id": "g_dao_b9ae018f",
+    "source": "dao",
+    "title": "问道长生",
+    "detail": "稳固道基，勤修不辍，境界自会有进。",
+    "status": "active",
+    "progress": 1,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_newbie_c7ce117b",
+    "source": "newbie",
+    "title": "初入红尘",
+    "detail": "先熟悉坊市与天道规则，活下去才有仙缘。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_season_560b5556",
+    "source": "season",
+    "title": "纪元大势",
+    "detail": "本纪元周期有限，留意终局前的天象与榜单。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_sect_e676a76b",
+    "source": "sect",
+    "title": "寻一门庭",
+    "detail": "散修无依，可择正魔宗门拜入。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6090398
+   },
+   {
+    "id": "g_omen_f4e6df9e",
+    "source": "omen",
+    "title": "世弧·敌门暗涌·青云宗×九幽天魔宗",
+    "detail": "世间异动：【青云宗】与【九幽天魔宗】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6239338
+   },
+   {
+    "id": "g_omen_043dd0a2",
+    "source": "omen",
+    "title": "世弧·秘境躁动·落霞古洞",
+    "detail": "世间异动：【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。（可前往 落霞山灵泉）",
+    "status": "active",
+    "progress": 0,
+    "created_at": 1794120908.6428027
+   }
+  ]
+ },
+ "top_keys": [
+  "goals",
+  "ok",
+  "text"
+ ]
+}

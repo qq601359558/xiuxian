@@ -1,0 +1,38 @@
+{
+ "slug": "create-art",
+ "command": "/自创功法 测试",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "custom art flow (AI off)",
+ "response": {
+  "ok": true,
+  "text": "【自创功法】人品·正道 —— 残卷·测试\n修炼加速 ×1.20（闭关/吐纳修为 +20%）\n代价：无额外燃寿\n神通：纯阳测试印 — 战斗伤害 ×1.3\n判词：【审计员】依「测试」自创，法度平稳，根基尚可。\n（来源：残卷推演）\n（可用 /功法 查看全部；闭关已按最高修炼倍率生效）",
+  "art": {
+   "name": "残卷·测试",
+   "nature": "ORTHODOX",
+   "cultivation_modifiers": {
+    "exp_gain_multiplier": 1.2,
+    "lifespan_burn_per_year": 0.0,
+    "tribulation_power_add": 0.0
+   },
+   "spells": [
+    {
+     "name": "纯阳测试印",
+     "effect_type": "DAMAGE",
+     "multiplier": 1.3
+    }
+   ],
+   "lore": "【审计员】依「测试」自创，法度平稳，根基尚可。",
+   "source": "local",
+   "rank": "EARTH",
+   "rank_cn": "人品",
+   "nature_cn": "正道",
+   "effects_text": "修炼加速 ×1.20（闭关/吐纳修为 +20%）\n代价：无额外燃寿\n神通：纯阳测试印 — 战斗伤害 ×1.3"
+  }
+ },
+ "top_keys": [
+  "art",
+  "ok",
+  "text"
+ ]
+}

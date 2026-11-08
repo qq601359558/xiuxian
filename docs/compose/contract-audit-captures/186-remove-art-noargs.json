@@ -1,0 +1,15 @@
+{
+ "slug": "remove-art-noargs",
+ "command": "/卸功",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/卸功 <功法名>（卸下主修或辅修）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

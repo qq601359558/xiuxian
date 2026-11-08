@@ -1,0 +1,15 @@
+{
+ "slug": "list-item",
+ "command": "/寄售 审计试剑 100",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "consignment list flow",
+ "response": {
+  "ok": false,
+  "error": "随身并无【审计试剑】可挂。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

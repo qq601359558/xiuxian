@@ -1,0 +1,15 @@
+{
+ "slug": "join-sect-noargs",
+ "command": "/拜入",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/拜入 <宗门>（须亲至总坛山门）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

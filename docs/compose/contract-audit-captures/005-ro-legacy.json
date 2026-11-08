@@ -1,0 +1,78 @@
+{
+ "slug": "ro-legacy",
+ "command": "/legacy",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "points": 0,
+  "lives": 0,
+  "earned": 0,
+  "past_lives": [],
+  "traces": [],
+  "karma_shadow": [],
+  "boosts": [
+   {
+    "key": "stones",
+    "name": "出身灵石",
+    "cost": 1,
+    "desc": "降生时储物袋多 150 块灵石，便于拜山或购阵盘。"
+   },
+   {
+    "key": "lifespan",
+    "name": "延寿道体",
+    "cost": 2,
+    "desc": "降生自然寿元额外 +8 岁，大限稍缓。"
+   },
+   {
+    "key": "root",
+    "name": "洗练灵根",
+    "cost": 4,
+    "desc": "灵根吸收效率 +0.25（有上限），修炼更顺。"
+   },
+   {
+    "key": "skill",
+    "name": "传承功法",
+    "cost": 2,
+    "desc": "前世道统残篇化入识海，开局自带一门额外法门。"
+   },
+   {
+    "key": "heirloom",
+    "name": "遗物留存",
+    "cost": 5,
+    "desc": "自前世行囊中选 1 件遗物随真灵转世（heirloom:<物品名>），每世限 1 件。"
+   },
+   {
+    "key": "art_memory",
+    "name": "前世心法",
+    "cost": 4,
+    "desc": "唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。"
+   },
+   {
+    "key": "bond_echo",
+    "name": "旧缘重续",
+    "cost": 3,
+    "desc": "本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。"
+   }
+  ],
+  "max_boosts": 3,
+  "alive": true,
+  "death_cause": null,
+  "text": "道统点 0 · 累计 0 世 · 共得 0\n本世状态：存活\n出身兑换：\n  stones — 出身灵石（1点）降生时储物袋多 150 块灵石，便于拜山或购阵盘。\n  lifespan — 延寿道体（2点）降生自然寿元额外 +8 岁，大限稍缓。\n  root — 洗练灵根（4点）灵根吸收效率 +0.25（有上限），修炼更顺。\n  skill — 传承功法（2点）前世道统残篇化入识海，开局自带一门额外法门。\n  heirloom — 遗物留存（5点）自前世行囊中选 1 件遗物随真灵转世（heirloom:<物品名>），每世限 1 件。\n  art_memory — 前世心法（4点）唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。\n  bond_echo — 旧缘重续（3点）本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。"
+ },
+ "top_keys": [
+  "alive",
+  "boosts",
+  "death_cause",
+  "earned",
+  "karma_shadow",
+  "lives",
+  "max_boosts",
+  "ok",
+  "past_lives",
+  "points",
+  "text",
+  "traces"
+ ]
+}

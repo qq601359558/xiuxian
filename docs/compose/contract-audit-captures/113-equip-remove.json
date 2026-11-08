@@ -1,0 +1,15 @@
+{
+ "slug": "equip-remove",
+ "command": "/卸下 审计试剑",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "remove weapon",
+ "response": {
+  "ok": true,
+  "text": "【卸下法宝】收敛道韵，已将【审计试剑】从身上卸下，妥善纳归百宝纳戒。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "accept-hunt-noargs",
+ "command": "/接除凶",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "accept hunt (no args)",
+ "response": {
+  "ok": false,
+  "error": "用法：/接令 <凶犯道号>（纯数字编号为悬赏板接令）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

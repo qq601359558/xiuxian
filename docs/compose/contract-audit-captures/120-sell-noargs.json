@@ -1,0 +1,15 @@
+{
+ "slug": "sell-noargs",
+ "command": "/出售",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/出售 <货名> [数量]"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

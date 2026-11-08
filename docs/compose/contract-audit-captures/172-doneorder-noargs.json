@@ -1,0 +1,15 @@
+{
+ "slug": "doneorder-noargs",
+ "command": "/交宗门令",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/交宗门令 <令id>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

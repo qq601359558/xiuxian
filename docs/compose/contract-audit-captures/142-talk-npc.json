@@ -1,0 +1,35 @@
+{
+ "slug": "talk-npc",
+ "command": "/交谈 金满堂 你好",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "NPC chat with 金满堂 (AI off)",
+ "response": {
+  "ok": true,
+  "text": "【会话开始】与【金满堂】交谈中。\n用 /说 <内容> 继续，/挂断 结束；聊天窗可直接打字。\n\n【金满堂·市侩圆滑·中立】\n「金满堂微微还礼：「审计员道友安好。」」",
+  "chat_open": true,
+  "npc": "金满堂",
+  "avatar": "/assets/portraits/npc-sh-01.webp",
+  "attitude": "neutral",
+  "source": "local_fallback",
+  "bystanders": [],
+  "old_account": {
+   "open_promises": 0,
+   "fermenting_chains": 0,
+   "chains_with_npc": 0,
+   "nearest_chain_game_days": null,
+   "last_relation": "金满堂对你态度降温：origin"
+  }
+ },
+ "top_keys": [
+  "attitude",
+  "avatar",
+  "bystanders",
+  "chat_open",
+  "npc",
+  "ok",
+  "old_account",
+  "source",
+  "text"
+ ]
+}

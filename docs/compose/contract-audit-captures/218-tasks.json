@@ -1,0 +1,53 @@
+{
+ "slug": "tasks",
+ "command": "/任务",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "task system read (branch /任务, distinct from /委托)",
+ "response": {
+  "ok": true,
+  "text": "【任务】指引与赏格（/目标 为世间机缘，二者可并行）\n\n▶ 初玩教学（intro）— 用十步学会说话、买卖、迁跃、修炼与观照天道。\n  → T1 识人：点同场道友，弹窗里说一句话\n  · T2 问货：在交谈中问一句「有什么货」\n  · T3 买卖：买下任意一货（如：买下聚气丹）\n  · T4 服药：服用聚气丹：/服用 聚气丹\n  · T5 迁跃：迁跃到另一处：/go 落霞山灵泉（或任一地点）\n  · T6 观照·天道：观照天道：/天道\n  · T6 观照·世情：查看世间：/世情\n  · T7 吐纳：闭关一时并出关：/闭关 1 → /出关\n  · T8 渡劫意识：了解突破与道途：/突破 或 /目标\n  · T9 望气：望气天下：/望气\n  ✓ T10 收束：分清指引与机缘：/任务 与 /目标\n  下一步：点同场道友，弹窗里说一句话\n\n可接日常：\n  · /任务 接 daily_greet — 与同场道友多说两句。\n  · /任务 接 daily_scout — 看世间风向，再走动走动。",
+  "tasks": {
+   "active": [
+    {
+     "task_id": "intro_teach",
+     "started_at": 1794120910.637412,
+     "step_idx": 0,
+     "done_steps": [
+      "t10_close"
+     ],
+     "meta": {},
+     "updated_at": 1794120910.7679276
+    }
+   ],
+   "done": [],
+   "day_key": "2026-11-08",
+   "daily_taken": [],
+   "name": "审计员",
+   "updated_at": 1794120910.770397
+  },
+  "defs": {
+   "intro_teach": {
+    "title": "初玩教学",
+    "kind": "intro",
+    "summary": "用十步学会说话、买卖、迁跃、修炼与观照天道。"
+   },
+   "daily_greet": {
+    "title": "日常·问安",
+    "kind": "daily",
+    "summary": "与同场道友多说两句。"
+   },
+   "daily_scout": {
+    "title": "日常·探风",
+    "kind": "daily",
+    "summary": "看世间风向，再走动走动。"
+   }
+  }
+ },
+ "top_keys": [
+  "defs",
+  "ok",
+  "tasks",
+  "text"
+ ]
+}

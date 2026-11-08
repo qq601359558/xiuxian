@@ -1,0 +1,15 @@
+{
+ "slug": "trade-with-arg",
+ "command": "/交易 审计员乙",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "/交易 with arg -> :4222 guarded branch",
+ "response": {
+  "ok": true,
+  "text": "【当面交易】已向【审计员乙】发起。\n双方用 /交易出 <灵石> [物品…] 报价，/交易 查看，/交易同意 成交。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

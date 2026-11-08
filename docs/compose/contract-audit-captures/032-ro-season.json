@@ -1,0 +1,26 @@
+{
+ "slug": "ro-season",
+ "command": "/season",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "第 1 纪元 · 第 0.0 天/共 84 天（余约 84.0 天） —— 灵机尚稳，可从容修行。",
+  "season": {
+   "season_number": 1,
+   "day_in_season": 0.0,
+   "total_days": 84,
+   "remain_real_days": 84.0,
+   "is_final_week": false,
+   "is_ended": false,
+   "epoch": 1794120908.3346467,
+   "game_years_left": 83
+  }
+ },
+ "top_keys": [
+  "ok",
+  "season",
+  "text"
+ ]
+}

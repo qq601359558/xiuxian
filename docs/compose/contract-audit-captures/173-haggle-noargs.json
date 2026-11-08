@@ -1,0 +1,15 @@
+{
+ "slug": "haggle-noargs",
+ "command": "/议价",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/还价 成交 <编号/ID> <价格> 或 /还价 拒绝 <编号/ID>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}
