@@ -365,6 +365,30 @@
       .replace(/"/g, "&quot;");
   }
 
+  // 宝图开箱主属性渲染（treasure-panel-stats-fix）：
+  // 服务端 /挖宝 equipment.stats 是引擎键——武器掉落恒为 {power}
+  // （core/items.py create_equip），遗物分支 stats 为 {}；catalog 模板另有
+  // phys_atk/spell_atk/max_hp 等键。按优先序取首个存在且 >0 的数值键渲染，
+  // 无可用键时返回 ""（整行省略），永不渲染 undefined/NaN。
+  function treasurePanelStatLine(stats) {
+    const order = [
+      ["power", "攻伐"], ["phys_atk", "物攻"], ["spell_atk", "法攻"],
+      ["defense", "防御"], ["max_hp", "气血"], ["max_mp", "真元"],
+      ["speed", "身法"], ["phys_def", "物防"], ["spell_def", "法防"],
+      ["crit_rate", "暴击"], ["crit_damage", "暴伤"], ["sense_range", "神识"],
+      ["divine_sense", "神识"], ["illusion_resist", "幻抗"], ["pierce", "破甲"],
+      ["lifesteal", "汲取"], ["mind_guard", "护心"], ["charm", "魅力"],
+    ];
+    if (!stats || typeof stats !== "object") return "";
+    for (const [key, label] of order) {
+      const v = stats[key];
+      if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) continue;
+      const shown = Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+      return `<span class="text-xs font-bold text-rose-700 font-mono">${label} +${shown}</span>`;
+    }
+    return "";
+  }
+
   function setText(id, v) {
     const el = $(id);
     if (el) el.textContent = v == null || v === "" ? "—" : String(v);
@@ -4684,7 +4708,7 @@
         tier: 3,
         tierName: "地品",
         iconGlyph: "剑",
-        stats: { "攻伐威能": 160, "破甲穿透": 45 },
+        stats: { "power": 160, "pierce": 45 },
         affixes: [
           { name: "破煞", desc: "对附带煞气之邪修及妖兽伤害提升 35%" },
           { name: "嗜血", desc: "击中掠取生机，反哺自身气血 12 点" },
@@ -5245,13 +5269,13 @@
                 busy(false);
               }
 
-              // 若服务端未返回具体装备或处于 Demo 模式，则本地推断展示
+              // 若服务端未返回具体装备：仅 Demo 模式本地推断展示；联机模式（如 combat_defeat）不得凭空捏造战利品，面板按无装备缺省渲染。
               const equipTier = Math.max(2, tmap.tier || 3);
               const tName = ["凡品", "人品", "地品", "天品", "仙品"][equipTier - 1] || "地品";
               const weaponNames = ["斩龙古剑", "太乙玄天戈", "七星诛魔剑", "赤霄惊神刃"];
               const pickName = weaponNames[Math.floor(Math.random() * weaponNames.length)];
 
-              if (!excavatedEquip) {
+              if (!excavatedEquip && state.demo) {
                 excavatedEquip = {
                   uid: "excavated_" + Date.now(),
                   name: pickName,
@@ -5262,8 +5286,7 @@
                   tierName: tName,
                   iconGlyph: "剑",
                   stats: {
-                    "攻伐威能": equipTier >= 3 ? 180 : 90,
-                    "真元贯通": equipTier >= 3 ? 120 : 60,
+                    "power": equipTier >= 3 ? 180 : 90,
                   },
                   affixes: [
                     { name: "破煞", desc: "破除大荒妖兽护体罡气，造成 25% 真实伤害。" },
@@ -5274,7 +5297,7 @@
                 };
               }
 
-              if (!dropPill) {
+              if (!dropPill && state.demo) {
                 dropPill = {
                   uid: "pill_" + Date.now(),
                   name: "九转还魂真丹",
@@ -5287,7 +5310,7 @@
                 };
               }
 
-              if (stoneGain === 0) {
+              if (stoneGain === 0 && state.demo) {
                 stoneGain = Math.floor(Math.random() * 80) + 120;
               }
 
@@ -5303,16 +5326,59 @@
                 state.selectedItemIndex = 0;
               }
 
-              // 渲染开箱大捷结算面板
+              // 渲染开箱结算面板（缺省口径：服务端未给的字段一律不渲染、不捏造）
+              const digTitle = excavatedEquip ? "洞府石门大开 · 绝代天机现世" : "破阵而出 · 未得机缘";
+              const digIntro = excavatedEquip
+                ? `五行火煞尽破，你在【${esc(targetNode)}】深处掘出前朝金丹修士坐化遗蜕，开辟古仙宝匣，藏宝图气数尽化散入天地！`
+                : "此番破阵未掘得法宝，宝图气数已散入天地，详见上方天道卷轴。";
+              const equipSub = excavatedEquip
+                ? [excavatedEquip.tierName, excavatedEquip.slotCn || "法宝"].filter(Boolean).join(" · ")
+                : "";
+              const equipGlyph = excavatedEquip
+                ? esc(excavatedEquip.iconGlyph || (excavatedEquip.slot === "weapon" ? "剑" : "宝"))
+                : "";
+              const affixChips = excavatedEquip
+                ? (excavatedEquip.affixes || []).map((af) => `
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold">【${esc(af.name)}】</span>`).join("")
+                : "";
+              const pillNote = dropPill
+                ? `<span class="text-[10px] text-slate-500 ml-auto">另得【${esc(dropPill.name)}】×1</span>`
+                : "";
+              const equipCardHtml = excavatedEquip ? `
+                    <!-- 掘得的神兵卡片 -->
+                    <div class="p-3.5 bg-gradient-to-r from-amber-50 via-white to-amber-50 rounded-xl border-2 border-amber-400/80 shadow-sm text-left max-w-md mx-auto space-y-2">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          <span class="w-8 h-8 rounded-lg bg-jade-800 text-amber-300 font-calligraphy text-lg font-bold flex items-center justify-center shadow-2xs">${equipGlyph}</span>
+                          <div>
+                            <div class="text-sm font-bold text-jade-950">${esc(excavatedEquip.name || "无名法宝")}</div>
+                            <div class="text-[10px] text-amber-900 font-semibold">${esc(equipSub)}</div>
+                          </div>
+                        </div>
+                        ${treasurePanelStatLine(excavatedEquip.stats)}
+                      </div>
+                      <div class="text-[11px] text-slate-600 bg-white/90 p-2 rounded-lg border border-amber-200 leading-relaxed">
+                        ${esc(excavatedEquip.lore || "天地造化所钟之奇珍。")}
+                      </div>
+                      ${affixChips || pillNote ? `
+                      <div class="flex items-center gap-2 pt-0.5">
+                        ${affixChips}
+                        ${pillNote}
+                      </div>` : ""}
+                    </div>` : `
+                    <div class="p-3.5 bg-white/80 rounded-xl border border-slate-200 text-center text-xs text-slate-500 max-w-md mx-auto">
+                      此番破阵未掘得法宝（详见上方天道卷轴）。
+                    </div>`;
+
               if (boxEl) {
                 boxEl.innerHTML = `
                   <div class="text-center space-y-3 py-2">
                     <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-amber-950 flex items-center justify-center text-3xl mx-auto shadow-md victory-glow">
                       🌟
                     </div>
-                    <h4 class="text-base font-bold text-jade-950">洞府石门大开 · 绝代天机现世</h4>
+                    <h4 class="text-base font-bold text-jade-950">${digTitle}</h4>
                     <p class="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
-                      五行火煞尽破，你在【${esc(targetNode)}】深处掘出前朝金丹修士坐化遗蜕，开辟古仙宝匣，藏宝图气数尽化散入天地！
+                      ${digIntro}
                     </p>
 
                     <div class="grid grid-cols-2 gap-2 text-xs max-w-sm mx-auto pt-1">
@@ -5326,32 +5392,17 @@
                       </div>
                     </div>
 
-                    <!-- 掘得的神兵卡片 -->
-                    <div class="p-3.5 bg-gradient-to-r from-amber-50 via-white to-amber-50 rounded-xl border-2 border-amber-400/80 shadow-sm text-left max-w-md mx-auto space-y-2">
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2.5">
-                          <span class="w-8 h-8 rounded-lg bg-jade-800 text-amber-300 font-calligraphy text-lg font-bold flex items-center justify-center shadow-2xs">剑</span>
-                          <div>
-                            <div class="text-sm font-bold text-jade-950">${esc(excavatedEquip.name)}</div>
-                            <div class="text-[10px] text-amber-900 font-semibold">${esc(excavatedEquip.tierName)} · ${esc(excavatedEquip.slotCn)}</div>
-                          </div>
-                        </div>
-                        <span class="text-xs font-bold text-rose-700 font-mono">攻伐 +${excavatedEquip.stats['攻伐威能']}</span>
-                      </div>
-                      <div class="text-[11px] text-slate-600 bg-white/90 p-2 rounded-lg border border-amber-200 leading-relaxed">
-                        ${esc(excavatedEquip.lore)}
-                      </div>
-                      <div class="flex items-center gap-2 pt-0.5">
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold">【破煞】词缀</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-900 border border-rose-300 font-bold">【斩龙】词缀</span>
-                        <span class="text-[10px] text-slate-500 ml-auto">另得【${esc(dropPill.name)}】×1</span>
-                      </div>
-                    </div>
+                    ${equipCardHtml}
                   </div>
                 `;
 
-                toast(`破阵大捷：掘得【${excavatedEquip.name}】与灵石+${stoneGain}！已存入纳戒！`, "gold");
-                pushFeed(`【天机破阵 · 开箱】你依照风水定盘在【${targetNode}】破除五行古阵，掘得【${excavatedEquip.name}】（${excavatedEquip.tierName}），宝图消耗，战利品已入纳戒！`, "ok");
+                if (excavatedEquip) {
+                  toast(`破阵大捷：掘得【${excavatedEquip.name}】与灵石+${stoneGain}！已存入纳戒！`, "gold");
+                  pushFeed(`【天机破阵 · 开箱】你依照风水定盘在【${targetNode}】破除五行古阵，掘得【${excavatedEquip.name}】（${excavatedEquip.tierName}），宝图消耗，战利品已入纳戒！`, "ok");
+                } else {
+                  toast("宝图已消耗，此番未掘得法宝。");
+                  pushFeed(`【天机破阵 · 开箱】你依照风水定盘在【${targetNode}】破除五行古阵，此番未掘得法宝，宝图消耗。`, "ok");
+                }
               }
 
               if (footerEl) {
@@ -5359,14 +5410,15 @@
                   <button type="button" class="px-4 py-2 rounded-xl bg-white hover:bg-jade-50 text-slate-700 border border-jade-200 text-xs font-medium cursor-pointer" onclick="workbench.closeJadeDialog()">
                     收入百宝纳戒
                   </button>
+                  ${excavatedEquip ? `
                   <button type="button" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5" id="btnEquipNowAfterDig">
                     <span>⚔️</span>
                     <span>立即佩戴入体 · 运转周天</span>
-                  </button>
+                  </button>` : ""}
                 `;
 
                 const equipBtn = footerEl.querySelector("#btnEquipNowAfterDig");
-                if (equipBtn) {
+                if (equipBtn && excavatedEquip) {
                   equipBtn.addEventListener("click", () => {
                     closeJadeDialog();
                     handleEquipAction("equip", excavatedEquip.name);
