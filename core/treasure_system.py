@@ -388,7 +388,7 @@ class TreasureEngine:
             CharacterIntegrity.assert_idle(c, action="/挖宝")
             CharacterIntegrity.assert_bag_space(c, needed_slots=1)
         except CharacterIntegrityError as e:
-            return {"success": False, "message": str(e)}
+            return {"success": False, "message": str(e), "stone_loss": 0}
 
         # 获取玩家身上的藏宝图
         maps = c.find_items_by_kind(ItemKind.TREASURE_MAP)
@@ -402,7 +402,8 @@ class TreasureEngine:
                 c.inventory.remove("藏宝图")
 
         if not tmap:
-            return {"success": False, "message": "行囊中无藏宝图，无法勘探天机。"}
+            return {"success": False, "message": "行囊中无藏宝图，无法勘探天机。",
+                    "stone_loss": 0}
 
         curr_node = WorldGridEngine.get_node(c.location)
         target_id = tmap.custom_metadata.get("target_node_id", "")
@@ -415,6 +416,7 @@ class TreasureEngine:
             hops = guide.get("hops", 2)
             return {
                 "success": False,
+                "stone_loss": 0,
                 "wrong_location": True,
                 "target_node_name": target_name,
                 "target_node_id": target_node.id if target_node else "",
@@ -432,6 +434,7 @@ class TreasureEngine:
             max_slots = getattr(c, "MAX_BAG_SLOTS", 64)
             return {
                 "success": False,
+                "stone_loss": 0,
                 "message": f"百宝纳戒乾坤已满（{len(getattr(c, 'items', []))}/{max_slots}），破阵开匣将掘出古修神兵与仙药，请先腾挪纳戒空间再行破阵！",
             }
 
@@ -442,6 +445,7 @@ class TreasureEngine:
             if not choice_id:
                 return {
                     "success": True,
+                    "stone_loss": 0,
                     "need_choice": True,
                     "archetype": archetype,
                     "message": (
@@ -461,12 +465,14 @@ class TreasureEngine:
             if choice_str == "3":
                 return {
                     "success": False,
+                    "stone_loss": 0,
                     "message": "自由破局请直接输入：/做 <你的操作>，宝图未受损耗。",
                 }
 
             if choice_str not in ("1", "water", "earth", "巧破", "2", "force", "brute", "蛮力"):
                 return {
                     "success": False,
+                    "stone_loss": 0,
                     "message": f"无效选项：{choice_id}。请输入 /挖宝 1（以水克火）或 /挖宝 2（蛮力轰门），或输入 /做 <自由操作>。宝图未受损耗。",
                 }
 
@@ -514,6 +520,7 @@ class TreasureEngine:
                 return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "perfect_solve",
+                    "stone_loss": 0,
                     "equipment": {
                         "uid": drop_weapon.uid,
                         "name": drop_weapon.name,
@@ -563,6 +570,7 @@ class TreasureEngine:
                 return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "brute_force",
+                    "stone_loss": 40,
                     "equipment": {
                         "uid": drop_weapon.uid,
                         "name": drop_weapon.name,
@@ -612,6 +620,7 @@ class TreasureEngine:
                 return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "combat_victory",
+                    "stone_loss": 0,
                     "equipment": {
                         "uid": drop_weapon.uid,
                         "name": drop_weapon.name,
@@ -638,6 +647,7 @@ class TreasureEngine:
                 return TreasureEngine._attach_omen_if_needed(c, {
                     "success": True,
                     "outcome": "combat_defeat",
+                    "stone_loss": 0,
                     "message": (
                         f"【凶煞噬体 · 败走遁出】\n"
                         f"守墓傀儡战力狂暴（战力约 {int(guardian_power)}），你护体罡气受创，"
@@ -688,6 +698,7 @@ class TreasureEngine:
             return TreasureEngine._attach_omen_if_needed(c, {
                 "success": True,
                 "outcome": "scar_created",
+                "stone_loss": 0,
                 "equipment": {
                     "uid": ancient_relic.uid,
                     "name": ancient_relic.name,
@@ -711,7 +722,7 @@ class TreasureEngine:
                 ),
             })
 
-        return {"success": False, "message": "未知谜题原型。"}
+        return {"success": False, "message": "未知谜题原型。", "stone_loss": 0}
 
     @staticmethod
     def resolve_free_action(c: Character, free_text: str) -> Dict[str, Any]:

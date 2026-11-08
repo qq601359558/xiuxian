@@ -389,6 +389,47 @@
     return "";
   }
 
+  // 宝图开箱石数行（CA-002，§6.1）：stone_gain > 0 显「发掘灵石 +N」，
+  // stone_loss > 0 显「灵石 −N」，两者皆为 0 时返回 ""（整行省略）；
+  // 不得以 stone_gain === 0 推断无扣款（brute_force 扣 40 但 stone_gain 为 0）。
+  function treasureStoneLinesHtml(stoneGain, stoneLoss) {
+    const gain = Number(stoneGain) || 0;
+    const loss = Number(stoneLoss) || 0;
+    let html = "";
+    if (gain > 0) html += `<div class="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between"><span class="text-slate-600">发掘灵石：</span><strong class="text-filigree-700 font-mono">+${gain} 灵石</strong></div>`;
+    if (loss > 0) html += `<div class="p-2 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between"><span class="text-slate-600">灵石损耗：</span><strong class="text-rose-700 font-mono">−${loss} 灵石</strong></div>`;
+    return html;
+  }
+
+  // 寿元统一定死口径（CA-005）：toFixed(1) + 单位「载」；缺失显「—」，不用假缺省。
+  function fmtRemYears(v) {
+    return v == null ? "—" : Number(v).toFixed(1);
+  }
+
+  // 地牢负面状态通用渲染（CA-013）：服务端 DEBUFF_NAMES 六键 + 法宝大招置入的
+  // stun 全覆盖；未知键原样呈现键名（兜底），空 effect 显「无异常」。
+  function dungeonDebuffChipsHtml(effects) {
+    const effs = effects && typeof effects === "object" ? effects : {};
+    const keys = Object.keys(effs);
+    if (!keys.length) return '<span class="text-slate-400">无异常</span>';
+    const CN = { burn: "灼烧", freeze: "冻结", chill: "寒煞", stun: "震慑眩晕", poison: "阴冥尸毒", weaken: "元气虚浮", bleed: "血气溃散" };
+    const CLS = { burn: "bg-rose-600 text-white", freeze: "bg-cyan-600 text-white", chill: "bg-cyan-100 text-cyan-800 border border-cyan-300", stun: "bg-amber-600 text-white", poison: "bg-emerald-700 text-white", weaken: "bg-slate-500 text-white", bleed: "bg-red-700 text-white" };
+    return keys.map((k) => {
+      const v = effs[k];
+      const rounds = (typeof v === "number" && Number.isFinite(v)) ? ` (${v}回合)` : "";
+      return `<span class="px-2 py-0.5 rounded ${CLS[k] || "bg-slate-600 text-white"} text-[10px] font-bold animate-pulse">${CN[k] || k}${rounds}</span>`;
+    }).join("");
+  }
+
+  // 仪式是否会弹幕（CA-003，纯判定）：供挖宝流决定是否暂存结算。
+  function ceremonyWillShow(cer, next, skipped) {
+    const sk = new Set(Array.isArray(skipped) ? skipped : []);
+    const showable = (c) => !!(c && typeof c === "object" && c.kind && !sk.has(c.kind));
+    if (showable(cer)) return "ceremony";
+    if (showable(next)) return "next";
+    return "";
+  }
+
   function setText(id, v) {
     const el = $(id);
     if (el) el.textContent = v == null || v === "" ? "—" : String(v);
@@ -886,6 +927,20 @@
           <input type="checkbox" data-ceremony-autoskip="${esc(cer.kind)}" /> 同类自动略过
         </label>
         <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeCeremonyDialog()">略过</button>`,
+      // CA-003：✕ / 背景点关幕不走 closeCeremonyDialog（沿既有口径，不顺延下一幕），
+      // 但被顶掉的宝图结算须恢复；有下一幕待演时只清暂存，防 stale 复活。
+      onMount: (overlay) => {
+        const closeBtn = overlay.querySelector("#jadeDialogClose");
+        if (closeBtn) closeBtn.addEventListener("click", () => {
+          if (state.ceremonyNext) { state.pendingTreasureDialog = null; return; }
+          restorePendingTreasureDialog();
+        });
+        overlay.addEventListener("click", (e) => {
+          if (e.target !== overlay) return;
+          if (state.ceremonyNext) { state.pendingTreasureDialog = null; return; }
+          restorePendingTreasureDialog();
+        });
+      },
     });
   }
 
@@ -902,7 +957,40 @@
   function closeCeremonyDialog() {
     closeJadeDialog();
     const nxt = state.ceremonyNext; state.ceremonyNext = null;
-    if (nxt) maybeShowCeremony(nxt);
+    if (nxt) {
+      maybeShowCeremony(nxt);
+      // 下一幕被自动略过、未弹幕时，恢复被顶掉的宝图结算。
+      if (!$("jadeDialogHost")) restorePendingTreasureDialog();
+      return;
+    }
+    restorePendingTreasureDialog();
+  }
+
+  // CA-003：得宝幕关闭后恢复被其顶掉的宝图结算 dialog（仅当暂存存在时；
+  // 暂存由挖宝流在弹幕前写入，恢复即消费，任何路径只恢复一次）。
+  function restorePendingTreasureDialog() {
+    const pend = state.pendingTreasureDialog;
+    state.pendingTreasureDialog = null;
+    if (!pend || !pend.bodyHtml) return false;
+    openJadeDialog({
+      title: pend.title || "天机秘宝 · 古阵现世破阵大典",
+      icon: pend.icon || "⚡",
+      cardClass: pend.cardClass || "max-w-xl",
+      bodyHtml: `<div class="space-y-4" id="treasureStageBox">${pend.bodyHtml}</div>`,
+      footerHtml: pend.footerHtml
+        ? `<div id="treasureFooterActions" class="w-full flex items-center justify-between">${pend.footerHtml}</div>`
+        : "",
+      onMount: (overlay) => {
+        const equipBtn = overlay.querySelector("#btnEquipNowAfterDig");
+        if (equipBtn && pend.equipName) {
+          equipBtn.addEventListener("click", () => {
+            closeJadeDialog();
+            handleEquipAction("equip", pend.equipName);
+          });
+        }
+      },
+    });
+    return true;
   }
 
   // ---- 件一 · 入局（§2.5 桌面） ----
@@ -2156,6 +2244,33 @@
       <span class="art-chip">${galleryImg((s.art_images || {})[n], "art-thumb", n)}<span>${esc(n)}</span></span>`).join("") : `<span class="text-[11px] text-slate-500">尚未习得功法</span>`;
     const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => `
       <span class="art-chip">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")}</span></span>`).join("");
+    // 本命温养法宝卡（CA-004）：只读真实 status.equipped——首件攻伐兵刃，
+    // 无穿戴时整卡省略；器灵有灵才显 spirit.name，主属性走 treasurePanelStatLine。
+    const sanctumEqs = Array.isArray(s.equipped) ? s.equipped : [];
+    const sanctumWeapon = sanctumEqs.find((e) => e && e.slot === "weapon") || sanctumEqs[0] || null;
+    const sanctumWeaponCardHtml = !sanctumWeapon ? "" : (() => {
+      const sp = sanctumWeapon.spirit && typeof sanctumWeapon.spirit === "object" ? sanctumWeapon.spirit : null;
+      const statLine = treasurePanelStatLine(sanctumWeapon.stats);
+      return `
+            <!-- 本命温养法宝卡 -->
+            <div class="rounded-xl overflow-hidden border border-filigree-400/40 bg-gradient-to-r from-jade-900 to-slate-900 p-3 text-white relative">
+              <div class="flex items-center justify-between text-xs mb-1.5">
+                <span class="text-filigree-300 font-semibold flex items-center gap-1">
+                  <span>🛡️ 本命温养法宝</span>
+                </span>
+                <span class="px-1.5 py-0.2 rounded bg-filigree-500/20 text-filigree-300 border border-filigree-400/30 text-[10px]">${esc(sanctumWeapon.tierName || "法宝")}${sanctumWeapon.slotCn ? " · " + esc(sanctumWeapon.slotCn) : ""}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-bold text-white tracking-wide">${esc(sanctumWeapon.name || "无名法宝")}</h4>
+                  ${sp && sp.name ? `<div class="text-[10px] text-jade-300 mt-0.5">器灵：${esc(sp.name)}${sp.stage_cn ? " · " + esc(sp.stage_cn) : ""}</div>` : ""}
+                </div>
+                <div class="text-right">
+                  ${statLine || `<span class="text-[10px] text-slate-400">暂无主属性</span>`}
+                </div>
+              </div>
+            </div>`;
+    })();
 
     return `
     <div class="w-full flex flex-col gap-6">
@@ -2188,7 +2303,7 @@
             <div class="flex flex-col text-right">
               <span class="text-[10px] text-amber-300 tracking-wider">天道寿元大限</span>
               <span class="text-base font-bold text-white font-mono leading-none mt-0.5">
-                ${Number(s.rem_years || 100).toFixed(1)} <span class="text-xs text-amber-200 font-normal">载</span>
+                ${fmtRemYears(s.rem_years)} <span class="text-xs text-amber-200 font-normal">载</span>
               </span>
             </div>
           </div>
@@ -2405,32 +2520,13 @@
                   <div class="text-sm font-bold text-rose-700 font-mono">-${s.sin || 120}</div>
                 </div>
               </div>
-              <div class="grid grid-cols-3 gap-1.5 text-[11px] text-slate-600 pt-1 text-center">
-                <div class="bg-slate-50 py-1 rounded">命禄寿元 <strong class="text-jade-900">${Number(s.rem_years || 145).toFixed(0)}载</strong></div>
-                <div class="bg-slate-50 py-1 rounded">神识感召 <strong class="text-jade-900">4,850步</strong></div>
-                <div class="bg-slate-50 py-1 rounded">宗门道勋 <strong class="text-filigree-700">太上长老</strong></div>
+              <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1 text-center">
+                <div class="bg-slate-50 py-1 rounded">命禄寿元 <strong class="text-jade-900">${fmtRemYears(s.rem_years)}载</strong></div>
+                <div class="bg-slate-50 py-1 rounded">宗门职衔 <strong class="text-filigree-700">${esc(s.rank || "—")}</strong></div>
               </div>
             </div>
 
-            <!-- 本命温养法宝卡 -->
-            <div class="rounded-xl overflow-hidden border border-filigree-400/40 bg-gradient-to-r from-jade-900 to-slate-900 p-3 text-white relative">
-              <div class="flex items-center justify-between text-xs mb-1.5">
-                <span class="text-filigree-300 font-semibold flex items-center gap-1">
-                  <span>🛡️ 本命温养法宝</span>
-                </span>
-                <span class="px-1.5 py-0.2 rounded bg-filigree-500/20 text-filigree-300 border border-filigree-400/30 text-[10px]">地阶温灵 · 九转</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <div>
-                  <h4 class="text-sm font-bold text-white tracking-wide">九天碧玉太虚剑</h4>
-                  <div class="text-[10px] text-jade-300 mt-0.5">剑灵觉醒：太虚玄青雀</div>
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] text-slate-400">锋芒</span>
-                  <div class="text-sm font-bold text-filigree-300 font-mono">9,880</div>
-                </div>
-              </div>
-            </div>
+            ${sanctumWeaponCardHtml}
 
             <!-- 核心交互动作组 -->
             <div class="grid grid-cols-3 gap-2 pt-1">
@@ -4513,11 +4609,7 @@
               <!-- 异常状态图标 -->
               <div class="flex items-center gap-2 text-xs">
                 <span class="text-slate-400 text-[11px]">负面因果:</span>
-                ${Object.keys(m.status_effects || {}).length === 0 ? '<span class="text-slate-400">无异常</span>' : ''}
-                ${m.status_effects?.burn ? `<span class="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold animate-pulse">🔥 灼烧 (${m.status_effects.burn}回合)</span>` : ''}
-                ${m.status_effects?.freeze ? `<span class="px-2 py-0.5 rounded bg-cyan-600 text-white text-[10px] font-bold animate-pulse">❄️ 冻结中</span>` : ''}
-                ${m.status_effects?.chill ? `<span class="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-bold border border-cyan-300">❄️ 寒煞 (${m.status_effects.chill}回合)</span>` : ''}
-                ${m.status_effects?.stun ? `<span class="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold animate-pulse">💫 震慑眩晕</span>` : ''}
+                ${dungeonDebuffChipsHtml(m.status_effects)}
               </div>
 
               <!-- 出招操作台：五行法诀与法宝必杀 -->
@@ -5221,6 +5313,8 @@
               let excavatedEquip = null;
               let dropPill = null;
               let stoneGain = 0;
+              let stoneLoss = 0;
+              let digCeremonyShown = false;
 
               const digChoiceArg = (choice === "force" ? "2" : "1");
 
@@ -5235,12 +5329,18 @@
                   // 得宝幕转交（GF3-QA-01）：宝图专用流自调 /action，须与通用 sendCmd
                   // 路径同口径把 res.ceremony 交队列呈现；挖宝响应无 ceremony_next
                   // 时按缺失口径处理（队列暂存恒空），无幕响应零影响。
-                  if (res.ceremony || res.ceremony_next) maybeShowCeremonyQueue(res.ceremony, res.ceremony_next);
+                  // CA-003：先算出本次是否真会弹幕（自动略过则不弹），供结算暂存决策。
+                  if (res.ceremony || res.ceremony_next) {
+                    const skippedKinds = ["breakthrough", "death", "rebirth", "tribulation", "loot", "spirit"].filter((k) => ceremonySkipped(k));
+                    digCeremonyShown = !!ceremonyWillShow(res.ceremony, res.ceremony_next, skippedKinds);
+                    maybeShowCeremonyQueue(res.ceremony, res.ceremony_next);
+                  }
                   if (res.ok) {
                     digSuccess = true;
                     if (res.equipment) excavatedEquip = res.equipment;
                     if (res.pill) dropPill = res.pill;
                     if (res.stone_gain) stoneGain = res.stone_gain;
+                    if (res.stone_loss) stoneLoss = res.stone_loss;
                   } else {
                     errMsg = res.text || "玄光溃散，未能启封古仙洞府。";
                   }
@@ -5382,10 +5482,7 @@
                     </p>
 
                     <div class="grid grid-cols-2 gap-2 text-xs max-w-sm mx-auto pt-1">
-                      <div class="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between">
-                        <span class="text-slate-600">发掘灵石：</span>
-                        <strong class="text-filigree-700 font-mono">+${stoneGain} 灵石</strong>
-                      </div>
+                      ${treasureStoneLinesHtml(stoneGain, stoneLoss)}
                       <div class="p-2 rounded-xl bg-jade-50 border border-jade-200 flex items-center justify-between">
                         <span class="text-slate-600">宝图消耗：</span>
                         <strong class="text-rose-700 font-medium">已消耗 -1</strong>
@@ -5397,7 +5494,8 @@
                 `;
 
                 if (excavatedEquip) {
-                  toast(`破阵大捷：掘得【${excavatedEquip.name}】与灵石+${stoneGain}！已存入纳戒！`, "gold");
+                  const digStoneNote = stoneGain > 0 ? `与灵石+${stoneGain}` : (stoneLoss > 0 ? `损耗灵石${stoneLoss}` : "");
+                  toast(`破阵大捷：掘得【${excavatedEquip.name}】${digStoneNote}！已存入纳戒！`, "gold");
                   pushFeed(`【天机破阵 · 开箱】你依照风水定盘在【${targetNode}】破除五行古阵，掘得【${excavatedEquip.name}】（${excavatedEquip.tierName}），宝图消耗，战利品已入纳戒！`, "ok");
                 } else {
                   toast("宝图已消耗，此番未掘得法宝。");
@@ -5424,6 +5522,19 @@
                     handleEquipAction("equip", excavatedEquip.name);
                   });
                 }
+              }
+
+              // CA-003：得宝幕已顶掉宝图 dialog，结算 HTML 写进已 detached 的 boxEl；
+              // 暂存一份，关幕后由 restorePendingTreasureDialog 恢复重开。
+              if (digCeremonyShown && boxEl) {
+                state.pendingTreasureDialog = {
+                  title: "天机秘宝 · 古阵现世破阵大典",
+                  icon: "⚡",
+                  cardClass: "max-w-xl",
+                  bodyHtml: boxEl.innerHTML,
+                  footerHtml: footerEl ? footerEl.innerHTML : "",
+                  equipName: excavatedEquip ? excavatedEquip.name : "",
+                };
               }
 
               renderBody();
