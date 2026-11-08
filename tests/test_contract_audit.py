@@ -555,7 +555,7 @@ def test_CA_016_adventure_board_returns_status():
     """CA-016（P2）：/探险 无参榜单路亦透传 status（成功路本已透传）。
 
     注：台账行文称「/探险不透传」仅对无参榜单路成立；成功路 payload
-    本已含 status 与 adventure（见 test_CA_007_note）。
+    本已含 status 与 adventure（见 test_CA_007_adventure_success_path）。
     """
     token, _ = _join()
     resp = WORLD.handle(token, "/探险")
@@ -790,3 +790,310 @@ def test_CT04_mobile_budget_guard():
     assert lines <= 1660, f"mobile.js {lines} 行，超三期硬线 1660"
     assert size <= 27455, f"mobile.css {size}B，超三期硬线 27455B"
     print(f"✓ CT-04：mobile.js {lines} 行 / mobile.css {size}B，均在硬线内")
+
+
+# ================================================================ 返工（2026-11-08）
+# 评审 must-fix M1–M4 + 总管裁决⑥ CA-006、⑧ CA-007 / V2。
+# V2 先红后绿证据：~/workspace/reviews/contract-audit-rework-V2-failfirst.md
+# （M1/M2/CA-006 在未修复代码上跑红留档；M3/CA-007 以变异植入跑红留档——
+#  见该文件；本文件头注释「先在未修复代码上跑出失败留档」以该文件为准）。
+
+# ---------------------------------------------------------------- M1（CA-005）
+def test_CA_005_M1_missing_rem_years_no_unit():
+    """M1（评审）：fmtRemYears 缺失态渲染为「—载」。
+
+    口径：缺失时整串为「—」不带单位；有值时保持 toFixed(1) + 「载」。
+    fmtRemYears 本身保持纯数值（既有 test_CA_005 断言 "80.0" / "—" 不动）；
+    调用点保持 fmtRemYears(s.rem_years) 形态（既有 test_CA_005 断言该字面在场），
+    单位由新 helper remYearsUnit(v) 收口（缺失返 ""，有值返「载」）。
+    （2026-11-08 修订：初版用 fmtRemYearsUnit(s.rem_years) 包裹调用点，
+    与既有 test_CA_005_rem_years_unified 的字面断言冲突；改此形态后两测试同绿。
+    行为口径不变，见 V2 留档补记。）
+    """
+    js = _read_js()
+    san = _extract_helper(js, "renderSanctum")
+    # 行为：两 helper 拼合后的整串
+    assert _node_call("fmtRemYears", "null") + _node_call("remYearsUnit", "null") == "—", "缺失须整串为「—」，不带单位"
+    assert _node_call("fmtRemYears", "80.03") + _node_call("remYearsUnit", "80.03") == "80.0载"
+    assert _node_call("fmtRemYears", "0") + _node_call("remYearsUnit", "0") == "0.0载"
+    assert _node_call("remYearsUnit", "null") == "", "缺失时单位后缀须为空"
+    assert _node_call("remYearsUnit", "80.03") == "载"
+    assert san.count("fmtRemYears(s.rem_years)") == 2, "罗盘与命盘格两处须走统一 helper"
+    assert san.count("remYearsUnit(s.rem_years)") == 2, "两处单位后缀须走 remYearsUnit"
+    assert "${fmtRemYears(s.rem_years)}载" not in san, "命盘格不得再外挂「载」"
+    assert "${fmtRemYears(s.rem_years)} <span" not in san, "罗盘不得再外挂「载」span"
+    assert _node_call("fmtRemYears", "80.03") == "80.0", "fmtRemYears 本身不动（既有断言）"
+    print("✓ M1：缺失寿元显「—」不带单位，有值 toFixed(1) + 「载」")
+
+
+# ---------------------------------------------------------------- M2（CA-003）
+_M2_FAKE_DOM = r"""
+class FakeEl {
+  constructor(tag) { this.tagName = tag; this.id = ""; this.className = ""; this.innerHTML = ""; this.children = []; this.listeners = {}; this.parent = null; this._closeBtn = null; }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  appendChild(el) { el.parent = this; this.children.push(el); return el; }
+  remove() {
+    if (this.parent) { const i = this.parent.children.indexOf(this); if (i >= 0) this.parent.children.splice(i, 1); this.parent = null; }
+    if (this.id === "jadeDialogHost") document._host = null;
+  }
+  querySelector(sel) {
+    if (sel === "#jadeDialogClose") return this._closeBtn;
+    return null; // #btnEquipNowAfterDig 等一律返回 null（恢复 onMount 跳过佩戴重绑）
+  }
+  click(type, event) { const fns = (this.listeners[type] || []).slice(); for (const fn of fns) fn(event || {}); }
+}
+const document = {
+  _host: null,
+  createElement(tag) { return new FakeEl(tag); },
+  getElementById(id) {
+    if (id === "jadeDialogHost") return this._host;
+    if (id === "jadeDialogClose") return this._host ? this._host._closeBtn : null;
+    return null;
+  },
+  body: { appendChild(el) {
+    if (el.id === "jadeDialogHost") { document._host = el; el._closeBtn = new FakeEl("button"); el._closeBtn.id = "jadeDialogClose"; }
+  } },
+};
+const localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+const state = { ceremony: null, ceremonyNext: null, pendingTreasureDialog: null };
+const $ = (id) => document.getElementById(id);
+"""
+
+_M2_DRIVER = r"""
+const CEREMONY = { kind: "loot", beats: [{ stage: "reveal", text: "得宝" }], result_ref: { name: "纯阳离火印", kind: "relic", tier: 3 } };
+// 人工构造 payload：/挖宝从不返回 ceremony_next，此处手工拼一个下一幕，覆盖有 ceremonyNext 的组合
+const NEXT = { kind: "tribulation", beats: [{ stage: "prelude", text: "天劫将至" }], result_ref: {} };
+function hostHtml() { return document._host ? document._host.innerHTML : ""; }
+function stagePending() {
+  state.pendingTreasureDialog = { title: "天机秘宝 · 古阵现世破阵大典", icon: "⚡", cardClass: "max-w-xl", bodyHtml: "SETTLEMENT-纯阳离火印", footerHtml: "", equipName: "纯阳离火印" };
+}
+function runCombo(path, hasNext) {
+  document._host = null;
+  state.ceremony = null; state.ceremonyNext = null; state.pendingTreasureDialog = null;
+  maybeShowCeremonyQueue(CEREMONY, hasNext ? NEXT : null);
+  stagePending(); // 生产顺序：得宝幕先弹，结算随后暂存
+  if (!hostHtml().includes("得宝仪式")) return { path, hasNext, error: "ceremony not shown" };
+  const out = { path, hasNext, nextShown: false, settlementNow: false, settlementAfterNext: false, nextConsumed: null, pendingConsumed: null };
+  if (path === "skip") {
+    closeCeremonyDialog(); // 「略过」按钮的 onclick 即调此函数
+    if (hostHtml().includes("天劫仪式")) {
+      out.nextShown = true;
+      document._host._closeBtn.click("click", {}); // 再以 ✕ 关掉下一幕
+      out.settlementAfterNext = hostHtml().includes("SETTLEMENT-纯阳离火印");
+      out.nextConsumed = state.ceremonyNext === null;
+    } else {
+      out.settlementNow = hostHtml().includes("SETTLEMENT-纯阳离火印");
+    }
+  } else if (path === "close") {
+    document._host._closeBtn.click("click", {}); // ✕：默认关幕监听先触发，onMount 恢复监听后触发
+    out.settlementNow = hostHtml().includes("SETTLEMENT-纯阳离火印");
+    out.nextShown = hostHtml().includes("天劫仪式");
+    out.nextConsumed = state.ceremonyNext === null;
+  } else { // backdrop
+    const host = document._host;
+    host.click("click", { target: host }); // 背景点：默认关幕监听先触发，onMount 恢复监听后触发
+    out.settlementNow = hostHtml().includes("SETTLEMENT-纯阳离火印");
+    out.nextShown = hostHtml().includes("天劫仪式");
+    out.nextConsumed = state.ceremonyNext === null;
+  }
+  out.pendingConsumed = state.pendingTreasureDialog === null;
+  return out;
+}
+const results = [];
+for (const path of ["skip", "close", "backdrop"]) for (const hasNext of [false, true]) results.push(runCombo(path, hasNext));
+console.log(JSON.stringify(results));
+"""
+
+
+def _m2_run_node():
+    """抽出仪式/结算相关函数 + 最小 fake DOM，在 node 里跑 M2 的 6 种组合。"""
+    js = _read_js()
+    parts = [_M2_FAKE_DOM]
+    for const_name in ("CEREMONY_KIND_CN", "CEREMONY_STAGE_CN"):
+        m = re.search(r"const " + const_name + r" = \{[^}]*\};", js)
+        assert m, f"workbench.js 缺 {const_name}"
+        parts.append(m.group(0))
+    for name in ("esc", "galleryImg", "fateChoicesHtml", "fateCandidateDescHtml",
+                 "ceremonySkipped", "maybeShowCeremony", "maybeShowCeremonyQueue",
+                 "closeCeremonyDialog", "restorePendingTreasureDialog",
+                 "openJadeDialog", "closeJadeDialog"):
+        parts.append(_extract_helper(js, name))
+    parts.append(_M2_DRIVER)
+    tmp = Path("/tmp") / "contract_audit_m2.js"
+    tmp.write_text("\n".join(parts), encoding="utf-8")
+    r = subprocess.run(["node", str(tmp)], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, f"node 执行 M2 组合失败：{r.stderr}"
+    return json.loads(r.stdout.strip())
+
+
+def test_CA_003_M2_close_paths_restore_with_or_without_next():
+    """M2（评审）：CA-003 的 ✕/背景关幕路径在 ceremonyNext 在场时丢弃结算。
+
+    口径：三条关幕路径（略过/✕/背景）× 有/无 ceremonyNext 共 6 种组合，结算一律
+    不得丢；✕/背景的语义仍是「不顺延下一幕」（不推进 ceremonyNext），但结算本身
+    须恢复。/挖宝从不返回 ceremony_next，有 ceremonyNext 的组合以人工构造
+    payload（NEXT）在 node 里覆盖。
+    """
+    js = _read_js()
+    # 静态锁：maybeShowCeremony 的 onMount 内不得再有丢弃暂存的分支
+    msc = _extract_helper(js, "maybeShowCeremony")
+    onmount = msc[msc.index("onMount"):]
+    assert "pendingTreasureDialog = null" not in onmount, (
+        "✕/背景处理不得再丢弃暂存结算（M2）")
+    results = _m2_run_node()
+    assert len(results) == 6, f"须覆盖 6 种组合，实得 {results}"
+    by = {(r["path"], r["hasNext"]): r for r in results}
+    for r in results:
+        assert "error" not in r, f"组合 {r['path']}/next={r['hasNext']} 未弹幕：{r}"
+        assert r["pendingConsumed"] is True, f"组合 {r['path']}/next={r['hasNext']} 暂存须被消费：{r}"
+    # 略过：无下一幕立即恢复；有下一幕先演下一幕、关下一幕后恢复
+    assert by[("skip", False)]["settlementNow"] is True, "略过（无下一幕）须立即恢复结算"
+    assert by[("skip", True)]["nextShown"] is True, "略过（有下一幕）须先演下一幕"
+    assert by[("skip", True)]["settlementAfterNext"] is True, "略过（有下一幕）关下一幕后须恢复结算"
+    # ✕/背景：有/无下一幕都立即恢复，且下一幕永不弹出、不被消费
+    for path in ("close", "backdrop"):
+        for has_next in (False, True):
+            r = by[(path, has_next)]
+            assert r["settlementNow"] is True, f"{path}（next={has_next}）须立即恢复结算：{r}"
+            assert r["nextShown"] is False, f"{path}（next={has_next}）下一幕不得弹出：{r}"
+        assert by[(path, True)]["nextConsumed"] is False, (
+            f"{path}（有下一幕）不得顺延/推进 ceremonyNext")
+    print("✓ M2：三条关幕路径 × 有/无 ceremonyNext 共 6 种组合，结算一律恢复")
+
+
+# ---------------------------------------------------------------- M3（Spec §5.2）
+def _all_js_files():
+    js_files = set()
+    r = subprocess.run(["git", "ls-files", "*.js"], cwd=str(ROOT),
+                       capture_output=True, text=True, timeout=30)
+    if r.returncode == 0:
+        js_files.update(ROOT / p for p in r.stdout.splitlines() if p.strip())
+    js_files.update(p for p in ROOT.rglob("*.js") if ".git" not in p.parts)
+    return js_files
+
+
+def test_CT01_M3_no_chinese_stats_bracket_reads():
+    """M3(b)（评审）：通用的 stats['中文键'] 全仓扫描（不只「攻伐威能」一词）。
+
+    只扫括号读法 stats['中文'] / stats["中文"]；合法的展示映射表
+    （treasurePanelStatLine 标签表、dungeonDebuffChipsHtml CN 映射）是
+    「键→中文标签」的对象字面量而非 stats[...] 读法，不在扫射面内；
+    demo 假数据的中文 stat 键是对象字面量定义（stats: {"护身甲御": ...}），
+    由 test_CT01_M3_demo_fabrications_guarded 另锁，不由本项扫。
+    """
+    rx = re.compile(r"stats\s*\[\s*['\"][^'\"]*[\u4e00-\u9fff]")
+    js_files = _all_js_files()
+    for must in ("web/workbench.js", "web/app.js", "web/mobile.js"):
+        assert (ROOT / must) in js_files, f"扫描集须含 {must}"
+    offenders = {}
+    for p in sorted(js_files):
+        text = p.read_text(encoding="utf-8")
+        hits = [(i + 1, m.group(0)) for i, line in enumerate(text.splitlines())
+                for m in [rx.search(line)] if m]
+        if hits:
+            offenders[str(p.relative_to(ROOT))] = hits
+    assert not offenders, f"全仓仍有 stats['中文键'] 读法：{offenders}"
+    assert "stats[key]" in _read_js(), "对照：变量键读法 stats[key] 须在场且不被误报"
+    print(f"✓ M3(b)：全仓 {len(js_files)} 个 *.js 无 stats['中文键'] 读法")
+
+
+def test_CT01_M3_demo_fabrications_guarded():
+    """M3(c)（评审）：§3-G 设防检查——CA-067/068 demo 假数据中文 stat 键锁死。
+
+    CA-068 的两处假数据（假道袍 {"护身甲御": 90, "避火抗性": 50}、仙鹤奖励
+    {"纯阳火威": 50}，另含同批假数据的 "风雷遁速"/"神识念力"/"回气速度"）
+    须仅出现在 demo 种子区，且不在任何联机渲染 helper 内；种子可被联机覆盖
+    的机制（applyStatus 在非 demo 时以真实 items 覆盖 inventory）一并锁死。
+    出现位置按 `"键":` 形式判定（坊市描述文案含「神识念力」字样，非 stat 键，
+    不计入）。
+    """
+    js = _read_js()
+    fake_keys = ["护身甲御", "避火抗性", "纯阳火威", "风雷遁速", "神识念力", "回气速度"]
+    for other in ("mobile.js", "app.js"):
+        text = _read_js(other)
+        for k in fake_keys:
+            assert k not in text, f"假 stat 键「{k}」不得出现在 {other}"
+    edi = _extract_helper(js, "ensureDefaultInventory")
+    crane = _extract_helper(js, "handleCraneReturned")
+    i_edi = js.index(edi)
+    i_crane = js.index(crane)
+    # 仙鹤回调：`if (!state.demo) {...; return; }` 之后才是 demo 分支（rewards 数组起）
+    i_demo_branch = i_crane + crane.index("const rewards = [")
+    for k in fake_keys:
+        rx = re.compile(r'"' + re.escape(k) + r'"\s*:')
+        for m in rx.finditer(js):
+            i = m.start()
+            in_edi = i_edi <= i < i_edi + len(edi)
+            in_demo_crane = i_demo_branch <= i < i_crane + len(crane)
+            assert in_edi or in_demo_crane, (
+                f"假 stat 键「{k}」出现在非 demo 区（workbench.js 偏移 {i}）")
+    for helper in ("treasurePanelStatLine", "dungeonDebuffChipsHtml",
+                   "treasureStoneLinesHtml"):
+        src = _extract_helper(js, helper)
+        for k in fake_keys:
+            assert k not in src, f"假 stat 键「{k}」泄漏进联机渲染 helper {helper}"
+    san = _extract_helper(js, "renderSanctum")
+    for k in fake_keys:
+        assert k not in san, f"假 stat 键「{k}」泄漏进洞府 live 视图 renderSanctum"
+    assert "state.inventory = st.items.slice()" in js, "applyStatus 须以真实 items 覆盖 inventory"
+    assert "if (!state.demo)" in js, "覆盖须以 state.demo 设防（联机时覆盖、demo 时合并）"
+    print("✓ M3(c)：demo 假数据中文 stat 键锁死在 demo 种子区，不进联机渲染路径")
+
+
+# ---------------------------------------------------------------- CA-006（总管裁决⑥）
+def test_CA_006_merit_sin_zero_renders_zero():
+    """CA-006（P3，总管裁决⑥纳入返工）：命盘功德/业力格假缺省。
+
+    新角色功德/业力初值均为 0，`0 || 3650` 恒取假数。修复口径：改 ?? 判空
+    （缺失显「—」，0 渲染 0），与 mobile.js:382 的 != null 口径一致。
+    种子核查：renderSanctum 的 null-status fallback（:2177-2178）是 live
+    渲染器的缺省分支、无 state.demo 门——进 live 视图，同修为 0（与服务端
+    新号初值一致）；demoResult / loadDemo 的种子各有 state.demo 门，demo-only，不动。
+    """
+    js = _read_js()
+    san = _extract_helper(js, "renderSanctum")
+    assert "s.merit || 3650" not in js, "功德格不得再用 || 3650 假缺省"
+    assert "s.sin || 120" not in js, "业力格不得再用 || 120 假缺省"
+    assert 's.merit ?? "—"' in san, "功德格须 ?? 判空（缺失显「—」）"
+    assert 's.sin ?? "—"' in san, "业力格须 ?? 判空（缺失显「—」）"
+    assert "merit: 3650" not in san and "sin: 120" not in san, (
+        "renderSanctum fallback 种子不得再捏造 3650/120")
+    assert "merit: 0" in san and "sin: 0" in san, "fallback 种子须为真实初值 0"
+    assert "merit: 3650" in js, "demoResult 的 demo 种子须保留（demo-only，不动）"
+    token, uid = _join()
+    st = WORLD._status_dict(_char(uid))
+    assert st.get("merit") == 0 and st.get("sin") == 0, (
+        f"新号功德/业力初值须为 0：merit={st.get('merit')} sin={st.get('sin')}")
+    print("✓ CA-006：merit/sin 为 0 时渲染 0，缺失显「—」")
+
+
+# ---------------------------------------------------------------- CA-007（总管裁决⑧）
+def test_CA_007_adventure_success_path():
+    """CA-007（总管裁决⑤⑧，台账勘误锁定、不修渲染）：
+
+    台账「/探险从不下发 adventure 键」的前提不成立——成功路径真实下发
+    "adventure": res（combat_success/exp_delta/stones_delta/narrative/loot），
+    前端 workbench.js 的结构分支与之对应，保留不修。本测试只锁定、不改渲染。
+    看板路（无参）确实无 adventure 键——审计抓取 151 号采的正是此路。
+    """
+    token, _ = _join()
+    board = WORLD.handle(token, "/探险")
+    assert board.get("ok") is True, board
+    assert "adventure" not in board, "无参看板路无 adventure 键（与抓取 151 号一致）"
+    resp = WORLD.handle(token, "/探险 野外山原")
+    assert resp.get("ok") is True, resp
+    adv = resp.get("adventure")
+    assert isinstance(adv, dict), f"/探险成功路须下发 adventure：{resp}"
+    for k in ("combat_success", "exp_delta", "stones_delta", "narrative", "loot"):
+        assert k in adv, f"adventure 缺键 {k}：{adv}"
+    assert isinstance(adv["combat_success"], bool), "combat_success 须为布尔"
+    assert isinstance(adv["exp_delta"], int) and isinstance(adv["stones_delta"], int)
+    assert isinstance(adv["narrative"], str) and adv["narrative"], "narrative 须为非空文本"
+    assert isinstance(adv["loot"], list), "loot 须为列表"
+    assert isinstance(resp.get("status"), dict), "成功路须透传 status"
+    js = _read_js()
+    i = js.index("res.adventure")
+    region = js[i:i + 1200]
+    for k in ("combat_success", "exp_delta", "stones_delta", "narrative", "loot"):
+        assert k in region, f"前端 adventure 结构分支须读 {k}"
+    print("✓ CA-007：/探险成功路下发 adventure，前端结构分支对应（锁定，不修）")

@@ -10,7 +10,7 @@
 
 - 透传 `_status_dict` 的分支：75 个；不透传：114 个（其中返回变量/调用的分支以抓取实测为准，见注）。
 
-- `_status_dict` 顶层键：**77** 个。
+- `_status_dict` 顶层键：**78** 个（CA-011 已批补 `custom_arts` 只读回显，见台账；原 77 键 +1）。
 
 - 真实响应抓取：261 个文件 + 4 条崩溃记录，分支覆盖 189/189。
 
@@ -261,6 +261,7 @@
 | `pets_count` | `len([p for p in c.pets or [] if p.state != 'dead'])` |
 | `cave` | `FarmEngine.cave_summary(c)` |
 | `arts` | `{'main': getattr(c, 'main_art', '') or '', 'sub': list(getattr(c, 'sub_arts', None) or [])}` |
+| `custom_arts` | `list(getattr(c, "custom_arts", None) or [])`（CA-011 已批补键，只读回显已存储自创功法） |
 | `body_soul` | `{'body': BodySoulEngine.body_level(c), 'soul': BodySoulEngine.soul_level(c)}` |
 | `heart_demon_state` | `DemonStateEngine.summary(c)` |
 | `books` | `{'inspiration': int(getattr(c, 'inspiration', 0) or 0), 'prestige': int(getattr(c, 'prestige', 0) or 0)}` |
@@ -306,7 +307,7 @@
 
 ### 3.1 条件键（仅在某条件下出现的键）
 
-`_status_dict` 的 77 个顶层键**近乎无条件全量下发**：键集合不随分支变化，条件只体现在**值可空**（键在、无值时为 `null`/`[]`/`{}`），而非键缺失。实测快照（`status-snapshot.json`，新角）中值为 `null` 的键：`pet`（无灵宠时）、`cave`（未开辟洞府时）、`next_rank`（无宗门时）、`crane_pending_item`（无待取仙物时）、`dungeon`（无禁地会话时）、`quest`（无进行中委托时）。前端凡读这 6 键皆须判空——桌面/移动均已判空（见台账一致行）。
+`_status_dict` 的 78 个顶层键**近乎无条件全量下发**：键集合不随分支变化，条件只体现在**值可空**（键在、无值时为 `null`/`[]`/`{}`），而非键缺失。实测快照（`status-snapshot.json`，新角）中值为 `null` 的键：`pet`（无灵宠时）、`cave`（未开辟洞府时）、`next_rank`（无宗门时）、`crane_pending_item`（无待取仙物时）、`dungeon`（无禁地会话时）、`quest`（无进行中委托时）。前端凡读这 6 键皆须判空——桌面/移动均已判空（见台账一致行）。
 
 唯一以 `if` 分支控制**子键集合**的是 `sect_ring`（:4665）：仅 `sect_name` 在场时才含 `day/accepted/done/themes` 子键；无宗门时 `sect_ring` 为 `{}`。其余嵌套块（`arts/fate/gallery/origin/equipped[].stats` 等）键集合固定。
 

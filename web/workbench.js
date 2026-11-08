@@ -406,6 +406,13 @@
     return v == null ? "—" : Number(v).toFixed(1);
   }
 
+  // 寿元单位后缀（M1，返工）：缺失返 ""（整串只剩 fmtRemYears 的「—」），有值返「载」。
+  // 调用点保持 fmtRemYears(s.rem_years) 形态（既有 test_CA_005 断言该字面在场），
+  // fmtRemYears 本身保持纯数值（既有 test_CA_005 断言 "80.0"/"—" 不动）。
+  function remYearsUnit(v) {
+    return v == null ? "" : "载";
+  }
+
   // 地牢负面状态通用渲染（CA-013）：服务端 DEBUFF_NAMES 六键 + 法宝大招置入的
   // stun 全覆盖；未知键原样呈现键名（兜底），空 effect 显「无异常」。
   function dungeonDebuffChipsHtml(effects) {
@@ -927,17 +934,17 @@
           <input type="checkbox" data-ceremony-autoskip="${esc(cer.kind)}" /> 同类自动略过
         </label>
         <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeCeremonyDialog()">略过</button>`,
-      // CA-003：✕ / 背景点关幕不走 closeCeremonyDialog（沿既有口径，不顺延下一幕），
-      // 但被顶掉的宝图结算须恢复；有下一幕待演时只清暂存，防 stale 复活。
+      // CA-003 / M2（返工）：✕ / 背景点关幕不走 closeCeremonyDialog（沿既有口径，
+      // 不顺延下一幕——state.ceremonyNext 原样保留、不推进），但被顶掉的宝图结算
+      // 须一律恢复；恢复是消费式的（restore 内先取后清），不会 stale 复活，
+      // 故有/无下一幕待演时行为一致：结算都不丢。
       onMount: (overlay) => {
         const closeBtn = overlay.querySelector("#jadeDialogClose");
         if (closeBtn) closeBtn.addEventListener("click", () => {
-          if (state.ceremonyNext) { state.pendingTreasureDialog = null; return; }
           restorePendingTreasureDialog();
         });
         overlay.addEventListener("click", (e) => {
           if (e.target !== overlay) return;
-          if (state.ceremonyNext) { state.pendingTreasureDialog = null; return; }
           restorePendingTreasureDialog();
         });
       },
@@ -2174,8 +2181,8 @@
       vault: 360000,
       exp: "1,240,000 / 140万",
       rem_years: 2800,
-      sin: 120,
-      merit: 3650,
+      sin: 0,
+      merit: 0,
       root: "先天混元灵根",
       blood_marked: false,
       pill_exp_mult: 1
@@ -2303,7 +2310,7 @@
             <div class="flex flex-col text-right">
               <span class="text-[10px] text-amber-300 tracking-wider">天道寿元大限</span>
               <span class="text-base font-bold text-white font-mono leading-none mt-0.5">
-                ${fmtRemYears(s.rem_years)} <span class="text-xs text-amber-200 font-normal">载</span>
+                ${fmtRemYears(s.rem_years)}${remYearsUnit(s.rem_years)}
               </span>
             </div>
           </div>
@@ -2513,15 +2520,15 @@
               <div class="grid grid-cols-2 gap-2 text-center text-xs">
                 <div class="bg-jade-50 p-2 rounded-lg border border-jade-200">
                   <div class="text-[10px] text-slate-500">清净功德云霞</div>
-                  <div class="text-sm font-bold text-jade-700 font-mono">+${s.merit || 3650}</div>
+                  <div class="text-sm font-bold text-jade-700 font-mono">+${s.merit ?? "—"}</div>
                 </div>
                 <div class="bg-rose-50 p-2 rounded-lg border border-rose-200">
                   <div class="text-[10px] text-slate-500">凡尘业力煞气</div>
-                  <div class="text-sm font-bold text-rose-700 font-mono">-${s.sin || 120}</div>
+                  <div class="text-sm font-bold text-rose-700 font-mono">-${s.sin ?? "—"}</div>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-600 pt-1 text-center">
-                <div class="bg-slate-50 py-1 rounded">命禄寿元 <strong class="text-jade-900">${fmtRemYears(s.rem_years)}载</strong></div>
+                <div class="bg-slate-50 py-1 rounded">命禄寿元 <strong class="text-jade-900">${fmtRemYears(s.rem_years)}${remYearsUnit(s.rem_years)}</strong></div>
                 <div class="bg-slate-50 py-1 rounded">宗门职衔 <strong class="text-filigree-700">${esc(s.rank || "—")}</strong></div>
               </div>
             </div>

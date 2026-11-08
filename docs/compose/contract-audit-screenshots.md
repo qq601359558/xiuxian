@@ -9,11 +9,14 @@
 | `sc-ca-003a-loot-ceremony.png` | CA-003（P0） | 桌面得宝仪式幕：（地品），三幕 前奏/揭晓/余韵，result_ref 行含 uid/name/kind: relic/tier: 3，略过按钮在场。 |
 | `sc-ca-003b-settlement.png` | CA-003（P0，SC-02） | 桌面关幕后恢复的宝图结算：天机秘宝·古阵现世破阵大典，发掘灵石 +950，宝图消耗已消耗 -1，「宝 纯阳离火印 地品·稀世重宝」遗物行，收入百宝纳戒 / 立即佩戴入体按钮在场。 |
 | `sc-ca-004-sanctum.png` | CA-004（P0）、CA-005（P2） | 桌面洞府全页：剩余寿元 79.4 载（CA-005 口径）、宗门职衔 散修、本命温养法宝 青锋剑 攻伐 +20；无「神识感召 4,850步」「太上长老」「九天碧玉太虚剑」。 |
+| `sc-ca-003c-settlement-after-x.png` | CA-003（P0，M2 返工） | 桌面 ✕ 关幕后恢复的宝图结算：得宝仪式幕现【纯阳离火印】（地品）后点 ✕，结算恢复——天机秘宝·古阵现世破阵大典，发掘灵石 +800，宝图消耗已消耗 -1，「纯阳离火印 地品·稀世重宝」遗物行；toast「破阵大捷：掘得【纯阳离火印】与灵石+800！」。与 sc-ca-003b（略过路径）区分，证 ✕ 不丢结算。 |
+| `sc-ca-006-merit-sin-zero.png` | CA-006（总管裁决⑥返工） | 桌面新号洞府全页：命盘功德/业力格「清净功德云霞 +0 / 凡尘业力煞气 -0」，0 渲染 0（不再是 +3650 / -120）；罗盘「天道寿元大限 84.5载」。 |
+| `sc-m1-rem-years-missing.png` | CA-005（P2，M1 返工） | 桌面洞府全页（CDP 注入 `state.status.rem_years=null` 后重渲染实拍）：罗盘「天道寿元大限 —」、命盘格「命禄寿元 —」，缺失态整串「—」不带「载」；对照正常值见 sc-ca-006（84.5载）。 |
 | `sc-ca-023-terminal.png` | CA-023（P1） | 终端实拍：目录 /望气 aliases `['/echo', '/天象', '/omen']`，/奇遇 aliases `[]`；分发:1959 原样在场，:2058 已为 `("/奇遇")`；`/omen` ok，返回 season_theme 静默纪元。 |
 
 ## 拍摄方式与局限
 
-- 桌面截图：headless Chromium（/opt/meta-chromium/chrome）+ CDP 驱动，走真实登录表单与真实 DOM 点击；截图沙盒为 worktree 代码副本（8766 端口），播种账号 shot1/shot2（藏宝图原型/目标节点/穿戴均由引擎真实生成）。
+- 桌面截图：headless Chromium（puppeteer 自带 Chromium，/opt/meta-chromium/chrome 在本机被域策略拦启动）+ CDP 驱动，走真实登录表单与真实 DOM 点击；截图沙盒为 worktree 代码副本（8766 端口），播种账号 shot1/shot2（藏宝图原型/目标节点/穿戴均由引擎真实生成）。返工轮新增三张：sc-ca-003c（m2shot01，RUIN_HAZARD 宝图播种后真实 /挖宝 → 破阵幕默认①癸水 → 得宝仪式 → 点 ✕ → 结算恢复）、sc-ca-006（m1shot094322 全新注册）、sc-m1（同号，`rem_years=null` CDP 注入后重渲染实拍——服务端恒下发 `rem_years`，缺失态无法由真实服务端造出，注入处如实记录）。
 - 终端实拍：`WORLD.handle` 真实调用的 stdout 原样渲染（`~/workspace/shot-xiuxian/transcripts/`），非手写。
 - 局限：截图沙盒内 Chrome 无法加载 CDN（Tailwind/字体），洞府与结算截图为无 Tailwind 样式渲染——内容（数值、行、按钮）真实，布局不代表生产样式。命盘巨环为无样式下的 SVG 尺寸失控，非本次改动引入（生产样式下正常尺寸）。
 - 移动端：本轮 mobile.js/mobile.css 零代码改动，无移动端消费面变化，故无移动端截图（CA-037 为服务端透传覆盖移动端）。
