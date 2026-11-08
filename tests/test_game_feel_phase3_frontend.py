@@ -174,3 +174,34 @@ def test_fe03_mobile_budgets_hardline_and_caps():
     assert css_bytes <= 28800, f"mobile.css {css_bytes}B 超现行上限 28800B（二期 §10）"
     print(f"✓ FE-03 预算实测：mobile.js {js_lines} 行（硬线 1660 / 上限 1892），"
           f"mobile.css {css_bytes}B（硬线 27455 / 上限 28800）")
+
+
+def test_gf3_qa01_desktop_treasure_flow_forwards_loot_ceremony():
+    """GF3-QA-01 回归（QA 必现用例的仓内版）：桌面 /挖宝 被 sendCmd 拦截进
+    handleTreasureAction 宝图专用流，该流自调 /action 消费响应时必须把
+    res.ceremony 转交 maybeShowCeremonyQueue（与通用 sendCmd 路径同口径、
+    含 ceremony_next 透传），否则得宝幕在桌面真实 UI 路径永不呈现。"""
+    desk = _read("workbench.js")
+    seg = _func_body(desk, "联机模式：向服务端调用 /挖宝", "若服务端未返回具体装备")
+    assert "maybeShowCeremonyQueue(res.ceremony, res.ceremony_next)" in seg, \
+        "宝图流 dig 成功段未转交 ceremony（GF3-QA-01 再发）"
+    assert "res.ceremony || res.ceremony_next" in seg, \
+        "宝图流转交须沿通用路径的双键守卫口径"
+    print("✓ GF3-QA-01 桌面宝图流 dig 段已转交 ceremony（队列入口 + ceremony_next 透传）")
+
+
+def test_gf3_qa01_desktop_blind_box_ceremony_not_clobbered():
+    """GF3-QA-01 自查（得宝幕第二挂点 /捡漏）：桌面 /捡漏 无专用拦截流——
+    sendCmd 拦截段只有探险/挖宝/穿戴/卸下，/捡漏 走通用 /action 路径并在
+    :6709 口径转交 ceremony；坊市 gamble 按钮经 sendCmd 后，其自有解石
+    面板不得在达幕时叠开（openJadeDialog 会关掉刚呈现的得宝幕）。"""
+    desk = _read("workbench.js")
+    send = _func_body(desk, "async function sendCmd(cmd)", "function demoResult(c)")
+    assert '"/捡漏"' not in send, "/捡漏 被 sendCmd 专用流拦截（须走通用路径）"
+    assert "maybeShowCeremonyQueue(data.ceremony, data.ceremony_next)" in send, \
+        "通用 sendCmd 路径未转交 ceremony"
+    gamble = _func_body(desk, 'if (act === "gamble")', 'if (act === "solicit")')
+    assert 'await sendCmd("/捡漏")' in gamble
+    assert "!res.ceremony" in gamble, \
+        "gamble 解石面板在得宝幕已呈现时仍叠开，会关掉得宝幕（GF3-QA-01 同型）"
+    print("✓ GF3-QA-01 自查：/捡漏 通用路径转交 + gamble 面板达幕不叠开")

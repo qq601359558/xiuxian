@@ -5208,6 +5208,10 @@
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
                   applyOmenPayload(res);
+                  // 得宝幕转交（GF3-QA-01）：宝图专用流自调 /action，须与通用 sendCmd
+                  // 路径同口径把 res.ceremony 交队列呈现；挖宝响应无 ceremony_next
+                  // 时按缺失口径处理（队列暂存恒空），无幕响应零影响。
+                  if (res.ceremony || res.ceremony_next) maybeShowCeremonyQueue(res.ceremony, res.ceremony_next);
                   if (res.ok) {
                     digSuccess = true;
                     if (res.equipment) excavatedEquip = res.equipment;
@@ -6067,7 +6071,10 @@
         return;
       }
       const res = await sendCmd("/捡漏");
-      if (res && res.ok && res.loot) {
+      // 得宝幕（GF3-QA-01 自查）：/捡漏 经 sendCmd 通用路径已转交并呈现
+      // res.ceremony；达幕时不再叠开自有解石面板——openJadeDialog 会先关掉
+      // 刚呈现的得宝幕。未达幕（无 ceremony）时面板行为与既往一致。
+      if (res && res.ok && res.loot && !res.ceremony) {
         openJadeDialog({
           title: "天街捡漏 · 鉴真解石大捷",
           icon: "💎",
