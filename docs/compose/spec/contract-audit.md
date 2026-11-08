@@ -1,7 +1,7 @@
 # Spec：前后端数据口径全量核查（contract-audit）
 
 - 基线：worktree `.worktrees/contract-audit`，分支 `feat/contract-audit`，基线 main `af4d689` = v0.3.11-gray.18（宝图面板「攻伐 +undefined」修复轮）。
-- 状态：**未实现，阶段一 Spec 定稿**（待总管确认后进入阶段二 compose-next；实现与验收见文末「裁决记录」与台账）。
+- 状态：**已实现，已发布 v0.3.12-gray.19**（实现与验收见文末「裁决记录」§12 集成/评审回写与台账）。
 - 定稿依据：Martinez 2026-11-08 微信原话「这说明什么，说明游戏存在很多漏洞，还没达到可用状态」；总管派工（兑现「真人试玩之前先把服务端返回与前端渲染的口径全量核查一遍、扫清同类不一致再汇报」的承诺）；`.agents/skills/requirement-evaluator/SKILL.md`（五步推演方法）；`docs/compose/spec/game-feel-phase3.md`（Spec 格式范本）；`tests/test_treasure_panel_stats_contract.py`（本轮要扩展成的系统性契约方法原型）；项目 `AGENTS.md`（阶段一细化 → 阶段二 compose-next → 阶段三回归验证；道体合规守恒律）。
 - 红线（全 Spec 通用）：寿元是硬通货（规则一字不改）、规则引擎裁决数值、LLM 只叙事/言行；**本轮零新增 AI 调用、零数值语义改动、零新玩法、零新命令**（除 §6 定死的只增字段 `stone_loss` 外，响应不新增任何其他键——新增键须逐个回主策岗）；涉及角色数据遵循 `AGENTS.md` 道体合规守恒律（写路径统一 `CharacterRepository.save`——本轮审计与修复本身零写路径，`stone_loss` 是只读回显字段，不写角色行）。
 - 本轮范围（定死，不扩不缩）：① 全量审计并产出可复核台账（§2/§3）；② 修复台账中全部 P0/P1 项与已裁决的 P2 项（§4/§6）；③ 契约层沉淀为后续发版可复检的测试资产（§5）；④ 真实 UI 截图与全量回归（§8）；⑤ 发版 v0.3.12-gray.19 + NAS 部署（§8）。明确不做见 §11。
@@ -359,8 +359,11 @@ CLI（如有 CLI 修复项）：
 
 ### 集成/评审回写（实现后回填）
 
-- （待回填：实现提交链、验收结论摘要、评审结论、发布 Finalize 回写。）
-- 标红清单（实现后回填：数值语义牵连项逐条，含牵连链与裁决去向。）
+- **实现提交链**（分支 `feat/contract-audit`，基线 main `af4d689` = v0.3.11-gray.18）：`cfcc878` Spec 定稿 → `391a47b` 台账初稿（K2：先于修复提交）→ `25fdd0e` / `05992c1` / `ab5ca4f` 总管裁决回写（CA-011 补键、CA-023 目录/分发、CA-007 勘误、CA-006 纳入返工、QA-001 定性、CA-007 锁定测试）→ `f2b8c41` 修复 P0×4 / P1×1 / P2×8、定性×3、CA-011 补键、CA-070 评估 → `1b9e2b6` 返工（评审 must-fix M1–M4 + CA-006 + CA-007 锁定测试）→ 发版提交（本轮 Finalize：config `VERSION`、README、CHANGELOG、gray-runbook 四处同步 v0.3.12-gray.19，见 CHANGELOG.md v0.3.12-gray.19 节）→ `--no-ff` 合并入 main，打 annotated tag `v0.3.12-gray.19` 并推送（合并提交与 tag 核验见发版报告）。
+- **验收结论摘要**：台账 70 行（P0×4、P1×1、P2×11、P3×11、P4×43；不一致 24、前端兜底捏造 1、格式问题 2、一致 43；标红停手 0）；261 真实响应抓取 + 4 崩溃记录，189/189 分发分支覆盖；双向差集定稿 138/80/65/7；`_status_dict` 78 键（CA-011 补 `custom_arts` 后 77→78）。P0×4 均已修复：CA-001 `/悟丹` 系恒崩溃（删 handle 内 3 处 `import random`）、CA-002 `stone_loss`（引擎 13 分支如实填，brute_force 40 其余 0；分发只增透传；前端改读）、CA-003 遗物结算面板不可达（`state.pendingTreasureDialog` 暂存，关幕后恢复重开）、CA-004 洞府静态捏造（删 3 处写死值，改读真实 status）。CA-023 落于 `/望气` 条目、CA-006 `??` 判空 + live 种子 3650/120→0/0、CA-007 台账勘误不修 + 锁定测试。契约层 `tests/test_contract_audit.py` 30 用例（CT-01 三类断言），评审人实跑 30 passed。QA 全量 run2 1387 passed / 8 failed（失败集与操作基线逐项一致，新增失败 0；run1 1386/9，多出 1 条为既有日期依赖型 pawn flake）；定向 RG-03 100 passed。移动端 1645 行 / 27395B，硬线未触。
+- **评审结论**：独立首审 must-fix M1–M4（M1 缺失态整串「—」、M2 六组合结算不丢且 ✕ 不顺延、M3 坏模式扫描补齐且变异可红、M4 键数 78 三方一致）→ 返工 `1b9e2b6` 逐项兑现（含总管裁决⑥ CA-006、⑧ CA-007）→ 复审结论「通过（可发版）」，9/9 核销无 must-fix（`~/workspace/reviews/contract-audit-rereview.md`）；红线零触碰（新增响应键仅预批 `stone_loss` 与 `custom_arts`，数值语义零改动，mobile.js/css 零改动，`core/ceremony.py` / `core/breakthrough.py` 零改动，既有断言修订 0 条）。观察项 O-R1~O-R4（V2 变异日志随 /tmp 轮转丢失、sc-ca-003c 为静态图、`ceremonyNext` 残留语义既有、全量跑无并发证据强度中等）不阻塞，供下轮参考。
+- **发布 Finalize 回写**：2026-11-08 发版 v0.3.12-gray.19——config `VERSION` / README / CHANGELOG / `docs/gray-runbook.md` 四处同步（回滚指 v0.3.11-gray.18，基线提交 `af4d689`）；本 Spec 状态改为「已实现，已发布 v0.3.12-gray.19」；分支 `--no-ff` 合并入 main，annotated tag `v0.3.12-gray.19` 推送并经 `git ls-remote` 核验与本地逐字一致；NAS 部署一次并验收通过（部署报告 `~/workspace/deploy-reports/tiandao-0.3.12-gray.19-nas-deploy.md`，.env md5 前后一致，`data/` 不动，旧镜像留 backup tag `tiandao:backup-0.3.11-gray.18`）；冒烟：公网首页与 /mobile.html 200，线上 served `workbench.js` 含 `remYearsUnit` 且不含 `s.merit || 3650`。
+- 标红清单（实现后回填：数值语义牵连项逐条，含牵连链与裁决去向。）：**0 条**——本轮无数值语义牵连项标红停手；唯一预批新增键 `stone_loss`（§6.1）与总管裁决②批准的 `custom_arts` 只增只读回显均已落地，无牵连链待裁决。
 
 ---
 
@@ -370,4 +373,4 @@ CLI（如有 CLI 修复项）：
 - **既有文件改动（只增/原地改）**：`server/world.py` `/挖宝` 分发 return 只增 `stone_loss`（§6.1）；`core/treasure_system.py` 各 outcome 分支如实填写 `stone_loss`（brute_force 为 40，其余为 0；扣款行不动）；`web/workbench.js` / `web/mobile.js` 按台账 P0/P1 逐项原地修渲染口径（不重构既有渲染函数）；`web/app.js` 零功能改动。
 - **零变更清单（写死）**：`core/ceremony.py`、`core/breakthrough.py`、`core/treasure_system.py` 的扣款本体、`server/world.py` 的锁获取方式、`core/npc_proactive.py`、`core/fate_thread.py`；无新表、无新模型字段、无新 config、无新命令、无新资产键。
 - **只增字段总表**：`/挖宝` 响应 +`stone_loss`（§6.1，唯一预批新增键）；其余修复均为前端渲染口径改动，不新增响应键。
-- **台账统计摘要（实现后回填）**：台账总行数 / P0× / P1× / P2× / P3× / P4× / 标红停手× / 未覆盖端点×（清单见台账末尾）。
+- **台账统计摘要（实现后回填）**：台账总行数 70 / P0×4 / P1×1 / P2×11 / P3×11 / P4×43 / 标红停手×0 / 未覆盖端点×0（分支级；子结局级 5 项，清单见台账末尾）。
