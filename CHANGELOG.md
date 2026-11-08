@@ -1,5 +1,21 @@
 # 更新日志
 
+## v0.3.11-gray.18（2026-11-08）— 宝图开箱面板「攻伐 +undefined」修复
+
+定位：缺陷修复轮。上一稳定点 v0.3.10-gray.17（c0d7b98）。分支 `feat/treasure-panel-stats-fix`（`9d5c585` + `a4a5636`）。
+
+### 变更
+- 根因：联机 `/挖宝` 返回的 `equipment.stats` 是引擎键（武器掉落恒为 `{power: N}`，如 tier3 为 198），面板却写死渲染 `stats['攻伐威能']`——该键服务端不存在（只存在于 `web/workbench.js` 两个本地对象），联机开箱恒显示「攻伐 +undefined」
+- 修复口径（`web/workbench.js` +87/-35，净 +52 行；纯呈现层，未动服务端数值与规则）：新增纯函数 `treasurePanelStatLine`，按优先序 power（攻伐）> phys_atk（物攻）> spell_atk（法攻）> defense（防御）> max_hp（气血）> max_mp（真元）> speed（身法）> phys_def（物防）> spell_def（法防）> crit_rate（暴击）> crit_damage（暴伤）> sense_range/divine_sense（神识）> illusion_resist（幻抗）> pierce（破甲）> lifesteal（汲取）> mind_guard（护心）> charm（魅力）取首个存在且 >0 的数值键，浮点截断至两位小数去零；无可用键（遗物 `stats={}`、零值、非数值、缺失）时整行省略，永不渲染 undefined/NaN；未知旧中文键直接忽略
+- 同面板审计：词缀改渲染 payload 实际 `affixes`（服务端随机抽取），无词缀整行省略；字段缺省（name 缺省「无名法宝」、slotCn 缺省「法宝」、lore 缺省「天地造化所钟之奇珍。」、tierName 缺省空；glyph 按 slot 取值）；brute_force/combat_victory/scar_created 无 pill、brute_force 无 stone_gain 且实为扣灵石、combat_defeat 无装备/丹药/灵石——此前三处本地推断在联机模式下凭空捏造战利品，现仅限 Demo 模式，联机无装备时面板改为「破阵而出 · 未得机缘」+ 未得法宝占位卡，灵石按服务端实返显示，toast/feed 与「立即佩戴」按钮同步按有无装备分支；两处本地 fallback stats 改为真实引擎键（演示剑 `{power:160, pierce:45}`、开箱推断 `{power: tier>=3?180:90}`）；桌面其它路径全仓仅此一处写死引用，移动端无开箱面板、无须改动
+- 删除根目录三份旧副本 `index.html` / `workbench.css` / `workbench.js`（最后实质改动 2026-09-24 / 2026-10-13，web/ 对应文件为 2026-11-06~08；根 `workbench.js:2571/:3015/:3077` 仍含本缺陷）：`server/app.py:254-259` 在 web/ 缺失时兜底服务根目录同名文件，Dockerfile 只 COPY web/，线上虽不受影响，缺陷仍以可达 fallback 形式留在仓内；删除前全仓复核无任何代码引用根目录副本（启动脚本、Dockerfile、docs、tools 皆指 web/），故删除三文件、`server/app.py` 不改，缺失时兜底只会 404，不会复活旧缺陷
+
+### 测试
+- 新增 `tests/test_treasure_panel_stats_contract.py` 7 条（静态契约：真实键 ⊆ 渲染口径、写死中文键/词缀芯片消失、fallback 键 ⊆ 真实键、捏造仅限 Demo、根目录旧副本删除守卫；node 执行渲染断言：tier3 武器 power 198 →「攻伐 +198」、遗物 `{}`→省略、phys/spell/defense/max_hp/crit_rate 回退、零值/非数值/旧中文键→省略，全程无 undefined/NaN）
+- 全量回归（新鲜 DB）：1357 passed / 8 failed——7 条基线失败全部复现（无新增确定性失败）+ 1 条既有 flake（`test_living_jianghu::test_lan_feed_endpoint_contract`，全量顺序下失败、删库单跑全绿）；零新增失败
+- 桌面真实 UI 截图验收通过（`~/workspace/ui-shots/treasure-panel-fix/`）：T1 主正例 tier3 五行破阵「攻伐 +198」无 undefined；T2 凶地守卫胜利「攻伐 +77」；T4 战败「破阵而出 · 未得机缘」无 undefined；T3 遗物分支结算面板被得宝仪式覆盖不可达（GF3 双幕协议既有行为，本分支未碰仪式/队列/z-index，不阻塞放行，另立工单）；首挖奇遇条遮挡结算面板页脚约 25px（既有布局问题，不阻塞放行，另立工单）
+- 跟进（本轮不做）：S-3 brute_force 面板灵石 +0 与服务端实扣 40 不一致，需服务端 stone_loss 字段，另立跟进
+
 ## v0.3.10-gray.17（2026-11-08）— 游戏感改造第三期（仪式补全三幕 + 入局待回应最新优先修复）
 
 定位：游戏感改造第三期。上一稳定点 v0.3.9-gray.16（76310b4）。规格：docs/compose/spec/game-feel-phase3.md。
