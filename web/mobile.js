@@ -51,6 +51,7 @@
     entry: null,
     entryPending: false,
     originCard: null,
+    ceremonyNext: null,
     here: [],
     feed: [],
     world: null,
@@ -851,7 +852,7 @@
   }
 
   // ---- 游戏感第一期（game-feel-phase1）：只认后端下发结构渲染，缺失即不渲染 ----
-  var CEREMONY_CN_M = { breakthrough: "突破", death: "归府", rebirth: "转世" };
+  var CEREMONY_CN_M = { breakthrough: "突破", death: "归府", rebirth: "转世", tribulation: "天劫", loot: "得宝", spirit: "器灵认主" };
   var STAGE_CN_M = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
   function ceremonySkippedM(kind) { try { return localStorage.getItem("ceremony_skip_" + kind) === "1"; } catch (_) { return false; } }
   function closeOverlayM(id) { var el = $(id); if (el) el.remove(); }
@@ -1051,9 +1052,22 @@
       '<button type="button" class="btn primary block" data-ceremony-close="1">略过</button></div>';
     document.body.appendChild(ov);
   }
+  // 双幕队列（game-feel-phase3 §7.2）：ceremony_next 暂存 state.ceremonyNext，先演天劫幕，
+  // 关闭/自动略过后顺延突破幕；两幕 skip 按 kind 独立判定，双略过时都不呈现（命格仍可达）。
+  function maybeShowCeremonyQueueM(cer, next) {
+    state.ceremonyNext = next && next.kind ? next : null;
+    if (cer && cer.kind && !ceremonySkippedM(cer.kind)) { maybeShowCeremonyM(cer); return; }
+    var nxt = state.ceremonyNext; state.ceremonyNext = null;
+    if (nxt) maybeShowCeremonyM(nxt);
+  }
+  function closeCeremonyM() {
+    closeOverlayM("ceremonyOverlay");
+    var nxt = state.ceremonyNext; state.ceremonyNext = null;
+    if (nxt) maybeShowCeremonyM(nxt);
+  }
   function renderCeremonySkipOpsM() {
     var host = $("ceremonySkipOps"); if (!host) return;
-    host.innerHTML = ["breakthrough", "death", "rebirth"].filter(function (k) { return ceremonySkippedM(k); }).map(function (k) { return '<button type="button" class="display-row" data-ceremony-unskip="' + k + '">' + esc(CEREMONY_CN_M[k] || k) + '仪式自动略过：取消<span class="arr">›</span></button>'; }).join("");
+    host.innerHTML = ["breakthrough", "death", "rebirth", "tribulation", "loot", "spirit"].filter(function (k) { return ceremonySkippedM(k); }).map(function (k) { return '<button type="button" class="display-row" data-ceremony-unskip="' + k + '">' + esc(CEREMONY_CN_M[k] || k) + '仪式自动略过：取消<span class="arr">›</span></button>'; }).join("");
   }
 
   // 件四 · 关系可见化（§5.4）：命盘近 5 条 + 同场箭头，与 relations_recent/marks 同源
@@ -1095,7 +1109,7 @@
       if (data.status) applyStatus(data.status);
       if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
       if (data.origin_card) { state.originCard = data.origin_card; if (data.origin_card.just_created) showOriginOverlayM(); }
-      if (data.ceremony) maybeShowCeremonyM(data.ceremony);
+      if (data.ceremony || data.ceremony_next) maybeShowCeremonyQueueM(data.ceremony, data.ceremony_next);
       // 交谈旧账行（game-feel-phase2 §8.3）：交谈开启响应 old_account 在场才渲染，置于交谈文本之前
       if (data.old_account) pushFeed(oldAccountTextM(data.old_account), "ok");
       if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
@@ -1306,7 +1320,7 @@
       });
       showApp();
       if (payload.origin_card && payload.origin_card.just_created) showOriginOverlayM();
-      if (payload.ceremony) maybeShowCeremonyM(payload.ceremony);
+      if (payload.ceremony || payload.ceremony_next) maybeShowCeremonyQueueM(payload.ceremony, payload.ceremony_next);
       toast("已入世 · " + state.name, "ok");
       if (payload.dead) {
         pushFeed(
@@ -1604,7 +1618,7 @@
       var fc = t.closest("[data-fate-choice]");
       if (fc) { closeOverlayM("ceremonyOverlay"); sendCmd("/命格 " + fc.getAttribute("data-fate-choice")); return; }
       if (t.closest("[data-origin-close]")) { closeOverlayM("originOverlay"); return; }
-      if (t.closest("[data-ceremony-close]")) { closeOverlayM("ceremonyOverlay"); return; }
+      if (t.closest("[data-ceremony-close]")) { closeCeremonyM(); return; }
       var un = t.closest("[data-ceremony-unskip]");
       if (un) { try { localStorage.removeItem("ceremony_skip_" + un.getAttribute("data-ceremony-unskip")); } catch (_) {} renderCeremonySkipOpsM(); }
     });

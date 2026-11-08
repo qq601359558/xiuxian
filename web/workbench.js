@@ -308,6 +308,7 @@
     originCard: null,
     originCardDismissed: false,
     ceremony: null,
+    ceremonyNext: null,
     here: [],
     feed: [],
     world: null,
@@ -690,7 +691,7 @@
     </div>`;
   }
   // ---- 件三 · 仪式与命格（§4.1/§4.5）：只认 ceremony 结构；略过纯前端关闭 ----
-  const CEREMONY_KIND_CN = { breakthrough: "突破", death: "归府", rebirth: "转世" };
+  const CEREMONY_KIND_CN = { breakthrough: "突破", death: "归府", rebirth: "转世", tribulation: "天劫", loot: "得宝", spirit: "器灵认主" };
   const CEREMONY_STAGE_CN = { prelude: "前奏", reveal: "揭晓", aftermath: "余韵" };
 
   function ceremonySkipped(kind) {
@@ -817,7 +818,7 @@
 
   // 命盘仪式偏好段：已设自动略过的 kind 在此取消（同 localStorage 键）
   function ceremonySkipSectionHtml() {
-    const kinds = ["breakthrough", "death", "rebirth"].filter((k) => ceremonySkipped(k));
+    const kinds = ["breakthrough", "death", "rebirth", "tribulation", "loot", "spirit"].filter((k) => ceremonySkipped(k));
     if (!kinds.length) return "";
     const rows = kinds.map((k) => `
       <div class="flex items-center justify-between gap-3 text-xs py-1">
@@ -854,14 +855,30 @@
         .map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
     openJadeDialog({
       title: (CEREMONY_KIND_CN[cer.kind] || "仪式") + "仪式",
-      icon: cer.kind === "death" ? "🕯️" : cer.kind === "rebirth" ? "🌿" : "⚡",
+      icon: cer.kind === "death" ? "🕯️" : cer.kind === "rebirth" ? "🌿" : cer.kind === "loot" ? "💎" : cer.kind === "spirit" ? "🔮" : "⚡",
       bodyHtml: `<div class="space-y-4">${beatsHtml || `<p class="text-sm text-slate-600">仪式已成。</p>`}${rr ? `<p class="text-[11px] text-slate-400">${esc(rr)}</p>` : ""}</div>`,
       footerHtml: `
         <label class="text-xs text-slate-600 flex items-center gap-1.5 mr-auto">
           <input type="checkbox" data-ceremony-autoskip="${esc(cer.kind)}" /> 同类自动略过
         </label>
-        <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeJadeDialog()">略过</button>`,
+        <button type="button" class="px-5 py-2 rounded-xl bg-jade-700 hover:bg-jade-800 text-white text-xs font-semibold cursor-pointer" onclick="workbench.closeCeremonyDialog()">略过</button>`,
     });
+  }
+
+  // 双幕队列（game-feel-phase3 §7.2）：ceremony_next 暂存 state.ceremonyNext，先演
+  // ceremony（天劫幕）；其关闭/自动略过后顺延演下一幕，两幕 skip 按 kind 独立判定。
+  function maybeShowCeremonyQueue(cer, next) {
+    state.ceremonyNext = next && typeof next === "object" && next.kind ? next : null;
+    if (cer && typeof cer === "object" && cer.kind && !ceremonySkipped(cer.kind)) { maybeShowCeremony(cer); return; }
+    const nxt = state.ceremonyNext; state.ceremonyNext = null;
+    if (nxt) maybeShowCeremony(nxt);
+  }
+  // 仪式专用关闭（§7.2）：只供 ceremony「略过」按钮，不改通用 closeJadeDialog 语义；
+  // 关闭后若暂存有下一幕立即顺延呈现（下一幕被自动略过时 maybeShowCeremony 自行不呈现）。
+  function closeCeremonyDialog() {
+    closeJadeDialog();
+    const nxt = state.ceremonyNext; state.ceremonyNext = null;
+    if (nxt) maybeShowCeremony(nxt);
   }
 
   // ---- 件一 · 入局（§2.5 桌面） ----
@@ -5191,6 +5208,10 @@
                   const res = await api("/action", { token: state.token, command: `/挖宝 ${digChoiceArg}` });
                   if (res.status) applyStatus(res.status, reqEpoch);
                   applyOmenPayload(res);
+                  // 得宝幕转交（GF3-QA-01）：宝图专用流自调 /action，须与通用 sendCmd
+                  // 路径同口径把 res.ceremony 交队列呈现；挖宝响应无 ceremony_next
+                  // 时按缺失口径处理（队列暂存恒空），无幕响应零影响。
+                  if (res.ceremony || res.ceremony_next) maybeShowCeremonyQueue(res.ceremony, res.ceremony_next);
                   if (res.ok) {
                     digSuccess = true;
                     if (res.equipment) excavatedEquip = res.equipment;
@@ -6050,7 +6071,10 @@
         return;
       }
       const res = await sendCmd("/捡漏");
-      if (res && res.ok && res.loot) {
+      // 得宝幕（GF3-QA-01 自查）：/捡漏 经 sendCmd 通用路径已转交并呈现
+      // res.ceremony；达幕时不再叠开自有解石面板——openJadeDialog 会先关掉
+      // 刚呈现的得宝幕。未达幕（无 ceremony）时面板行为与既往一致。
+      if (res && res.ok && res.loot && !res.ceremony) {
         openJadeDialog({
           title: "天街捡漏 · 鉴真解石大捷",
           icon: "💎",
@@ -6689,10 +6713,10 @@
       // 游戏感第一期只增字段：/action 响应可携带 entry / origin_card / ceremony
       if (data.entry) { state.entry = data.entry; state.entryPending = false; }
       if (data.origin_card) { state.originCard = data.origin_card; state.originCardDismissed = false; }
-      if (data.ceremony) maybeShowCeremony(data.ceremony);
+      if (data.ceremony || data.ceremony_next) maybeShowCeremonyQueue(data.ceremony, data.ceremony_next);
       if (data.chat_open || data.chat_ended) handleChatData(data, reqEpoch);
 
-      if ((c.startsWith("/突破") || c.startsWith("/break")) && !data.ceremony) {
+      if ((c.startsWith("/突破") || c.startsWith("/break")) && !data.ceremony && !data.ceremony_next) {
         const isSucc = data.ok && (data.success !== false && !(data.tribulation && data.tribulation.fatal));
         if (isSucc && (data.tribulation || data.new_realm || (data.status && data.status.realm))) {
           const newR = (data.tribulation && data.tribulation.new_realm) || (data.status && data.status.realm) || "新阶位";
@@ -7321,7 +7345,7 @@
       showApp();
       // §2.5：登录成功默认入局；entry 缺失回退洞府（setView 内亦有降级）
       setView(state.entry || state.entryPending || (state.originCard && state.originCard.just_created) ? "entry" : "sanctum");
-      if (payload.ceremony) maybeShowCeremony(payload.ceremony);
+      if (payload.ceremony || payload.ceremony_next) maybeShowCeremonyQueue(payload.ceremony, payload.ceremony_next);
       toast("已入世 · " + state.name, "ok");
       await loadCommands();
       await refreshAll();
@@ -7808,6 +7832,7 @@
     renderBody,
     sendCmd,
     closeJadeDialog,
+    closeCeremonyDialog,
     openJadeDialog,
     handleSanctumAction,
     handleWildernessAction,

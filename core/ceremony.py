@@ -310,6 +310,308 @@ def build_death_ceremony(character: Character, account) -> Optional[Dict[str, An
     }
 
 
+# ---------------- game-feel-phase3 新增三幕（§3/§4/§5） ----------------
+# 三幕与既有三幕同契约：纯读拼装（已结算数据 + 本地模板）、不落库、
+# skippable=True、beats 三段、choices 恒 null（命格候选是全仓唯一合法
+# choices 形状，新三幕无仪式内落账选择，不得借用 /命格 通道）。
+
+_LOOT_PRELUDES_EQUIP = [
+    "匣盖未启，{name}的锋芒已透匣而出，{place}的灵气为之一凝。",
+    "土层之下宝光冲霄——尚未见物，先闻其鸣。",
+    "掘至深处，一道清光破土而起，照得四周纤毫毕现。",
+]
+_LOOT_PRELUDES_RELIC = [
+    "地脉深处传来一声悠远的嗡鸣，仿佛有古物在黑暗中醒来。",
+    "匣中之物尚未露面，{place}的风先静了——重宝出世，万籁低头。",
+]
+
+_TRIB_PRELUDE_BY_BAND = {
+    "low": "劫云初聚，天光微暗——{realm}的第一道门槛，伴着雷声到了。",
+    "mid": "九天之上劫云层层叠压，电蛇在云腹中游走——{realm}之劫，声势已成。",
+    "high": "天穹裂开一线，劫气如瀑倾泻而下——{realm}的天劫，是刻在命数里的一关。",
+}
+_TRIB_REVEAL_FAIL = {
+    "DEATH": "劫雷贯顶而下，护体灵光只撑了一瞬，便如琉璃般层层碎裂。",
+    "BASE_COLLAPSE": "雷火顺经脉窜入丹田，道基在轰鸣中崩开裂口。",
+    "HEART_DEMON": "劫雷未至，幻象先行——雷声里混着旧人旧事的声音，一齐涌上心头。",
+    "WOUNDED": "神雷当头劈落，虽以法宝硬抗，余劲仍震得经脉寸寸发麻。",
+}
+_TRIB_CONCLUSION_FAIL = {
+    "DEATH": "雷声止歇之处，只余劫灰——这一劫，此身没能渡过。",
+    "BASE_COLLAPSE": "劫云散去，道基已损——这一劫，败在了根基上。",
+    "HEART_DEMON": "雷云压顶之时道心先乱——这一劫，败给了心里的那个自己。",
+    "WOUNDED": "最后一道雷擦身而过——这一劫，只差一线。",
+}
+_TRIB_AFTER_FAIL = {
+    "BASE_COLLAPSE": "劫后余烬未冷，先稳住道基，再谈来日。",
+    "HEART_DEMON": "劫云虽散，心魔未消——调息压念，来日再战。",
+    "WOUNDED": "劫后经脉震荡，宜静养些时日，再图破境。",
+}
+
+
+def loot_ceremony_candidate(kind: Any, tier: Any) -> bool:
+    """得宝幕门槛谓词（§3.2 定死）：equip tier≥4 或 relic tier≥3。
+
+    equip 线与器灵 SPIRIT_MIN_TIER=4 同一品阶线；relic 本身即稀世
+    重宝语义，线取 tier≥3（覆盖地渊遗迹的恒 tier3 头奖）。其余
+    kind 任意 tier 均不触发。
+    """
+    k = getattr(kind, "value", kind)
+    try:
+        t = int(tier)
+    except (TypeError, ValueError):
+        return False
+    return (k == "equip" and t >= 4) or (k == "relic" and t >= 3)
+
+
+def _artifact_asset(name: str, slot: Optional[str] = None, item: Any = None) -> Optional[str]:
+    """法宝图键：经 gallery 解析且必须落在资产全集内，否则 None。"""
+    try:
+        from core.gallery_assets import (
+            GALLERY_ASSET_KEYS,
+            artifact_key_for,
+            artifact_key_for_item,
+        )
+
+        key = artifact_key_for_item(item) if item is not None else artifact_key_for(
+            name, slot=slot)
+        return key if key in GALLERY_ASSET_KEYS else None
+    except Exception:
+        return None
+
+
+def build_loot_ceremony(
+    character: Character, equip_info: Dict[str, Any], *, source: str = "treasure_dig",
+) -> Dict[str, Any]:
+    """得宝幕（§3.4）：入参为已落账的获得物摘要（dig 的 equipment
+    dict 原样形状，或盲匣路由实体组装的同形状 dict），纯读拼装。"""
+    import zlib
+
+    kind = str(getattr(equip_info.get("kind"), "value", equip_info.get("kind")) or "")
+    try:
+        tier = int(equip_info.get("tier") or 0)
+    except (TypeError, ValueError):
+        tier = 0
+    name = str(equip_info.get("name") or "无名法宝")
+    uid = str(equip_info.get("uid") or "")
+    tier_name = str(equip_info.get("tier_name") or equip_info.get("tierName") or "")
+    slot = equip_info.get("slot")
+    affixes = [a for a in (equip_info.get("affixes") or []) if isinstance(a, dict)]
+    affixes_text = "、".join(str(a.get("name") or "") for a in affixes if a.get("name"))
+    lore = str(equip_info.get("lore") or "")
+    asset_key = _artifact_asset(name, slot=slot)
+
+    pool = _LOOT_PRELUDES_RELIC if kind == "relic" else _LOOT_PRELUDES_EQUIP
+    idx = zlib.crc32(uid.encode("utf-8")) % len(pool) if uid else 0
+    prelude_text = pool[idx].format(
+        name=name, place=getattr(character, "location", "") or "此地")
+    beats: List[Dict[str, Any]] = [{
+        "stage": "prelude", "text": prelude_text,
+        "asset_key": asset_key, "choices": None,
+    }]
+    reveal_lines = [f"【{name}】（{tier_name}）"]
+    if affixes:
+        for a in affixes:
+            reveal_lines.append(f"{a.get('name', '')}：{a.get('desc', '')}")
+    elif kind == "relic" and lore:
+        reveal_lines.append(lore)
+    else:
+        reveal_lines.append(f"品阶【{tier_name}】，灵光内蕴，一看便知不是凡物。")
+    beats.append({
+        "stage": "reveal", "text": "\n".join(reveal_lines),
+        "asset_key": asset_key, "choices": None,
+    })
+    after_lines = ["已入纳戒，行囊之中自此多了一件压箱底的宝物。"]
+    if kind == "equip" and tier >= 4:
+        after_lines.append(
+            "此宝灵性已萌——穿戴之后，可凭 /器灵 唤 唤醒其器灵（须先穿戴）。")
+    if kind == "relic":
+        after_lines.append("稀世重宝现世，此物来历非凡，江湖中怕是要多些打探的目光。")
+    beats.append({
+        "stage": "aftermath", "text": "\n".join(after_lines),
+        "asset_key": None, "choices": None,
+    })
+    return {
+        "kind": "loot",
+        "beats": beats,
+        "result_ref": {
+            "uid": uid,
+            "name": name,
+            "kind": kind,
+            "tier": tier,
+            "tier_name": tier_name,
+            "slot": slot,
+            "source": source,
+            "affixes_text": affixes_text,
+        },
+        "skippable": True,
+    }
+
+
+_SPIRIT_PRELUDES = [
+    "【{name}】的器纹自尾至首逐段亮起，如沉睡多年的眼睛缓缓睁开。",
+    "一声轻鸣自【{name}】深处传来——不是金铁之声，是初醒之灵的第一声呼吸。",
+]
+
+
+def build_spirit_ceremony(character: Character, item: Any) -> Dict[str, Any]:
+    """器灵认主幕（§4.2）：挂 awaken 的 changed=True 之后，纯读
+    spirit 落账拼装；第一句话走本地性格台词池（零 AI，X4 口径）。"""
+    import zlib
+
+    from core.artifact_spirit import (
+        PERSONALITIES,
+        get_spirit,
+        public_spirit_dict,
+        stage_for,
+    )
+
+    spirit = get_spirit(item) or {}
+    pub = public_spirit_dict(item) or {}
+    name = str(getattr(item, "name", "") or "")
+    tier = int(getattr(item, "tier", 0) or 0)
+    tier_name = str(getattr(item, "tier_name", "") or "")
+    uid = str(getattr(item, "uid", "") or "")
+    asset_key = _artifact_asset(name, item=item)
+
+    idx = zlib.crc32(uid.encode("utf-8")) % len(_SPIRIT_PRELUDES) if uid else 0
+    beats: List[Dict[str, Any]] = [{
+        "stage": "prelude",
+        "text": _SPIRIT_PRELUDES[idx].format(name=name) + f"（{tier_name}）",
+        "asset_key": asset_key, "choices": None,
+    }]
+    personality = str(spirit.get("personality") or "")
+    personality_cn = pub.get("personality_cn") or PERSONALITIES.get(
+        personality, {}).get("cn", "")
+    spirit_name = str(spirit.get("name") or "")
+    line = ""
+    try:
+        from core.artifact_spirit import _local_line
+
+        line, _tone = _local_line(item, spirit, time.time())
+    except Exception:
+        line = ""
+    pool = list(PERSONALITIES.get(personality, {}).get("lines") or [])
+    if (not line or "沉睡" in line) and pool:
+        # awaken 时点 mood=60 恒不沉睡；此分支只是 C3 兜底，不得空白幕
+        line = pool[zlib.crc32(uid.encode("utf-8")) % len(pool)] if uid else pool[0]
+    reveal_text = (
+        f"器灵「{spirit_name}」（{personality_cn}·萌生）自器身中睁开眼睛。\n"
+        f"它的第一句话是：「{line}」"
+    )
+    beats.append({
+        "stage": "reveal", "text": reveal_text,
+        "asset_key": asset_key, "choices": None,
+    })
+    beats.append({
+        "stage": "aftermath",
+        "text": "器灵自此常驻此宝：命盘法宝卡可见其名号与状态；"
+                "/温养 可滋养它成长，/灵语 可与它说话。",
+        "asset_key": None, "choices": None,
+    })
+    return {
+        "kind": "spirit",
+        "beats": beats,
+        "result_ref": {
+            "item_uid": uid,
+            "item_name": name,
+            "tier": tier,
+            "spirit_name": spirit_name,
+            "personality": personality,
+            "personality_cn": personality_cn,
+            "stage": stage_for(int(spirit.get("growth") or 0), tier),
+            "mood": int(spirit.get("mood") or 0),
+        },
+        "skippable": True,
+    }
+
+
+def build_tribulation_ceremony(
+    character: Character, attempt_result: Dict[str, Any],
+) -> Dict[str, Any]:
+    """天劫幕（§5.4）：与突破幕同源同闸（attempt.is_major），纯读
+    attempt 返回 + char 只读字段拼装。此幕演劫、突破幕演果：成败的
+    境界/寿元数字留给突破幕 result_ref，本幕不重复报数。"""
+    from config import REALM_NAMES
+
+    success = bool(attempt_result.get("success"))
+    is_fatal = bool(attempt_result.get("is_fatal"))
+    fail_tier = attempt_result.get("fail_tier") or None
+    cur_tier = int(character.realm.tier)
+    target_tier = cur_tier if success else cur_tier + 1
+    pre_tier = target_tier - 1 if success else cur_tier
+    if success:
+        target_name = attempt_result.get("new_realm") or character.realm.name
+    elif 0 <= target_tier < len(REALM_NAMES):
+        target_name = REALM_NAMES[target_tier]
+    else:
+        target_name = character.realm.name
+
+    band = "low" if target_tier <= 2 else ("mid" if target_tier <= 4 else "high")
+    beats: List[Dict[str, Any]] = [{
+        "stage": "prelude",
+        "text": _TRIB_PRELUDE_BY_BAND[band].format(realm=target_name),
+        "asset_key": _portrait_asset(character, pre_tier),
+        "choices": None,
+    }]
+    if success:
+        thunder_line = "劫雷九重，一重凶过一重——最后一道紫雷落下时，云层为之裂开。"
+    else:
+        thunder_line = _TRIB_REVEAL_FAIL.get(
+            str(fail_tier or ""), "劫雷轰然劈落，护体灵光剧烈震荡。")
+    demon_line = ""
+    try:
+        from core.heart_demon_state import DemonStateEngine
+
+        s = DemonStateEngine.summary(character)
+        if s.get("stage", 0) > 0:
+            demon_line = (
+                f"心魔【{s.get('stage_name', '')}】（魔念 {s.get('seed', 0)}）"
+                "在劫雷间隙窥伺，道心与之相抗。")
+    except Exception:
+        demon_line = ""
+    if not demon_line:
+        demon_line = "劫雷之下，道心守一。"
+    if success:
+        verdict_line = "劫云为之让路——这一劫，渡过去了。"
+    else:
+        verdict_line = _TRIB_CONCLUSION_FAIL.get(
+            str(fail_tier or ""), "劫云未散，这一劫没能渡过。")
+    beats.append({
+        "stage": "reveal",
+        "text": "\n".join([thunder_line, demon_line, verdict_line]),
+        "asset_key": None, "choices": None,
+    })
+    if success:
+        after_text = (
+            "雷音已传四方，江湖中又多了一位渡劫功成者。"
+            if target_tier >= 2 else "劫云散尽，天地复归清明。")
+    elif is_fatal:
+        after_text = "此身已殁，归府之仪将于再入轮回时续演——前尘种种，自有天道收束。"
+    else:
+        after_text = _TRIB_AFTER_FAIL.get(
+            str(fail_tier or ""), "劫后余烬未冷，先稳住根基，再谈来日。")
+    beats.append({
+        "stage": "aftermath", "text": after_text,
+        "asset_key": None, "choices": None,
+    })
+    return {
+        "kind": "tribulation",
+        "beats": beats,
+        "result_ref": {
+            "success": success,
+            "is_major": True,
+            "is_fatal": is_fatal,
+            "fail_tier": fail_tier,
+            "new_realm": attempt_result.get("new_realm") or character.realm.name,
+            "target_tier": target_tier,
+            "prob_pct": attempt_result.get("prob_pct"),
+            "judge_source": attempt_result.get("judge_source"),
+        },
+        "skippable": True,
+    }
+
+
 def build_rebirth_ceremony(
     new_char: Character, account, *, karma_shadow: List[Dict[str, Any]],
     boosts_applied: List[str], legacy_points: int,

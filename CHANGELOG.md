@@ -1,5 +1,22 @@
 # 更新日志
 
+## v0.3.10-gray.17（2026-11-08）— 游戏感改造第三期（仪式补全三幕 + 入局待回应最新优先修复）
+
+定位：游戏感改造第三期。上一稳定点 v0.3.9-gray.16（76310b4）。规格：docs/compose/spec/game-feel-phase3.md。
+
+### 变更
+- 仪式补全三幕（方案 §4c 六幕全集收官）：`core/ceremony.py` 新增 3 个只读 builder + 1 个门槛谓词——得宝幕（`build_loot_ceremony`，谓词 `(equip ∧ tier≥4) ∨ (relic ∧ tier≥3)`，挂点仅藏宝图开匣与盲匣捡漏两处真实落账点，result_ref 以开匣 equipment dict 逐项对账）、器灵认主幕（`build_spirit_ceremony`，唯一信号 = `ArtifactSpiritEngine.awaken` 的 `changed=True`，台词走本地性格台词池、零 AI）、天劫独立幕（`build_tribulation_ceremony`，与突破同一次结算拆双幕呈现）；三幕均为既有落账的只读呈现，零新增结算/数值/状态机，仪式路径零新增 AI 调用
+- 双幕协议（只增不改）：突破两出口响应 `ceremony` 改挂天劫幕（第一幕），新增只增键 `ceremony_next` 承载突破幕（builder 与 beats 一字未改，命格三选一 choices 只留在第二幕）；致死时只有天劫幕、`ceremony_next` 为 null，死亡幕仍走 dead_payload 既有口径
+- 服务端挂点（`server/world.py` 四处，只增键）：`/挖宝`、`/捡漏` 分发 return 只增 `ceremony`（得宝幕）、`/器灵` 唤分支 return 只增 `ceremony`（认主幕）、突破两出口改挂双幕；桌面宝图流转交得宝幕、捡漏 gamble 面板达幕时不叠开（QA GF3-QA-01）
+- 双端呈现：桌面与移动端 kind 文案表各原地补 loot / spirit / tribulation 三项、自动略过名单原地扩三 kind、桌面标题图标补 loot/spirit；双幕队列呈现（第一幕跳过/看完后第二幕自动呈上，两幕略过互不吞没）；移动端预算内施工，未申请豁免
+- briefing ⑤.6 待回应戏剧最新优先修复（二期复审 S-1/S-2/S-4）：`core/briefing.py` `build_entry` ⑤.6 段改为最新→最旧逆序迭代补列（至多 2 条未入队项），待回应 ≥3 件时刷新版 entry 的 queue 必含最新一条；补列项 id 同步登记 `_queued_refs`（S-2 一行防御）；注释口径与新语义对齐（S-4）；`DramaEngine.list_pending` 本体、queue 的 priority/sort/截断口径一律未动
+- 零变更清单：`core/breakthrough.py`、`core/npc_proactive.py`、`core/artifact_spirit.py`、`core/treasure_system.py`、`core/fate_thread.py` 未改；无新表、无新模型字段、无新 config、无新命令、无新资产（配图复用既有 139 张图库资产键）
+
+### 测试
+- 本轮新测试：test_game_feel_phase3_backend.py + test_game_feel_phase3_frontend.py 共 39 条（LT-01~07 得宝 / SP-01~06 器灵 / TR-01~08 天劫双幕 / BR-01~05 briefing 修复 / FE-01~03 双端呈现），分支尖端实测全绿（39 passed）
+- 独立评审通过、must-fix 为零；QA 复验销账 GF3-QA-01（桌面宝图流转交得宝幕 + 捡漏 gamble 面板达幕不叠开，尖端 0d8e8c0）
+- 合并后在 main 上复跑定向套件（phase3 后端/前端 + phase1 后端 + mobile_web）确认全绿后打 tag 发布
+
 ## v0.3.9-gray.16（2026-11-08）— 游戏感改造第二期（命途主线全量 + 主动戏剧五类 + 世仇植入 + 图库扩充至 139 张）
 
 定位：游戏感改造第二期。上一稳定点 v0.3.8-gray.15（c4c4571）。规格：docs/compose/spec/game-feel-phase2.md。
