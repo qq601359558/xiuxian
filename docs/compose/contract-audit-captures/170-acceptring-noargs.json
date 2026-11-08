@@ -1,0 +1,15 @@
+{
+ "slug": "acceptring-noargs",
+ "command": "/接宗门环",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/接宗门环 <1|2|3>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

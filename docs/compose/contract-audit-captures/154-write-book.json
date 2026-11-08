@@ -1,0 +1,15 @@
+{
+ "slug": "write-book",
+ "command": "/著书 测试",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "write book flow",
+ "response": {
+  "ok": false,
+  "error": "用法：/著书 或 /著书 写"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

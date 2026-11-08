@@ -1,0 +1,15 @@
+{
+ "slug": "claim-bounty-numeric",
+ "command": "/接令 1",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "numeric /接令 -> bounty-claim branch :3887",
+ "response": {
+  "ok": false,
+  "error": "告示编号不存在"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

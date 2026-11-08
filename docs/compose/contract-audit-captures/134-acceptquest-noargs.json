@@ -1,0 +1,15 @@
+{
+ "slug": "acceptquest-noargs",
+ "command": "/接委托",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/接委托 <NPC名或编号>（先 /委托 查看）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

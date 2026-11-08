@@ -1,0 +1,17 @@
+{
+ "slug": "revenge",
+ "command": "/回访",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "revenge revisit",
+ "response": {
+  "ok": true,
+  "text": "【因果回访】前因：[FREE] cultivate:打坐调息 → 审计员于青云坊市客栈就地吐纳片刻，灵气微润。 @青云坊市客栈\n风闻【None】仍在打听你的下落。旧账未清，因果如影随形。\n落账：无实质增减",
+  "event_id": "ev_94821e66a6"
+ },
+ "top_keys": [
+  "event_id",
+  "ok",
+  "text"
+ ]
+}

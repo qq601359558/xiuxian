@@ -1,0 +1,15 @@
+{
+ "slug": "mingwu",
+ "command": "/名物",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "famous objects read",
+ "response": {
+  "ok": true,
+  "text": "【名物·听闻册】暂无未入正册的传说名物。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

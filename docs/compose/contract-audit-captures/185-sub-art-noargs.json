@@ -1,0 +1,15 @@
+{
+ "slug": "sub-art-noargs",
+ "command": "/辅修",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/辅修 <功法名>（须已习得，/心法 查看）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

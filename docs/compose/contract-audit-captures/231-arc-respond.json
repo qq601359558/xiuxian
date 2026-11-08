@@ -1,0 +1,15 @@
+{
+ "slug": "arc-respond",
+ "command": "/应劫",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "world-arc respond",
+ "response": {
+  "ok": false,
+  "error": "用法：/世界弧应劫 <弧id> 应劫|避祸（先 /世界弧 查看）"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

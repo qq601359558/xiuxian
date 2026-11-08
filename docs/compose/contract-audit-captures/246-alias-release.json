@@ -1,0 +1,15 @@
+{
+ "slug": "alias-release",
+ "command": "/release",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "alias /release must land on :2375 pet /放生, NOT :3570 /释放",
+ "response": {
+  "ok": false,
+  "error": "用法：/放生 <宠名>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "ro-贡献",
+ "command": "/贡献",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【宗门贡献】散修 · 0\n先 /拜入 <宗门>"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

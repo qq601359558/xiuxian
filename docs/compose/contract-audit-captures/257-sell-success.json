@@ -1,0 +1,15 @@
+{
+ "slug": "sell-success",
+ "command": "/出售 玄元聚气丹",
+ "captured_at": "2026-11-08T06:55:11",
+ "seed": 20261108,
+ "note": "sell real pill 玄元聚气丹 to the market",
+ "response": {
+  "ok": true,
+  "text": "【商会回收】售出【玄元聚气丹】×1，得灵石 90（回收价约为标价 50%）。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

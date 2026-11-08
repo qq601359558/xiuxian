@@ -2055,7 +2055,7 @@ class World:
                     "chased": res.get("chased"),
                     "new_location": res.get("location"),
                 }
-            if action in ("/omen", "/奇遇"):
+            if action in ("/奇遇"):
                 from core.omen_scene import (
                     start_scene,
                     choose as omen_choose,
@@ -2244,6 +2244,7 @@ class World:
                     "equipment": res.get("equipment"),
                     "pill": res.get("pill"),
                     "stone_gain": res.get("stone_gain", 0),
+                    "stone_loss": res.get("stone_loss", 0),
                     "wrong_location": res.get("wrong_location"),
                     "target_node_name": res.get("target_node_name"),
                     "target_node_id": res.get("target_node_id"),
@@ -2328,7 +2329,8 @@ class World:
                 res = EquipEngine.unequip(char, item.strip())
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""),
+                        "status": self._status_dict(char)}
             if action in ("/pets", "/pet", "/灵宠"):
                 return {
                     "ok": True,
@@ -2617,7 +2619,8 @@ class World:
                 if len(parts) > 1:
                     target = command.strip().split(None, 1)[1].strip()
                 if not target:
-                    return {"ok": True, "text": AdventureEngine.board_text(char)}
+                    return {"ok": True, "text": AdventureEngine.board_text(char),
+                            "status": self._status_dict(char)}
                 before_stones = char.spirit_stones
                 try:
                     res = AdventureEngine.explore(char, target)
@@ -3650,7 +3653,8 @@ class World:
                 res = MarketEngine.sell_to_guild(char, item, qty)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""),
+                        "status": self._status_dict(char)}
             if action in ("/use", "/服用"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/服用 <丹药名>"}
@@ -3780,7 +3784,6 @@ class World:
                 char.spirit_stones = max(0, (char.spirit_stones or 0) - cost)
 
                 try:
-                    import random
                     from core.treasure_system import TreasureEngine
                     roll = random.random()
                     if roll < 0.45:
@@ -4063,7 +4066,6 @@ class World:
                 if char.is_bag_full():
                     return {"ok": False, "error": "百宝纳戒乾坤已满（64/64），请先腾挪纳戒空间再行解石捡漏！"}
                 char.spirit_stones -= COST
-                import random
                 roll = random.random()
                 if roll < 0.15:
                     loot = ItemEntity.create(
@@ -4140,7 +4142,6 @@ class World:
                 my_open = [l for l in MarketListingRepository.list_all() if l.seller_id == char.id and l.is_open()]
                 if not my_open:
                     return {"ok": False, "error": "道友的地摊空空如也，请先挂牌仙物再行摇铃招徕！"}
-                import random
                 npc_list = ["青阳散人", "百花仙子", "玄溟剑尊", "万宝楼采办", "百草仙姑", "落魄散修", "金丹邪修"]
                 npc = random.choice(npc_list)
                 target_listing = random.choice(my_open)
@@ -4336,7 +4337,8 @@ class World:
                 res = AuctionEngine.list_item(char, item, start_price, buyout)
                 if res.get("success"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                return {"ok": res.get("success"), "text": res.get("message", ""),
+                        "status": self._status_dict(char)}
             if action in ("/bid", "/拍", "/出价"):
                 from core.trade import AuctionEngine
 
@@ -4417,6 +4419,7 @@ class World:
                     "ok": True,
                     "text": format_art_card(art) + "\n（可用 /功法 查看全部；闭关已按最高修炼倍率生效）",
                     "art": art,
+                    "status": self._status_dict(char),
                 }
             if action in ("/arts", "/功法"):
                 from core.art import list_arts_text
@@ -4901,6 +4904,8 @@ class World:
                 "main": getattr(c, "main_art", "") or "",
                 "sub": list(getattr(c, "sub_arts", None) or []),
             },
+            # 自创功法（CA-011）：只读回显角色行已存储数据，不新增计算/存储语义
+            "custom_arts": list(getattr(c, "custom_arts", None) or []),
             # 炼体/炼神双修（F10）：副修层数（纯新增；走引擎钳制口径，与面板/加成一致）
             "body_soul": {
                 "body": BodySoulEngine.body_level(c),

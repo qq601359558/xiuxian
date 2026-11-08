@@ -1,5 +1,25 @@
 # 更新日志
 
+## v0.3.12-gray.19（2026-11-08）— 前后端数据口径全量核查
+
+定位：缺陷修复轮（兑现「真人试玩之前先把服务端返回与前端渲染的口径全量核查一遍、扫清同类不一致再汇报」的承诺）。上一稳定点 v0.3.11-gray.18（af4d689）。分支 `feat/contract-audit`（Spec `cfcc878` → 台账初稿 `391a47b` → 总管裁决回写 `25fdd0e`/`05992c1`/`ab5ca4f` → 修复 `f2b8c41` → 返工 `1b9e2b6`）。
+
+### 变更
+- 全量台账：`docs/compose/contract-audit-ledger.md` 70 行（P0×4、P1×1、P2×11、P3×11、P4×43；不一致 24、前端兜底捏造 1、格式问题 2、一致 43；标红停手 0）。证据：261 个真实响应抓取（`docs/compose/contract-audit-captures/` + `index.json`，随机种子 20261108）+ 4 条真实崩溃记录，189/189 分发分支有抓取或崩溃记录；双向差集定稿：服务端顶层响应键 138 个 vs 三端引用键（附录 B.2，138/80/65/7）；`_status_dict` 78 键（CA-011 补 `custom_arts` 后 77→78）
+- P0×4 修复：CA-001 `/悟丹` 系恒崩溃——`server/world.py:handle()` 内 3 处 `import random`（:3783/:4066/:4143）使模块顶层 `random` 在整个 `handle` 作用域内成局部变量，执行到 :2716 本地回退 `random.choice(cand)` 时抛 `UnboundLocalError`，`/悟丹`、`/悟器`、`/生成丹药`、`/生成法宝` 在离线/AI 关配置下恒 500；修复为删除 handle 内 3 处 import 仅留模块顶层 :11，全仓 AST 扫查无同型遮蔽；CA-002 `stone_loss`——brute_force 实扣 40 灵石而面板显示「发掘灵石 +0」：引擎 `core/treasure_system.py` 13 个返回分支如实填 `stone_loss`（brute_force 40，其余 0，扣款行一字不动），`/挖宝` 分发只增透传 `stone_loss: res.get("stone_loss", 0)`（无硬编码 40），前端宝图面板改读 `stone_loss`（>0 显「灵石损耗 −40」，=0 整行省略）；CA-003 遗物分支结算面板不可达——得宝幕弹出即移除宝图 dialog，结算 HTML 写入已 detached 的 `#treasureStageBox` 永不重现：修面限于面板/仪式叠演顺序，得宝幕仍按 GF3-QA-01 立即转交，结算 HTML 落袋后暂存 `state.pendingTreasureDialog`（仅真弹幕时），关闭得宝幕（略过/✕/背景）后恢复重开含遗物行，自动略过时不暂存；CA-004 洞府捏造——`renderSanctum` 删 3 处静态写死展示值（神识感召 4,850 步、宗门道勋太上长老、九天碧玉太虚剑/剑灵觉醒/锋芒 9,880），改读真实 `status.rank` / `status.equipped` / 器灵数据
+- P1×1、P2 修复×8 + 定性×3：寿元口径统一 `fmtRemYears`（CA-005）、地牢 debuff 通用 chips（CA-013）、写分支补 `status` 透传（CA-014/015/016/017/021）、移动端透传覆盖（CA-037）；定性不修 CA-018/019/020（代码与抓取均已透传，以锁定测试固化）
+- CA-011 补键（总管裁决②）：`_status_dict` 只增 `custom_arts` 只读回显字段，数据源为角色行上已存储的自创功法，不新增计算、不新增存储语义、不改任何既有键
+- CA-023 勘误（总管裁决③④）：`/omen` 别名落于 `/望气` 条目 aliases（`/echo`、`/天象`、`/omen`），确认此形态，不另立 `/天象` 条目（另立会使命令数 108→109 触既有断言）；分发 :1959 一字不动，:2058 元组中已不可达的 `/omen` 死代码删除
+- CA-006 勘误/返工（总管裁决⑥）：命盘功德/业力格 `s.merit || 3650` / `s.sin || 120` 的 falsy-零陷阱使新角色（初值 0）命盘显示「+3650 / -120」，改 `??` 判空（缺失显「—」，0 渲染 0），live 洞府回退种子 3650/120→0/0，demo 种子不动；`rem_years` 缺失态整串显「—」不带单位（新 `remYearsUnit(v)` 后缀 helper，调用点保持 `fmtRemYears(s.rem_years)` 形态，既有字面断言不动）
+- CA-007 勘误/锁定（总管裁决⑤⑧）：台账「从不下发 adventure 键」的前提不成立——`/探险` 成功路径真实下发 `"adventure": res`（抓取 151 号采的是无参看板路径），前端结构分支正确保留未删，补锁定测试断言成功路径下发与渲染对应
+- CA-070 只评估（结论见台账）；评审 must-fix M1–M4 返工：M1 缺失态整串「—」、M2 六组合结算不丢且 ✕ 不顺延、M3 全仓坏模式扫描补齐且变异可红、M4 键数 78 三方一致
+- 契约层：新增 `tests/test_contract_audit.py` 30 用例（CT-01 三类断言：双向差集、全仓坏模式扫描、真实 payload 渲染执行），评审人实跑 30 passed；V2 先红后绿留档见 `~/workspace/reviews/contract-audit-rework-V2-failfirst.md`
+
+### 测试
+- QA 全量回归（新鲜 DB，连跑两次）：run2 1387 passed / 8 failed——失败集与操作基线逐项一致（auth join、karma kill_and_bounty、lan_feed、natural_omen、qa2 join_dead_http、status_dict×2、workbench smoke），新增失败 0；run1 1386/9，多出 1 条为既有日期依赖型 pawn flake（`test_pawn.py::test_world_handle_pawn_chain`，市价 md5 日种子波动致断言 `s0 + 20` 得 21，返工 diff 不触 pawn/market 任一文件）
+- 定向 RG-03 套件 100 passed
+- 独立评审：首审 must-fix M1–M4 → 返工 `1b9e2b6` → 复审结论「通过（可发版）」，9/9 核销无 must-fix（`~/workspace/reviews/contract-audit-rereview.md`）；红线零触碰：新增响应键仅预批的 `stone_loss` 与 `custom_arts` 两只增只读键，数值语义零改动，mobile.js/css 零改动（1645 行 / 27395B，硬线 ≤1660 行 / ≤27455B 未触），`core/ceremony.py` / `core/breakthrough.py` 零改动，既有断言修订 0 条
+
 ## v0.3.11-gray.18（2026-11-08）— 宝图开箱面板「攻伐 +undefined」修复
 
 定位：缺陷修复轮。上一稳定点 v0.3.10-gray.17（c0d7b98）。分支 `feat/treasure-panel-stats-fix`（`9d5c585` + `a4a5636`）。

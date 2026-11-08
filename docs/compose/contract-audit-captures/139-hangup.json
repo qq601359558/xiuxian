@@ -1,0 +1,15 @@
+{
+ "slug": "hangup",
+ "command": "/挂断",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "hangup with no session",
+ "response": {
+  "ok": false,
+  "error": "当前无进行中的会话。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

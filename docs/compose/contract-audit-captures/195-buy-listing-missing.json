@@ -1,0 +1,15 @@
+{
+ "slug": "buy-listing-missing",
+ "command": "/买寄售 999",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "missing listing",
+ "response": {
+  "ok": false,
+  "error": "寄售货物【999】不存在或已下架。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

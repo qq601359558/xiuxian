@@ -1,0 +1,15 @@
+{
+ "slug": "sworn-accept-noargs",
+ "command": "/结拜同意",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "text": "当前无人与你结拜。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

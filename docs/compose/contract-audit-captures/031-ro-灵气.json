@@ -1,0 +1,23 @@
+{
+ "slug": "ro-灵气",
+ "command": "/灵气",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "灵脉略显稀薄：全服高阶修士 10 人，灵气稀释系数 0.56x（地点灵气仍按各自密度叠加）",
+  "qi": {
+   "location_density": 1.0,
+   "qi_multiplier": 0.5555555555555556,
+   "effective": 0.5555555555555556,
+   "high_count": 10,
+   "threshold_tier": 3
+  }
+ },
+ "top_keys": [
+  "ok",
+  "qi",
+  "text"
+ ]
+}

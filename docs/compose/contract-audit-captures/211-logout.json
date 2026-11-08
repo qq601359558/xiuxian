@@ -1,0 +1,19 @@
+{
+ "slug": "logout",
+ "command": "/logout",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "logout flow",
+ "response": {
+  "ok": true,
+  "text": "【离线归隐】审计员 于【青云坊市客栈】暂别红尘，进入庇护（最长 72h）。",
+  "logout_kind": "reclusion",
+  "lost_stones": 0
+ },
+ "top_keys": [
+  "logout_kind",
+  "lost_stones",
+  "ok",
+  "text"
+ ]
+}

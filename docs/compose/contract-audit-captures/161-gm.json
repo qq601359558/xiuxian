@@ -1,0 +1,15 @@
+{
+ "slug": "gm",
+ "command": "/gm",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "GM gate (expect denial)",
+ "response": {
+  "ok": false,
+  "error": "服务器未配置 GM_TOKEN。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

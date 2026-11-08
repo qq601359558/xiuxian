@@ -1,0 +1,199 @@
+{
+ "slug": "reborn-via-handle",
+ "command": "/转世",
+ "captured_at": "2026-11-08T06:55:11",
+ "seed": 20261108,
+ "note": "/转世 handle branch :1731 -> reincarnate",
+ "response": {
+  "ok": true,
+  "text": "【真灵转世】审计员 · 练气期初期 · 青云坊市客栈\n自然寿元 80 岁\n本世未兑换任何道统传承。\n因果余绪及身：赤练子 +22、柳三娘 -18\n道统池剩余 6 点（第 3 世）\n账户钱包 199213 灵石（新角随身 135 灵石）；入世后用 /钱包提取 <金额> 取用账户金额。",
+  "karma_shadow": [
+   {
+    "npc_name": "赤练子",
+    "value": 22,
+    "label": "friendly"
+   },
+   {
+    "npc_name": "柳三娘",
+    "value": -18,
+    "label": "wary"
+   }
+  ],
+  "settle": null,
+  "boosts_applied": [],
+  "legacy_points": 6,
+  "wallet": {
+   "balance": 199213,
+   "entries": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    },
+    {
+     "ts": 1794120910.941077,
+     "kind": "death_sweep",
+     "amount": 99225,
+     "ref": "80ad3212",
+     "note": "死亡归集：随身 99225＋寄存 0（审计员）"
+    }
+   ],
+   "ledger": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    },
+    {
+     "ts": 1794120910.941077,
+     "kind": "death_sweep",
+     "amount": 99225,
+     "ref": "80ad3212",
+     "note": "死亡归集：随身 99225＋寄存 0（审计员）"
+    }
+   ]
+  },
+  "sweep": null,
+  "name": "审计员",
+  "realm": "练气期初期",
+  "location": "青云坊市客栈",
+  "rem_years": 80.03,
+  "origin_card": {
+   "origin": {
+    "family": "渔户",
+    "family_text": "泽国渔户之子",
+    "signature": "渔户|恩人救命|c4904fff|debt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 135,
+    "debt": {
+     "creditor_npc_id": "45b811aa",
+     "creditor_name": "小雀儿",
+     "amount": 89,
+     "promise_id": "64e31d96"
+    },
+    "relations": [
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "role": "foe",
+      "init_value": -33,
+      "is_creditor": false,
+      "vendetta": true,
+      "vendetta_for": "柳三娘"
+     },
+     {
+      "npc_id": "882ea4f6",
+      "npc_name": "盗墓贼·孙九",
+      "role": "kin",
+      "init_value": 54,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "88fe0a31",
+      "npc_name": "墨离",
+      "role": "witness",
+      "init_value": 5,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "4a74b174",
+      "npc_name": "青州游侠·燕十三",
+      "role": "witness",
+      "init_value": 11,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "恩人救命",
+     "npc_id": "882ea4f6",
+     "item_ref": "",
+     "summary": "幼年落难，蒙盗墓贼·孙九出手相救，恩未报"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "九幽天魔宗",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": -14,
+    "short_goal_id": "g_origin_c325c8e4",
+    "fate_goal_id": "g_fate_e63a16b1",
+    "fate_text": "「去见那个人」未成：前往柳三娘所在之地，当面照一照这一世的因果。",
+    "extreme_bad": false,
+    "dedup_retries": 0,
+    "generated_at": 1794120910.9788923,
+    "life_no": 3,
+    "fate_kind": "stand_firm"
+   },
+   "prev_epitaph": "山野猎户之子出身，命题憾，止步练气期初期，殁于审计再坐化。债未清，人已去，账还留在世上。寿终正寝，也算善终。",
+   "just_created": true
+  },
+  "ceremony": {
+   "kind": "rebirth",
+   "beats": [
+    {
+     "stage": "prelude",
+     "text": "真灵越过忘川，前尘如雾渐散。\n前世曰：山野猎户之子出身，命题憾，止步练气期初期，殁于审计再坐化。债未清，人已去，账还留在世上。寿终正寝，也算善终。",
+     "asset_key": null,
+     "choices": null
+    },
+    {
+     "stage": "reveal",
+     "text": "因果余绪及身：赤练子 +22、柳三娘 -18\n本世未兑换道统传承（余 6 点）。",
+     "asset_key": null,
+     "choices": null
+    },
+    {
+     "stage": "aftermath",
+     "text": "出身：泽国渔户之子。落点青云坊市客栈，随身灵石 135。",
+     "asset_key": null,
+     "choices": null
+    }
+   ],
+   "result_ref": {
+    "name": "审计员",
+    "realm": "练气期初期",
+    "legacy_points": 6,
+    "boosts_applied": [],
+    "shadow_count": 2,
+    "origin_signature": "渔户|恩人救命|c4904fff|debt"
+   },
+   "skippable": true
+  }
+ },
+ "top_keys": [
+  "boosts_applied",
+  "ceremony",
+  "karma_shadow",
+  "legacy_points",
+  "location",
+  "name",
+  "ok",
+  "origin_card",
+  "realm",
+  "rem_years",
+  "settle",
+  "sweep",
+  "text",
+  "wallet"
+ ]
+}

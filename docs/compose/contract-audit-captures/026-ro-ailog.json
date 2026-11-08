@@ -1,0 +1,56 @@
+{
+ "slug": "ro-ailog",
+ "command": "/ailog",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "【AI 调用日志】最近 2 条（完整见 web/ailog.html 或 /tmp/contract-audit/harness-tree/data/ai_calls.jsonl）\n· midplatform  HTTP None 0ms fail | 你是修仙世界 NPC。玩家刚到场，按人设与态度决定是否先开口。\n【人设】商会大执…\n· midplatform  HTTP None 0ms fail | 你是修仙世界 NPC。玩家刚到场，按人设与态度决定是否先开口。\n【人设】商会大执…",
+  "items": [
+   {
+    "ts": 1794120908.676,
+    "kind": "router:npc_proactive",
+    "channel": "midplatform",
+    "url": "",
+    "model": "",
+    "status": "fail",
+    "http_status": null,
+    "duration_ms": 0,
+    "prompt": "你是修仙世界 NPC。玩家刚到场，按人设与态度决定是否先开口。\n【人设】商会大执事账房，只认灵石。说话：干巴巴报数。在意：账目、现结。忌：抹零、空口白条。可谈：价格、手续费。口头禅：「现结，不赊。」\n你是 铁算盘（练气期圆满，贪财好利）\n对 审计员 态度：仇视\n所在：青云坊市客栈\n只输出 JSON，不要 markdown 代码块，不要解释。\n输出：{\"line\":\"一句搭话（<=60字）\",\"delta\":-5~5}",
+    "prompt_len": 210,
+    "raw_text": "",
+    "error": "ai_empty_response",
+    "response": null,
+    "extra": {
+     "actor_id": "c4904fff",
+     "used_fallback": false
+    }
+   },
+   {
+    "ts": 1794120908.536,
+    "kind": "router:npc_proactive",
+    "channel": "midplatform",
+    "url": "",
+    "model": "",
+    "status": "fail",
+    "http_status": null,
+    "duration_ms": 0,
+    "prompt": "你是修仙世界 NPC。玩家刚到场，按人设与态度决定是否先开口。\n【人设】商会大执事账房，只认灵石。说话：干巴巴报数。在意：账目、现结。忌：抹零、空口白条。可谈：价格、手续费。口头禅：「现结，不赊。」\n你是 铁算盘（练气期圆满，贪财好利）\n对 审计员 态度：仇视\n所在：青云坊市客栈\n只输出 JSON，不要 markdown 代码块，不要解释。\n输出：{\"line\":\"一句搭话（<=60字）\",\"delta\":-5~5}",
+    "prompt_len": 210,
+    "raw_text": "",
+    "error": "ai_empty_response",
+    "response": null,
+    "extra": {
+     "actor_id": "c4904fff",
+     "used_fallback": false
+    }
+   }
+  ]
+ },
+ "top_keys": [
+  "items",
+  "ok",
+  "text"
+ ]
+}

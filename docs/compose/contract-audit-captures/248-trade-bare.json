@@ -1,0 +1,15 @@
+{
+ "slug": "trade-bare",
+ "command": "/trade",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "bare /trade (no args) -> :4229 fallback branch",
+ "response": {
+  "ok": false,
+  "text": "当前无进行中的当面交易。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

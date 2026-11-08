@@ -1,0 +1,15 @@
+{
+ "slug": "sect-quest-done-noargs",
+ "command": "/交师门",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "text": "你并无师父。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

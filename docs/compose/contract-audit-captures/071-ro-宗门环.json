@@ -1,0 +1,15 @@
+{
+ "slug": "ro-宗门环",
+ "command": "/宗门环",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "散修无宗门日环。可 /拜入 <宗门>。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

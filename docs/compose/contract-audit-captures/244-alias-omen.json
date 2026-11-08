@@ -1,0 +1,22 @@
+{
+ "slug": "alias-omen",
+ "command": "/omen",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "alias /omen must land on :1959 天象, NOT :2058 奇遇",
+ "response": {
+  "ok": true,
+  "text": "【天象】第 1 纪元 · 静默纪元\n天象沉静，天地无言，本纪元无天象加身。\n天象修正：无天象修正\n本纪元余约 84.0 天（共 84 天），换季则天象轮转。",
+  "season_theme": {
+   "name": "静默纪元",
+   "key": "silence",
+   "effect": "无天象修正",
+   "season_number": 1
+  }
+ },
+ "top_keys": [
+  "ok",
+  "season_theme",
+  "text"
+ ]
+}

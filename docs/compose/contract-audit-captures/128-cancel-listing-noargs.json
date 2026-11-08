@@ -1,0 +1,15 @@
+{
+ "slug": "cancel-listing-noargs",
+ "command": "/撤单",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/撤回 <编号或物品名>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

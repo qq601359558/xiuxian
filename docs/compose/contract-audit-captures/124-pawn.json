@@ -1,0 +1,15 @@
+{
+ "slug": "pawn",
+ "command": "/典当 审计试剑",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "pawn flow",
+ "response": {
+  "ok": false,
+  "error": "行囊中并无【审计试剑】可当。"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "slug": "sect-quests",
+ "command": "/师门任务",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "sect quests read",
+ "response": {
+  "ok": false,
+  "text": "你并无师父。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

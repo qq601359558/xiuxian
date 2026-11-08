@@ -1,0 +1,172 @@
+{
+ "slug": "join-second",
+ "command": "/join 审计员乙",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "second character for trade flows",
+ "response": {
+  "token": "b00fed47592b431388399391e7e0d151",
+  "user_id": "audit_user_2",
+  "character_id": "f08b4d89",
+  "name": "审计员乙",
+  "realm": "练气期初期",
+  "location": "青云坊市客栈",
+  "rem_years": 77.04,
+  "legacy_points": 0,
+  "lives": 0,
+  "is_new_life": true,
+  "resumed": false,
+  "lock_fallback": false,
+  "session_issued": true,
+  "newbie_feed": "【初入道】打开 /任务：十步学会说话、买卖、迁跃、修炼与观照天道；每步有赏。也可直接 /天道 /世情。新手庇护 72 小时。",
+  "first_night": {
+   "pending": true
+  },
+  "entry": {
+   "version": 1,
+   "since": 1794120910.32376,
+   "generated_at": 1794120910.4617126,
+   "lines": {
+    "fate": "命途「出身牵命」：去见那个人（进行中） · 命题：向柳三娘讨个说法，让其再不敢轻慢你（进行中）",
+    "chains": {
+     "fermenting": 0,
+     "nearest_mature_game_days": null,
+     "text": "发酵中因果链 0 条"
+    },
+    "relations": [
+     {
+      "npc_id": "969cadfd",
+      "npc_name": "柳三娘",
+      "delta": -1,
+      "before_label": "wary",
+      "after_label": "wary",
+      "before_cn": "戒备",
+      "after_cn": "戒备",
+      "reason": "主动搭话",
+      "summary": "柳三娘对你态度降温：主动搭话",
+      "ts": 1794120910.4523304
+     },
+     {
+      "npc_id": "0958bac1",
+      "npc_name": "陆仁贾",
+      "delta": 48,
+      "before_label": "neutral",
+      "after_label": "ally",
+      "before_cn": "中立",
+      "after_cn": "亲近",
+      "reason": "origin",
+      "summary": "陆仁贾对你由中立转亲近：origin",
+      "ts": 1794120910.4414494
+     },
+     {
+      "npc_id": "7c2f6dce",
+      "npc_name": "采药翁",
+      "delta": 46,
+      "before_label": "neutral",
+      "after_label": "ally",
+      "before_cn": "中立",
+      "after_cn": "亲近",
+      "reason": "origin",
+      "summary": "采药翁对你由中立转亲近：origin",
+      "ts": 1794120910.4341016
+     }
+    ]
+   },
+   "queue": [],
+   "highlight": [],
+   "rest_count": 0,
+   "empty": true,
+   "empty_text": "江湖无事，可自由行动",
+   "proactive": null
+  },
+  "origin_card": {
+   "origin": {
+    "family": "镖师之后",
+    "family_text": "镖局子弟",
+    "signature": "镖师之后|背案在身|969cadfd|nodebt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 200,
+    "debt": null,
+    "relations": [
+     {
+      "npc_id": "80308af2",
+      "npc_name": "断岳剑尊",
+      "role": "witness",
+      "init_value": 3,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "969cadfd",
+      "npc_name": "柳三娘",
+      "role": "foe",
+      "init_value": -16,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "7c2f6dce",
+      "npc_name": "采药翁",
+      "role": "kin",
+      "init_value": 46,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "0958bac1",
+      "npc_name": "陆仁贾",
+      "role": "kin",
+      "init_value": 48,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "背案在身",
+     "npc_id": "80308af2",
+     "item_ref": "",
+     "summary": "身上背着一桩说不清的旧案，断岳剑尊知情"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "九幽天魔宗",
+      "effect": "favored"
+     },
+     {
+      "gate": "vendor",
+      "target_ref": "969cadfd",
+      "target_name": "柳三娘",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": 13,
+    "short_goal_id": "g_origin_2e4e402c",
+    "fate_goal_id": "g_fate_d232dfb3",
+    "fate_text": "向柳三娘讨个说法，让其再不敢轻慢你",
+    "extreme_bad": false,
+    "dedup_retries": 0,
+    "generated_at": 1794120910.3602717,
+    "life_no": 1,
+    "fate_kind": "foe_reckoning"
+   },
+   "prev_epitaph": "",
+   "just_created": true
+  }
+ },
+ "top_keys": [
+  "character_id",
+  "entry",
+  "first_night",
+  "is_new_life",
+  "legacy_points",
+  "lives",
+  "location",
+  "lock_fallback",
+  "name",
+  "newbie_feed",
+  "origin_card",
+  "realm",
+  "rem_years",
+  "resumed",
+  "session_issued",
+  "token",
+  "user_id"
+ ]
+}

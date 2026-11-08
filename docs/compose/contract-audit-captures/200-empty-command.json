@@ -1,0 +1,15 @@
+{
+ "slug": "empty-command",
+ "command": "",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "empty input",
+ "response": {
+  "ok": true,
+  "text": ""
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

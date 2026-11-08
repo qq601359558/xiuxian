@@ -1,0 +1,15 @@
+{
+ "slug": "chase-noargs",
+ "command": "/追查",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "chase flow",
+ "response": {
+  "ok": false,
+  "error": "用法：/追查 <听闻地点名>，先 /名物"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

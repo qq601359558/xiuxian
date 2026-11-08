@@ -1,0 +1,864 @@
+{
+ "slug": "deliver-noargs",
+ "command": "/交付",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage error path",
+ "response": {
+  "ok": false,
+  "text": "眼下无进行中的委托。用 /委托 查看可接委托。",
+  "status": {
+   "name": "审计员",
+   "version": 54,
+   "realm": "练气期中期",
+   "origin": {
+    "family": "商贾",
+    "family_text": "行商之子",
+    "signature": "商贾|背案在身|c4904fff|nodebt",
+    "birthplace": "青云坊市客栈",
+    "stones_final": 145,
+    "debt": null,
+    "relations": [
+     {
+      "npc_id": "806ffd38",
+      "npc_name": "金满堂",
+      "role": "witness",
+      "init_value": -6,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "6da59e83",
+      "npc_name": "山君",
+      "role": "kin",
+      "init_value": 53,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "c4904fff",
+      "npc_name": "铁算盘",
+      "role": "foe",
+      "init_value": -42,
+      "is_creditor": false
+     },
+     {
+      "npc_id": "ee748f37",
+      "npc_name": "赤霄",
+      "role": "witness",
+      "init_value": 15,
+      "is_creditor": false
+     }
+    ],
+    "old_story": {
+     "kind": "背案在身",
+     "npc_id": "806ffd38",
+     "item_ref": "",
+     "summary": "身上背着一桩说不清的旧案，金满堂知情"
+    },
+    "path_gates": [
+     {
+      "gate": "sect",
+      "target_ref": "青云宗",
+      "effect": "favored"
+     },
+     {
+      "gate": "vendor",
+      "target_ref": "c4904fff",
+      "target_name": "铁算盘",
+      "effect": "closed"
+     }
+    ],
+    "strength_score": 2,
+    "short_goal_id": "g_origin_8be2792f",
+    "fate_goal_id": "g_fate_6113083b",
+    "fate_text": "向铁算盘讨个说法，让其再不敢轻慢你",
+    "extreme_bad": false,
+    "dedup_retries": 0,
+    "generated_at": 1794120908.334402,
+    "life_no": 1,
+    "fate_kind": "foe_reckoning"
+   },
+   "fate": {
+    "boons": [],
+    "pending": [],
+    "power_bonus": 1.0,
+    "thread": {
+     "id": "ft_96b1072cdf5d",
+     "title": "出身牵命",
+     "status": "active",
+     "seed_source": "origin",
+     "seed_ref": "806ffd38",
+     "antagonist": {
+      "id": "c4904fff",
+      "name": "铁算盘"
+     },
+     "patron": {
+      "id": "6da59e83",
+      "name": "山君"
+     },
+     "final_proposition": {
+      "text": "向铁算盘讨个说法，让其再不敢轻慢你",
+      "status": "active"
+     },
+     "current_chapter": 1,
+     "chapters": [
+      {
+       "idx": 0,
+       "group": "setup",
+       "kind": "visit",
+       "tier": "short",
+       "title": "千里访旧",
+       "goal_text": "动身去寻铁算盘，有些话须当面说清。",
+       "status": "done",
+       "deadline_at": 1794124508.415741
+      },
+      {
+       "idx": 1,
+       "group": "manage",
+       "kind": "treasure",
+       "tier": "short",
+       "title": "山中访宝",
+       "goal_text": "听闻近处有宝光隐现，去碰一碰运气。",
+       "status": "active",
+       "deadline_at": 1794125709.5806384
+      },
+      {
+       "idx": 2,
+       "group": "manage",
+       "kind": "choice",
+       "tier": "mid",
+       "title": "两难之局",
+       "goal_text": "进退之间，须以一诺或一链定下取舍。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 3,
+       "group": "conflict",
+       "kind": "feud",
+       "tier": "mid",
+       "title": "恩怨有头",
+       "goal_text": "血债有头，冤家有主——先找到铁算盘。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 4,
+       "group": "climax",
+       "kind": "climax",
+       "tier": "final",
+       "title": "决战之时",
+       "goal_text": "与铁算盘的这一笔账，到了当面了结的时候。",
+       "status": "locked",
+       "deadline_at": 0.0
+      },
+      {
+       "idx": 5,
+       "group": "finale",
+       "kind": "finale",
+       "tier": "final",
+       "title": "暮年回望",
+       "goal_text": "走到这一世的尽头前，把该了的都了了吧。",
+       "status": "locked",
+       "deadline_at": 0.0
+      }
+     ],
+     "shelvable": true,
+     "origin_present": true
+    }
+   },
+   "location_image": "/assets/scenes/market-inn.webp",
+   "relations_recent": [
+    {
+     "npc_id": "ee748f37",
+     "npc_name": "赤霄",
+     "delta": 15,
+     "before_label": "neutral",
+     "after_label": "friendly",
+     "before_cn": "中立",
+     "after_cn": "友善",
+     "reason": "origin",
+     "summary": "赤霄对你由中立转友善：origin",
+     "ts": 1794120908.4063401
+    },
+    {
+     "npc_id": "c4904fff",
+     "npc_name": "铁算盘",
+     "delta": -42,
+     "before_label": "neutral",
+     "after_label": "hostile",
+     "before_cn": "中立",
+     "after_cn": "仇视",
+     "reason": "origin",
+     "summary": "铁算盘对你由中立转仇视：origin",
+     "ts": 1794120908.3944297
+    },
+    {
+     "npc_id": "6da59e83",
+     "npc_name": "山君",
+     "delta": 53,
+     "before_label": "neutral",
+     "after_label": "ally",
+     "before_cn": "中立",
+     "after_cn": "亲近",
+     "reason": "origin",
+     "summary": "山君对你由中立转亲近：origin",
+     "ts": 1794120908.385638
+    },
+    {
+     "npc_id": "806ffd38",
+     "npc_name": "金满堂",
+     "delta": -6,
+     "before_label": "neutral",
+     "after_label": "neutral",
+     "before_cn": "中立",
+     "after_cn": "中立",
+     "reason": "origin",
+     "summary": "金满堂对你态度降温：origin",
+     "ts": 1794120908.3778126
+    }
+   ],
+   "relations_marks": {
+    "ee748f37": {
+     "delta": 15,
+     "ts": 1794120908.4063401
+    },
+    "c4904fff": {
+     "delta": -42,
+     "ts": 1794120908.3944297
+    },
+    "6da59e83": {
+     "delta": 53,
+     "ts": 1794120908.385638
+    },
+    "806ffd38": {
+     "delta": -6,
+     "ts": 1794120908.3778126
+    }
+   },
+   "location": "青云坊市客栈",
+   "stones": 99998,
+   "vault": 0,
+   "wallet": {
+    "balance": 0,
+    "entries": [],
+    "ledger": [],
+    "username": ""
+   },
+   "past_life": {
+    "lives": 0,
+    "last_name": "",
+    "last_cause": "",
+    "shadow_count": 0
+   },
+   "karma_chains": {
+    "active": 0,
+    "fermenting": 0,
+    "nearest_mature_game_days": null
+   },
+   "gender": "",
+   "portrait": "/images/cultivator_meditating.png",
+   "gallery": {
+    "unlocked": [
+     "artifacts/sword",
+     "arts/earth",
+     "arts/fire",
+     "arts/metal",
+     "arts/sword",
+     "arts/water",
+     "arts/wood",
+     "goods/pill-cultivation",
+     "maps/map-fine",
+     "omen/orphan-trust",
+     "portraits/npc-sh-01",
+     "portraits/npc-sh-02",
+     "portraits/npc-sh-03",
+     "portraits/npc-sh-04",
+     "portraits/npc-sh-05",
+     "portraits/npc-sh-06",
+     "scenes/market-inn"
+    ],
+    "count": 17,
+    "total": 139,
+    "title": "初窥门径",
+    "newly": []
+   },
+   "art_images": {
+    "吐纳术": "/assets/arts/water.webp",
+    "御剑术": "/assets/arts/sword.webp"
+   },
+   "sin": 20,
+   "merit": 8,
+   "exp": "0/600",
+   "rem_years": 70.41,
+   "dead": false,
+   "status": "IDLE",
+   "status_cn": "闲适",
+   "root": "真灵根 (水·土·木)",
+   "root_eff": 1.1,
+   "dao_heart": 100,
+   "skills": [
+    "吐纳术",
+    "御剑术"
+   ],
+   "inventory": [
+    "赤霄剑",
+    "玄元聚气丹",
+    "残铁古剑",
+    "纯阳离火印",
+    "断魂幽煞剑",
+    "古修断纹玄阴剑",
+    "千年雪魄定颜丹",
+    "千年雪魄定颜丹",
+    "斑驳温润古玉残片",
+    "斑驳温润古玉残片",
+    "千年雪魄定颜丹"
+   ],
+   "arrays": [],
+   "pet": null,
+   "pets_count": 0,
+   "cave": null,
+   "arts": {
+    "main": "",
+    "sub": []
+   },
+   "body_soul": {
+    "body": 0,
+    "soul": 0
+   },
+   "heart_demon_state": {
+    "stage": 1,
+    "stage_name": "蛰伏",
+    "seed": 0
+   },
+   "books": {
+    "inspiration": 0,
+    "prestige": 0
+   },
+   "season_theme": {
+    "name": "静默纪元",
+    "key": "silence",
+    "effect": "无天象修正",
+    "season_number": 1
+   },
+   "blood_marked": true,
+   "lifespan_warning": false,
+   "meditating": false,
+   "is_meditating": false,
+   "sect": "",
+   "rank": "散修",
+   "sect_contribution": 0,
+   "sect_streak": 0,
+   "salary": 0,
+   "salary_claimable": false,
+   "salary_cd_sec": 0,
+   "can_promote": false,
+   "next_rank": null,
+   "promote_req_tier": 0,
+   "sect_ring": {},
+   "sects_catalog": [
+    {
+     "name": "青云宗",
+     "alignment": "正道名门",
+     "desc": "道法自然，清静修身，门规森严，禁止同道相残。坐拥东荒三阶灵脉。",
+     "headquarters": "青云宗外门山门",
+     "cave_location": "宗门玄元洞府",
+     "req_dao_heart": 60,
+     "max_sin": 30,
+     "min_sin": 0,
+     "monthly_salary": 25,
+     "starter_array": "一阶青木迷踪阵",
+     "rules_tip": "道心需≥60，业力需<30且无血煞，同门相残将遭执法堂追杀！"
+    },
+    {
+     "name": "万剑仙门",
+     "alignment": "杀伐中立",
+     "desc": "以剑入道，宁折不弯。门人皆擅杀伐御剑，攻守兼备，以战养战。",
+     "headquarters": "万剑仙门峰",
+     "cave_location": "洗剑池洞天",
+     "req_dao_heart": 70,
+     "max_sin": 100,
+     "min_sin": 0,
+     "monthly_salary": 30,
+     "starter_array": "一阶庚金剑煞阵",
+     "rules_tip": "道心需≥70或身具金/雷灵根，入门战力攻伐提升20%！"
+    },
+    {
+     "name": "九幽天魔宗",
+     "alignment": "魔道巨擘",
+     "desc": "弱肉强食，胜者为尊。盘踞极煞绝渊，允许同门夺宝，唯力是从。",
+     "headquarters": "九幽天魔宗坛",
+     "cave_location": "黑风绝渊",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 40,
+     "monthly_salary": 35,
+     "starter_array": "一阶白骨戮仙阵",
+     "rules_tip": "业力需≥40（双手沾血），杀人不损道心，但天劫威力增加20%！"
+    },
+    {
+     "name": "四海散修商会",
+     "alignment": "散修同盟",
+     "desc": "无拘无束的散修中立商会，一切以灵石说话，自由自在，不沾因果。",
+     "headquarters": "青云坊市客栈",
+     "cave_location": "青云坊市客栈",
+     "req_dao_heart": 0,
+     "max_sin": 1000000000,
+     "min_sin": 0,
+     "monthly_salary": 0,
+     "starter_array": null,
+     "rules_tip": "无任何门槛，无月俸，无免费洞府，自食其力。"
+    }
+   ],
+   "unread_messages": [],
+   "newbie_protected": true,
+   "newbie_left_hours": 72.0,
+   "protect": "新手庇护 72.0h",
+   "conflict_zone": false,
+   "qi_mult": 0.556,
+   "crane_pending_item": null,
+   "max_bag_slots": 64,
+   "is_bag_full": false,
+   "equipped": [],
+   "items": [
+    {
+     "uid": "4367b5ddc3bd",
+     "img": "/assets/artifacts/sword.webp",
+     "clue_chain": null,
+     "name": "赤霄剑",
+     "kind": "equip",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": "weapon",
+     "slotCn": "绝世法宝",
+     "lore": "自【青云坊市客栈】上古洞府密室石棺中发掘而出的古仙神兵，锋芒毕露，隐隐有龙吟破空之声。",
+     "desc": "自【青云坊市客栈】上古洞府密室石棺中发掘而出的古仙神兵，锋芒毕露，隐隐有龙吟破空之声。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {
+      "power": 96.0
+     },
+     "affixes": [
+      {
+       "name": "固元",
+       "desc": "气血如磐，微幅提升防御与生机"
+      },
+      {
+       "name": "凝神",
+       "desc": "道心澄澈，略微抵御心魔侵扰"
+      }
+     ],
+     "qty": 1
+    },
+    {
+     "uid": "52db75f794f8",
+     "img": "/assets/goods/pill-cultivation.webp",
+     "clue_chain": null,
+     "name": "玄元聚气丹",
+     "kind": "pill",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": null,
+     "slotCn": "灵物",
+     "lore": "温养周天经脉的玄门正宗凝气灵丹。",
+     "desc": "温养周天经脉的玄门正宗凝气灵丹。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "8ed40a0afcb1",
+     "img": "/assets/artifacts/sword.webp",
+     "clue_chain": null,
+     "name": "残铁古剑",
+     "kind": "equip",
+     "tier": 1,
+     "tierName": "凡品",
+     "slot": "weapon",
+     "slotCn": "绝世法宝",
+     "lore": "在蛮力轰击中幸存的残损古刃，剑身虽有裂痕，依旧留存微弱法光。",
+     "desc": "在蛮力轰击中幸存的残损古刃，剑身虽有裂痕，依旧留存微弱法光。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {
+      "power": 20.0
+     },
+     "affixes": [
+      {
+       "name": "生光",
+       "desc": "宝光微露，对坊市交易有微弱声望加成"
+      }
+     ],
+     "qty": 1
+    },
+    {
+     "uid": "5dec63041688",
+     "img": "",
+     "clue_chain": null,
+     "name": "纯阳离火印",
+     "kind": "relic",
+     "tier": 3,
+     "tierName": "地品",
+     "slot": null,
+     "slotCn": "灵物",
+     "lore": "自崩塌火海中夺得的上古纯阳法印，散发毁天灭地的灼浪。",
+     "desc": "自崩塌火海中夺得的上古纯阳法印，散发毁天灭地的灼浪。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "f7bf4c007f0e",
+     "img": "/assets/artifacts/sword.webp",
+     "clue_chain": null,
+     "name": "断魂幽煞剑",
+     "kind": "equip",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": "weapon",
+     "slotCn": "绝世法宝",
+     "lore": "洞府守墓傀儡手中握着的古老战刃，煞气未消。",
+     "desc": "洞府守墓傀儡手中握着的古老战刃，煞气未消。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {
+      "power": 56.0
+     },
+     "affixes": [
+      {
+       "name": "生光",
+       "desc": "宝光微露，对坊市交易有微弱声望加成"
+      }
+     ],
+     "qty": 1
+    },
+    {
+     "uid": "36c260c6b037",
+     "img": "/assets/artifacts/sword.webp",
+     "clue_chain": null,
+     "name": "古修断纹玄阴剑",
+     "kind": "equip",
+     "tier": 3,
+     "tierName": "地品",
+     "slot": "weapon",
+     "slotCn": "绝世法宝",
+     "lore": "上古剑修遗留佩剑，剑身残留凌厉破煞剑气，重见天日！",
+     "desc": "上古剑修遗留佩剑，剑身残留凌厉破煞剑气，重见天日！",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "eff328721228",
+     "img": "",
+     "clue_chain": null,
+     "name": "千年雪魄定颜丹",
+     "kind": "consumable",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": null,
+     "slotCn": "灵物",
+     "lore": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "desc": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "6a89df60b2b7",
+     "img": "",
+     "clue_chain": null,
+     "name": "千年雪魄定颜丹",
+     "kind": "consumable",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": null,
+     "slotCn": "灵物",
+     "lore": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "desc": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "86e91b3e0a26",
+     "img": "",
+     "clue_chain": null,
+     "name": "斑驳温润古玉残片",
+     "kind": "material",
+     "tier": 1,
+     "tierName": "凡品",
+     "slot": null,
+     "slotCn": "神材",
+     "lore": "被岁月风蚀的古修士佩玉残片，质地温润，可作熔炼原材。",
+     "desc": "被岁月风蚀的古修士佩玉残片，质地温润，可作熔炼原材。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "4ccc88861f9f",
+     "img": "",
+     "clue_chain": null,
+     "name": "斑驳温润古玉残片",
+     "kind": "material",
+     "tier": 1,
+     "tierName": "凡品",
+     "slot": null,
+     "slotCn": "神材",
+     "lore": "被岁月风蚀的古修士佩玉残片，质地温润，可作熔炼原材。",
+     "desc": "被岁月风蚀的古修士佩玉残片，质地温润，可作熔炼原材。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    },
+    {
+     "uid": "536dc20a5fb1",
+     "img": "",
+     "clue_chain": null,
+     "name": "千年雪魄定颜丹",
+     "kind": "consumable",
+     "tier": 2,
+     "tierName": "人品",
+     "slot": null,
+     "slotCn": "灵物",
+     "lore": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "desc": "封存在玄冰灵盒中的上古灵丹，药香四溢，沁人心脾。",
+     "targetNodeName": "落霞山灵泉",
+     "targetNodeId": "",
+     "isAtTarget": false,
+     "archetypeCn": "离火九宫破阵",
+     "coords": "丙午方位 · 离火宫 南行三十里",
+     "riddle": "天道浩渺，机缘自显。",
+     "clue": "风水汇聚，当循天机定盘指针寻访宝穴。",
+     "stats": {},
+     "affixes": [],
+     "qty": 1
+    }
+   ],
+   "stall_earnings": 0,
+   "stall_items": [],
+   "market_listings": [],
+   "dungeon": null,
+   "spells_catalog": [
+    {
+     "key": "metal_sword",
+     "name": "太乙破虚剑气",
+     "element": "metal",
+     "element_cn": "金",
+     "cost_mp": 15,
+     "cooldown": 1,
+     "base_mult": 1.6,
+     "desc": "凝聚庚金剑芒破空斩击。造成 160% 破甲杀伤；若敌方身负护盾，额外造成 50% 破盾斩击！",
+     "img": "/assets/arts/metal.webp"
+    },
+    {
+     "key": "wood_heal",
+     "name": "青帝长生引",
+     "element": "wood",
+     "element_cn": "木",
+     "cost_mp": 20,
+     "cooldown": 2,
+     "heal_pct": 0.3,
+     "desc": "引动乙木长生之气化入肉身，恢复 30% 最大气血，并驱散一层负面负累。",
+     "img": "/assets/arts/wood.webp"
+    },
+    {
+     "key": "water_freeze",
+     "name": "玄冰寒煞魄",
+     "element": "water",
+     "element_cn": "水",
+     "cost_mp": 18,
+     "cooldown": 2,
+     "base_mult": 1.2,
+     "desc": "以玄阴真水凝聚寒煞，造成 120% 冰霜伤害，并冻结目标神魂（下回合无法出手）。",
+     "img": "/assets/arts/water.webp"
+    },
+    {
+     "key": "fire_blast",
+     "name": "九幽地煞火",
+     "element": "fire",
+     "element_cn": "火",
+     "cost_mp": 20,
+     "cooldown": 1,
+     "base_mult": 1.4,
+     "burn_dot": 2,
+     "desc": "催动地心煞火焚天煮海，造成 140% 火伤并施加灼烧；若目标处于冻结状态，将触发【真火爆燃】造成双倍额外暴击！",
+     "img": "/assets/arts/fire.webp"
+    },
+    {
+     "key": "earth_shield",
+     "name": "不动明王罡",
+     "element": "earth",
+     "element_cn": "土",
+     "cost_mp": 20,
+     "cooldown": 3,
+     "shield_pct": 0.35,
+     "reflect_pct": 0.2,
+     "desc": "借大地戊土灵脉化为明王护体罡气，生成相当于自身 35% 气血的坚固灵盾，并反震 20% 伤害。",
+     "img": "/assets/arts/earth.webp"
+    }
+   ],
+   "dungeon_floors": [
+    {
+     "floor": 1,
+     "name": "锁妖古窟 · 幽暗外穴",
+     "tier_name": "炼气期试炼",
+     "min_tier": 1
+    },
+    {
+     "floor": 2,
+     "name": "锁妖古窟 · 赤岩裂谷",
+     "tier_name": "炼气圆满 / 准筑基",
+     "min_tier": 1
+    },
+    {
+     "floor": 3,
+     "name": "锁妖古窟 · 煞骨灵冢",
+     "tier_name": "筑基初期守关层",
+     "min_tier": 1
+    },
+    {
+     "floor": 4,
+     "name": "锁妖古窟 · 万毒渊薮",
+     "tier_name": "筑基中期深探",
+     "min_tier": 2
+    },
+    {
+     "floor": 5,
+     "name": "锁妖古窟 · 焚天炎池",
+     "tier_name": "筑基后期搏杀",
+     "min_tier": 2
+    },
+    {
+     "floor": 6,
+     "name": "锁妖古窟 · 绝阴冰窟",
+     "tier_name": "结丹初期大妖关",
+     "min_tier": 2
+    },
+    {
+     "floor": 7,
+     "name": "锁妖古窟 · 幽冥绝渊",
+     "tier_name": "结丹中期凶险",
+     "min_tier": 3
+    },
+    {
+     "floor": 8,
+     "name": "锁妖古窟 · 太古雷狱",
+     "tier_name": "结丹圆满 / 准元婴",
+     "min_tier": 3
+    },
+    {
+     "floor": 9,
+     "name": "锁妖古窟 · 封魔古殿",
+     "tier_name": "元婴总魔尊决战",
+     "min_tier": 3
+    }
+   ],
+   "combat": {
+    "max_hp": 250,
+    "current_hp": 100,
+    "max_mp": 130,
+    "current_mp": 50,
+    "phys_atk": 25,
+    "spell_atk": 40,
+    "phys_def": 20,
+    "spell_def": 23,
+    "speed": 15,
+    "crit_rate": 0.05,
+    "crit_damage": 1.5
+   },
+   "soul": {
+    "divine_sense": 50,
+    "sense_range": 110,
+    "illusion_resist": 0.1
+   },
+   "equip_slots": {
+    "weapon": null,
+    "armor": null,
+    "trinket": null,
+    "boots": null,
+    "flying_treasure": null
+   },
+   "professions": {
+    "alchemy_level": 0,
+    "alchemy_exp": 0,
+    "forge_level": 0,
+    "forge_exp": 0,
+    "array_level": 0,
+    "array_exp": 0,
+    "talisman_level": 0,
+    "talisman_exp": 0
+   },
+   "quest": null
+  }
+ },
+ "top_keys": [
+  "ok",
+  "status",
+  "text"
+ ]
+}

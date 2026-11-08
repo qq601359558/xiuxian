@@ -1,0 +1,15 @@
+{
+ "slug": "accept-hunt-name",
+ "command": "/接令 不存在的道号",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "non-numeric /接令 -> hunt branch :3126",
+ "response": {
+  "ok": false,
+  "text": "未寻得【不存在的道号】。"
+ },
+ "top_keys": [
+  "ok",
+  "text"
+ ]
+}

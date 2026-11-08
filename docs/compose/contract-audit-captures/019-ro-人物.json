@@ -1,0 +1,62 @@
+{
+ "slug": "ro-人物",
+ "command": "/人物",
+ "captured_at": "2026-11-08T06:55:08",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": true,
+  "text": "═══ 审计员（阁下） ═══\n练气期初期 · 散修·散修 · 修为 0/600\n命格 真灵根 (水·土·木) · 寿元约 70.41 岁 · 道心 100 · 业力 0 / 功德 0\n所在 青云坊市客栈（东荒·青州 · 安全）\n随身灵石 100000 · 金库 0\n杂物：无\n法门：吐纳术、御剑术\n小传：审计员，练气期初期，散修·散修。业力0/功德0。籍籍无名，谨慎求生。常驻青云坊市客栈一带。\n近日账录：\n  · [TALK@青云坊市客栈] 铁算盘主动搭话：铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」\n  · [TALK@青云坊市客栈] 铁算盘主动搭话：铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」\n  · [RELATION@万剑仙门峰] 赤霄对你由中立转友善：origin\n  · [RELATION@青云坊市客栈] 铁算盘对你由中立转仇视：origin",
+  "profile": {
+   "id": "3f9bb89d",
+   "name": "审计员",
+   "is_self": true,
+   "is_npc": false,
+   "realm": "练气期初期",
+   "tier": 1,
+   "sub_tier": 0,
+   "exp": "0/600",
+   "exp_full": false,
+   "root": "真灵根 (水·土·木)",
+   "location": "青云坊市客栈",
+   "location_safe": true,
+   "location_region": "东荒·青州",
+   "density": 1.0,
+   "sect": "散修",
+   "rank": "散修",
+   "sin": 0,
+   "merit": 0,
+   "dao_heart": 100,
+   "blood_marked": false,
+   "rem_years": 70.41,
+   "status": "IDLE",
+   "skills": [
+    "吐纳术",
+    "御剑术"
+   ],
+   "arrays": [],
+   "inventory_count": 0,
+   "stealth": false,
+   "echo_labels": [],
+   "echo_fame": 0,
+   "echo_kills": 0,
+   "region_danger": 0.0,
+   "market_panic_text": "坊市平稳。",
+   "stones": 100000,
+   "vault": 0,
+   "inventory": [],
+   "bio": "审计员，练气期初期，散修·散修。业力0/功德0。籍籍无名，谨慎求生。常驻青云坊市客栈一带。",
+   "recent": [
+    "[TALK@青云坊市客栈] 铁算盘主动搭话：铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」",
+    "[TALK@青云坊市客栈] 铁算盘主动搭话：铁算盘目光一冷，手按兵刃：「审计员，你还敢来？」",
+    "[RELATION@万剑仙门峰] 赤霄对你由中立转友善：origin",
+    "[RELATION@青云坊市客栈] 铁算盘对你由中立转仇视：origin"
+   ]
+  }
+ },
+ "top_keys": [
+  "ok",
+  "profile",
+  "text"
+ ]
+}

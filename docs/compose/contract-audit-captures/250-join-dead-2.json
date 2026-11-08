@@ -1,0 +1,262 @@
+{
+ "slug": "join-dead-2",
+ "command": "/join 审计员 (dead, 2nd)",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "second dead payload",
+ "response": {
+  "ok": true,
+  "dead": true,
+  "ceremony": {
+   "kind": "death",
+   "beats": [
+    {
+     "stage": "prelude",
+     "text": "命途「未竟之志」0/6 章了结，留憾；出身山野猎户之子，恩人救命起；终局命题「「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。」憾；短期目标憾；最高练气期初期。未竟之志：「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。。\n赤练子 与你的前世态度 +55，恩怨随影入轮回\n未了之诺 0 条 · 因果余绪 2 条",
+     "asset_key": null,
+     "choices": null
+    },
+    {
+     "stage": "reveal",
+     "text": "【墓碑】审计员\n审计员 · 练气期初期 · 审计再坐化 · 享寿 76.6 岁 · 业 15 德 3\n道统点 +3 · 第 2 世\n因果摘要：前世余绪 2 条 · 未了之诺 0 条\n一生评语：山野猎户之子出身，命题憾，止步练气期初期，殁于审计再坐化。债未清，人已去，账还留在世上。寿终正寝，也算善终。",
+     "asset_key": null,
+     "choices": null
+    },
+    {
+     "stage": "aftermath",
+     "text": "死讯已入江湖传闻，世人自有公论。\n一生评语：山野猎户之子出身，命题憾，止步练气期初期，殁于审计再坐化。债未清，人已去，账还留在世上。寿终正寝，也算善终。",
+     "asset_key": null,
+     "choices": null
+    }
+   ],
+   "result_ref": {
+    "cause": "审计再坐化",
+    "points_gained": 3,
+    "lifespan_lived": 76.6,
+    "life_no": 2,
+    "epitaph_present": true
+   },
+   "skippable": true
+  },
+  "token": "55401156e2544dc79ce289b24088f057",
+  "user_id": "audit_user_1",
+  "username": "",
+  "character_id": "80ad3212",
+  "name": "审计员",
+  "realm": "练气期初期",
+  "location": "青云坊市客栈",
+  "rem_years": 0.0,
+  "legacy_points": 6,
+  "lives": 2,
+  "is_new_life": false,
+  "resumed": false,
+  "death_cause": "审计再坐化",
+  "legacy": {
+   "points": 6,
+   "lives": 2,
+   "boosts": [
+    {
+     "key": "stones",
+     "name": "出身灵石",
+     "cost": 1,
+     "desc": "降生时储物袋多 150 块灵石，便于拜山或购阵盘。"
+    },
+    {
+     "key": "lifespan",
+     "name": "延寿道体",
+     "cost": 2,
+     "desc": "降生自然寿元额外 +8 岁，大限稍缓。"
+    },
+    {
+     "key": "root",
+     "name": "洗练灵根",
+     "cost": 4,
+     "desc": "灵根吸收效率 +0.25（有上限），修炼更顺。"
+    },
+    {
+     "key": "skill",
+     "name": "传承功法",
+     "cost": 2,
+     "desc": "前世道统残篇化入识海，开局自带一门额外法门。"
+    },
+    {
+     "key": "heirloom",
+     "name": "遗物留存",
+     "cost": 5,
+     "desc": "自前世行囊中选 1 件遗物随真灵转世（heirloom:<物品名>），每世限 1 件。"
+    },
+    {
+     "key": "art_memory",
+     "name": "前世心法",
+     "cost": 4,
+     "desc": "唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。"
+    },
+    {
+     "key": "bond_echo",
+     "name": "旧缘重续",
+     "cost": 3,
+     "desc": "本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。"
+    }
+   ],
+   "lifespan_lived": 76.6,
+   "past_lives": [
+    {
+     "name": "审计员",
+     "realm": "练气期中期",
+     "cause": "审计坐化",
+     "points": 3,
+     "lived": 70.4
+    },
+    {
+     "name": "审计员",
+     "realm": "练气期初期",
+     "cause": "审计再坐化",
+     "points": 3,
+     "lived": 76.6
+    }
+   ],
+   "trace": {
+    "life_no": 2,
+    "character_id": "80ad3212",
+    "name": "审计员",
+    "realm": "练气期初期",
+    "cause": "审计再坐化",
+    "lifespan_lived": 76.6,
+    "sin": 15,
+    "merit": 3,
+    "points_gained": 3,
+    "died_at": 1794120910.9439745,
+    "sect": "",
+    "skills_learned": [],
+    "belongings": [],
+    "shadow": [
+     {
+      "npc_id": "fa2dfacc",
+      "npc_name": "赤练子",
+      "value": 55,
+      "kind": "attitude"
+     },
+     {
+      "npc_id": "969cadfd",
+      "npc_name": "柳三娘",
+      "value": -45,
+      "kind": "attitude"
+     }
+    ],
+    "shadow_count": 2,
+    "open_promises": [],
+    "promises_count": 0,
+    "fate_summary": "命途「未竟之志」0/6 章了结，留憾；出身山野猎户之子，恩人救命起；终局命题「「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。」憾；短期目标憾；最高练气期初期。未竟之志：「山中访宝」未成：听闻近处有宝光隐现，去碰一碰运气。。",
+    "life_epitaph": "山野猎户之子出身，命题憾，止步练气期初期，殁于审计再坐化。债未清，人已去，账还留在世上。寿终正寝，也算善终。",
+    "origin_signature": "猎户|恩人救命|969cadfd|debt",
+    "unfinished_prop": {
+     "kind": "stand_firm",
+     "text": "「去见那个人」未成：前往柳三娘所在之地，当面照一照这一世的因果。",
+     "check": {
+      "kind": "visit_location",
+      "ref": "青云坊市客栈",
+      "npc_id": "969cadfd",
+      "instance": "ft_803499949192:c0"
+     }
+    }
+   }
+  },
+  "wallet": {
+   "balance": 199213,
+   "entries": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    },
+    {
+     "ts": 1794120910.941077,
+     "kind": "death_sweep",
+     "amount": 99225,
+     "ref": "80ad3212",
+     "note": "死亡归集：随身 99225＋寄存 0（审计员）"
+    }
+   ],
+   "ledger": [
+    {
+     "ts": 1794120910.521665,
+     "kind": "death_sweep",
+     "amount": 99998,
+     "ref": "3f9bb89d",
+     "note": "死亡归集：随身 99998＋寄存 0（审计员）"
+    },
+    {
+     "ts": 1794120910.7488482,
+     "kind": "wallet_withdraw",
+     "amount": -10,
+     "ref": "withdraw:1794120910.748849",
+     "note": "提取到角色【审计员】随身"
+    },
+    {
+     "ts": 1794120910.941077,
+     "kind": "death_sweep",
+     "amount": 99225,
+     "ref": "80ad3212",
+     "note": "死亡归集：随身 99225＋寄存 0（审计员）"
+    }
+   ]
+  },
+  "settlement": {
+   "spirit": 99225,
+   "vault": 0,
+   "total": 99225,
+   "auction_refunds": [],
+   "council_voided": 0,
+   "pawn_forfeits": [],
+   "trade_cancelled": true,
+   "skipped_npc": false,
+   "errors": [],
+   "residual_credited": false,
+   "sweep_credited": true,
+   "auction_credited": false,
+   "replay": false,
+   "skipped": [],
+   "consignment_open_count": 0
+  },
+  "consignment_open_count": 0,
+  "lock_fallback": false,
+  "session_issued": true,
+  "settlement_pending": false,
+  "settled": true
+ },
+ "top_keys": [
+  "ceremony",
+  "character_id",
+  "consignment_open_count",
+  "dead",
+  "death_cause",
+  "is_new_life",
+  "legacy",
+  "legacy_points",
+  "lives",
+  "location",
+  "lock_fallback",
+  "name",
+  "ok",
+  "realm",
+  "rem_years",
+  "resumed",
+  "session_issued",
+  "settled",
+  "settlement",
+  "settlement_pending",
+  "token",
+  "user_id",
+  "username",
+  "wallet"
+ ]
+}

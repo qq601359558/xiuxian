@@ -1,0 +1,15 @@
+{
+ "slug": "alchemy-noargs",
+ "command": "/炼丹",
+ "captured_at": "2026-11-08T06:55:10",
+ "seed": 20261108,
+ "note": "usage/error path",
+ "response": {
+  "ok": false,
+  "error": "用法：/炼丹 <配方名>，先 /配方"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}

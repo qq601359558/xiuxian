@@ -1,0 +1,15 @@
+{
+ "slug": "ro-围剿",
+ "command": "/围剿",
+ "captured_at": "2026-11-08T06:55:09",
+ "seed": 20261108,
+ "note": "",
+ "response": {
+  "ok": false,
+  "error": "用法：/围剿 <道号>"
+ },
+ "top_keys": [
+  "error",
+  "ok"
+ ]
+}
