@@ -153,7 +153,7 @@ check("CP-10 clue", "/寻宝", { clue: { chain: "古图·坎水", current_step: 
 check("CP-11 spirit", "/器灵", { spirit: { item: { name: "九天避火佩", tier: 3}, "成长": 12, "状态": "苏醒", "可唤灵列表": [{ name: "火灵"}]}}, ["器灵", "九天避火佩", "唤灵", "温养"]);
 check("CP-15 auction", "/拍卖行", { auction: { lots: [{ id: "8c12f579", name: "审计试剑", "当前价": 100, "起拍": 100, "领先": "", "剩余": "120 分", "挂单人": "审计员"}]}}, ["拍卖行", "审计试剑", "100 灵石"]);
 check("CP-16 hunt", "/除凶", { hunt: [{ name: "幽冥老祖", realm: "化神期中期", "血煞": true, "业力": 500, "地点": "九幽天魔宗坛", "被盯人数": 0}]}, ["除凶榜", "幽冥老祖", "业力 500"]);
-check("CP-17 sect", "/宗门", { sects: [{ name: "青云宗", alias: "青云", "人数": 9, "月俸": 50, "门槛": "道心≥30", "高层": ["玄清子"], "总坛": "青云峰"}], status: { sect: "散修", rank: "散修"}}, ["天下仙门", "青云宗", "月俸 50"]);
+check("CP-17 sect", "/宗门", { sects: [{ name: "青云宗", alias: "青云", "人数": 9, "月俸": 50, "门槛": "道心≥30", "高层": ["玄清子"], "总坛": "青云峰", rules_tip: "门规森严"}], status: { sect: "散修", rank: "散修"}}, ["天下仙门", "青云宗", "月俸 50", "门规森严"]);
 check("CP-19 map", "/宝图", { treasure_map: { name: "古图·坎水", tier: 3, bagua: "坎", coords: "东三里", riddle: "枯井之下有玄光。", clue: "井边三尺", target_node: "落霞古洞", archetype: "解谜"}}, ["宝图研读", "古图·坎水", "坎", "枯井之下有玄光"]);
 check("CP-21 who", "/who", { who: { groups: [{ place: "青云坊市客栈", members: [{ name: "金满堂", realm: "金丹期中期"}]}]}}, ["天下名录", "青云坊市客栈", "金满堂"]);
 check("CP-23 bounty", "/告示", { bounties: [{ id: 1, target: "血衣侯", "赏金": 500, "缘由": "血煞缠身", "匿": false}]}, ["悬赏告示", "血衣侯", "赏金 500"]);
@@ -218,7 +218,7 @@ ok(mob.api.buildCommandPanel("/奇遇", omen) === "", "CP-48 mobile /奇遇 no p
 const nowSec = Math.floor(Date.now() / 1000);
 const liveCases = [
 ["live hunt", "/除凶", { hunt: [{ name: "血煞散修", realm: "筑基期中期", mark: "血煞", sin: 500, location: "黑水沼泽", is_npc: true, hunters: 0}]}, ["除凶榜", "血煞", "业力 500", "被 0 人盯上"]],
-["live sect", "/宗门", { sects: [{ name: "青云宗", alignment: "正道", members: 120, players: 3, monthly_salary: 25, headquarters: "青云宗外门山门", rules_tip: "门规森严", top: [{ name: "玄清子", rank: "掌门", realm: "元婴期"}]}]}, ["天下仙门", "月俸 25", "玄清子", "青云宗外门山门"]],
+["live sect", "/宗门", { sects: [{ name: "青云宗", alignment: "正道", members: 120, players: 3, monthly_salary: 25, headquarters: "青云宗外门山门", rules_tip: "门规森严", top: [{ name: "玄清子", rank: "掌门", realm: "元婴期"}]}]}, ["天下仙门", "月俸 25", "玄清子", "青云宗外门山门", "门规森严"]],
 ["live bounty", "/告示", { bounties: [{ id: "b1", target: "悬赏测试丁", reward: 100, status: "OPEN", status_cn: "待猎", issuer: "联调客", anonymous: false, reason: "面板测试"}]}, ["悬赏告示", "赏金 100", "待猎"]],
 ["live sectorder", "/宗门令", { sect_orders: [{ id: "o1", sect: "青云宗", title: "巡山", kind: "patrol", reward_contrib: 8}]}, ["宗门令", "巡山", "贡献 +8"]],
 ["live sectpower", "/宗门势", { sect_power: { sects: [{ sect: "青云宗", members: 120, score: 46.8}], hostile_pairs: [["青云宗", "九幽天魔宗"]], tense_pairs: [], sieges: [], open_missions: 2}}, ["宗门实力", "青云宗", "分 46.8", "敌对"]],

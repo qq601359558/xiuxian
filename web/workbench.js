@@ -617,7 +617,7 @@
     }
   }
 
-  // 命令面板 feed 内嵌卡（command-panels D1）：html 为本文件通用渲染器产出
+  // 命令面板 feed 内嵌卡（command-panels §3-D1/§11-D2）：html 为本文件通用渲染器产出
   // （内部值已 esc），与纯文本项共用一条 feed 流。
   function pushFeedHtml(html, kind) {
     if (!html) return;
@@ -7287,8 +7287,9 @@ if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((x) => {
 const top = x["高层"] || x.top || x.elders || [];
 const topStr = Array.isArray(top) ? top.map((t) => typeof t === "string" ? t : (t.name + (t.rank ? "·" + t.rank : ""))).join("、") : "";
+const tip = cpStr(cpPick(x, "rules_tip") || "");
 return cpRow(
-cpMain(cpStr(x.name) + (x.alias? "（" + x.alias + "）": ""), "总坛 " + cpStr(cpPick(x, "总坛", "hq", "headquarters")) + (topStr? " · 高层：" + topStr: "")),
+cpMain(cpStr(x.name) + (x.alias? "（" + x.alias + "）": ""), "总坛 " + cpStr(cpPick(x, "总坛", "hq", "headquarters")) + (topStr? " · 高层：" + topStr: "") + (tip? " · 门规：" + tip: "")),
 "月俸 " + cpNum(cpPick(x, "月俸", "salary", "monthly_salary")) + " · " + cpNum(cpPick(x, "人数", "members", "count")) + " 人",
 cpStr(cpPick(x, "门槛", "req", "requirement") || x.alignment || ""));
 }).join("");
@@ -8172,7 +8173,7 @@ return "";
       }
 
       if (data.status) applyStatus(data.status, reqEpoch);
-      // 命令面板（command-panels D1）：有结构键时卡片替代该条纯文本块；
+      // 命令面板（command-panels §3-D1/§11-D2）：有结构键时卡片替代该条纯文本块；
       // 无结构键（(c) 类 / 后端键未落地）时回落纯文本呈现。
       const panelHtml = buildCommandPanel(c, data);
       if (panelHtml) pushFeedHtml(panelHtml, data.ok === false ? "bad" : undefined);

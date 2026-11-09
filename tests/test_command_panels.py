@@ -228,43 +228,63 @@ def test_CP11_spirit():
 
 # ================================================================ CP-15 /拍卖行
 def test_CP15_auction():
+    from copy import deepcopy
+
     from core.trade import AuctionEngine, AuctionStatus
     from storage.db import AuctionLotRepository
 
     WorldStateRepository.set("auction_next_system_at", time.time() + 3650 * 86400)
-    for lot in AuctionLotRepository.list_all():
-        if lot.status == AuctionStatus.PENDING:
-            lot.status = AuctionStatus.CANCELLED
+    # 快照—清空—恢复（M5 返工）：脏库残留拍品会打破 len(lots)==1 断言；
+    # 快照全部拍品（含状态/到期），清空后跑，finally 原样恢复。
+    saved = deepcopy(AuctionLotRepository.list_all())
+    saved_ids = {lot.id for lot in saved}
+
+    def _clear_open():
+        for lot in AuctionLotRepository.list_all():
+            if lot.status == AuctionStatus.PENDING:
+                lot.status = AuctionStatus.CANCELLED
+                AuctionLotRepository.save(lot)
+            elif lot.status == AuctionStatus.OPEN:
+                lot.ends_at = time.time() - 1
+                AuctionLotRepository.save(lot)
+        AuctionEngine.settle_expired(now=time.time())
+
+    _clear_open()
+    try:
+        token, uid = _join("拍客")
+        c = _char(uid)
+        c.inventory.append("聚气丹")
+        CharacterRepository.save(c)
+        res = AuctionEngine.list_item(c, "聚气丹", 100, 500)
+        assert res.get("success"), res
+        r = _handle(token, "/拍卖行")
+        assert r.get("ok") is True, r
+        lots = (r.get("auction") or {}).get("lots")
+        assert isinstance(lots, list) and len(lots) == 1, r
+        lot = lots[0]
+        assert lot["name"] == "聚气丹" and lot["start_price"] == 100
+        assert lot["current_price"] == 100 and lot["seller"] == c.name
+        assert f"【{lot['name']}】当前 {lot['current_price']} 灵石" in r["text"]
+        assert f"挂单人 {lot['seller']}" in r["text"]
+        assert lot["remaining_s"] > 0
+        # 空拍态：到期结算后 lots == []
+        for l in AuctionLotRepository.list_all():
+            if l.status == AuctionStatus.OPEN:
+                l.ends_at = time.time() - 1
+                AuctionLotRepository.save(l)
+        AuctionEngine.settle_expired(now=time.time())
+        r2 = _handle(token, "/拍卖行")
+        assert (r2.get("auction") or {}).get("lots") == [], r2
+        assert "无进行中的拍品" in r2["text"]
+    finally:
+        # 先结算本用例新建的拍品（不以 OPEN 态残留），再原样恢复快照拍品。
+        for lot in AuctionLotRepository.list_all():
+            if lot.id not in saved_ids and lot.status == AuctionStatus.OPEN:
+                lot.ends_at = time.time() - 1
+                AuctionLotRepository.save(lot)
+        AuctionEngine.settle_expired(now=time.time())
+        for lot in saved:
             AuctionLotRepository.save(lot)
-        elif lot.status == AuctionStatus.OPEN:
-            lot.ends_at = time.time() - 1
-            AuctionLotRepository.save(lot)
-    AuctionEngine.settle_expired(now=time.time())
-    token, uid = _join("拍客")
-    c = _char(uid)
-    c.inventory.append("聚气丹")
-    CharacterRepository.save(c)
-    res = AuctionEngine.list_item(c, "聚气丹", 100, 500)
-    assert res.get("success"), res
-    r = _handle(token, "/拍卖行")
-    assert r.get("ok") is True, r
-    lots = (r.get("auction") or {}).get("lots")
-    assert isinstance(lots, list) and len(lots) == 1, r
-    lot = lots[0]
-    assert lot["name"] == "聚气丹" and lot["start_price"] == 100
-    assert lot["current_price"] == 100 and lot["seller"] == c.name
-    assert f"【{lot['name']}】当前 {lot['current_price']} 灵石" in r["text"]
-    assert f"挂单人 {lot['seller']}" in r["text"]
-    assert lot["remaining_s"] > 0
-    # 空拍态：到期结算后 lots == []
-    for l in AuctionLotRepository.list_all():
-        if l.status == AuctionStatus.OPEN:
-            l.ends_at = time.time() - 1
-            AuctionLotRepository.save(l)
-    AuctionEngine.settle_expired(now=time.time())
-    r2 = _handle(token, "/拍卖行")
-    assert (r2.get("auction") or {}).get("lots") == [], r2
-    assert "无进行中的拍品" in r2["text"]
     print("✓ CP-15 /拍卖行 auction.lots 与文本对账（含空拍）")
 
 
@@ -272,22 +292,46 @@ def test_CP15_auction():
 def test_CP16_hunt():
     from core.hunt import SIN_THRESHOLD, format_board
 
-    token, uid = _join("除凶客")
-    v = _npc(_uniq("凶名测试丁"), uid=_uid("npc"))
-    v.karma.add_sin(SIN_THRESHOLD + 60, time.time())
-    CharacterRepository.save(v)
-    r = _handle(token, "/除凶")
-    assert r.get("ok") is True, r
-    hunt = r.get("hunt")
-    assert isinstance(hunt, list) and hunt, r
-    row = next((x for x in hunt if x["name"] == v.name), None)
-    assert row is not None, f"通缉行缺失：{hunt}"
-    assert row["sin"] == v.karma.sin_value
-    assert f"业力{row['sin']}" in r["text"]
-    assert row["location"] == v.location and row["realm"] == v.realm.name
-    assert row["mark"] in ("血煞", "重业")
-    assert isinstance(row["hunters"], int)
-    assert r["text"].startswith(format_board().split("\n")[0])
+    # 快照—清空—恢复（M5 返工）：除凶榜只取 top-12，脏库残留高业力 NPC
+    # 会把测试 NPC（业力 140）挤出榜。快照全部在榜竞争者（业力≥80 或血煞
+    # 标记者）的业力/血煞期，测试期间清零，finally 原样恢复。
+    saved = {}
+    for c in CharacterRepository.list_all_alive():
+        if c.karma.sin_value >= SIN_THRESHOLD or c.karma.is_blood_marked():
+            saved[c.id] = (c.karma.sin_value, c.karma.blood_mark_until)
+            c.karma.sin_value = 0
+            c.karma.blood_mark_until = 0
+            CharacterRepository.save(c)
+    v = None
+    try:
+        token, uid = _join("除凶客")
+        v = _npc(_uniq("凶名测试丁"), uid=_uid("npc"))
+        v.karma.add_sin(SIN_THRESHOLD + 60, time.time())
+        CharacterRepository.save(v)
+        r = _handle(token, "/除凶")
+        assert r.get("ok") is True, r
+        hunt = r.get("hunt")
+        assert isinstance(hunt, list) and hunt, r
+        row = next((x for x in hunt if x["name"] == v.name), None)
+        assert row is not None, f"通缉行缺失：{hunt}"
+        assert row["sin"] == v.karma.sin_value
+        assert f"业力{row['sin']}" in r["text"]
+        assert row["location"] == v.location and row["realm"] == v.realm.name
+        assert row["mark"] in ("血煞", "重业")
+        assert isinstance(row["hunters"], int)
+        assert r["text"].startswith(format_board().split("\n")[0])
+    finally:
+        for cid, (sin, until) in saved.items():
+            c = CharacterRepository.get_by_id(cid)
+            if c is not None:
+                c.karma.sin_value = sin
+                c.karma.blood_mark_until = until
+                CharacterRepository.save(c)
+        # 测试 NPC 自身不以高业力残留污染脏库。
+        if v is not None:
+            v.karma.sin_value = 0
+            v.karma.blood_mark_until = 0
+            CharacterRepository.save(v)
     print("✓ CP-16 /除凶 hunt 与文本对账")
 
 
@@ -438,21 +482,35 @@ def test_CP30_factions():
 
 # ================================================================ CP-31 /宗门令
 def test_CP31_sect_orders():
-    from core.faction import list_missions, open_mission
+    import copy
 
-    token, _ = _join("宗门令客")
-    title = _uniq("巡山测试令")  # 开令去重含 title，跨轮重跑须唯一
-    m = open_mission("青云宗", "patrol", title=title, detail="面板测试开令")
-    assert m is not None, "开令失败"
-    r = _handle(token, "/宗门令")
-    assert r.get("ok") is True, r
-    orders = r.get("sect_orders")
-    assert isinstance(orders, list) and orders, r
-    row = next((o for o in orders if o["id"] == m.get("id")), None)
-    assert row is not None, orders
-    assert row["title"] == title and row["sect"] == "青云宗"
-    assert row["id"] in r["text"] and title in r["text"]
-    assert f"+{row['reward_contrib']}贡献" in r["text"]
+    from core.faction import _load, _save, list_missions, open_mission
+
+    # 快照—清空—恢复（M5 返工）：青云宗未结宗门令 ≥8 时 open_mission 返 None，
+    # 脏库已饱和。快照整份 faction 态，测试期间把青云宗未结令置为 expired，
+    # finally 原样恢复（测试新建的令随快照恢复一并清除）。
+    saved = copy.deepcopy(_load())
+    try:
+        state = _load()
+        for m in state.get("missions") or []:
+            if m.get("sect") == "青云宗" and m.get("status") == "open":
+                m["status"] = "expired"
+        _save(state)
+        token, _ = _join("宗门令客")
+        title = _uniq("巡山测试令")  # 开令去重含 title，跨轮重跑须唯一
+        m = open_mission("青云宗", "patrol", title=title, detail="面板测试开令")
+        assert m is not None, "开令失败"
+        r = _handle(token, "/宗门令")
+        assert r.get("ok") is True, r
+        orders = r.get("sect_orders")
+        assert isinstance(orders, list) and orders, r
+        row = next((o for o in orders if o["id"] == m.get("id")), None)
+        assert row is not None, orders
+        assert row["title"] == title and row["sect"] == "青云宗"
+        assert row["id"] in r["text"] and title in r["text"]
+        assert f"+{row['reward_contrib']}贡献" in r["text"]
+    finally:
+        _save(saved)
     print("✓ CP-31 /宗门令 sect_orders 与文本对账")
 
 
@@ -1096,6 +1154,86 @@ def test_text_unchanged_spot_checks():
     print("✓ text 一字不动抽查（/榜·/宗门·/宗门势·/兑换·/贡献）")
 
 
+# ================================================================ M3：reason 码映射中文标签（返工，2026-11-09）
+def test_M3_reason_code_mapped_to_label():
+    """M3：/近况 relations[].summary 不得含 reason 原码。
+    origin →「出身牵连」；无映射的纯 ASCII 码（如 test）省略「：…」后缀；
+    中文标签（如交谈）原样保留；refs 内部索引保持原码（origin 判定依赖它）。
+    面板 cpNearby 与文本同源直通同一 summary，故一处修复双端生效。"""
+    from core.npc_mind import shift_attitude
+    from storage.db import EventLedgerRepository
+
+    token, uid = _join("近况码客")
+    player = _char(uid)
+
+    def _relation_summary(npc):
+        rows = EventLedgerRepository.query_by_type_for_target(
+            player.id, type="RELATION", limit=30)
+        mine = [r for r in rows if r["actor_id"] == npc.id]
+        assert mine, f"{npc.name} 的 RELATION 行缺失"
+        return mine[0]
+
+    npc1 = _npc(_uniq("出身牵连丁"))
+    shift_attitude(npc1, player.id, 50, reason="origin")
+    row1 = _relation_summary(npc1)
+    assert "出身牵连" in row1["summary"], row1["summary"]
+    assert "origin" not in row1["summary"], row1["summary"]
+    assert "reason:origin" in (row1.get("refs") or []), "refs 内部索引须保持原码"
+
+    npc2 = _npc(_uniq("无码丁"))
+    shift_attitude(npc2, player.id, 50, reason="test")
+    row2 = _relation_summary(npc2)
+    assert "test" not in row2["summary"], row2["summary"]
+    assert row2["summary"].endswith("亲近"), row2["summary"]
+
+    npc3 = _npc(_uniq("交谈丁"))
+    shift_attitude(npc3, player.id, 50, reason="交谈")
+    row3 = _relation_summary(npc3)
+    assert row3["summary"].endswith("：交谈"), row3["summary"]
+    print("✓ M3 reason 码映射中文标签（origin→出身牵连，无映射码省略后缀）")
+
+
+# ================================================================ M6：(c) 类文本对照（返工，2026-11-09）
+def test_text_unchanged_c_class_spot_checks():
+    """M6 / AC-06：(c) 类 51 项抽样 ≥10 项抓取对照——响应文案须与基线抓取
+    （docs/compose/contract-audit-captures/，种子 20261108）逐字一致。
+    无参用法 error 与无交谈提示均为状态无关文案，可逐字对照；/转世活人态
+    无基线抓取，以 server/world.py:1012 的 error 字面量为准（同轮锁定）。
+    现有 5 项 (b) 类对照（test_text_unchanged_spot_checks）保留。"""
+    import json
+
+    caps = Path(__file__).resolve().parent.parent / "docs/compose/contract-audit-captures"
+    token, uid = _join("文本丙客")
+    cases = [
+        ("/购买", "119-buy-noargs.json", "error"),
+        ("/出售", "120-sell-noargs.json", "error"),
+        ("/斗法", "146-fight-noargs.json", "error"),
+        ("/挂赏", "123-place-bounty-noargs.json", "error"),
+        ("/上交", "169-donate-noargs.json", "error"),
+        ("/寄存", "176-deposit-noargs.json", "error"),
+        ("/支取", "177-withdraw-noargs.json", "error"),
+        ("/拜师", "165-apprentice-noargs.json", "error"),
+        ("/传功", "132-teach-noargs.json", "error"),
+        ("/围剿", "086-ro-围剿.json", "error"),
+        ("/追查", "220-chase-noargs.json", "error"),
+        ("/接令", "240-accept-hunt-noargs.json", "error"),
+        ("/买寄售", "127-buy-listing-noargs.json", "error"),
+        ("/撤单", "128-cancel-listing-noargs.json", "error"),
+        ("/释放", "140-release-captive.json", "error"),
+        ("/会话", "095-ro-chatpanel.json", "text"),
+    ]
+    assert len(cases) >= 10, "AC-06 要求 (c) 类对照 ≥10 项"
+    for cmd, slug, field in cases:
+        base = json.loads((caps / slug).read_text(encoding="utf-8"))["response"]
+        r = _handle(token, cmd)
+        assert r.get(field) == base.get(field), (
+            f"{cmd} 文案与基线抓取 {slug} 不一致：{r.get(field)!r} vs {base.get(field)!r}"
+        )
+    r = _handle(token, "/转世")
+    assert r.get("error") == "此世尚存，何须转世？可先 /道统 查看。", r
+    print(f"✓ (c) 类文本对照 {len(cases) + 1} 项与基线逐字一致（16 项抓取 + /转世活人态）")
+
+
 # ================================================================ 附录 A 新键总表（键名登记）
 # 39 个附录 A 登记键中 35 个为全新顶层名；director / arcs / trade / recipe
 # 四键的顶层名已在 contract-audit 清册中（/world/director 快照、/悟丹、
@@ -1181,12 +1319,16 @@ def test_command_panels_budgets():
 
 
 def test_command_panels_mobile_css_no_bare_hex():
-    """AC-04：mobile.css 新增面板样式全量 var()、零裸 hex。"""
-    text = MOB_CSS.read_text(encoding="utf-8")
-    marker = "/* 命令回复面板化（command-panels CP-00）"
-    assert marker in text
-    added = text[text.index(marker):]
-    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", added), "新增 CSS 含裸 hex"
+    """AC-04：mobile.css 新增面板样式全量 var()、零裸 hex。
+    M2 返工（2026-11-09）：零裸 hex 纪律适用于全部新增 CSS，锁定测试扩展到
+    workbench.css 新增段（token 定义在 CP-00 标记之前，不计入扫描段，
+    与 mobile.css :root 体例一致）。"""
+    for css_path in (MOB_CSS, WEB / "workbench.css"):
+        text = css_path.read_text(encoding="utf-8")
+        marker = "/* 命令回复面板化（command-panels CP-00）"
+        assert marker in text, f"{css_path.name} 缺 CP-00 标记"
+        added = text[text.index(marker):]
+        assert not re.search(r"#[0-9a-fA-F]{3,8}\b", added), f"{css_path.name} 新增 CSS 含裸 hex"
 
 
 def test_command_panels_app_js_untouched():
