@@ -3538,7 +3538,9 @@ class World:
                         res = NpcDialogueEngine.talk(target, char, words)
                         log_event("DECISION", "talk", name=char.name, target=target.name, words_len=len(words), source=res.get("source"))
                         if not res.get("ok"):
-                            return {"ok": False, "error": res.get("error", "无法交谈")}
+                            # 会话已开启但引擎失败（S-1）：带 sys 行，弹窗可见时呈现原因，不冒充开启成功
+                            return {"ok": False, "error": res.get("error", "无法交谈"),
+                                    "chat_lines": [_cl_sys(res.get("error", "无法交谈"))]}
                         try:
                             rec = npc_chat.get_session(char.id)
                             if rec:

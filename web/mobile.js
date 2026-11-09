@@ -1334,8 +1334,6 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     } else if (data.chat_open) {
       // 回落：无 chat_lines 的开启响应（demo/旧响应）→ text 整段作系统呈现
       String(data.text || "").split("\n").filter(Boolean).forEach(function (ln) { chatMsgM("", ln, "sys"); });
-    } else if (data.chat_ended) {
-      chatMsgM("", data.text || "神识联通已断开", "sys");
     }
     if (data.ok === false && !lines.length && (data.error || data.message))
       chatMsgM("", data.error || data.message, "sys");
@@ -1375,7 +1373,11 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
         if (data.status) applyStatus(data.status);
         if (!routeChatDataM(data, "/灵语") && data.text) chatMsgM(state.chat.npc || "器灵", data.text, "npc");
       } else {
-        data = await api("/chat", { token: state.token, text: c, to: state.chat.npc });
+        // 会话存活时走裸文本续发（服务端按会话路由 /说，不再重复开启问候行）；
+        // 会话已断（live=false）时带 to 重新开启
+        var payload = { token: state.token, text: c };
+        if (!state.chat.live) payload.to = state.chat.npc;
+        data = await api("/chat", payload);
         routeChatDataM(data, "/说");
       }
       if (data && data.ok === false && !(data.chat_lines || []).length && (data.error || data.message))

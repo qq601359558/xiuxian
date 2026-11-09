@@ -97,6 +97,8 @@ def test_talk_words_chat_lines_header_and_body():
     assert lines[0]["cls"] == "sys"
     headers = [ln for ln in lines if ln["cls"] == "sys" and ln["text"].startswith("【") and npc in ln["text"]]
     assert headers, lines  # 引擎眉题独立成 sys 行（旧前端正则猜不中、误入气泡的那行）
+    # 眉题行须是引擎格式【名·性格·态度】本身（防 greet 首行【会话开始】与【名】假绿）
+    assert any(ln["cls"] == "sys" and ln["text"].startswith(f"【{npc}·") for ln in lines), lines
     bodies = [ln for ln in lines if ln["cls"] == "npc" and ln["who"] == npc]
     assert bodies, lines
     body = bodies[0]["text"]
@@ -147,6 +149,7 @@ def test_player_target_chat_lines():
     tok2, char2 = _join(w, "结构传音乙")
     if char1.location != char2.location:
         w.handle(tok2, f"/go {char1.location}")
+        char1, char2 = w.get_char(tok1), w.get_char(tok2)  # get_char 为快照，迁跃后重取
     assert char1.location == char2.location, (char1.location, char2.location)
     r = w.handle(tok1, f"/交谈 {char2.name} 道友安好")
     assert r.get("ok") is True and r.get("is_player") is True, r
@@ -193,3 +196,125 @@ def test_spirit_talk_failure_has_no_chat_lines():
     r = w.handle(tok, "/灵语 你好")
     assert r.get("ok") is False, r
     assert "chat_lines" not in r, r
+
+
+# ---------------------------------------------------------------------------
+# §C 清洗回归（评审 MF-1）：嵌套记号、***、悬挂星号、数字表达式不误伤
+# ---------------------------------------------------------------------------
+def test_clean_dialogue_text_regressions():
+    assert clean_dialogue_text("***粗***") == "粗"
+    assert clean_dialogue_text("****a****") == "a"
+    assert clean_dialogue_text("# # 秘密") == "秘密"
+    assert clean_dialogue_text("> > 引文") == "引文"
+    assert clean_dialogue_text("[[x](y)](z)") == "x"
+    assert clean_dialogue_text("3*5 等于15") == "3*5 等于15"
+    assert clean_dialogue_text("他说*重点*在这里") == "他说重点在这里"
+    for raw in ("***粗***", "# # 秘密", "[[x](y)](z)", "****a****"):
+        assert clean_dialogue_text(clean_dialogue_text(raw)) == clean_dialogue_text(raw)
+
+
+# ---------------------------------------------------------------------------
+# §B /说 会话结束（AI 边界 stub）：end_reason 与续发提示以 sys 行下发
+# ---------------------------------------------------------------------------
+def test_say_ended_end_reason_sys_lines(monkeypatch):
+    import ai.gateway as gw
+
+    monkeypatch.setattr(gw, "ai_available", lambda: True)
+    monkeypatch.setattr(gw, "_chat_json", lambda prompt: {
+        "line": "罢了，今日便到此。",
+        "will_continue": False,
+        "attitude_delta": 0,
+        "hangup_reason": "【对方】无意再谈（测试）。",
+    })
+    w = _world()
+    tok, char = _join(w, "结构终话客")
+    npc = _npc_name(char)
+    assert w.handle(tok, f"/交谈 {npc}").get("chat_open") is True
+    r = w.handle(tok, "/说 再会")
+    assert r.get("chat_ended") is True, r
+    _assert_lines_shape(r.get("chat_lines"))
+    assert r["chat_lines"][0]["cls"] == "npc"
+    sys_texts = [ln["text"] for ln in r["chat_lines"] if ln["cls"] == "sys"]
+    assert "【对方】无意再谈（测试）。" in sys_texts, r["chat_lines"]
+    assert "（继续发送将不会得到回应；可重新 /交谈）" in sys_texts, r["chat_lines"]
+    # text 兼容：结束段仍按旧拼装出现在 text 里
+    assert "【对方】无意再谈（测试）。" in r["text"] and "继续发送将不会得到回应" in r["text"]
+
+
+# ---------------------------------------------------------------------------
+# §B /说 同场插话（banter stub）：旁观者以 npc 行分型（who=插话人）
+# ---------------------------------------------------------------------------
+def test_say_bystander_chat_lines(monkeypatch):
+    import ai.gateway as gw
+    import core.scene_banter as sb
+
+    monkeypatch.setattr(gw, "ai_available", lambda: False)
+    monkeypatch.setattr(
+        sb,
+        "maybe_banter",
+        lambda char, npc, transcript_tail="": [{"who": "路人甲", "line": "此言甚是有理。"}],
+    )
+    w = _world()
+    tok, char = _join(w, "结构插话客")
+    npc = _npc_name(char)
+    assert w.handle(tok, f"/交谈 {npc}").get("chat_open") is True
+    r = w.handle(tok, "/说 今日天气甚好")
+    assert r.get("ok") is True and r.get("chat_open") is True, r
+    _assert_lines_shape(r.get("chat_lines"))
+    bys = [ln for ln in r["chat_lines"] if ln["cls"] == "npc" and ln["who"] == "路人甲"]
+    assert bys and "此言甚是有理" in bys[0]["text"], r["chat_lines"]
+    assert "路人甲" in r["text"]  # text 拼装不变
+
+
+# ---------------------------------------------------------------------------
+# §B-9 /说 途中天机偶发（omen stub）：以 sys 行追加，与 text 拼接同步
+# ---------------------------------------------------------------------------
+def test_say_omen_appends_sys_line(monkeypatch):
+    import ai.gateway as gw
+    import core.omen_scene as om
+
+    monkeypatch.setattr(gw, "ai_available", lambda: False)
+    monkeypatch.setattr(
+        om,
+        "maybe_trigger_natural_omen",
+        lambda char, context="", in_chat_npc=None: {
+            "triggered": True,
+            "text": "【天机偶发】灵云微漾，似有异宝将现。",
+        },
+    )
+    w = _world()
+    tok, char = _join(w, "结构奇遇客")
+    npc = _npc_name(char)
+    assert w.handle(tok, f"/交谈 {npc}").get("chat_open") is True
+    r = w.handle(tok, "/说 今日天气甚好")
+    assert r.get("ok") is True and r.get("chat_open") is True, r
+    assert r.get("omen_chat"), r
+    _assert_lines_shape(r.get("chat_lines"))
+    last = r["chat_lines"][-1]
+    assert last["cls"] == "sys" and "天机偶发" in last["text"], r["chat_lines"]
+    assert r["text"].endswith("【天机偶发】灵云微漾，似有异宝将现。")
+
+
+# ---------------------------------------------------------------------------
+# §B 器灵引擎 notes 字段：每条注记都出现在 message 拼装中（顺序即拼装顺序）
+# ---------------------------------------------------------------------------
+def test_spirit_engine_notes_field():
+    from core.artifact_spirit import ArtifactSpiritEngine
+    from core.clock import WorldClock
+    from core.items import ItemFactory
+
+    c = WorldClock.create_new_character(f"spn_{_tag()}", f"灵注客{_tag()}")
+    it = ItemFactory.create_equip("镇海宝镜", tier=4, slot="trinket")
+    c.add_item_entity(it)
+    c.equipped.append(it.name)
+    res0 = ArtifactSpiritEngine.awaken(c, it.name)
+    assert res0["success"], res0
+    res = ArtifactSpiritEngine.talk(c, "你好")
+    assert res["success"], res
+    assert isinstance(res.get("notes"), list)
+    for n in res["notes"]:
+        assert n in res["message"]
+    assert res["reply"] in res["message"]
+    assert res["message"].index(res["reply"]) < (
+        res["message"].index(res["notes"][0]) if res["notes"] else len(res["message"])
+    )

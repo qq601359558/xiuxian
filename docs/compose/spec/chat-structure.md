@@ -86,7 +86,7 @@ chat_ended 且弹窗未开时维持 feed 文本呈现（命令框手打 /挂断 
 - 桌面端 workbench.js：handleChatData 的 NPC 分支与 chat_ended 分支、sendChat 灵语分流，
 在 data.chat_lines 在场时按字段渲染；不在场回落现状逻辑。真人分支维持现状（messages 渲染）。
 - web/mobile.css 新增.chatm-* 紧凑样式（复用既有色板 token 与.btn/.chip 视觉），
-弹窗为底部升起的全宽层（max-height 82vh，日志区独立滚动，输入行吸底），双主题（[data-theme=dark]）适配。
+弹窗为底部升起的全宽层（height:78dvh，日志区独立滚动，输入行吸底），双主题（[data-theme=dark]）适配。
 
 ### 预算豁免 D1（沿 command-panels §11-D1 先例，本 spec 内裁决）
 
