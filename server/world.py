@@ -2005,13 +2005,14 @@ class World:
                     n = max(1, min(20, int(parts[1])))
                 return {"ok": True, "text": format_rumor_board(n)}
             if action in ("/channel", "/频道"):
-                from core.world_channel import WorldChannel
+                from core.world_channel import WorldChannel, kind_cn
 
                 n = 15
                 if len(parts) > 1 and parts[1].isdigit():
                     n = max(1, min(40, int(parts[1])))
-                rows = [
-                    {
+                rows = []
+                for m in reversed(WorldChannel.recent(limit=n)):
+                    row = {
                         "severity": m.level,
                         "type": m.kind,
                         "text": m.text,
@@ -2019,8 +2020,10 @@ class World:
                         "location": m.location,
                         "ts": m.ts,
                     }
-                    for m in reversed(WorldChannel.recent(limit=n))
-                ]
+                    cn = kind_cn(m.kind)
+                    if cn:
+                        row["type_cn"] = cn
+                    rows.append(row)
                 return {"ok": True, "text": WorldChannel.format_board(n), "channel": rows}
             if action in ("/notice", "/公告"):
                 from core.world_channel import WorldChannel
@@ -2211,6 +2214,7 @@ class World:
             if action in ("/legend", "/传说", "/典籍"):
                 from core.era_reentry import active_bias, format_era_board
                 from core.legends import count_legends, format_legends, list_legends
+                from core.era_reentry import TYPE_CN as _ERA_TYPE_CN
 
                 season = None
                 if len(parts) > 1 and parts[1].lstrip("-").isdigit():
@@ -2220,6 +2224,7 @@ class World:
                     text += "\n\n" + format_era_board()
                 except Exception:
                     pass
+                _bias = active_bias()
                 return {
                     "ok": True,
                     "text": text,
@@ -2235,7 +2240,8 @@ class World:
                             for r in list_legends(season=season, limit=12)
                         ],
                         "total": count_legends(season),
-                        "active_bias": active_bias(),
+                        "active_bias": _bias,
+                        "active_bias_cn": {_ERA_TYPE_CN.get(k, k): v for k, v in _bias.items()},
                     },
                 }
             if action in ("/links", "/关系"):

@@ -509,6 +509,7 @@ def era_board_data(now: Optional[float] = None) -> Dict[str, Any]:
         "current_season": cur,
         "last_reentry_ts": state.get("last_reentry_ts"),
         "active_bias": bias,
+        "active_bias_cn": {TYPE_CN.get(k, k): v for k, v in bias.items()},
         "cited_count": int(state.get("cited_count") or 0),
         "anchors": list(state.get("anchors") or []),
         "completed_eras": list(state.get("completed_eras") or []),
