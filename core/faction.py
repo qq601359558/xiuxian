@@ -855,6 +855,66 @@ def format_faction_board(viewer: Any = None, now: Optional[float] = None) -> str
     return "\n".join(lines)
 
 
+def board_data(viewer: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
+    """势力面板结构（/势力 factions 键；与 format_faction_board 同源）。"""
+    t = _now(now)
+    ensure_defaults(t)
+    state = _load()
+    purge_sieges(t)
+    _purge_missions(state, t)
+    rels = sorted(
+        (state.get("relations") or {}).values(),
+        key=lambda x: float(x.get("score") or 0),
+    )
+    relations = []
+    for rel in rels:
+        sc = float(rel.get("score") or 0)
+        st = rel.get("status") or status_from_score(sc)
+        relations.append(
+            {
+                "a": rel.get("a"),
+                "b": rel.get("b"),
+                "status": st,
+                "status_cn": STATUS_CN.get(st, st),
+                "score": sc,
+                "note": rel.get("note") or "",
+            }
+        )
+    missions = list_missions(status="open", now=t)
+    orders = [
+        {
+            "id": m.get("id"),
+            "sect": m.get("sect"),
+            "title": m.get("title"),
+            "kind": m.get("kind"),
+            "reward_contrib": m.get("reward_contrib"),
+        }
+        for m in missions
+    ]
+    sect = getattr(viewer, "sect", None) if viewer is not None else None
+    rel_you = []
+    if sect:
+        for sname in SECTS_CONFIG:
+            if sname == sect:
+                continue
+            r = get_relation(sect, sname, t)
+            rel_you.append(
+                {
+                    "sect": sname,
+                    "status": r.get("status"),
+                    "status_cn": STATUS_CN.get(r.get("status"), r.get("status")),
+                }
+            )
+    return {
+        "relations": relations,
+        "orders": orders,
+        "sieges": active_sieges(t),
+        "stats": state.get("stats") or {},
+        "mine_count": len([m for m in missions if sect and m.get("sect") == sect]),
+        "rel_you": rel_you,
+    }
+
+
 def handle_faction_command(parts: List[str], character: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
     t = _now(now)
     sub = (parts[1].strip() if len(parts) > 1 else "").lower()

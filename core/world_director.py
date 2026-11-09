@@ -1376,6 +1376,35 @@ class WorldDirector:
         }
 
     @staticmethod
+    @staticmethod
+    def heaven_board_data(now: Optional[float] = None) -> Dict[str, Any]:
+        """天道导演面板结构（/天道 director 键；与 format_heaven_board 同源）。"""
+        t = _now(now)
+        state = _load()
+        _prune_active(state, t)
+        active = []
+        for d in (state.get("active") or [])[:8]:
+            active.append(
+                {
+                    "type": d.get("type"),
+                    "title": d.get("title"),
+                    "location": d.get("location"),
+                    "expires_in_s": max(0, int(float(d.get("expires_at") or 0) - t)),
+                    "narrative": d.get("narrative"),
+                    "applied": d.get("applied") or {},
+                }
+            )
+        return {
+            "last_run_ts": state.get("last_run_ts"),
+            "last_trigger": state.get("last_trigger"),
+            "last_source": state.get("last_source"),
+            "last_error": state.get("last_error"),
+            "stats": state.get("stats") or {},
+            "active": active,
+            "history": list(state.get("history") or [])[-5:],
+            "modifiers": world_modifiers(t),
+        }
+
     def format_heaven_board(now: Optional[float] = None) -> str:
         t = _now(now)
         state = _load()

@@ -217,6 +217,25 @@ class MarketEngine:
         return regions
 
     @staticmethod
+    def trade_board_data(location: Optional[str] = None, day: Optional[str] = None) -> Dict[str, Any]:
+        """行情面板结构（/行情 prices 键；与 trade_board 同源）。
+
+        regions[].rows 直接复用 _rows_for_region：产地行 origin==region，
+        价格/回收价与文本逐行一致。
+        """
+        day = MarketEngine._day_str(day)
+        cur_region = MarketEngine.region_of(location) if location else None
+        regions = [
+            {
+                "name": region,
+                "current": region == cur_region,
+                "rows": MarketEngine._rows_for_region(region, day),
+            }
+            for region in MarketEngine.all_regions()
+        ]
+        return {"as_of": day, "current_region": cur_region, "regions": regions}
+
+    @staticmethod
     def trade_board(location: Optional[str] = None, day: Optional[str] = None) -> str:
         """【天下行情】文本：逐区域产地货与贵货官价 + 跑商路线提示（本地模板，零 AI）"""
         day = MarketEngine._day_str(day)

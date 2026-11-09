@@ -285,11 +285,13 @@ def exchange(c: Character, item_name: str) -> Dict[str, Any]:
     }
 
 
-def sect_powerboard() -> str:
-    """宗门实力只读条（成员境界加权）"""
+def sect_power_data() -> Dict[str, Any]:
+    """宗门实力行集（/宗门势 sect_power 键；与 sect_powerboard 同源）。
+
+    score 保持原始 float（不 rounding）：文本 `分 {sc:.0f}` 的取整须与键值一致。
+    """
     from core.models import CharacterStatus as CS
 
-    lines = ["【宗门实力】（人数×境界，只读）"]
     scores: Dict[str, float] = {k: 0.0 for k in SECTS_CONFIG}
     counts: Dict[str, int] = {k: 0 for k in SECTS_CONFIG}
     try:
@@ -299,25 +301,65 @@ def sect_powerboard() -> str:
                 counts[c.sect] += 1
     except Exception:
         pass
-    mx = max(scores.values()) if scores else 1.0
-    for name, sc in sorted(scores.items(), key=lambda x: -x[1]):
-        bar_n = int(round(sc / mx * 10)) if mx else 0
-        lines.append(f"· {name} {'█' * bar_n}{'░' * (10 - bar_n)}  {counts[name]} 人 · 分 {sc:.0f}")
-    # M3 势力摘要
+    sects = [
+        {"sect": name, "members": counts[name], "score": sc}
+        for name, sc in sorted(scores.items(), key=lambda x: -x[1])
+    ]
+    data: Dict[str, Any] = {
+        "sects": sects,
+        "hostile_pairs": [],
+        "tense_pairs": [],
+        "sieges": [],
+        "open_missions": 0,
+    }
     try:
-        from core.faction import faction_modifiers, STATUS_CN, get_relation
+        from core.faction import faction_modifiers
 
         fm = faction_modifiers()
-        if fm.get("hostile_pairs"):
-            pairs = "、".join(f"{a}×{b}" for a, b in fm["hostile_pairs"][:4])
+        data["hostile_pairs"] = [list(p) for p in (fm.get("hostile_pairs") or [])]
+        data["tense_pairs"] = [list(p) for p in (fm.get("tense_pairs") or [])]
+        data["sieges"] = fm.get("active_sieges") or []
+        data["open_missions"] = int(fm.get("n_open_missions", 0))
+    except Exception:
+        pass
+    return data
+
+
+def shop_data() -> List[Dict[str, Any]]:
+    """贡献兑换目录（/贡献·/兑换 contribution.catalog；与 format_shop 同源）。"""
+    out = [
+        {"name": name, "cost": price, "need_streak": 0}
+        for name, price in EXCHANGE_SHOP.items()
+    ]
+    out += [
+        {"name": name, "cost": cfg["price"], "need_streak": int(cfg.get("need_streak", 0))}
+        for name, cfg in RARE_SHOP.items()
+    ]
+    return out
+
+
+def sect_powerboard() -> str:
+    """宗门实力只读条（成员境界加权）"""
+    data = sect_power_data()
+    lines = ["【宗门实力】（人数×境界，只读）"]
+    scores = {s["sect"]: s["score"] for s in data["sects"]}
+    mx = max(scores.values()) if scores else 1.0
+    for s in data["sects"]:
+        name, sc = s["sect"], s["score"]
+        bar_n = int(round(sc / mx * 10)) if mx else 0
+        lines.append(f"· {name} {'█' * bar_n}{'░' * (10 - bar_n)}  {s['members']} 人 · 分 {sc:.0f}")
+    # M3 势力摘要
+    try:
+        if data.get("hostile_pairs"):
+            pairs = "、".join(f"{a}×{b}" for a, b in data["hostile_pairs"][:4])
             lines.append(f"敌对：{pairs}")
-        if fm.get("tense_pairs"):
-            pairs = "、".join(f"{a}×{b}" for a, b in fm["tense_pairs"][:4])
+        if data.get("tense_pairs"):
+            pairs = "、".join(f"{a}×{b}" for a, b in data["tense_pairs"][:4])
             lines.append(f"紧张：{pairs}")
-        if fm.get("active_sieges"):
-            ss = "、".join(f"{s.get('sect')}→{s.get('target')}" for s in fm["active_sieges"][:4])
+        if data.get("sieges"):
+            ss = "、".join(f"{s.get('sect')}→{s.get('target')}" for s in data["sieges"][:4])
             lines.append(f"围剿：{ss}")
-        lines.append(f"开放宗门令：{fm.get('n_open_missions', 0)} 条（/势力 可览）")
+        lines.append(f"开放宗门令：{data.get('open_missions', 0)} 条（/势力 可览）")
     except Exception:
         pass
     return "\n".join(lines)

@@ -266,6 +266,26 @@ def find_trace(name: str) -> Optional[LifeTrace]:
     return best
 
 
+def tombstone_data(name: str) -> Optional[Dict[str, Any]]:
+    """墓碑结构（/墓碑 tombstone 键；与 tombstone_text 同源）。查无此碑为 None。"""
+    trace = find_trace(name)
+    if trace is None:
+        return None
+    return {
+        "name": trace.name,
+        "realm": trace.realm,
+        "cause": trace.cause,
+        "lifespan_lived": trace.lifespan_lived,
+        "sin": trace.sin,
+        "merit": trace.merit,
+        "points": trace.points_gained,
+        "life_no": trace.life_no,
+        "epitaph": getattr(trace, "life_epitaph", "") or "",
+        "shadow_count": len(trace.shadow or []),
+        "open_promises_count": len(trace.open_promises or []),
+    }
+
+
 def find_tombstone(name: str) -> Optional[str]:
     """按道号查墓碑文本；查无此人返回 None（调用方呈现「江湖无此碑」）。"""
     trace = find_trace(name)

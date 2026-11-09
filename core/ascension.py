@@ -241,6 +241,30 @@ class AscensionEngine:
         return "\n".join(lines)
 
     @staticmethod
+    def board_rows(
+        viewer: Any = None,
+        arg: Optional[str] = None,
+        accounts: Optional[List[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """飞升榜行集（/飞升榜 ascend 键；与 panel_text 的分支选择同源）。空碑为 []。"""
+        viewer_user_id = str(getattr(viewer, "user_id", "") or "") or None
+        viewer_name = str(getattr(viewer, "name", "") or "")
+        arg = str(arg or "").strip()
+        if arg == "本纪元" or arg == "本季":
+            from core.season import season_info
+
+            current = int(season_info()["season_number"])
+            return AscensionEngine.ranked(season=current, accounts=accounts)[:ASCEND_TOP_N]
+        entries = AscensionEngine.collect_entries(accounts)
+        if arg and (arg in ("我", "自己") or arg == viewer_name or (viewer_user_id and arg == viewer_user_id)):
+            return [e for e in entries if viewer_user_id and e["user_id"] == viewer_user_id]
+        if arg:
+            exact = [e for e in entries if e["name"] == arg]
+            pool = exact or [e for e in entries if arg in e["name"]]
+            return pool[:5]
+        return AscensionEngine.ranked(accounts=accounts)[:ASCEND_TOP_N]
+
+    @staticmethod
     def panel_text(
         viewer: Any = None,
         arg: Optional[str] = None,

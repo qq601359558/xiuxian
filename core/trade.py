@@ -477,6 +477,33 @@ class TradeEngine:
             s.b_ok = False
 
     @staticmethod
+    def trade_session_dict(s: "TradeSession", viewer_id: str) -> Dict[str, Any]:
+        """当面交易会话结构（/交易 trade 键；与 TradeSession.summary() 同源）。
+
+        partner 为相对 viewer 的对方；a/b 两侧固定为发起方/应邀方。
+        """
+        side = s.side_of(viewer_id)
+        partner = s.b_name if side == "a" else s.a_name
+
+        def _side(name: str, stones: int, items: List[str], agreed: bool) -> Dict[str, Any]:
+            return {
+                "name": name,
+                "stones": int(stones),
+                "items": list(items),
+                "agreed": bool(agreed),
+            }
+
+        status = s.status.value if hasattr(s.status, "value") else str(s.status)
+        return {
+            "partner": partner,
+            "location": s.location,
+            "status": status,
+            "created_at": s.created_at,
+            "a": _side(s.a_name, s.a_stones, s.a_items, s.a_ok),
+            "b": _side(s.b_name, s.b_stones, s.b_items, s.b_ok),
+        }
+
+    @staticmethod
     def view(c: Character) -> Dict[str, Any]:
         _expire_stale()
         s = _session_for(c.id)
@@ -716,6 +743,10 @@ class NpcShopEngine:
             price = max(1, int(cfg["price"] * mult))
             rows.append((price, name, cfg))
         rows.sort(key=lambda x: x[0])
+        goods = [
+            {"name": name, "kind": cfg["kind"], "price": price, "desc": cfg.get("desc", "")}
+            for price, name, cfg in rows[:20]
+        ]
         for price, name, cfg in rows[:20]:
             lines.append(f"· {name}（{cfg['kind']}）— {price} 灵石  {cfg.get('desc','')[:24]}")
         if not npc_accepts_sell(npc):
@@ -723,7 +754,8 @@ class NpcShopEngine:
         else:
             sm, snote = attitude_sell_mult(npc, player.id)
             lines.append(f"回收：/npc卖 <货名> [数量]（{snote} ×{sm:.2f}，按商会回收价再乘）")
-        return {"success": True, "message": "\n".join(lines), "npc": npc}
+        # npc_goods 键（/npc货单）：与文本同循环、同价排序，desc 取全量（文本截 24 字）。
+        return {"success": True, "message": "\n".join(lines), "npc": npc, "goods": goods}
 
     @staticmethod
     def buy(player: Character, npc_name: str, item_name: str, qty: int = 1) -> Dict[str, Any]:
@@ -903,6 +935,23 @@ class AuctionLot(BaseModel):
 
 
 class AuctionEngine:
+    @staticmethod
+    def lot_panel_dict(lot: AuctionLot, now: Optional[float] = None) -> Dict[str, Any]:
+        """单拍品行（/拍卖行 auction.lots；与 AuctionLot.board_line 同源）。"""
+        t = now if now is not None else time.time()
+        return {
+            "id": lot.id,
+            "name": lot.item_name,
+            "start_price": lot.start_price,
+            "current_price": lot.current_bid if lot.bid_count else lot.start_price,
+            "leader": lot.leader_name or "（暂无）",
+            "seller": lot.seller_name,
+            "buyout_price": lot.buyout_price,
+            "remaining_s": max(0, int(lot.ends_at - t)),
+            "bid_count": lot.bid_count,
+            "status": lot.status.value if hasattr(lot.status, "value") else str(lot.status),
+        }
+
     @staticmethod
     def _load_open() -> List[AuctionLot]:
         from storage.db import AuctionLotRepository

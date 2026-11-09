@@ -366,6 +366,51 @@ class DemonStateEngine:
 
     # ---------------- 面板 ----------------
     @staticmethod
+    @staticmethod
+    def panel_data(c: Character, now: Optional[float] = None) -> Dict[str, Any]:
+        """镇魔面板结构（/镇魔 demon 键；与 panel_text 同源）。
+
+        调用方须在面板后 save（panel_text 内 sync 已改魔念锚点）。
+        """
+        t = now or time.time()
+        DemonStateEngine.sync(c, t)
+        seed = c.demon_seed
+        st = DemonStateEngine.stage_for(seed)
+        eff = _eff_dao_heart(c)
+        if st >= 2:
+            eruption = {
+                "breakthrough_pct": ERUPTION_CHANCE_BREAKTHROUGH[st],
+                "meditation_pct": ERUPTION_CHANCE_MEDITATION[st],
+            }
+        else:
+            eruption = None
+        return {
+            "stage": st,
+            "stage_name": STAGE_NAMES[st],
+            "seed": seed,
+            "seed_cap": DEMON_STAGE3_SEED,
+            "sin": int(c.karma.sin_value),
+            "blood_marked": bool(c.karma.is_blood_marked(t)),
+            "eff_dao_heart": eff,
+            "suppress_mult": _dao_suppress_mult(c),
+            "eruption": eruption,
+            "options": [
+                {
+                    "kind": "pill",
+                    "item": SUPPRESS_ITEM,
+                    "count": SUPPRESS_ITEM_COUNT,
+                    "stones": SUPPRESS_STONES,
+                    "seed_delta": SUPPRESS_PILL_SEED,
+                },
+                {
+                    "kind": "calm",
+                    "min_dao": SUPPRESS_CALM_MIN_DAO,
+                    "cooldown_h": 20,
+                    "seed_delta": SUPPRESS_CALM_SEED,
+                },
+            ],
+        }
+
     def panel_text(c: Character, now: Optional[float] = None) -> str:
         t = now or time.time()
         DemonStateEngine.sync(c, t)

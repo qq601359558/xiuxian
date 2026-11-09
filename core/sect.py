@@ -214,18 +214,40 @@ def sect_roster(sect: str) -> List[Character]:
     return out
 
 
-def format_sect_board(viewer: Optional[Character] = None) -> str:
-    lines = ["【天下仙门】"]
+def sect_board_data(viewer: Optional[Character] = None) -> List[Dict[str, Any]]:
+    """宗门板行集（/宗门 sects 键；与 format_sect_board 同源）。"""
+    out = []
     for name, cfg in SECTS_CONFIG.items():
         members = sect_roster(name)
         players = sum(1 for m in members if not str(m.user_id).startswith("npc_"))
-        lines.append(
-            f"· {name}（{cfg.get('alignment','')}）在册 {len(members)} 人（玩家 {players}）"
-            f"\n  总坛 {cfg.get('headquarters')} | 月俸 {cfg.get('monthly_salary')}"
-            f"\n  {cfg.get('rules_tip','')}"
+        out.append(
+            {
+                "name": name,
+                "alignment": cfg.get("alignment", ""),
+                "members": len(members),
+                "players": players,
+                "monthly_salary": cfg.get("monthly_salary"),
+                "headquarters": cfg.get("headquarters"),
+                "rules_tip": cfg.get("rules_tip", ""),
+                "top": [
+                    {"name": m.name, "rank": m.sect_rank, "realm": m.realm.name}
+                    for m in members[:3]
+                ],
+            }
         )
-        if members[:3]:
-            top = "、".join(f"{m.name}·{m.sect_rank}·{m.realm.name}" for m in members[:3])
+    return out
+
+
+def format_sect_board(viewer: Optional[Character] = None) -> str:
+    lines = ["【天下仙门】"]
+    for s in sect_board_data(viewer):
+        lines.append(
+            f"· {s['name']}（{s['alignment']}）在册 {s['members']} 人（玩家 {s['players']}）"
+            f"\n  总坛 {s['headquarters']} | 月俸 {s['monthly_salary']}"
+            f"\n  {s['rules_tip']}"
+        )
+        if s["top"]:
+            top = "、".join(f"{t['name']}·{t['rank']}·{t['realm']}" for t in s["top"])
             lines.append(f"  高层/知名：{top}")
     if viewer is not None:
         if viewer.sect:
