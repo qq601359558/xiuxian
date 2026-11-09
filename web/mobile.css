@@ -311,6 +311,8 @@ body.kb-open #toasts { bottom: 120px; /* QA-02：键盘态 120px = 60 坞 + 48 �
 .gallery-progress-row { min-height: 44px; text-align: left; background: var(--jade-100); border: 1px solid var(--input-line); border-radius: 10px; color: var(--jade-700); font-size: 14px; font-weight: 700; padding: 8px 10px; }
 .art-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .art-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--jade-100); border: 1px solid var(--input-line); border-radius: 999px; padding: 2px 8px 2px 2px; }
+.art-chip.learned { border-color: var(--line-gold); font-weight: 700; }
+.art-chip.unlearned { opacity: .55; }
 .art-thumb { width: 24px; height: 24px; border-radius: 50%; }
 .bag-thumb, .equip-thumb { width: 40px; height: 40px; display: block; }
 .detail-img { width: 100%; max-height: 180px; display: block; }
