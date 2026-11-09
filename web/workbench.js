@@ -481,15 +481,22 @@
       res = await fetch(url, opts);
     } catch (e) {
       setOffline(true);
-      throw new Error("无法感应阵枢灵脉（请确认服务已启动）");
+      const netErr = new Error("无法感应阵枢灵脉（请确认服务已启动）");
+      netErr.status = 0;
+      throw netErr;
     }
     if (!res.ok) {
       let msg = res.statusText || String(res.status);
+      let srvMsg = "";
       try {
         const j = await res.json();
         msg = j.error || j.message || msg;
+        srvMsg = j.message || "";
       } catch (_) {}
-      throw new Error(msg);
+      const httpErr = new Error(msg);
+      httpErr.status = res.status;
+      httpErr.serverMessage = srvMsg;
+      throw httpErr;
     }
     setOffline(false);
     return res.json();
@@ -835,6 +842,30 @@
   const CHAPTER_TIER_CN = { short: "短期", mid: "中期", final: "终局" };
   const CHAPTER_GROUP_CN = { setup: "立命", manage: "经营", conflict: "冲突", climax: "高潮", finale: "暮年" };
 
+  // B1-4 目标给路：current_target 由后端 thread_status_dict 下发（thread 顶层键，
+  // 入局侧同名键）；缺失/null 即不渲染按钮，不自造地点/人名。
+  function fateTargetOf(fate) {
+    const cands = [
+      fate && fate.thread && fate.thread.current_target,
+      fate && fate.current_target,
+      state.entry && state.entry.current_target,
+      state.status && state.status.fate && state.status.fate.thread && state.status.fate.thread.current_target,
+    ];
+    return cands.find((t) => t && typeof t === "object" && (t.npc_name || t.npc_location)) || null;
+  }
+  function fateTargetHtml(fate) {
+    const t = fateTargetOf(fate);
+    if (!t) return "";
+    const name = esc(t.npc_name || "");
+    const loc = esc(t.npc_location || "");
+    if (t.same_location) {
+      const btn = t.npc_name ? `<button type="button" class="btn sm primary flex-none" data-cmd="/交谈 ${name}">上前交谈</button>` : "";
+      return `<div class="flex items-center gap-2 text-xs mt-2"><span class="flex-1 text-jade-900 font-bold">就在此处 · ${loc}</span>${btn}</div>`;
+    }
+    const btn = t.npc_location ? `<button type="button" class="btn sm secondary flex-none" data-cmd="/go ${loc}">前往</button>` : "";
+    return `<div class="flex items-center gap-2 text-xs mt-2"><span class="flex-1 text-slate-600">${name ? name + " " : ""}在${loc}</span>${btn}</div>`;
+  }
+
   function fateThreadHtml(fate) {
     const th = fate && typeof fate === "object" ? fate.thread : null;
     if (!th || typeof th !== "object") return "";
@@ -863,6 +894,7 @@
         ${action}
       </div>
       <p class="text-xs text-slate-500 mt-1">${meta.join(" · ")}</p>
+      ${fateTargetHtml(fate)}
       <div class="mt-1">${chapters}</div>
       ${fp.text ? `<p class="text-sm font-bold text-jade-900 mt-3">终局命题：${esc(fp.text)}${fp.status ? `（${esc(THREAD_STATUS_CN[fp.status] || fp.status)}）` : ""}</p>` : ""}
     </div>`;
@@ -1107,6 +1139,7 @@
       <h1 class="text-xl font-bold text-jade-950">入局 · 当下之事</h1>
       <div class="mt-3 space-y-2 text-sm text-slate-700 leading-relaxed">
         ${lines.fate ? `<p>${esc(lines.fate)}</p>` : ""}
+        ${fateTargetHtml(state.status && state.status.fate)}
         ${chainsText ? `<p>${esc(chainsText)}</p>` : ""}
         ${relTexts.length ? `<p>${relTexts.map((t) => esc(t)).join("；")}</p>` : ""}
         ${pvHtml}
@@ -2260,8 +2293,13 @@
     const artNames = [...new Set([...(Array.isArray(s.skills) ? s.skills : []), ...((s.custom_arts || []).map((a) => (a && a.name) || "")), (s.arts && s.arts.main) || "", ...((s.arts && s.arts.sub) || [])].filter(Boolean))];
     const artsHtml = artNames.length ? artNames.map((n) => `
       <span class="art-chip">${galleryImg((s.art_images || {})[n], "art-thumb", n)}<span>${esc(n)}</span></span>`).join("") : `<span class="text-[11px] text-slate-500">尚未习得功法</span>`;
-    const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => `
-      <span class="art-chip">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")}</span></span>`).join("");
+    // B1-7：神通图鉴（全录）——catalog 每项按名与已习得 skills[] 求交集标习得态
+    const learnedSet = new Set(Array.isArray(s.skills) ? s.skills : []);
+    const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => {
+      const learned = learnedSet.has(sp.name);
+      return `
+      <span class="art-chip ${learned ? "learned" : "unlearned"}">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")} · ${learned ? "已习得" : "未习得"}</span></span>`;
+    }).join("");
     // 本命温养法宝卡（CA-004）：只读真实 status.equipped——首件攻伐兵刃，
     // 无穿戴时整卡省略；器灵有灵才显 spirit.name，主属性走 treasurePanelStatLine。
     const sanctumEqs = Array.isArray(s.equipped) ? s.equipped : [];
@@ -2386,9 +2424,9 @@
               </div>
             </div>
             <div class="bg-white/80 rounded-xl p-3 border border-jade-200/80 space-y-2">
-              <div class="text-xs font-bold text-jade-900">功法与神通图录</div>
+              <div class="text-xs font-bold text-jade-900">已习得法门</div>
               <div class="art-chips">${artsHtml}</div>
-              ${spellsHtml ? `<div class="art-chips">${spellsHtml}</div>` : ""}
+              ${spellsHtml ? `<div class="text-xs font-bold text-jade-900">神通图鉴（全录）</div><div class="art-chips">${spellsHtml}</div>` : ""}
             </div>
 
             <!-- 5 大槽位护道法宝装备架 -->
@@ -2720,6 +2758,7 @@
                 <div class="flex gap-2 pt-1">
                   <button type="button" class="flex-1 py-1.5 rounded ${isMed ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-jade-700 hover:bg-jade-800 text-white cursor-pointer'} text-xs font-medium" data-sanctum-act="meditate_enter">闭关一刻</button>
                   <button type="button" class="flex-1 py-1.5 rounded ${isMed ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer animate-pulse' : 'bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 cursor-pointer'} text-xs font-medium" data-sanctum-act="meditate_leave">收功出关</button>
+                  <button type="button" class="flex-1 py-1.5 rounded bg-white hover:bg-jade-50 text-jade-800 border border-jade-300 text-xs font-medium cursor-pointer" data-cmd="/修炼">修炼</button>
                 </div>
               </div>
             </div>
@@ -6654,6 +6693,7 @@
       }
       renderChat(true);
       chatMsg("", "传音受阻：" + e.message, "sys");
+      clearChatInputs();
       toast(e.message, "bad");
     } finally {
       if (!isPlayer) busy(false);
@@ -6671,6 +6711,12 @@
     el.style.display = text ? "" : "none";
   }
 
+  // B1-3：交谈发送失败时清空双输入框（弹窗 chatInput 与底部 cmdInput），可直接重发
+  function clearChatInputs() {
+    const ci = $("chatInput"); if (ci) ci.value = "";
+    const di = $("cmdInput"); if (di) di.value = "";
+  }
+
   function handleChatData(data, reqEpoch) {
     if (!data) return;
     if (data.status) applyStatus(data.status, reqEpoch);
@@ -6680,6 +6726,7 @@
     if (data.ok === false) {
       chatMsg("", text || "传音未送达", "sys");
       pushFeed(text, "bad");
+      clearChatInputs();
       return;
     }
     if (data.is_player) {
@@ -8345,7 +8392,7 @@ return "";
         status: s,
       };
     }
-    if (c.startsWith("/闭关") || c.startsWith("/打坐")) {
+    if (c.startsWith("/闭关") || c.startsWith("/打坐") || c.startsWith("/修炼")) {
       s.is_meditating = true;
       s.meditating = true;
       return { ok: true, text: "【洞府闭关】洞府大阵锁闭，道友已入定吐纳，周天运转，灵息绵延。", status: s };
@@ -8658,6 +8705,7 @@ return "";
       state.commands = [
         { cmd: "/look", usage: "/look", desc: "观照道身状态" },
         { cmd: "/闭关", usage: "/闭关 [小时]", desc: "洞府入定吐纳" },
+        { cmd: "/修炼", usage: "/修炼 [小时]", desc: "即入定修行，与闭关同源" },
         { cmd: "/出关", usage: "/出关", desc: "提前收功出关" },
         { cmd: "/突破", usage: "/突破", desc: "引动九天雷劫破境" },
         { cmd: "/探险", usage: "/探险 [秘境名]", desc: "踏入十方大荒历练" },
@@ -8861,8 +8909,12 @@ return "";
       await loadCommands();
       await refreshAll();
     } catch (err) {
-      $("gateMsg").textContent = err.message || "入世受阻";
-      toast(err.message, "bad");
+      // B1-1 文案分流（仅注册/登录调用点）：503 显示后端诚实文案（j.message，
+      // 如「世界正在演化，请稍后重试」），不得误报服务未启动；400 等显示后端
+      // error 原文（err.message 既有口径）；「无法感应」仅真网络失败（status 0）。
+      const authMsg = err.status === 503 ? (err.serverMessage || "世界正在演化，请稍后重试") : (err.message || "入世受阻");
+      $("gateMsg").textContent = authMsg;
+      toast(authMsg, "bad");
     } finally {
       btn.disabled = false;
       btn.textContent = old;
