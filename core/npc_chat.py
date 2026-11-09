@@ -518,14 +518,84 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
             "hangup_reason": f"【{npc.name}】无意再谈。",
             "attitude_delta": -2,
         }
-    if "记仇" in pers or "好斗" in pers:
-        line = f"「{npc.name}」冷哼一声：「有话快说。」"
-    elif "市侩" in pers or "贪" in pers:
-        line = f"「{npc.name}」搓了搓手：「道友可是有买卖？」"
-    elif "淡泊" in pers or "清高" in pers:
-        line = f"「{npc.name}」淡淡道：「嗯。」"
+    # B1-3 兜底池：按性格扩充——每种性格 ≥3 条在场短回复，有内容、不许只剩「嗯。」；
+    # 分类维度沿用 npc_mind._local_line（客套/打听/买卖/秘境/态度）：取会话末句归类后
+    # 回显原话短摘，使回复贴着话题走。模板只叙情性，零数值（红线）。
+    last_text = ""
+    try:
+        _msgs = rec.get("messages") or []
+        if _msgs:
+            last_text = str(_msgs[-1].get("text") or "")
+    except Exception:
+        last_text = ""
+    brief = (last_text.strip()[:16] or "方才那话")
+    if any(k in last_text for k in ("杀", "找死", "滚", "动手", "挑衅")):
+        _topic = "attitude"
+    elif any(k in last_text for k in ("买", "卖", "价", "灵石", "交易", "生意")):
+        _topic = "trade"
+    elif any(k in last_text for k in ("打听", "消息", "下落", "哪里", "听说", "何处")):
+        _topic = "ask"
+    elif any(k in last_text for k in ("秘境", "机缘", "古洞", "遗迹")):
+        _topic = "realm"
+    elif any(k in last_text for k in ("道友", "幸会", "有礼", "请教", "拜见", "你好")):
+        _topic = "greet"
     else:
-        line = f"「{npc.name}」看向你：「然后呢？」"
+        _topic = "general"
+    _pools: Dict[str, Any] = {
+        "谨慎": [
+            "「{name}」审视你片刻：「话先说一半——你提『{brief}』，究竟想探什么？」",
+            "「{name}」按住袖口：「此地耳目不少。『{brief}』之事，低声些。」",
+            "「{name}」沉吟道：「『{brief}』我记下了。无凭无据的话，我可不会轻信。」",
+        ],
+        "豪爽": [
+            "「{name}」抱拳大笑：「痛快！『{brief}』这事，我记在心上了。」",
+            "「{name}」拍了拍你的肩：「道友既开口，『{brief}』我自当尽力。」",
+            "「{name}」朗声道：「相逢即是缘。『{brief}』坐下慢慢说。」",
+        ],
+        "记仇": [
+            "「{name}」冷哼一声：「『{brief}』？有话快说，我的耐心不多。」",
+            "「{name}」眼神阴沉：「你今日提的『{brief}』，我可都记在账上了。」",
+            "「{name}」皮笑肉不笑：「说吧。『{brief}』若是戏弄于我，后果你清楚。」",
+        ],
+        "好斗": [
+            "「{name}」按住兵刃：「『{brief}』？少绕弯子，要打还是要谈？」",
+            "「{name}」瞪眼道：「痛快些！『{brief}』这事，我拳头比嘴快。」",
+            "「{name}」活动筋骨：「提『{brief}』作甚？先与我过两招再说！」",
+        ],
+        "贪": [
+            "「{name}」搓了搓手：「『{brief}』？先说说，这事值多少灵石。」",
+            "「{name}」眼睛一亮：「买卖也好，消息也罢——『{brief}』，开个价吧。」",
+            "「{name}」拨弄算盘：「『{brief}』我听着有几分油水，细说来听听。」",
+        ],
+        "市侩": [
+            "「{name}」笑眯眯道：「好说好说——『{brief}』，咱们慢慢商量。」",
+            "「{name}」压低声音：「『{brief}』这事有门路，就看道友会不会做人了。」",
+            "「{name}」四下张望：「消息、货路、人情——『{brief}』你到底想要哪一样？」",
+        ],
+        "清高": [
+            "「{name}」淡淡道：「嗯，『{brief}』之事，吾已知之。」",
+            "「{name}」负手而立：「『{brief}』非同小可，容吾静思片刻。」",
+            "「{name}」微微颔首：「你所言『{brief}』，吾听过了，静候便是。」",
+        ],
+        "淡泊": [
+            "「{name}」淡淡道：「嗯，『{brief}』之事，吾已知之，随缘便是。」",
+            "「{name}」望着远山：「『{brief}』……世间纷扰，何必都往心里去。」",
+            "「{name}」拂袖道：「你说的『{brief}』我听过了。茶凉之前，去留随意。」",
+        ],
+        "通用": [
+            "「{name}」看向你：「『{brief}』我听明白了，你接着说。」",
+            "「{name}」颔首道：「『{brief}』此事有些意思，容我想想。」",
+            "「{name}」应道：「你提『{brief}』——然后呢？不妨说得再细些。」",
+        ],
+    }
+    _pool = _pools["通用"]
+    for _key, _opts in _pools.items():
+        if _key != "通用" and _key in pers:
+            _pool = _opts
+            break
+    _seed = turns + sum(ord(ch) for ch in (_topic + last_text))
+    _tpl = _pool[_seed % len(_pool)]
+    line = _tpl.replace("{name}", npc.name).replace("{brief}", brief)
     return {"line": line, "will_continue": True, "attitude_delta": 0}
 
 

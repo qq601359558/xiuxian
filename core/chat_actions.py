@@ -312,8 +312,11 @@ def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
         role = npc.sect_rank or ""
     pills, mats, arrs = [], [], []
     seen = set()
-    for name, cfg in ITEM_CATALOG.items():
-        if name in seen:
+    for _key, cfg in ITEM_CATALOG.items():
+        # B1-6：去重改按解析后身份（cfg.id，无则显示名），显示用 cfg.name or 键（目录双键不动）
+        name = cfg.get("name") or _key
+        ident = cfg.get("id") or name
+        if ident in seen:
             continue
         kind = cfg.get("kind")
         if kind == "pill":
@@ -322,7 +325,7 @@ def _shop_stock_preview(npc: Character, limit: int = 6) -> List[str]:
             arrs.append(name)
         else:
             mats.append(name)
-        seen.add(name)
+        seen.add(ident)
     blob = role + (npc.name or "") + (npc.sect or "")
     if any(k in blob for k in ("丹", "药")):
         out = pills[:limit]

@@ -915,13 +915,43 @@ class FateThreadEngine:
         chapters_out = []
         for ch in (thread.chapters or []):
             goal = goals_by_id.get(str(ch.get("goal_id") or ""))
-            chapters_out.append({
+            _row: Dict[str, Any] = {
                 "idx": ch.get("idx"), "group": ch.get("group"),
                 "kind": ch.get("kind"), "tier": ch.get("tier"),
                 "title": ch.get("title"), "goal_text": ch.get("goal_text"),
                 "status": ch.get("status"),
                 "deadline_at": float(goal.get("deadline_at") or 0.0) if goal else 0.0,
-            })
+            }
+            # B1-4：章内 check 透传（存在时才带，只取 kind/ref/npc_id 三键）
+            _chk = ch.get("check") or {}
+            if _chk:
+                _row["check"] = {
+                    k: _chk.get(k) for k in ("kind", "ref", "npc_id") if _chk.get(k)
+                }
+            chapters_out.append(_row)
+        # B1-4：current_target——第一个 active 且 visit 类 check 的章，现查目标 NPC
+        # （NPC 会迁徙，必须现查，禁止存快照）；无此类章/查不到 NPC 时为 null。
+        current_target: Optional[Dict[str, Any]] = None
+        for ch in (thread.chapters or []):
+            if ch.get("status") != "active":
+                continue
+            _chk = ch.get("check") or {}
+            _kind = str(_chk.get("kind") or "")
+            if not (_kind == "visit" or _kind.startswith("visit")):
+                continue
+            _npc_id = str(_chk.get("npc_id") or "")
+            if not _npc_id:
+                break
+            _npc = _char_by_id(_npc_id)
+            if _npc is None:
+                break
+            current_target = {
+                "npc_id": _npc_id,
+                "npc_name": _npc.name,
+                "npc_location": _npc.location,
+                "same_location": _npc.location == char.location,
+            }
+            break
         return {
             "id": thread.id,
             "title": thread.title,
@@ -939,6 +969,7 @@ class FateThreadEngine:
                 "status": str(thread.final_proposition.get("status") or "active"),
             },
             "current_chapter": thread.current_chapter,
+            "current_target": current_target,
             "chapters": chapters_out,
             "shelvable": thread.status == "active",
             "origin_present": bool(thread.origin),

@@ -238,7 +238,7 @@ def probe_ai_channel(force: bool = False) -> Dict[str, Any]:
             ok = bool(data and data.get("line"))
             result["ok"] = ok
             if not ok:
-                result["error"] = "对话测试未返回有效内容（见 data/server.log）"
+                result["error"] = "对话测试未返回有效内容"
             else:
                 result["error"] = ""
                 result["sample"] = str(data)[:80]
