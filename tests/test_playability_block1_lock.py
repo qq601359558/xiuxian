@@ -287,3 +287,79 @@ def test_register_http_db_locked_returns_503(http_world, monkeypatch):
     assert body.get("error") == "SERVER_BUSY"
     assert body.get("retryable") is True
     assert headers.get("Retry-After") == "2"
+
+
+# ================= 评审 MF-1：锁内 AI 点缀短超时 + 熔断不计账 =================
+
+def test_mf1_chat_json_count_failure_false_skips_breaker(monkeypatch):
+    """点缀调用（count_failure=False）连续可数失败不计入主通道熔断；
+    默认口径仍按既有规则计数开闸（熔断记账评估的接缝直测）。"""
+    import ai.gateway as gw
+
+    monkeypatch.setattr(gw, "_chat_json_inner", lambda prompt, timeout=0: (None, "timeout"))
+    gw.breaker_reset()
+    try:
+        for _ in range(3):
+            assert gw._chat_json("点缀", timeout=2, count_failure=False) is None
+        snap = gw.breaker_state()
+        assert snap["failures"] == 0 and snap["state"] == "closed", snap
+        for _ in range(3):
+            assert gw._chat_json("主通道", timeout=2) is None
+        snap = gw.breaker_state()
+        assert snap["failures"] >= 3 and snap["state"] == "open", snap
+    finally:
+        gw.breaker_reset()
+    print("✓ MF-1 熔断接缝：count_failure=False 不计数、默认口径仍开闸")
+
+
+def test_mf1_collusion_ai_short_timeout(world, monkeypatch):
+    """合谋点缀（tick 锁内 apply 段调用链）：_chat_json 收到 timeout=2 +
+    count_failure=False；AI 叙事仍被采用（行为与既有成功路径一致）。"""
+    import ai.gateway as gw
+    from core.clock import WorldClock
+    from core.collusion import ensure_link, try_collude_pair
+
+    a = WorldClock.create_new_character("npc_mf1_a", "合谋甲")
+    b = WorldClock.create_new_character("npc_mf1_b", "合谋乙")
+    a.location = b.location = "青云坊市客栈"
+    CharacterRepository.save(a)
+    CharacterRepository.save(b)
+    ensure_link(a, b, "恩", note="同乡")
+
+    seen = {}
+
+    def _fake_chat_json(prompt, timeout=0, **kw):
+        seen["timeout"] = timeout
+        seen["count_failure"] = kw.get("count_failure")
+        return {"narrative": "二人低语数句，旋即分开。"}
+
+    monkeypatch.setattr(gw, "ai_ready", lambda: True)
+    monkeypatch.setattr(gw, "_chat_json", _fake_chat_json)
+    r = try_collude_pair(a, b, use_ai=True)
+    assert r is not None and r.get("source") == "ai", r
+    assert seen["timeout"] == 2, seen
+    assert seen["count_failure"] is False, seen
+    print("✓ MF-1 合谋：短超时 2s + count_failure=False 透传、AI 叙事采用")
+
+
+def test_mf1_world_arc_ai_short_timeout(monkeypatch):
+    """世界弧阶段点缀（tick 锁内、每 tick ≤2 次）：router.invoke 收到
+    timeout=2 + count_failure=False；成功叙事仍被采用。"""
+    import ai.router as router
+    import config as cfg
+    from core.world_arc import _ai_stage_text
+
+    monkeypatch.setattr(cfg, "LLM_API_KEY", "mf1-test-key")
+    seen = {}
+
+    def _fake_invoke(scene_id, payload=None, actor_id="system", timeout=0, **kw):
+        seen["timeout"] = timeout
+        seen["count_failure"] = kw.get("count_failure")
+        return {"ok": True, "data": {"narrative": "弧光叙事"}}
+
+    monkeypatch.setattr(router, "invoke", _fake_invoke)
+    out = _ai_stage_text({"id": "arc_mf1", "kind": "blood_feud"}, "escalate", "模板句")
+    assert out == "弧光叙事", out
+    assert seen["timeout"] == 2, seen
+    assert seen["count_failure"] is False, seen
+    print("✓ MF-1 世界弧：短超时 2s + count_failure=False 透传、AI 叙事采用")

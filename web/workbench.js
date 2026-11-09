@@ -2293,13 +2293,11 @@
     const artNames = [...new Set([...(Array.isArray(s.skills) ? s.skills : []), ...((s.custom_arts || []).map((a) => (a && a.name) || "")), (s.arts && s.arts.main) || "", ...((s.arts && s.arts.sub) || [])].filter(Boolean))];
     const artsHtml = artNames.length ? artNames.map((n) => `
       <span class="art-chip">${galleryImg((s.art_images || {})[n], "art-thumb", n)}<span>${esc(n)}</span></span>`).join("") : `<span class="text-[11px] text-slate-500">尚未习得功法</span>`;
-    // B1-7：神通图鉴（全录）——catalog 每项按名与已习得 skills[] 求交集标习得态
-    const learnedSet = new Set(Array.isArray(s.skills) ? s.skills : []);
-    const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => {
-      const learned = learnedSet.has(sp.name);
-      return `
-      <span class="art-chip ${learned ? "learned" : "unlearned"}">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")} · ${learned ? "已习得" : "未习得"}</span></span>`;
-    }).join("");
+    // MF-3（块一评审，前提纠正）：神通图鉴仅作全录展示。status.skills 存的是
+    // 功法名、spells_catalog 是神通名，全仓无「已习得神通」数据源，两者求交集
+    // 恒空、逐项标「未习得」属误读——已撤销习得标注，只保留段标题口径。
+    const spellsHtml = (Array.isArray(s.spells_catalog) ? s.spells_catalog : []).map((sp) => `
+      <span class="art-chip">${galleryImg(sp.img, "art-thumb", sp.name || "神通")}<span>${esc(sp.name || "")}</span></span>`).join("");
     // 本命温养法宝卡（CA-004）：只读真实 status.equipped——首件攻伐兵刃，
     // 无穿戴时整卡省略；器灵有灵才显 spirit.name，主属性走 treasurePanelStatLine。
     const sanctumEqs = Array.isArray(s.equipped) ? s.equipped : [];

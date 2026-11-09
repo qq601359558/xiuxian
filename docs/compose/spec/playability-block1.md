@@ -102,8 +102,11 @@
   （出身植入非玩家目击的变化）；只动 briefing/lines 层，relations_marks 同源口径（同场箭头
   workbench.js:892）与命盘 relations_recent 不动。过滤后无真实变化则整段不渲染（前端既有空段处理核对）。
 - 神通图误读：后端 skills 与 spells_catalog 本为两字段（world.py:5111 / :5021-5030），纯前端 labeling：
-  双端命盘把该段标题改「神通图鉴（全录）」，catalog 每项按名与 skills[] 求交集标「已习得/未习得」
-  （workbench.js:2259-2263,2389-2391；mobile.js:437-455），已习得项视觉区分；skills 芯片区标题保持「已习得法门」口径。
+  双端命盘把该段标题改「神通图鉴（全录）」；skills 芯片区标题保持「已习得法门」口径。
+  **前提纠正（评审 MF-3，见文末 Finalize）**：原口径「catalog 每项按名与 skills[] 求交集标
+  已习得/未习得」已撤销——status.skills 存的是功法名、spells_catalog 是 5 个神通名，
+  全仓无「已习得神通」数据源，交集恒空、逐项标注恒为「未习得」，本身即误读来源。
+  现行口径：图鉴段只作全录展示，不标任何习得态。
 
 ## Out of Scope
 - handle() 全局锁改造（仅 /转世 有界化）；tick 其余阶段拆锁；AI 上游可用性本身；
@@ -128,3 +131,36 @@
 - T3 前端双端：B1-1 文案分流、B1-3 发送失败态、B1-4 目标按钮、B1-5 芯片与命令表、B1-7 神通图 labeling。
 - T4 独立评审：diff 全审（规格符合/契约/完整性守恒律——新入口须经既有 assert_alive/assert_idle 口径）。
 - T5 QA：全量回归 + 模拟玩家复测 + 发版部署冒烟。
+
+## Finalize
+
+### 评审修复轮（2026-11-10，MF-1~MF-3 + SF-1/SF-2/SF-4）
+
+- **MF-1 锁内 AI 点缀短超时**：tick 锁内两处纯叙事点缀改短超时 2s——合谋
+  （`core/collusion.py` try_collude_pair 新增 ai_timeout=2.0 透传至 _chat_json）、
+  世界弧阶段文案（`core/world_arc.py` _ai_stage_text 经 ai.router.invoke(timeout=2)）；
+  超时/失败走既有本地句/模板兜底，规则结算未动。熔断记账：已给网关加干净接缝
+  `_chat_json(..., count_failure=False)`（router.invoke 同名透传，仅默认网关生效），
+  点缀失败改记 neutral 不计入主通道熔断（closed 态无副作用；半开探测时 neutral
+  仍按既有口径重开，探测语义不被架空；成功仍记 record_success）。直测锁定该口径。
+- **MF-2 /ai 面板去泄漏**：`server/world.py` /ai 的 mode 改中性表述（本机代理/云端直连）、
+  删除「地址：{base}」行；回包 ai_data 副本同步脱敏（去 base、mode 改中性口径，
+  world_state 存储原件不动）。新增 USE_CCSWITCH=1 口径锁定测试（整回包断言无
+  CC Switch/CCSWITCH/USE_CCSWITCH/LLM_API/.env/server.log）。
+- **MF-3 神通图习得标撤销**：前提纠正已同步 B1-7 段——skills 存功法名、spells_catalog
+  为神通名、无已习得神通数据源、交集恒空。双端（workbench.js/mobile.js）删除逐项
+  已习得/未习得标注与求交集代码，只保留段标题「神通图鉴（全录）」；T3 新增的
+  learned/unlearned CSS（双端各 2 行）一并删除；新增前端契约测试锁定。
+- **SF-1 director _merge_active 无 id 项**：无 id 项不再以 None 为键互相覆盖——
+  不参与 id 合并，按内容相等作身份对齐（与 id 项同口径：各自保留、本轮明确移除
+  丢弃、同一项多侧出现只留一份），补直测。
+- **SF-2 agenda 无基线车道收窄**：段一取基线抛异常（baseline=None）时，段三落盘前
+  重读该行——行已存在按陈旧丢弃（write_audit reason=baseline_missing_row_exists）；
+  仅行确实不存在才沿原内存对象口径落盘。补双向测试。
+- **SF-4 同类清扫**：`ai/gateway.py` ai_block_reason「已配置但探测失败」分支改世界观内
+  文案（last_error 原文只进 log、不带自检指引）；`core/world_director.py` 质量自检
+  detail「有 Key/CCSWITCH」改中性「已配置/未配置」。扩锁定测试覆盖该分支输出。
+- **SF-3（跨 NPC 可见性取舍）记录**：本轮不改代码。取舍内容：agenda 三段式的段三
+  复验只覆盖被 tick 的 NPC 本行基线（updated_at 比对），不做跨 NPC 行的一致性校验
+  ——AI 窗口内其他 NPC/目标角色的并发变动不在本轮陈旧判定范围内。此为已知的
+  可见性取舍（换取段三简单性与既有落盘口径），后续块如需跨行一致性另立 spec 评估。

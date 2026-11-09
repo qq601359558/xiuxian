@@ -328,6 +328,22 @@ class NpcAgendaEngine:
                     "reason": "row_changed_during_ai", "outcome": resolution.get("outcome"),
                 })
                 return None
+        else:
+            # SF-2（块一评审）：段一取基线抛异常导致 baseline=None 时，车道
+            # 收窄——落盘前重读该行：行已存在说明段一时 DB 中已有存档，
+            # 无基线即无法证明未被并发改写，按陈旧丢弃（write_audit 同口径）；
+            # 仅行确实不存在（尚未落盘的内存对象口径）才沿原行为直接落盘。
+            fresh_no_base = None
+            try:
+                fresh_no_base, _fu = CharacterRepository.get_by_id_with_meta(npc_id)
+            except Exception:
+                fresh_no_base = None
+            if fresh_no_base is not None:
+                write_audit({
+                    "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
+                    "reason": "baseline_missing_row_exists", "outcome": resolution.get("outcome"),
+                })
+                return None
         try:
             npc = Character.model_validate_json(prep["npc_json"])
         except Exception:

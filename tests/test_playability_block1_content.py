@@ -417,3 +417,80 @@ def test_b17_briefing_relations_filters_origin():
     finally:
         _cleanup(user_ids=[puid, nuid_o, nuid_r],
                  char_ids=[player.id, npc_o.id, npc_r.id])
+
+
+# ================= 评审 MF-2：/ai 面板 USE_CCSWITCH=1 口径去泄漏 =================
+
+_FORBIDDEN_MF2 = ("CC Switch", "CCSWITCH", "USE_CCSWITCH", "LLM_API", ".env", "server.log")
+
+
+def test_mf2_ai_panel_ccswitch_mode_no_ops_leak(monkeypatch):
+    """USE_CCSWITCH=1 口径下调 /ai：模式为中性表述、无地址行，整个回包
+    （文本 + ai_data 结构化字段）不含运维词与通道地址原文。"""
+    import ai.gateway as gw
+
+    monkeypatch.setattr(config, "USE_CCSWITCH", True)
+    monkeypatch.setattr(config, "LLM_API_KEY", "mf2-test-key")
+    monkeypatch.setattr(gw, "USE_CCSWITCH", True)
+    monkeypatch.setattr(gw, "LLM_API_KEY", "mf2-test-key")
+    monkeypatch.setattr(gw, "_chat_json", lambda prompt, timeout=0, **kw: {"line": "通了"})
+
+    from server.world import World
+
+    tag = _tag()
+    uid = f"pb1ct_mf2_{tag}"
+    try:
+        old_health = WorldStateRepository.get("ai_health")
+    except Exception:
+        old_health = None
+    w = World(auto_tick=False)
+    r = w.join(f"自检客{tag}", user_id=uid)
+    tok = r["token"]
+    char = w.get_char(tok)
+    try:
+        r_ai = w.handle(tok, "/ai")
+        assert r_ai.get("ok") is True, r_ai
+        blob = str(r_ai)
+        for bad in _FORBIDDEN_MF2:
+            assert bad not in blob, f"/ai(CCSWITCH) 泄漏运维词 {bad}：{blob[:400]}"
+        text = r_ai.get("text") or ""
+        assert "本机代理" in text, text
+        assert "地址" not in text, text
+        ai_data = r_ai.get("ai_data") or {}
+        assert "base" not in ai_data, ai_data
+        assert ai_data.get("mode") == "本机代理", ai_data
+        print("✓ MF-2 /ai：CCSWITCH 口径下模式中性、无地址、回包无运维词")
+    finally:
+        _cleanup(user_ids=[uid], char_ids=[char.id] if char else [], tokens=[tok])
+        try:
+            if old_health is None:
+                WorldStateRepository.delete("ai_health")
+            else:
+                WorldStateRepository.set("ai_health", old_health)
+        except Exception:
+            pass
+
+
+# ================= 评审 SF-4：ai_block_reason 探测失败分支去泄漏 =================
+
+def test_sf4_ai_block_reason_probe_failed_branch_worldview(monkeypatch):
+    import ai.gateway as gw
+
+    monkeypatch.setattr(
+        gw, "ai_health_status",
+        lambda: {"last_error": "ConnectError: LLM_API_KEY rejected, see server.log"},
+    )
+    monkeypatch.setattr(config, "ALLOW_LOCAL_AI", True)
+    reason = gw.ai_block_reason()
+    assert reason, "已配置但探测失败分支应给出玩家文案"
+    assert "灵机" in reason, reason
+    for bad in _FORBIDDEN_MF2 + ("ConnectError", "自检", "探测失败"):
+        assert bad not in reason, f"ai_block_reason 泄漏 {bad}：{reason}"
+    # 导演质量自检 detail 同口径：已配置/未配置中性措辞，经 /ai 面板展示无运维词
+    from core.world_director import director_quality_report
+
+    q = director_quality_report()
+    checks = {c.get("name"): c for c in q.get("checks") or []}
+    detail = (checks.get("ai_channel_configured") or {}).get("detail") or ""
+    assert detail in ("已配置", "仅本地降级", "未配置"), detail
+    print("✓ SF-4：ai_block_reason 探测失败分支为世界观文案、导演自检 detail 中性")

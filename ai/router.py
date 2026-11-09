@@ -63,10 +63,16 @@ def _audit(scene_id: str, actor_id: str, ok: bool, error: str, extra: Optional[d
     write_audit(rec)
 
 
-def _call_gateway(prompt: str, timeout: float) -> Optional[Dict[str, Any]]:
+def _call_gateway(
+    prompt: str, timeout: float, *, count_failure: bool = True
+) -> Optional[Dict[str, Any]]:
     from ai.gateway import _chat_json
 
-    return _chat_json(prompt, timeout=timeout)
+    # 默认口径走既有两参调用（保持 _chat_json 的既有调用面/stub 契约不变），
+    # 仅点缀口径（count_failure=False）才显式传参。
+    if count_failure:
+        return _chat_json(prompt, timeout=timeout)
+    return _chat_json(prompt, timeout=timeout, count_failure=False)
 
 
 def invoke(
@@ -77,8 +83,14 @@ def invoke(
     actor_id: str = "system",
     timeout: float = LLM_TIMEOUT_SECONDS,
     gateway: Any = None,
+    count_failure: bool = True,
 ) -> Dict[str, Any]:
-    """中台唯一 AI 调用入口。gateway 可注入（测试）。"""
+    """中台唯一 AI 调用入口。gateway 可注入（测试）。
+
+    count_failure=False（块一评审 MF-1）：纯叙事点缀场景专用，透传网关
+    使其失败不计入主通道熔断；仅默认网关通道生效，注入的 gateway 仍按
+    既有 (prompt, timeout) 两参口径调用。
+    """
     payload = dict(payload or {})
     spec = get_scene(scene_id)
     if spec is None:
@@ -116,14 +128,16 @@ def invoke(
         _audit(scene_id, actor_id, False, err)
         return _result(ok=False, scene_id=scene_id, error=err)
 
-    call = gateway if gateway is not None else _call_gateway
     t0 = time.time()
     data = None
     error = ""
     used_fallback = False
 
     try:
-        data = call(prompt, timeout)
+        if gateway is not None:
+            data = gateway(prompt, timeout)
+        else:
+            data = _call_gateway(prompt, timeout, count_failure=count_failure)
     except Exception as e:
         error = f"gateway_error:{e}"
 

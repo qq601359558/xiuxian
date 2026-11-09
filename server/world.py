@@ -2056,18 +2056,19 @@ class World:
                 return {"ok": True, "text": "\n".join(lines), "items": rows}
             if action in ("/ai", "/ai自检"):
                 from ai.gateway import probe_ai_channel, ccswitch_runtime
-                from config import LLM_API_BASE, LLM_MODEL, LLM_API_KEY, USE_CCSWITCH
+                from config import LLM_MODEL, USE_CCSWITCH
                 from core.world_director import director_quality_report
 
                 rt = ccswitch_runtime() if USE_CCSWITCH else {}
                 health = probe_ai_channel(force=True)
                 ok = bool(health.get("ok"))
-                mode = "CC Switch 本机代理" if USE_CCSWITCH else "OpenAI 兼容直连"
-                base = rt.get("base") or LLM_API_BASE
+                # MF-2（块一评审）：玩家面板去运维泄漏——模式只作中性表述，
+                # 通道地址（LLM_API_BASE 原文）不出现在文本与结构化回包中。
+                mode = "本机代理" if USE_CCSWITCH else "云端直连"
                 model = rt.get("model") or LLM_MODEL
                 lines = [
                     f"【AI 自检】模式：{mode}",
-                    f"地址：{base} · 模型：{model}",
+                    f"模型：{model}",
                     f"对话测试：{'成功 ' + str(health.get('sample') or '') if ok else '失败 — ' + str(health.get('error') or '')}",
                     "",
                 ]
@@ -2089,11 +2090,16 @@ class World:
                     "健康结果已写入 world_state，失败时交谈/事件会降级并提示。",
                     "网页 HUD：/world/director · 按钮：天道/势力/望气/世界弧/纪元回流",
                 ]
+                # 回包副本脱敏：去掉通道地址、模式改中性口径（存储的
+                # health 原件不动，运维侧仍可经 world_state 查看）。
+                ai_data = dict(health or {})
+                ai_data.pop("base", None)
+                ai_data["mode"] = mode
                 return {
                     "ok": True,
                     "text": "\n".join(lines),
                     "ai_ok": ok,
-                    "ai_data": health,
+                    "ai_data": ai_data,
                     "director_quality": q,
                 }
             if action in ("/帮助", "/help", "/指令"):

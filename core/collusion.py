@@ -131,8 +131,14 @@ def try_collude_pair(
     b: Character,
     now: Optional[float] = None,
     use_ai: bool = True,
+    ai_timeout: float = 2.0,
 ) -> Optional[Dict[str, Any]]:
-    """同场且有关系边时，小概率产生合谋事件。无边返回 None。"""
+    """同场且有关系边时，小概率产生合谋事件。无边返回 None。
+
+    ai_timeout（块一评审 MF-1）：本函数在 world tick 锁内被 apply 段调用，
+    AI 仅作叙事点缀——默认短超时 2s，超时/失败走下方本地句兜底，
+    且经 _chat_json(count_failure=False) 不计入主通道熔断。
+    """
     t = now if now is not None else time.time()
     if a.id == b.id or a.location != b.location:
         return None
@@ -190,8 +196,6 @@ def try_collude_pair(
                     pb = persona_prompt_block(b) if _is_npc(b) else ""
                 except Exception:
                     pa = pb = ""
-                from config import LLM_TIMEOUT_SECONDS
-
                 data = _chat_json(
                     "你是修仙世界旁白。只输出 JSON。\n"
                     f"两名修士在【{loc}】发生一幕：{kind}。关系：{link.link_type}（{link.note}）。\n"
@@ -199,7 +203,7 @@ def try_collude_pair(
                     + (f"A人设：{pa}\n" if pa else "")
                     + (f"B人设：{pb}\n" if pb else "")
                     + "输出 {\"narrative\":\"80字内\"}。不改数值、不虚构第三人；对白口吻符合各自人设。"
-                    , timeout=LLM_TIMEOUT_SECONDS
+                    , timeout=ai_timeout, count_failure=False
                 )
                 if data and data.get("narrative"):
                     narrative = str(data["narrative"])[:200]

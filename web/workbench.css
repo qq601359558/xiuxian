@@ -617,8 +617,6 @@ body.is-acting-busy button[data-equip-act] {
 .gallery-gender-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .art-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .art-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #10332c; background: #f2f8f5; border: 1px solid #c5e2d5; border-radius: 999px; padding: 2px 8px 2px 2px; }
-.art-chip.learned { border-color: #c59b27; background: #fdf6dd; font-weight: 700; }
-.art-chip.unlearned { opacity: .55; }
 .art-thumb { width: 26px; height: 26px; border-radius: 50%; }
 .bag-thumb, .equip-thumb { width: 40px; height: 40px; display: block; }
 .inspector-img { width: 52px; height: 52px; display: block; }

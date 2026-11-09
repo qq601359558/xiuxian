@@ -104,15 +104,33 @@ def _merge_list_append(current: list, base: list, outgoing: list, cap: int) -> l
 
 def _merge_active(current: list, base: list, outgoing: list) -> list:
     """active 指令 CAS 合并：按 id 对齐——本轮新增追加、明确移除删除、
-    并发新增保留；同 id 以本轮（outgoing）版本为准（本轮负责其生命周期）。"""
+    并发新增保留；同 id 以本轮（outgoing）版本为准（本轮负责其生命周期）。
+
+    无 id 项（SF-1，块一评审）：不得以 None 为键互相覆盖——不参与 id
+    合并，改按内容相等作身份对齐，口径与 id 项一致：current 与 outgoing
+    中的无 id 项各自保留、本轮明确移除的（在 base 与 current 中而不在
+    outgoing）丢弃、同一项在多侧出现只保留一份（不丢失、不重复、不塌缩）。
+    """
     def _key(d):
         return d.get("id") if isinstance(d, dict) else None
 
-    base_ids = {_key(d) for d in base}
-    out_by_id = {_key(d): d for d in outgoing}
+    def _has_id(d):
+        return _key(d) is not None
+
+    def _noid_in(items, target) -> bool:
+        return any((not _has_id(x)) and x == target for x in items)
+
+    base_ids = {_key(d) for d in base if _has_id(d)}
+    out_by_id = {_key(d): d for d in outgoing if _has_id(d)}
     merged = []
     seen = set()
     for d in current:
+        if not _has_id(d):
+            if _noid_in(base, d) and not _noid_in(outgoing, d):
+                continue  # 本轮已移除/过期（与 id 项同口径）
+            if not _noid_in(merged, d):
+                merged.append(copy.deepcopy(d))
+            continue
         k = _key(d)
         if k in base_ids and k not in out_by_id:
             continue  # 本轮已移除/过期
@@ -122,6 +140,10 @@ def _merge_active(current: list, base: list, outgoing: list) -> list:
             merged.append(copy.deepcopy(d))  # 并发新增，本轮未动
         seen.add(k)
     for d in outgoing:
+        if not _has_id(d):
+            if not _noid_in(merged, d):
+                merged.append(copy.deepcopy(d))
+            continue
         k = _key(d)
         if k not in seen and k not in base_ids:
             merged.append(copy.deepcopy(d))
@@ -1904,7 +1926,7 @@ def director_quality_report(now: Optional[float] = None) -> Dict[str, Any]:
     from config import ai_available, local_ai_allowed
 
     _ck("ai_channel_configured", ai_available() or local_ai_allowed(),
-        "有 Key/CCSWITCH" if ai_available() else ("仅本地降级" if local_ai_allowed() else "未配置且禁止降级"))
+        "已配置" if ai_available() else ("仅本地降级" if local_ai_allowed() else "未配置"))
     try:
         from ai.gateway import ai_health_status as _hs
 

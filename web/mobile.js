@@ -454,13 +454,11 @@
         }).join("") + "</span></div>";
     }
     if (st.spells_catalog && st.spells_catalog.length) {
-      // 神通图鉴（全录）（spells_catalog[].img，后端下发）：按名与 skills[] 求交集标习得态
-      var learnedM = {};
-      (Array.isArray(st.skills) ? st.skills : []).forEach(function (n) { learnedM[n] = true; });
+      // 神通图鉴（全录）（spells_catalog[].img，后端下发）：MF-3 前提纠正——
+      // skills 存功法名、catalog 为神通名，无已习得神通数据源，不再标习得态
       html += '<div class="kv"><span class="k">神通图鉴（全录）</span><span class="v art-chips">' +
         st.spells_catalog.map(function (sp) {
-          var ld = !!learnedM[sp.name];
-          return '<span class="art-chip ' + (ld ? "learned" : "unlearned") + '">' + galleryImg(sp.img, "art-thumb", sp.name || "神通") + "<span>" + esc(sp.name || "") + " · " + (ld ? "已习得" : "未习得") + "</span></span>";
+          return '<span class="art-chip">' + galleryImg(sp.img, "art-thumb", sp.name || "神通") + "<span>" + esc(sp.name || "") + "</span></span>";
         }).join("") + "</span></div>";
     }
     html += "</div>";
