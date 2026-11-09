@@ -590,3 +590,31 @@ wc -l web/mobile.js web/workbench.js web/mobile.html; stat -c '%n %s' web/mobile
 - **M5**：CP15/CP16/CP31 改为快照—清空—恢复隔离写法（拍卖拍品 / 在榜竞争者业力 / 青云宗宗门令），只改测试；脏库复跑通过。返工轮验证中另发现同类缺陷 CP65（已结算议政会话 `panel_data` 返回 `seats=[]`，`core/council.py:524-539`），同法隔离（快照 `sect_council:青云宗` 会话键，删键重开新场，finally 原样恢复），提交 `999c346`，只改测试。
 - **M6**：补 (c) 类文本对照 `test_text_unchanged_c_class_spot_checks`——17 项逐字/关键行对照（/购买、/出售、/斗法、/挂赏、/上交、/寄存、/支取、/拜师、/传功、/围剿、/追查、/接令、/买寄售、/撤单、/释放、/会话 + /转世活人态字面量），一次通过；原 5 项 (b) 类对照保留。
 - **验证（返工轮，脏库 + 新鲜库）**：`tests/command_panels_fixture.mjs` **1621 passed / 0 failed**；`tests/test_command_panels.py` 脏库 **49 passed**（175.64s，含新增 M3/M6 两用例与隔离后 CP65）；`tests/test_contract_audit.py` **30 passed**；相关套件（`test_game_feel_phase3_frontend.py`、`test_mobile_web.py`、`test_command_catalog.py`）**24 passed**；全量新鲜 DB 回归（备份→绝对路径删库→`pytest tests/ -q`→恢复 DB）：**1436 passed / 8 failed（1754.97s）**，失败集与基线 8 项逐一相同（鉴权、因果链、LAN feed、奇遇、死亡验收、status_dict ×2、workbench API），零新增失败；1436 = 1434（基线）+ 2（本轮新增 M3/M6 测试）。
+
+### §12.4 · 小修轮记录（收尾小修岗，2026-11-09；M3 同款口径，修 M4 目视核对残留的同类内部码泄漏）
+
+- **分支**：`feat/command-panels`（worktree `.worktrees/command-panels`，基线 main `2285d37`，HEAD `97ef67e` 起修）。只交报告，不合并、不发版、不部署、不联系 Martinez、不发微信。
+- **修法（M3 同款）**：键来自服务端响应 → 后端只增展示键（`*_cn`，原码键保留，文本模板与数值语义一律不动）；只是前端 builder 的展示键 → 前端映射。前端新增 helper `cpLab(map, v)`（双端同名）：映射命中 → 中文标签；无映射的纯 ASCII 码 → `""`（省略，不渲染原码）；已是中文展示值 → 原样保留（夹具中文合成值直通）；`map` 为 null 时只做后两条（后端已下发 `*_cn` 时用）。后端无映射时省略 `*_cn` 键（不下发空值）；前端另设同源备份表 `CP_DIR_CN`（与服务端 `TYPE_CN` 同值 7 项），供无 `type_cn` 的旧 payload 兜底。
+- **任务清单 5 项销账**：
+  1. /世情·/天道 `sect_tension`、`secret_realm_pressure` → `core/world_director.py` 新增 `_directive_type_cn`（惰性 import `core/era_reentry.TYPE_CN`），`heaven_board_data()` 与 `director_snapshot()` 的 active 行各加 `type_cn`（有映射时才加）；前端 `cpWorld`/`cpHeaven` 徽标改为 `a.type_cn || cpLab(CP_DIR_CN, a.type)`。标签：宗门紧张、秘境压力（另 5 类：血煞潮、大劫预兆、机缘预兆、宗门令、宗门围剿）。
+  2. /频道 `bond` → `core/world_channel.py` 新增 `KIND_CN`（23 项）与 `kind_cn(kind)`（未映射返 None）；`server/world.py` /频道行构建加 `type_cn`（有映射时才加）；前端 `cpChannel` 徽标改为 `n.type_cn || cpLab(null, n.type)`，无标签时只显星级。标签：结缘（另 22 类见 `KIND_CN`；叛师亦共用 bond kind，文本自身写明）。
+  3. /命格 `dao1` → `core/ceremony.py` 新增 `_boon_source_cn(key)`（`DAO_BOON_CATALOG` 五键 → 道韵；`fate_` 前缀 → 词缀；未知 → None），`fate_block` 复制每条 boon dict 后附加 `source_cn`（不污染角色存档）；前端 `cpFate` 已定命格徽标由 `b.key` 改为 `b.source_cn || ""`（dao1 无映射 → 省略）。`dao1` 服务端不存在，系旧夹具合成假键，已改为真键 `sword_heart`（剑心通明）+ `source_cn: "道韵"`。
+  4. /道统出身兑换键（`stones`/`lifespan`/`root`/`skill`/`heirloom`/`art_memory`/`bond_echo`）→ 前端 `cpLegacy` 删除徽标位（中文名即 `b.name`，已在行主标题渲染；服务端 `server/world.py:979 legacy_info` 已下发 name；`/转世` 参数键与 `core/legacy.py` 的 apply 逻辑依赖原码，不可改键）。无后端改动。
+  5. /探查 `REALM` → `core/combat.py` 新增 `CLARITY_CN`（VAGUE 灵压未明、CLEAR 已辨明、HIDDEN 隐匿、REALM 境界可辨、FULL 尽数洞悉），`scan_surroundings` 三处结果字典各加 `clarity_cn`；前端 `cpScan` 的 clarityCn 补 REALM/FULL，徽标改为 `s.clarity_cn || cpLab(clarityCn, s.clarity)`。FULL 为同类漏网，一并补齐。
+- **全面板扫描同类项（builder 全量 grep + 服务端取值全集核对，约 60 个 `cp*` builder），一并修掉 14 处**：
+  - `cpPromises` kind/status：kindCn 补 arrive 抵达、quest 委托、no_attack 不攻；statusCn 补 KEPT 已践诺、BROKEN 已违约、DISSOLVED 已消散（终态历史行）；回落改 `cpLab`。
+  - `cpRecipeRow` kind：pill/equip（`core/alchemy.py:186` 宇宙闭合）→ 回落改 `cpLab`。
+  - `cpQuests` kind：deliver/fetch/slay（服务端已发 `kind_cn`，但委托 offers 的 `first.kind` 直出）→ `kind_cn || cpLab(QCN, kind)`，QCN={deliver 送信，fetch 寻物，slay 除妖}。
+  - `cpChains` kind：kindCn 补 chou 仇、nuo 诺、xue 血仇（服务端 `core/karma_chains.py:53 KIND_CN` 已发 `kind_cn`）→ `c.kind_cn || cpLab(kindCn, c.kind)`。
+  - `cpTrade` status：OPEN/CLOSED/DONE/CANCELLED → 回落改 `cpLab`。
+  - `cpHere` attitude：hostile/wary/neutral/friendly/ally（`core/npc_mind.py:31 ATTITUDE_LABELS`）→ `p.attitude_cn || cpLab(ATTITUDE_CN, p.attitude)`。
+  - `cpCouncil` 席位 stance：support/oppose/neutral（服务端已发 `stance_cn`）→ `s.stance_cn || cpLab({support 支持，oppose 反对，neutral 中立}, s.stance)`。
+  - `cpWorld`/`cpFaction` 势力 status：hostile/tense/neutral/friendly/allied（`core/faction.py:87 status_from_score` 五档闭合）→ 回落改 `cpLab`。
+  - `cpWorld`/`cpArcs` 世界弧 stage：prophesy/escalation/resolution（另有服务端 `stage_cn`）→ `a.stage_cn || cpLab(stageCn, a.stage)`。
+  - `cpGoals`/`cpGoalRow` source：补 thread 命途、omen 机缘、avenge 复仇、bounty 悬赏、fame 扬名、survive 避劫、legacy 道统（只空徽标，不泄漏；服务端权威表 `core/goals.py:21 KINDS`）；`cpGoalRow` 另修 raw 回落 `|| g.source`（标题 `【src】` 会泄漏），空标签时省略方括号。
+  - `cpWorld` 纪元回流 / `cpLegend` / `cpEra` 的 `active_bias` 键：后端 `core/era_reentry.py` `era_board_data()` 与 `server/world.py` /传说 handler 各加 `active_bias_cn`（键为中文标签）；前端 bias 取值优先 `active_bias_cn`，原键经 `cpLab(CP_DIR_CN, k)` 映射、空标签条目丢弃。
+  - `cpWallet` 流水 kind：death_sweep 死亡归集、auction_refund 拍卖退款、auction_sale 拍卖成交、consignment_sale 寄售成交、wallet_withdraw 钱包提取；标题改为 `[标签，备注].filter(Boolean).join(" · ")` 或 `流水`。
+  - `cpCreateArt` 神通 effect_type：DAMAGE 战斗伤害、BUFF 辅助、HEAL 回复、CONTROL 制敌（权威映射 `core/art.py:122`）。
+  - `cpAi` 模式 `a.mode`：CCSWITCH → CC Switch 本机代理、OPENAI → OpenAI 兼容直连（标签取自 `server/world.py:1925` 的 /AI 文本）。
+- **扫描决定不修（不同类，附理由）**：`cpLinks` kind（服务端值全是中文 仇/恩/师徒/宗门/盟）；`cpSect` alignment（中文 正道名门/杀伐中立/魔道巨擘/散修同盟）；`agenda`（服务端已发 `agenda_cn`，抓取证实为中文）；`cpPet` species/state（中文）；`cpRank`（`CP_BOARD_CN` 已覆盖六榜）；`cpHelp` category（服务端已发 `category_cn`）；`cpAilog` channel/kind/status（诊断面板，日志自身元数据，夹具 CP-45 明确断言含 `midplatform`/`fail`）；`cpCouncil` 列表形 `x.status`（无生产者，死分支）；`cpAi` 的 `a.error`（诊断错误文本，中文为主）；芯片 label 的 `|| key` 回落（cmd 本身必须含原码 key，如 `/命格 k1`）；`cpTasks` `t.task_id`（`TASK_DEFS` 仅 3 项且均有 title）；其余 `*_cn` 优先字段（服务端已发中文标签）；`cpProfile/cpLook/cpTombstone/cpMindArt/cpBodySoul/cpAscend/cpAtlas/cpGallery/cpMarket/cpSectRing/cpApocalypse/cpDemon`（无码字段）；服务端文本模板中的原码（如 /世情文本的 `[sect_tension]`、钱包文本的 kind、/AI 日志文本）——不在面板范围，且 M6 文本对照要求 text 一字不动，不碰。另：`/道统` 遗物留存 desc 内含 `(heirloom:<物品名>)`——服务端描述文本中的用法提示，非徽标泄漏，不修（夹具 checkNo 故不禁 `heirloom`）。
+- **验证（小修轮，脏库）**：`tests/command_panels_fixture.mjs` **1977 passed / 0 failed**（原 1621 +356：新增 `checkNo` helper——双端渲染断言原码缺席；CP-24/27/36 更新为真键 + `type_cn`/`source_cn`；新增 CP-70 组 19 项映射前后对照——标签在场 + 原码缺席）；`tests/test_command_panels.py` **54 passed**（原 49 +5 小修用例：导演/频道/探查/命格/偏置）+ `tests/test_contract_audit.py` **30 passed**，合计 **84 passed**（300.03s）；截图生成器 + 拍摄器全量重跑，**186 页（HTML + PNG 各一）**，清单见 `MANIFEST.md` / `INVENTORY.md`；抽查 /世情、/频道、/道统、/命格、/探查、/天道各双端页 HTML：标签在场、原码缺席。CT-01 不受影响（新增键全为嵌套键 `type_cn`/`clarity_cn`/`source_cn`/`active_bias_cn`，顶层键计数不变）。
