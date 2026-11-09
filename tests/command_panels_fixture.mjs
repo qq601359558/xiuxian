@@ -213,5 +213,51 @@ ok(desk.api.buildCommandPanel("/奇遇", omen) === "", "CP-48 desktop /奇遇 st
 ok(mob.api.buildCommandPanel("/奇遇", omen) === "", "CP-48 mobile /奇遇 no panel (chips are separate)");
 }
 
+// ---- 真实后端形态回归（2026-11-09 联调；真实 payload 驱动，非附录 A 合成键形）----
+// 根因：前端按附录 A 展示键写映射，后端按 §4-K8 模型字段出键；以下用真实键形锁定映射。
+const nowSec = Math.floor(Date.now() / 1000);
+const liveCases = [
+["live hunt", "/除凶", { hunt: [{ name: "血煞散修", realm: "筑基期中期", mark: "血煞", sin: 500, location: "黑水沼泽", is_npc: true, hunters: 0}]}, ["除凶榜", "血煞", "业力 500", "被 0 人盯上"]],
+["live sect", "/宗门", { sects: [{ name: "青云宗", alignment: "正道", members: 120, players: 3, monthly_salary: 25, headquarters: "青云宗外门山门", rules_tip: "门规森严", top: [{ name: "玄清子", rank: "掌门", realm: "元婴期"}]}]}, ["天下仙门", "月俸 25", "玄清子", "青云宗外门山门"]],
+["live bounty", "/告示", { bounties: [{ id: "b1", target: "悬赏测试丁", reward: 100, status: "OPEN", status_cn: "待猎", issuer: "联调客", anonymous: false, reason: "面板测试"}]}, ["悬赏告示", "赏金 100", "待猎"]],
+["live sectorder", "/宗门令", { sect_orders: [{ id: "o1", sect: "青云宗", title: "巡山", kind: "patrol", reward_contrib: 8}]}, ["宗门令", "巡山", "贡献 +8"]],
+["live sectpower", "/宗门势", { sect_power: { sects: [{ sect: "青云宗", members: 120, score: 46.8}], hostile_pairs: [["青云宗", "九幽天魔宗"]], tense_pairs: [], sieges: [], open_missions: 2}}, ["宗门实力", "青云宗", "分 46.8", "敌对"]],
+["live trade", "/交易", { trade: { partner: "联调客", location: "青云坊市客栈", status: "OPEN", created_at: nowSec, a: { name: "联调客", stones: 10, items: [], agreed: false}, b: { name: "联调交易乙", stones: 0, items: [], agreed: false}}}, ["当面交易", "进行中", "灵石 10"]],
+["live sectquests", "/师门任务", { sect_quests: { master: "联调师父", task: { id: "sq1", label: "巡山", need_visit: "青云宗外门山门"}, done: false}}, ["师门任务", "联调师父", "巡山", "进行中"]],
+["live council", "/议政", { council: { sect: "青云宗", session_no: 1, vault: 1000, prestige: 50, morale: 50, topic: { id: "mining", name: "开矿增收", desc: "开矿增收描述"}, settled: false, closes_in_s: 6985, seats: [{ name: "丹霞子", rank: "长老", stance: "support", stance_cn: "支持", lobbied: false, virtual: false, line: "老夫赞成。"}], votes: { support: 0, oppose: 0, mine: null}}}, ["宗门议政", "开矿增收", "丹霞子", "支持 0"]],
+["live swornquests", "/结义任务", { sworn_quests: { partner: "联调结义乙", task: { id: "sw1", label: "历练", need_visit: "落霞古洞"}, done: false}}, ["结义任务", "联调结义乙", "历练"]],
+["live quests", "/委托", { quests: { active: { publisher: "凶名测试丁", publisher_id: "u1", rings_total: 4, ring_index: 0, ring: { kind: "slay", kind_cn: "除妖", desc: "剿除妖兽", progress: 0, need: 1, deliver_npc_name: "凶名测试丁", item_name: null}, reward_stones: 130, reward_merit: 5, expires_in_s: 86399}, offers: [{ npc: "凶名测试丁", realm: "练气期初期", rings: 4, reward_stones: 130, reward_merit: 5, first_ring: { kind: "fetch", kind_cn: "寻物", desc: "寻聚灵草"}}]}}, ["NPC 委托", "凶名测试丁", "第 1/4 环", "灵石 130"]],
+["live legend", "/传说", { legends: { legends: [{ title: "联调史笔", text: "联调传说文本", season: 1, actor: "联调客", weight: 1}], total: 2, active_bias: {}}}, ["传说", "联调史笔", "收录 2"]],
+["live era", "/纪元回流", { era_flow: { current_season: 1, last_reentry_ts: 1794187092, active_bias: {}, anchors: [], completed_eras: [], cited_count: 0}}, ["纪元回流", "第 1 纪", "引用累计 0"]],
+["live clue", "/寻宝", { clue: { map_name: "古修遗图", chain_status: "active", current_step: 1, total_steps: 2, current: { kind: "guard", kind_cn: "守卫", node_name: "黑水沼泽", riddle: "何物无声却传千里？", options: []}, can_abandon: true}}, ["寻宝", "古修遗图", "第 1/2 步", "黑水沼泽"]],
+["live spirit", "/器灵", { spirit: { items: [{ name: "联调剑", tier: 5, tier_name: "天品", spirit: null, can_awaken: true}], awakenable: ["联调剑"]}}, ["器灵", "联调剑", "天品", "可唤灵"]],
+["live auction", "/拍卖行", { auction: { lots: [{ id: "a1", name: "聚气丹", start_price: 100, current_price: 100, leader: "（暂无）", seller: "联调客", buyout_price: 500, remaining_s: 7199, bid_count: 0, status: "OPEN"}]}}, ["拍卖行", "聚气丹", "当前 100", "约 2 小时"]],
+["live mingwu", "/名物", { relics: [{ name: "联调名物", type: "丹药", status: "known", desc: "联调名物描述", source: "联调", confidence: 1}]}, ["名物", "联调名物", "丹药", "联调名物描述"]],
+["live chains", "/因果链", { karma_chains: [{ kind: "en", kind_cn: "恩", status: "fermenting", status_cn: "发酵", counterparty: "联调因果", origin: "联调", strength: 7, elapsed_days: 1, total_days: 9, ferment_pct: 11, direction: "对象念恩"}]}, ["因果链", "联调因果", "恩", "11%"]],
+["live promises", "/诺言", { promises: [{ bucket: "我立之诺", desc: "3 日内赠", kind: "gift", promiser: "联调客", promisee: "联调诺言", status: "ACTIVE", left_s: 259200, deadline: nowSec + 259200, settle_note: ""}]}, ["诺言账", "联调诺言", "赠物", "进行中"]],
+["live recipes", "/配方", { recipes: [{ id: "r1", name: "聚气丹方", kind: "pill", output: "聚气丹", materials: { "百年灵芝": 1, "聚灵草": 2}, stones_fee: 15, base_rate: 0.83, rate: 0.83, req_tier: 1, tier_ok: true, can_craft: true}]}, ["配方", "聚气丹方", "聚气丹", "百年灵芝×1", "炉火 15灵", "成率 83%"]],
+["live recipe64", "/悟丹 随机", { recipe: { id: "rx1", name: "止血散方", output_pill: "止血散", output: "止血散", kind: "pill", materials: { "止血灵叶": 3}, stones_fee: 8, desc: "止血散方", base_rate: 0.9}}, ["新方", "止血散方", "止血散", "止血灵叶×3", "炉火 8灵", "成率 90%"]],
+["live bodysoul", "/炼体", { body_soul_detail: { body: { track: "body", track_cn: "炼体", level: 2, cap: 10, effect: "气血+10", next_cost: { item: "妖兽内丹", item_count: 1, stones: 20, have_item: 0, have_stones: 5015}, other_level: 1}, soul: { track: "soul", track_cn: "炼神", level: 1, cap: 10, effect: "神识+5", next_cost: { item: "百年灵芝", item_count: 1, stones: 10, have_item: 0, have_stones: 5015}, other_level: 2}}}, ["炼体 · 炼神", "妖兽内丹×1", "灵石 20"]],
+["live demon", "/镇魔", { demon: { stage: 2, stage_name: "滋长", seed: 50.0, seed_cap: 90.0, sin: 0, blood_marked: false, eff_dao_heart: 100, suppress_mult: 0.25, eruption: { breakthrough_pct: 0.35, meditation_pct: 0.25}, options: [{ kind: "pill", item: "百年灵芝", count: 1, stones: 30, seed_delta: 35.0}, { kind: "calm", min_dao: 50, cooldown_h: 20, seed_delta: 20.0}]}}, ["镇魔", "滋长", "魔念 50", "百年灵芝", "静坐"]],
+["live ascend", "/飞升榜", { ascend: [{ user_id: "u1", name: "飞升测试故人", realm: "元婴期", tier: 5, sub_tier: 0, cause: "天劫陨落", cause_category: "tribulation", lifespan_lived: 210, points_gained: 100, died_at: 1794100463, season: 1, score: 4355.0, rank: 1}]}, ["飞升榜", "飞升测试故人", "分 4355"]],
+["live heaven", "/天道", { director: { last_run_ts: 1794187092, last_trigger: "tick", last_source: "local", last_error: null, stats: { runs: 60, accepted: 3, rejected: 0, attempts: 60}, active: [{ type: "sect_tension", title: "敌门暗涌", location: "青云宗", expires_in_s: 3180, narrative: "测试叙事", applied: {}}]}}, ["天道导演", "敌门暗涌", "约 53 分"]],
+["live arcs", "/世界弧", { arcs: { stats: { spawned: 2, advanced: 0, climaxed: 0}, arcs: [{ id: "a1", kind: "sect_crisis", title: "敌门暗涌·青云宗×九幽天魔宗", location: "青云宗", stage: "prophesy", stage_cn: "预兆", deadline_in_s: 480, last_log: ""}], history: ["1794186677|spawn|sect_crisis|敌门暗涌·青云宗×九幽天魔宗|a_499025f6"], modifiers: { heat_by_location: { "落霞山灵泉": 1.2}, blood_tide_locations: [], sect_tensions: [["青云宗", "九幽天魔宗"]], realm_pressure_ids: [], calamity_forecast: {}, hunt_heat: {}, active_arc_kinds: ["sect_crisis"], n_arcs: 2}}}, ["世界弧", "起弧 2", "敌门暗涌", "在弧 2"]],
+["live prices", "/行情", { prices: { as_of: "2026-11-09", current_region: "青云坊市", regions: [{ name: "青云坊市", current: true, rows: [{ name: "灵谷种子", kind: "seed", price: 10, sell_price: 5, base_price: 10, origin: "青云坊市", factor: 1.0, desc: ""}]}]}}, ["天下行情", "灵谷种子", "买 10", "回 5"]],
+["live atlas", "/版图", { atlas: [{ region: "青云坊市", dominant: "青云宗", dominant_value: 120.0, mine: "青云宗", influence: {}}]}, ["天下版图", "主导 青云宗", "本宗声威 青云宗"]],
+["live pet", "/灵宠", { pets: [{ name: "青鳞蟒", species: "蟒", tendency: "水", level: 3, growth: 250, intimacy: 42, state: "出战中"}]}, ["灵宠", "青鳞蟒", "3 级", "出战中"]],
+["live channel", "/频道", { channel: [{ severity: "major", type: "bond", text: "联调频道探针消息", actor: "联调客", location: "青云坊市客栈", ts: 1794187095}]}, ["世界频道", "★★"]],
+["live links", "/关系", { links: [{ kind: "gratitude", name: "联调牵缠", strength: 30, note: "联调测试牵缠"}]}, ["因果牵缠", "联调牵缠", "联调测试牵缠"]],
+["live secret", "/秘境", { realms: [{ id: "r1", name: "落霞古洞", location: "落霞山灵泉", desc: "残破古洞", min_tier: 1, danger: 0.35, is_open: true, remain_hours: 72}]}, ["秘境天机", "落霞古洞", "危险 35%", "已开启"]],
+["live faction", "/势力", { factions: { relations: [], orders: [{ id: "f1", sect: "青云宗", title: "巡山", kind: "patrol", reward_contrib: 5}], sieges: [], stats: {}}}, ["天下势力", "宗门令", "巡山", "贡献 +5"]],
+];
+for (const [id, cmd, data, probes] of liveCases) check(id, cmd, data, probes);
+// 真实形态渲染不得泄漏 [object Object] / undefined / NaN
+for (const [id, cmd, data] of liveCases) {
+for (const [nm, h] of [["desktop", desk.api.buildCommandPanel(cmd, data)], ["mobile", mob.api.buildCommandPanel(cmd, data)]]) {
+const t = strip(h);
+for (const bad of ["[object Object]", "undefined", "NaN"]) ok(!t.includes(bad), id + " [" + nm + " no " + bad + "]", t.slice(0, 200));
+}
+}
+
 console.log(`\ncommand-panels fixture: ${pass} passed, ${fail} failed`);
 if (fail) { console.error("failures:\n" + failures.join("\n")); process.exit(1);}

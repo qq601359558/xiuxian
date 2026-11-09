@@ -634,15 +634,19 @@ def test_CP41_relics_gated():
     from core import name_registry as _nr
 
     token, _ = _join("名物客")
-    r0 = _handle(token, "/名物")
-    assert "relics" not in r0, "空态不得下发 relics"
-    pool = _nr._load()
-    pool.append({
-        "name": "面板测试名物", "type": "丹药", "status": "heard",
-        "desc": "面板测试名物描述", "source": "panel_test", "confidence": 0.9,
-    })
-    _nr._save(pool)
+    # 注册表是 WorldStateRepository 全局共享态：test_chase_ring.py 等先跑用例
+    # 会留下听闻条目，空态断言须先快照并清空、finally 原样恢复，不得假定全局为空。
+    saved = list(_nr._load())
+    _nr._save([])
     try:
+        r0 = _handle(token, "/名物")
+        assert "relics" not in r0, "空态不得下发 relics"
+        pool = _nr._load()
+        pool.append({
+            "name": "面板测试名物", "type": "丹药", "status": "heard",
+            "desc": "面板测试名物描述", "source": "panel_test", "confidence": 0.9,
+        })
+        _nr._save(pool)
         r = _handle(token, "/名物")
         assert r.get("ok") is True, r
         relics = r.get("relics")
@@ -652,8 +656,7 @@ def test_CP41_relics_gated():
         assert row["type"] == "丹药" and row["desc"] == "面板测试名物描述"
         assert "面板测试名物" in r["text"]
     finally:
-        pool2 = [x for x in _nr._load() if x.get("name") != "面板测试名物"]
-        _nr._save(pool2)
+        _nr._save(saved)
     print("✓ CP-41 /名物 relics 与文本对账（gated：非空态已抓）")
 
 

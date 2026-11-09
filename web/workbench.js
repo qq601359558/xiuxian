@@ -7104,7 +7104,7 @@ if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((r) => cpRow(
 cpMain(cpStr(r.name), [r.location, r.desc || r.description].filter(Boolean).join(" · ")),
 "危险 " + cpPct(cpPick(r, "危险%", "danger_pct", "danger")!= null && Number(cpPick(r, "危险%", "danger_pct", "danger")) <= 1? Number(cpPick(r, "危险%", "danger_pct", "danger")) * 100: cpPick(r, "危险%", "danger_pct", "danger")),
-cpStr(cpPick(r, "状态", "status", "state") || "") + (cpPick(r, "门槛", "threshold", "req_tier", "min_tier")!= null? " · 门槛 " + cpPick(r, "门槛", "threshold", "req_tier", "min_tier"): ""))).join("");
+(r.is_open != null ? (r.is_open ? "已开启" : "未开启") : (r.is_open != null ? (r.is_open ? "已开启" : "未开启") : (r.is_open != null ? (r.is_open ? "已开启" : "未开启") : (r.is_open != null ? (r.is_open ? "已开启" : "未开启") : cpStr(cpPick(r, "状态", "status", "state") || ""))))) + (cpPick(r, "门槛", "threshold", "req_tier", "min_tier")!= null? " · 门槛 " + cpPick(r, "门槛", "threshold", "req_tier", "min_tier"): ""))).join("");
 return cpCard("秘境天机", list.length + " 处", rows);
 }
 function cpWorld(data) {
@@ -7181,23 +7181,32 @@ function cpClue(data) {
 const cl = data.clue;
 if (!cl || typeof cl!== "object") return "";
 const step = cl.current_step || {};
+const stepText = (typeof step === "number" || typeof step === "string")
+? ("第 " + step + (cl.total_steps!= null? "/" + cl.total_steps: "") + " 步")
+: cpStr(step.title || step.text || step);
 const kv = cpKvs([
-["线索链", esc(cpStr(cl.chain)), false],
-["当前步", esc(cpStr(step.title || step.text || step)), false],
+["线索链", esc(cpStr(cpPick(cl, "chain", "map_name"))), false],
+["当前步", esc(stepText), false],
 ]);
-const opts = Array.isArray(cl.options)? cl.options: [];
+const cur = cl.current || {};
+const curNote = (cur.kind_cn || cur.node_name)
+? cpNote(cpStr((cur.kind_cn? cur.kind_cn + " · ": "") + (cur.node_name || ""))): "";
+const opts = Array.isArray(cl.options)? cl.options: (Array.isArray(cur.options)? cur.options: []);
 const chips = opts.length? cpChips(opts.map((o) => ({ label: o.label || o.key, cmd: "/寻宝 " + (o.key || o.label || "")}))): "";
-return cpCard("寻宝 · 线索链", "", kv + (step.text && step.title? cpNarr(step.text): "") + chips);
+const abandon = cl.can_abandon? cpChips([{ label: "放弃寻宝", cmd: "/寻宝 弃"}]): "";
+return cpCard("寻宝 · 线索链", "", kv + (cur.riddle? cpNarr(cur.riddle): (step.text && step.title? cpNarr(step.text): "")) + curNote + chips + abandon);
 }
 function cpSpirit(data) {
 const sp = data.spirit;
 if (!sp || typeof sp!== "object") return "";
-const item = sp.item || {};
+const items = Array.isArray(sp.items)? sp.items: [];
+const item = items[0] || sp.item || {};
+const state = cpPick(sp, "状态", "state", "status") || (item.spirit!= null? "已唤灵": ((items.length || sp.item)? "未唤灵": ""));
 const kv = cpKvs([
 ["法宝", esc(cpStr(item.name || sp.item_name || sp.name)), false],
-["品阶", esc(cpStr(item.tier || sp.tier)), false],
+["品阶", esc(cpStr(item.tier_name || item.tier || sp.tier)), false],
 ["成长", cpNum(cpPick(sp, "成长", "growth")), true],
-["状态", esc(cpStr(cpPick(sp, "状态", "state", "status"))), false],
+["状态", esc(cpStr(state)), false],
 ]);
 const list = Array.isArray(sp.awakenable || sp["可唤灵列表"])? (sp.awakenable || sp["可唤灵列表"]): [];
 const rows = list.map((it) => cpRow(cpMain(cpStr(it.name || it)), null, "")).join("");
@@ -7249,28 +7258,40 @@ return cpCard("坊市", "", kv + `<div class="flex flex-wrap gap-2 mt-2"><button
 function cpAuction(data) {
 const lots = data.auction && data.auction.lots;
 if (!Array.isArray(lots) ||!lots.length) return "";
-const rows = lots.map((l) => cpRow(
-cpMain("#" + cpStr(l.id) + " " + cpStr(l.name), "起拍 " + cpNum(cpPick(l, "起拍", "start_price", "start")) + " · 领先 " + cpStr(cpPick(l, "领先", "leader") || "暂无") + " · 余 " + cpStr(cpPick(l, "剩余", "remain", "remain_sec")) + " · 挂单人 " + cpStr(cpPick(l, "挂单人", "seller"))),
-"当前 " + cpNum(cpPick(l, "当前价", "price", "current_price")) + " 灵石", "")).join("");
+const rows = lots.map((l) => {
+const remRaw = cpPick(l, "剩余", "remain", "remain_sec");
+const remStr = remRaw != null ? cpStr(remRaw) : (l.remaining_s != null ? cpRemain(Date.now() / 1000 + Number(l.remaining_s)) : "—");
+return cpRow(
+cpMain("#" + cpStr(l.id) + " " + cpStr(l.name), "起拍 " + cpNum(cpPick(l, "起拍", "start_price", "start")) + " · 领先 " + cpStr(cpPick(l, "领先", "leader") || "暂无") + " · 余 " + remStr + " · 挂单人 " + cpStr(cpPick(l, "挂单人", "seller"))),
+"当前 " + cpNum(cpPick(l, "当前价", "price", "current_price")) + " 灵石", "");
+}).join("");
 const chips = `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/上拍 ">上拍</button></div>`;
 return cpCard("拍卖行", lots.length + " 件在拍", rows + chips);
 }
 function cpHunt(data) {
 const list = data.hunt;
 if (!Array.isArray(list) ||!list.length) return "";
-const rows = list.map((h) => cpRow(
-cpMain(cpStr(h.name) + " · " + cpStr(h.realm), "地点 " + cpStr(cpPick(h, "地点", "location")) + " · 被 " + cpNum(cpPick(h, "被盯人数", "watchers", "hunted_by")) + " 人盯上"),
-"业力 " + cpNum(cpPick(h, "业力", "sin")), cpPick(h, "血煞", "blood")? "血煞": "")).join("");
+const rows = list.map((h) => {
+const mk = cpPick(h, "血煞", "blood", "mark");
+const tag = mk === true ? "血煞" : (typeof mk === "string" ? mk : "");
+return cpRow(
+cpMain(cpStr(h.name) + " · " + cpStr(h.realm), "地点 " + cpStr(cpPick(h, "地点", "location")) + " · 被 " + cpNum(cpPick(h, "被盯人数", "watchers", "hunted_by", "hunters")) + " 人盯上"),
+"业力 " + cpNum(cpPick(h, "业力", "sin")), tag);
+}).join("");
 const chips = cpChips(list.slice(0, 4).map((h) => ({ label: "接令·" + h.name, cmd: "/接除凶 " + h.name})));
 return cpCard("除凶榜", list.length + " 人在榜", rows + chips);
 }
 function cpSect(data) {
 const list = data.sects;
 if (!Array.isArray(list) ||!list.length) return "";
-const rows = list.map((x) => cpRow(
-cpMain(cpStr(x.name) + (x.alias? "（" + x.alias + "）": ""), "总坛 " + cpStr(cpPick(x, "总坛", "hq", "headquarters")) + (Array.isArray(x["高层"]) && x["高层"].length? " · 高层：" + x["高层"].join("、"): Array.isArray(x.elders) && x.elders.length? " · 高层：" + x.elders.join("、"): "")),
-"月俸 " + cpNum(cpPick(x, "月俸", "salary")) + " · " + cpNum(cpPick(x, "人数", "members", "count")) + " 人",
-cpStr(cpPick(x, "门槛", "req", "requirement") || ""))).join("");
+const rows = list.map((x) => {
+const top = x["高层"] || x.top || x.elders || [];
+const topStr = Array.isArray(top) ? top.map((t) => typeof t === "string" ? t : (t.name + (t.rank ? "·" + t.rank : ""))).join("、") : "";
+return cpRow(
+cpMain(cpStr(x.name) + (x.alias? "（" + x.alias + "）": ""), "总坛 " + cpStr(cpPick(x, "总坛", "hq", "headquarters")) + (topStr? " · 高层：" + topStr: "")),
+"月俸 " + cpNum(cpPick(x, "月俸", "salary", "monthly_salary")) + " · " + cpNum(cpPick(x, "人数", "members", "count")) + " 人",
+cpStr(cpPick(x, "门槛", "req", "requirement") || x.alignment || ""));
+}).join("");
 const mine = data.status && data.status.sect? cpSec("自身宗籍", cpKvs([["宗门", esc(cpStr(data.status.sect)), false], ["职衔", esc(cpStr(data.status.rank)), false]])): "";
 return cpCard("天下仙门", list.length + " 宗", rows + mine);
 }
@@ -7328,8 +7349,8 @@ function cpBounty(data) {
   const list = data.bounties;
   if (!Array.isArray(list) || !list.length) return "";
   const rows = list.map((b) => cpRow(
-    cpMain(cpStr(b.target), cpStr(cpPick(b, "缘由", "reason")) + (cpPick(b, "匿", "anon") ? " · 匿名" : "")),
-    "赏金 " + cpNum(cpPick(b, "赏金", "bounty")) + " 灵石", "#" + cpStr(b.id))).join("");
+    cpMain(cpStr(b.target), cpStr(cpPick(b, "缘由", "reason")) + (cpPick(b, "匿", "anon", "anonymous") ? " · 匿名" : "")),
+    "赏金 " + cpNum(cpPick(b, "赏金", "bounty", "reward")) + " 灵石", (b.status_cn ? cpStr(b.status_cn) + " #" : "#") + cpStr(b.id))).join("");
   const chips = cpChips(list.slice(0, 4).map((b) => ({ label: "接令 #" + b.id, cmd: "/接令 " + b.id })));
   return cpCard("悬赏告示", list.length + " 条", rows + chips);
 }
@@ -7343,7 +7364,7 @@ function cpHeaven(data) {
   ]);
   const act = Array.isArray(cpPick(d, "活跃指令", "active")) ? cpPick(d, "活跃指令", "active") : [];
   const rows = act.map((a) => cpRow(
-    cpMain(cpStr(a.title), cpStr(a.narrative) + (a.expires_at != null ? " · 剩余 " + cpRemain(a.expires_at) : "")),
+    cpMain(cpStr(a.title), cpStr(a.narrative) + (a.expires_at != null ? " · 剩余 " + cpRemain(a.expires_at) : (a.expires_in_s != null ? " · 剩余 " + cpRemain(Date.now() / 1000 + Number(a.expires_in_s)) : ""))),
     null, cpStr(a.type || ""))).join("");
   return cpCard("天道导演", "", kv + rows);
 }
@@ -7352,16 +7373,31 @@ function cpArcs(data) {
   if (!a || typeof a !== "object") return "";
   const list = Array.isArray(a) ? a : (a["弧"] || a.arcs || a.list || []);
   const ast = (!Array.isArray(a) && (a["累计"] || a.stats)) || null;
-  const kv = ast ? cpKvs([["累计", typeof ast === "string" ? esc(ast) : ("起弧 " + cpNum(ast.started) + " · 升级 " + cpNum(ast.upgraded) + " · 决算 " + cpNum(ast.resolved)), false]]) : "";
+  const kv = ast ? cpKvs([["累计", typeof ast === "string" ? esc(ast) : ("起弧 " + cpNum(cpPick(ast, "started", "spawned")) + " · 升级 " + cpNum(cpPick(ast, "upgraded", "advanced")) + " · 决算 " + cpNum(cpPick(ast, "resolved", "climaxed"))), false]]) : "";
   const stageCn = { prophesy: "预兆", escalation: "升级", resolution: "决算" };
   const rows = (Array.isArray(list) ? list : []).map((x) => cpRow(
-    cpMain(cpStr(x.title), "下阶段 " + cpRemain(x.stage_deadline)),
-    null, stageCn[x.stage] || x.stage || "")).join("");
+    cpMain(cpStr(x.title), "下阶段 " + (x.stage_deadline != null ? cpRemain(x.stage_deadline) : (x.deadline_in_s != null ? cpRemain(Date.now() / 1000 + Number(x.deadline_in_s)) : "—"))),
+    null, stageCn[x.stage] || x.stage_cn || x.stage || "")).join("");
   const hist = (!Array.isArray(a) && (a["近史"] || a.history)) || [];
   const histHtml = Array.isArray(hist) && hist.length
-    ? cpSec("近史", hist.slice(0, 6).map((h) => cpNote("· " + (typeof h === "string" ? h : (h.text || h.title || "")))).join("")) : "";
+    ? cpSec("近史", hist.slice(0, 6).map((h) => {
+        let t = typeof h === "string" ? h : (h.text || h.title || "");
+        if (typeof h === "string" && h.indexOf("|") >= 0) { const parts = h.split("|"); t = parts[3] || h; }
+        return cpNote("· " + t);
+      }).join("")) : "";
   const mods = (!Array.isArray(a) && (a["弧修饰"] || a.modifiers)) || null;
-  const modsHtml = mods ? cpSec("弧修饰", cpNote(typeof mods === "string" ? mods : JSON.stringify(mods))) : "";
+  let modsHtml = "";
+  if (mods) {
+    if (typeof mods === "string") modsHtml = cpSec("弧修饰", cpNote(mods));
+    else {
+      const parts = [];
+      if (mods.n_arcs != null) parts.push("在弧 " + mods.n_arcs + " 场");
+      const heat = mods.heat_by_location || {};
+      Object.keys(heat).forEach((k) => parts.push(k + " ×" + heat[k]));
+      (mods.sect_tensions || []).forEach((p) => parts.push("宗门紧张 " + (Array.isArray(p) ? p.join("×") : p)));
+      if (parts.length) modsHtml = cpSec("弧修饰", cpNote(parts.join(" · ")));
+    }
+  }
   if (!kv && !rows && !histHtml && !modsHtml) return "";
   return cpCard("世界弧", "", kv + rows + histHtml + modsHtml);
 }
@@ -7417,7 +7453,7 @@ function cpLinks(data) {
   if (!Array.isArray(list) || !list.length) return "";
   const kindCn = { gratitude: "恩", grudge: "仇", promise: "诺", blood_feud: "血仇", favor: "恩", debt: "债" };
   const rows = list.map((l) => cpRow(
-    cpMain(cpStr(cpPick(l, "名", "name", "npc_name")), cpStr(cpPick(l, "缘由", "reason"))),
+    cpMain(cpStr(cpPick(l, "名", "name", "npc_name")), cpStr(cpPick(l, "缘由", "reason", "note"))),
     "强度 " + cpNum(cpPick(l, "强度", "strength", "value")),
     kindCn[l.kind] || l.kind || "")).join("");
   return cpCard("因果牵缠", list.length + " 条", rows);
@@ -7434,7 +7470,7 @@ function cpFaction(data) {
   if (Array.isArray(f.orders) && f.orders.length) {
     secs.push(cpSec("宗门令", f.orders.map((o) => cpRow(
       cpMain("[" + cpStr(o.sect || "") + "] " + cpStr(o.content || o.title || ""), "id " + cpStr(o.id || "")),
-      "贡献 +" + cpNum(o.contribution), "")).join("")));
+      "贡献 +" + cpNum(cpPick(o, "贡献", "contribution", "reward_contrib")), "")).join("")));
   }
   if (Array.isArray(f.sieges) && f.sieges.length) {
     secs.push(cpSec("围剿", f.sieges.map((s) => cpRow(cpMain(cpStr(s.title || s.target || ""), cpStr(s.text || "")), null, "")).join("")));
@@ -7447,15 +7483,15 @@ function cpSectOrder(data) {
   const list = data.sect_orders;
   if (!Array.isArray(list) || !list.length) return "";
   const rows = list.map((o) => cpRow(
-    cpMain("[" + cpStr(o.sect) + "] " + cpStr(cpPick(o, "内容", "content")), "id " + cpStr(o.id)),
-    "贡献 +" + cpNum(cpPick(o, "贡献", "contribution")), "")).join("");
+    cpMain("[" + cpStr(o.sect) + "] " + cpStr(cpPick(o, "内容", "content", "title")), "id " + cpStr(o.id)),
+    "贡献 +" + cpNum(cpPick(o, "贡献", "contribution", "reward_contrib")), "")).join("");
   const chips = cpChips(list.slice(0, 4).map((o) => ({ label: "接令 " + o.id, cmd: "/接宗门令 " + o.id })));
   return cpCard("宗门令", list.length + " 条", rows + chips);
 }
 function cpSectPower(data) {
   const sp = data.sect_power;
   if (!sp || typeof sp !== "object") return "";
-  const list = Array.isArray(sp) ? sp : (sp.rows || sp.list || sp["宗门"] || []);
+  const list = Array.isArray(sp) ? sp : (sp.sects || sp.rows || sp.list || sp["宗门"] || []);
   if (!Array.isArray(list) || !list.length) return "";
   const max = Math.max.apply(null, list.map((r) => Number(cpPick(r, "分", "score")) || 0).concat([1]));
   const rows = list.map((r) => {
@@ -7464,11 +7500,11 @@ function cpSectPower(data) {
       "分 " + cpNum(score), "") + cpBar(score / max * 100);
   }).join("");
   const rel = [];
-  if (Array.isArray(sp.hostile)) rel.push("敌对：" + sp.hostile.map((p) => Array.isArray(p) ? p.join("×") : p).join("；"));
-  if (Array.isArray(sp.tense)) rel.push("紧张：" + sp.tense.map((p) => Array.isArray(p) ? p.join("×") : p).join("；"));
+  const pair = (arr, label) => { if (Array.isArray(arr)) rel.push(label + "：" + arr.map((p) => Array.isArray(p) ? p.join("×") : p).join("；")); };
+  pair(sp.hostile_pairs, "敌对"); pair(sp.hostile, "敌对"); pair(sp.tense_pairs, "紧张"); pair(sp.tense, "紧张");
   if (Array.isArray(sp["敌对"])) rel.push("敌对：" + sp["敌对"].join("；"));
   if (Array.isArray(sp["紧张"])) rel.push("紧张：" + sp["紧张"].join("；"));
-  return cpCard("宗门实力", list.length + " 宗", rows + (rel.length ? cpNote(rel.join(" · ")) : ""));
+  return cpCard("宗门实力", list.length + " 宗" + (sp.open_missions != null ? " · 在令 " + sp.open_missions : ""), rows + (rel.length ? cpNote(rel.join(" · ")) : ""));
 }
 function cpContribution(data, cmd) {
   const hasArgs = /\s+\S/.test((cmd || "").trim());
@@ -7508,53 +7544,72 @@ function cpChannel(data) {
   const list = data.channel;
   if (!Array.isArray(list) || !list.length) return "";
   const rows = list.map((n) => {
-    const stars = typeof n.severity === "number" ? "★".repeat(Math.max(1, Math.min(3, n.severity))) : "★";
+    const sevMap = { minor: 1, major: 2, epic: 3 };
+    const sev = typeof n.severity === "number" ? n.severity : (sevMap[n.severity] || 1);
+    const stars = "★".repeat(Math.max(1, Math.min(3, sev)));
     return cpRow(cpMain(cpStr(n.text), ""), null, stars + " " + cpStr(n.type || ""));
   }).join("");
   return cpCard("世界频道", list.length + " 条", rows);
 }
 function cpLegend(data) {
-  const l = data.legends;
-  if (!l || typeof l !== "object") return "";
-  const hist = l["近史"] || l.history || [];
-  const kv = cpKvs([
-    ["活跃权重", esc(cpStr(cpPick(l, "活跃权重", "weights")) || "暂无"), false],
-    ["引用累计", cpNum(cpPick(l, "引用累计", "citations")), true],
-  ]);
-  const rows = (Array.isArray(hist) ? hist : []).map((h) => cpRow(cpMain(cpStr(typeof h === "string" ? h : (h.text || h.title || ""))), null, "")).join("");
-  if (!kv && !rows) return "";
-  return cpCard("传说 · 史笔", "", kv + rows);
+const l = data.legends;
+if (!l || typeof l!== "object") return "";
+const rows0 = l.legends || l["近史"] || l.history || [];
+const rows = (Array.isArray(rows0)? rows0: []).map((h) => {
+if (typeof h === "string") return cpRow(cpMain(cpStr(h)), null, "");
+return cpRow(cpMain(cpStr(h.title || h.text || ""), cpStr(h.title && h.text? h.text: "")), null, (h.season!= null? "第" + h.season + "纪": ""));
+}).join("");
+const bias = cpPick(l, "活跃权重", "weights", "active_bias");
+const biasStr = bias == null? "暂无": (typeof bias === "object"? (Object.keys(bias).length? Object.keys(bias).map((k) => k + " " + bias[k]).join("；"): "暂无"): cpStr(bias));
+const kvRows = [["活跃权重", esc(biasStr), false]];
+const cit = cpPick(l, "引用累计", "citations", "cited_count");
+if (cit!= null) kvRows.push(["引用累计", cpNum(cit), true]);
+if (l.total!= null) kvRows.push(["收录", cpNum(l.total) + " 则", true]);
+const kv = cpKvs(kvRows);
+if (!kv &&!rows) return "";
+return cpCard("传说 · 史笔", "", kv + rows);
 }
 function cpEra(data) {
-  const e = data.era_flow;
-  if (!e || typeof e !== "object") return "";
-  const lastFlow = cpPick(e, "上次回流", "last_flow", "last_flow_ts");
-  const kv = cpKvs([
-    ["上次回流", typeof lastFlow === "number" ? cpTime(lastFlow) : esc(cpStr(lastFlow) || "—"), false],
-    ["活跃权重", esc(cpStr(cpPick(e, "活跃权重", "weights")) || "暂无"), false],
-    ["引用累计", cpNum(cpPick(e, "引用累计", "citations")), true],
-  ]);
-  const legends = e["近传说"] || e.legends || [];
-  const rows = (Array.isArray(legends) ? legends : []).map((h) => cpRow(cpMain(cpStr(typeof h === "string" ? h : (h.text || h.title || ""))), null, "")).join("");
-  return cpCard("纪元回流", "", kv + rows);
+const e = data.era_flow;
+if (!e || typeof e!== "object") return "";
+const lastFlow = cpPick(e, "上次回流", "last_flow", "last_flow_ts", "last_reentry_ts");
+const bias = cpPick(e, "活跃权重", "weights", "active_bias");
+const biasStr = bias == null? "暂无": (typeof bias === "object"? (Object.keys(bias).length? Object.keys(bias).map((k) => k + " " + bias[k]).join("；"): "暂无"): cpStr(bias));
+const kvRows = [
+["上次回流", typeof lastFlow === "number"? cpTime(lastFlow): esc(cpStr(lastFlow) || "—"), false],
+["活跃权重", esc(biasStr), false],
+];
+if (e.current_season!= null) kvRows.push(["当前纪元", "第 " + cpNum(e.current_season) + " 纪", false]);
+const cit = cpPick(e, "引用累计", "citations", "cited_count");
+if (cit!= null) kvRows.push(["引用累计", cpNum(cit), true]);
+const kv = cpKvs(kvRows);
+const legends = e["近传说"] || e.legends || e.recent_legends || [];
+const rows = (Array.isArray(legends)? legends: []).map((h) => cpRow(cpMain(cpStr(typeof h === "string"? h: (h.title || h.text || ""))), null, "")).join("");
+return cpCard("纪元回流", "", kv + rows);
 }
 function cpTrade(data) {
   const t = data.trade;
   if (!t || typeof t !== "object") return "";
-  const kv = cpKvs([
+  const statusCn = { OPEN: "进行中", CLOSED: "已关闭", DONE: "已成交", CANCELLED: "已取消" };
+  const kvRows = [
     ["对方", esc(cpStr(t.partner)), false],
-    ["状态", esc(cpStr(t.status)), false],
-  ]);
+    ["状态", esc(cpStr(statusCn[t.status] || t.status)), false],
+  ];
+  if (t.location) kvRows.push(["地点", esc(cpStr(t.location)), false]);
+  const kv = cpKvs(kvRows);
   let offers = "";
-  const sides = t.offers || t["报价双方"] || t.quotes;
+  let sides = t.offers || t["报价双方"] || t.quotes;
+  if (!sides && (t.a || t.b)) sides = { a: t.a, b: t.b };
   if (sides && typeof sides === "object") {
     const keys = Object.keys(sides);
     offers = keys.map((k) => {
       const o = sides[k] || {};
       const stones = o.stones != null ? o.stones : o["灵石"];
       const items = Array.isArray(o.items) ? o.items.join("、") : cpStr(o.items || o["物品"] || "");
-      return cpKv(k === "me" ? "我方报价" : k === "partner" ? "对方报价" : k,
-        esc("灵石 " + cpNum(stones) + (items ? " · " + items : "")), true);
+      const label = o.name ? o.name : (k === "me" ? "我方报价" : k === "partner" ? "对方报价" : k);
+      const agreed = o.agreed === true ? " · 已同意" : (o.agreed === false ? " · 未同意" : "");
+      return cpKv(label,
+        esc("灵石 " + cpNum(stones) + (items ? " · " + items : "") + agreed), true);
     }).join("");
     offers = offers ? `<div>${offers}</div>` : "";
   }
@@ -7567,6 +7622,13 @@ function cpTrade(data) {
 function cpSectQuests(data) {
   const q = data.sect_quests;
   if (q == null) return "";
+  if (!Array.isArray(q) && typeof q === "object") {
+    const task = q.task || {};
+    const kv = cpKvs([["师父", esc(cpStr(q.master || "")), false]]);
+    const rows = cpRow(cpMain(cpStr(task.label || task.title || ""), ""), null, q.done ? "已完成" : "进行中");
+    const chips = q.done ? "" : cpChips([{ label: "交师门", cmd: "/交师门" }]);
+    return cpCard("师门任务", "1 项", kv + rows + chips);
+  }
   const list = Array.isArray(q) ? q : (q.list || q.quests || q.daily || []);
   if (!Array.isArray(list) || !list.length) return "";
   const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.name || ""), cpStr(x.desc || x.text || "")), null,
@@ -7576,7 +7638,7 @@ function cpSectQuests(data) {
 function cpMingwu(data) {
   const list = data.relics;
   if (!Array.isArray(list) || !list.length) return "";
-  const rows = list.map((r) => cpRow(cpMain(cpStr(r.name), cpStr(cpPick(r, "线索", "clue"))), null, "")).join("");
+  const rows = list.map((r) => cpRow(cpMain(cpStr(r.name), cpStr(cpPick(r, "线索", "clue", "desc", "description"))), null, cpStr(cpPick(r, "type", "status") || ""))).join("");
   return cpCard("名物 · 听闻册", list.length + " 件", rows);
 }
 function cpSectRing(data) {
@@ -7636,10 +7698,11 @@ list = (one && typeof one === "object")? [one]: [];
 }
 if (!list.length) return "";
 const rows = list.map((p) => {
-const chips =!cpPick(p, "出战", "deployed")? cpChips([{ label: "出战", cmd: "/出战 " + (p.name || "")}]): "";
+const deployed = cpPick(p, "出战", "deployed") || p.state === "出战中" || p.active === true;
+const chips = !deployed? cpChips([{ label: "出战", cmd: "/出战 " + (p.name || "")}]): "";
 return cpRow(cpMain(cpStr(p.name) + " · " + cpStr(cpPick(p, "种", "species", "kind")),
-"境界 " + cpStr(cpPick(p, "境界", "realm")) + " · 成长 " + cpNum(cpPick(p, "成长", "growth"))),
-null, (cpPick(p, "出战", "deployed")? "出战中": "") || cpStr(cpPick(p, "状态", "state", "status")) || "") + chips;
+"境界 " + (p.level != null ? p.level + " 级" : cpStr(cpPick(p, "境界", "realm"))) + " · 成长 " + cpNum(cpPick(p, "成长", "growth"))),
+null, (deployed ? "出战中" : "") || cpStr(cpPick(p, "状态", "state", "status")) || "") + chips;
 }).join("");
 const total = data.status && data.status.pets_count;
 return cpCard("灵宠", total!= null? "共 " + total + "/3 只": list.length + " 只", rows);
@@ -7687,7 +7750,7 @@ const folds = p.regions.map((r, i) => cpFold(cpStr(r.name) + "（" + ((r.rows ||
 const origin = cpPick(row, "产地系数", "origin", "origin_mult");
 const badge = origin == null? "": ("产地 " + (typeof origin === "number"? cpSigned(origin, "%"): origin));
 return cpRow(cpMain(cpStr(row.name), ""),
-"买 " + cpNum(cpPick(row, "买入", "buy")) + " / 回 " + cpNum(cpPick(row, "回收", "sell")), badge);
+"买 " + cpNum(cpPick(row, "买入", "buy", "price")) + " / 回 " + cpNum(cpPick(row, "回收", "sell", "sell_price")), badge);
 }).join(""), i === 0)).join("");
 return cpCard("天下行情", p.as_of? "官价 · " + cpStr(p.as_of): "", folds);
 }
@@ -7695,8 +7758,8 @@ function cpAtlas(data) {
 const list = data.atlas;
 if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((r) => cpRow(
-cpMain(cpStr(cpPick(r, "region", "区域")), "主导 " + cpStr(cpPick(r, "主导", "leader"))),
-"本宗声威 " + cpNum(cpPick(r, "本宗声威", "prestige")), "")).join("");
+cpMain(cpStr(cpPick(r, "region", "区域")), "主导 " + cpStr(cpPick(r, "主导", "leader", "dominant"))),
+"本宗声威 " + cpStr(cpPick(r, "本宗声威", "prestige", "mine")), "")).join("");
 return cpCard("天下版图", list.length + " 区域",
 rows + `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/版图 ">查区域明细</button></div>`);
 }
@@ -7714,23 +7777,61 @@ return cpCard("墓碑", "", kv + cpNarr(cpPick(t, "评语", "epitaph")));
 function cpChains(data) {
 const list = data.karma_chains;
 if (!Array.isArray(list) ||!list.length) return "";
-const kindCn = { boon: "恩", grudge: "仇", promise: "诺", blood_feud: "血仇", favor: "恩"};
+const kindCn = { boon: "恩", grudge: "仇", promise: "诺", blood_feud: "血仇", favor: "恩", en: "恩" };
 const rows = list.map((c) => {
-const prog = cpPick(c, "发酵进度", "progress");
+const prog = cpPick(c, "发酵进度", "progress", "ferment_pct");
 let right = null;
 let bar = "";
 if (typeof prog === "number") {
-if (prog >= 0 && prog <= 1) { right = cpPct(prog * 100); bar = cpBar(prog * 100);}
+if (prog >= 0 && prog <= 1) { right = cpPct(prog * 100); bar = cpBar(prog * 100); }
+else if (prog > 1 && prog <= 100) { right = prog + "%"; bar = cpBar(prog); }
 else right = "进度 " + cpNum(prog);
 }
 const hist = c["近史"] || c.history;
-return cpRow(cpMain(cpStr(cpPick(c, "对方", "target", "npc_name")),
-(Array.isArray(hist)? hist.slice(0, 2).join("；"): cpStr(hist || "")) + (cpPick(c, "上限", "cap")!= null? " · 上限 " + cpPick(c, "上限", "cap"): "")),
-right, kindCn[c.kind] || c.kind || "") + bar;
+let sub = Array.isArray(hist)? hist.slice(0, 2).join("；"): cpStr(hist || "");
+if (c.direction) sub += (sub ? " · " : "") + cpStr(c.direction);
+if (cpPick(c, "上限", "cap")!= null) sub += (sub ? " · " : "") + "上限 " + cpPick(c, "上限", "cap");
+if (c.elapsed_days != null && c.total_days != null) sub += (sub ? " · " : "") + "发酵 " + c.elapsed_days + "/" + c.total_days + " 天";
+const name = cpPick(c, "对方", "target", "npc_name", "counterparty");
+return cpRow(cpMain(cpStr(name), sub),
+right, cpStr(c.kind_cn || kindCn[c.kind] || c.kind || "")) + bar;
 }).join("");
 return cpCard("因果链", list.length + " 条", rows);
 }
 function cpQuests(data) {
+const q = data.quests;
+if (q == null) return "";
+if (!Array.isArray(q) && typeof q === "object") {
+const secs = [];
+let chips = "";
+if (q.active && typeof q.active === "object") {
+const a = q.active;
+const ring = a.ring || {};
+const head = cpKvs([
+["发布者", esc(cpStr(a.publisher || "")), false],
+["进度", "第 " + cpNum((a.ring_index || 0) + 1) + "/" + cpNum(a.rings_total) + " 环", false],
+["全链赏", "灵石 " + cpNum(a.reward_stones) + " + 功德 " + cpNum(a.reward_merit), true],
+["剩余", a.expires_in_s!= null? cpRemain(Date.now() / 1000 + Number(a.expires_in_s)): "—", false],
+]);
+const cur = cpRow(cpMain("当前环【" + cpStr(ring.kind_cn || ring.kind || "") + "】" + cpStr(ring.desc || ""),
+(ring.progress!= null && ring.need!= null? "进度 " + ring.progress + "/" + ring.need + " · ": "") + (ring.deliver_npc_name? "交付：" + ring.deliver_npc_name: "")), null, "");
+secs.push(cpSec("进行中", head + cur));
+chips = cpChips([{ label: "交付", cmd: "/交付"}, { label: "弃委托", cmd: "/弃委托"}]);
+}
+const offers = Array.isArray(q.offers)? q.offers: [];
+if (offers.length) {
+const rows = offers.map((o) => {
+const fr = o.first_ring || {};
+const frStr = fr.desc? ("【" + cpStr(fr.kind_cn || fr.kind || "") + "】" + fr.desc): "";
+return cpRow(cpMain("【" + cpStr(o.npc) + "】（" + cpStr(o.realm) + "）委托 " + cpNum(o.rings) + " 环",
+"赏 灵石 " + cpNum(o.reward_stones) + " + 功德 " + cpNum(o.reward_merit) + (frStr? " · 首环 " + frStr: "")),
+null, "") + cpChips([{ label: "接取委托", cmd: "/接委托 " + (o.npc || "")}]);
+}).join("");
+secs.push(cpSec("可接委托", rows));
+}
+if (!secs.length) return "";
+return cpCard("NPC 委托", offers.length? offers.length + " 件可接": "", secs.join("") + chips);
+}
 const list = data.quests;
 if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((q) => {
@@ -7750,19 +7851,41 @@ return cpCard("NPC 委托", list.length + " 件", rows);
 function cpPromises(data) {
 const list = data.promises;
 if (!Array.isArray(list) ||!list.length) return "";
-const rows = list.map((p) => cpRow(
-cpMain(cpStr(cpPick(p, "对象", "target")) + " · " + cpStr(cpPick(p, "类型", "type")), cpStr(cpPick(p, "内容", "content"))),
+const kindCn = { gift: "赠物", debt: "旧债" };
+const statusCn = { ACTIVE: "进行中", PENDING: "待应诺", DONE: "已结", SETTLED: "已结", EXPIRED: "已过期" };
+const groups = [];
+const seen = {};
+list.forEach((p) => {
+const b = p.bucket || "诺言";
+if (!seen[b]) { seen[b] = []; groups.push([b, seen[b]]); }
+seen[b].push(p);
+});
+const secs = groups.map(([b, rows0]) => cpSec(b, rows0.map((p) => {
+const k = cpPick(p, "类型", "type", "kind");
+const kCn = k == null ? "" : (kindCn[k] || k);
+const st = cpPick(p, "状态", "status");
+const stCn = st == null ? "" : (statusCn[st] || st);
+return cpRow(
+cpMain(cpStr(cpPick(p, "对象", "target", "promisee")) + " · " + cpStr(kCn), cpStr(cpPick(p, "内容", "content", "desc"))),
 cpPick(p, "期限", "deadline")!= null? cpDaysLeft(cpPick(p, "期限", "deadline")): null,
-cpStr(cpPick(p, "状态", "status")) || "")).join("");
-return cpCard("诺言账", list.length + " 条未结之诺", rows);
+cpStr(stCn));
+}).join("")));
+return cpCard("诺言账", list.length + " 条未结之诺", secs.join(""));
 }
 function cpRecipeRow(r) {
-const mats = Array.isArray(r["材料"] || r.materials)? (r["材料"] || r.materials).join("、"): cpStr(r["材料"] || r.materials || "");
-const rate = cpPick(r, "成率", "rate");
+const matsRaw = r["材料"] || r.materials;
+let mats = "";
+if (Array.isArray(matsRaw)) mats = matsRaw.join("、");
+else if (matsRaw && typeof matsRaw === "object") mats = Object.keys(matsRaw).map((k) => k + "×" + matsRaw[k]).join("、");
+else mats = cpStr(matsRaw || "");
+const rate = cpPick(r, "成率", "rate", "base_rate");
 const rateStr = rate == null? "—": (typeof rate === "number" && rate <= 1? cpPct(rate * 100): cpPct(rate));
-return cpRow(cpMain(cpStr(r.name) + " · " + cpStr(cpPick(r, "产物", "product")),
-(mats? "材料：" + mats + " · ": "") + "炉火 " + cpStr(cpPick(r, "炉火", "fire"))),
-"成率 " + rateStr, cpPick(r, "境界足", "enough") === false? "境界不足": (cpStr(cpPick(r, "kind", "种类")) || ""));
+const fee = r.stones_fee != null ? (r.stones_fee + "灵") : cpStr(cpPick(r, "炉火", "fire"));
+const kindCn = { pill: "丹药", equip: "法宝" };
+const tierBad = (cpPick(r, "境界足", "enough") === false || r.tier_ok === false)? "境界不足": (cpStr(kindCn[cpPick(r, "kind", "种类")] || cpPick(r, "kind", "种类") || ""));
+return cpRow(cpMain(cpStr(r.name) + " · " + cpStr(cpPick(r, "产物", "product", "output")),
+(mats? "材料：" + mats + " · ": "") + "炉火 " + fee),
+"成率 " + rateStr, tierBad);
 }
 function cpRecipes(data) {
 const list = data.recipes;
@@ -7775,37 +7898,44 @@ if (!d || typeof d!== "object") return "";
 const track = (label, t) => {
 if (!t || typeof t!== "object") return "";
 const cost = cpPick(t, "下一层成本", "next_cost");
-const costStr = typeof cost === "string"? cost
-: cost && typeof cost === "object"? Object.keys(cost).map((k) => k + "×" + cost[k]).join(" + "): "";
+let costStr = "";
+if (typeof cost === "string") costStr = cost;
+else if (cost && typeof cost === "object") {
+  const parts = [];
+  if (cost.item) parts.push(cost.item + "×" + (cost.item_count || 1));
+  if (cost.stones != null) parts.push("灵石 " + cost.stones);
+  costStr = parts.join(" + ") || "—";
+}
 return cpSec(label, cpKvs([
 ["层数", cpNum(cpPick(t, "level", "层")) + " / 10 层", true],
 ["成效", esc(cpStr(cpPick(t, "成效", "effect"))), false],
 ["下一层成本", esc(costStr || "—"), false],
 ]));
 };
-const body = track("炼体", d.body);
-const soul = track("炼神", d.soul);
-if (!body &&!soul) return "";
-const chips = cpChips([
-{ label: "炼体修炼", fill: "/炼体 修炼 "},
-{ label: "炼神修炼", fill: "/炼神 修炼 "},
-]);
-return cpCard("炼体 · 炼神", "", body + soul + chips);
+return cpCard("炼体 · 炼神", "", track("炼体", d.body) + track("炼神", d.soul));
 }
 function cpDemon(data) {
 const d = data.demon;
 if (!d || typeof d!== "object") return "";
+const src = cpPick(d, "来源", "source") || ((d.sin != null || d.blood_marked != null || d.eff_dao_heart != null)
+  ? ("业力 " + cpNum(d.sin) + "、" + (d.blood_marked ? "血煞缠身" : "血煞已散") + (d.eff_dao_heart != null ? "；有效道心 " + cpNum(d.eff_dao_heart) + (d.suppress_mult != null ? "（压制系数 ×" + cpNum(d.suppress_mult) + "）" : "") : ""))
+  : "");
 const kv = cpKvs([
 ["阶段", esc(cpStr(cpPick(d, "stage_name", "阶段"))), false],
-["魔念", cpNum(cpPick(d, "魔念", "thought")), true],
-["来源", esc(cpStr(cpPick(d, "来源", "source"))), false],
+["魔念", (d.seed != null ? cpNum(d.seed) : cpNum(cpPick(d, "魔念", "thought"))) + (d.seed_cap != null ? " / 临发 " + cpNum(d.seed_cap) : ""), true],
+["来源", esc(cpStr(src)), false],
 ]);
 const opts = d["镇压选项"] || d.options || [];
 const rows = (Array.isArray(opts)? opts: []).map((o) => {
 if (typeof o === "string") return cpRow(cpMain(o, ""), null, "");
+if (o.kind === "pill") return cpRow(cpMain("服丹 · " + cpStr(o.item || "") + (o.count != null ? "×" + o.count : ""), "灵石 " + cpNum(o.stones) + (o.seed_delta != null ? " → 魔念 −" + cpNum(o.seed_delta) : "")), null, "");
+if (o.kind === "calm") return cpRow(cpMain("静坐", "有效道心 ≥" + cpNum(o.min_dao) + (o.cooldown_h != null ? " · 冷却 " + cpNum(o.cooldown_h) + " 小时" : "") + (o.seed_delta != null ? " → 魔念 −" + cpNum(o.seed_delta) : "")), null, "");
 return cpRow(cpMain(cpStr(o.label || o.name || ""), cpStr(o.desc || "")), null, "");
 }).join("");
-const chips = cpChips((Array.isArray(opts)? opts: []).filter((o) => o && typeof o === "object" && o.cmd)
+const autoChips = [];
+if (opts.some((o) => o && o.kind === "pill")) autoChips.push({ label: "服丹", cmd: "/镇魔 服丹" });
+if (opts.some((o) => o && o.kind === "calm")) autoChips.push({ label: "静坐", cmd: "/镇魔 静坐" });
+const chips = autoChips.length ? cpChips(autoChips) : cpChips((Array.isArray(opts)? opts: []).filter((o) => o && typeof o === "object" && o.cmd)
 .map((o) => ({ label: o.label || o.name, cmd: o.cmd})));
 return cpCard("镇魔 · 心魔长卷", "", kv + (rows? cpSec("镇压", rows): "") + chips);
 }
@@ -7814,7 +7944,7 @@ const list = data.ascend;
 if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((a) => cpRow(
 cpMain(cpStr(a.name) + " · " + cpStr(a.realm), cpStr(cpPick(a, "cause", "死因"))),
-null, cpStr(cpPick(a, "纪元", "era")) || "")).join("");
+null, a.score != null ? "分 " + cpNum(a.score) : (cpStr(cpPick(a, "纪元", "era")) || ""))).join("");
 return cpCard("飞升榜 · 历世纪念碑", list.length + " 位", rows);
 }
 function cpLegacy(data) {
@@ -7849,6 +7979,32 @@ cpRecipeRow(r));
 function cpCouncil(data) {
 const c = data.council;
 if (c == null) return "";
+if (!Array.isArray(c) && typeof c === "object" && (c.topic || c.seats)) {
+const topic = c.topic || {};
+const kvRows = [];
+if (c.sect) kvRows.push(["宗门", esc(cpStr(c.sect)), false]);
+if (c.session_no!= null) kvRows.push(["场次", "第 " + cpNum(c.session_no) + " 场", false]);
+if (c.vault!= null) kvRows.push(["金库", cpNum(c.vault) + " 灵石", true]);
+if (c.prestige!= null) kvRows.push(["声望", cpNum(c.prestige), true]);
+if (c.morale!= null) kvRows.push(["士气", cpNum(c.morale), true]);
+const kv = kvRows.length? cpKvs(kvRows): "";
+const topicHtml = topic.name? cpSec("本场议题", cpRow(cpMain(cpStr(topic.name), cpStr(topic.desc || "")), null, "") + (c.closes_in_s!= null? cpNote("投票截止 " + cpRemain(Date.now() / 1000 + Number(c.closes_in_s))): "")): "";
+const seats = Array.isArray(c.seats)? c.seats: [];
+const seatRows = seats.map((s) => cpRow(
+cpMain(cpStr(s.name) + (s.rank? "（" + s.rank + "）": ""), cpStr(s.line || "")),
+null, cpStr(s.stance_cn || s.stance || ""))).join("");
+const votes = c.votes || {};
+const voteKv = cpKvs([
+["支持", cpNum(votes.support), true],
+["反对", cpNum(votes.oppose), true],
+["你", votes.mine == null? "未投": esc(cpStr(votes.mine)), false],
+]);
+const chips = cpChips([
+{ label: "投票 支持", cmd: "/投票 支持"},
+{ label: "投票 反对", cmd: "/投票 反对"},
+]);
+return cpCard("宗门议政", "", kv + topicHtml + (seatRows? cpSec("长老席位", seatRows): "") + cpSec("弟子投票", voteKv) + chips);
+}
 const list = Array.isArray(c)? c: (c.proposals || c.motions || c.topics || c.items || []);
 if (!Array.isArray(list) ||!list.length) return "";
 const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.topic || x.name || ""), cpStr(x.text || x.desc || "")),
@@ -7858,10 +8014,16 @@ return cpCard("宗门议政", list.length + " 项", rows);
 function cpSwornQuests(data) {
 const q = data.sworn_quests;
 if (q == null) return "";
+if (!Array.isArray(q) && typeof q === "object") {
+  const task = q.task || {};
+  const kv = cpKvs([["结义", esc(cpStr(q.partner || "")), false]]);
+  const rows = cpRow(cpMain(cpStr(task.label || task.title || ""), ""), null, q.done ? "已完成" : "进行中");
+  const chips = q.done ? "" : cpChips([{ label: "交结义", cmd: "/交结义" }]);
+  return cpCard("结义任务", "1 项", kv + rows + chips);
+}
 const list = Array.isArray(q)? q: (q.list || q.quests || []);
 if (!Array.isArray(list) ||!list.length) return "";
-const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.name || ""), cpStr(x.desc || x.text || "")),
-null, x.done? "已完成": "")).join("");
+const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.name || ""), cpStr(x.desc || x.text || "")), null, x.done? "已完成": "")).join("");
 return cpCard("结义任务", list.length + " 项", rows);
 }
 
