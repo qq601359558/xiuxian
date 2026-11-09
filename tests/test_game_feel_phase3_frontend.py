@@ -167,13 +167,17 @@ def test_fe03_mobile_budgets_hardline_and_caps():
     mobile.js 硬线 1660 行 → 2100 行、现行上限 1892 行 → 2100 行
     （净增上限 720 → 928）；mobile.css 硬线 27455B → 29200B、现行上限
     28800B → 29200B；token 纪律（no_bare_hex）不在豁免内，复核仍交
-    test_mobile_web。超新上限时停工回主策岗，不得擅自再改。"""
+    test_mobile_web。超新上限时停工回主策岗，不得擅自再改。
+    第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
+    ——mobile.css 上限 29200B → 32000B（实测 31324B）、mobile.js 上限 2100 行
+    不变（实测 1969 行）；出处：docs/compose/spec/chat-structure.md
+    （2026-11-09 总管批准），token 纪律不豁免照旧。"""
     js_lines = len(_read("mobile.js").splitlines())
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 D1 豁免上限 2100 行（command-panels §7）"
-    assert css_bytes <= 29200, f"mobile.css {css_bytes}B 超 D1 豁免上限 29200B（command-panels §7）"
-    print(f"✓ FE-03 预算实测：mobile.js {js_lines} 行（D1 豁免上限 2100），"
-          f"mobile.css {css_bytes}B（D1 豁免上限 29200）")
+    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 D2 豁免上限 2100 行（chat-structure D2）"
+    assert css_bytes <= 32000, f"mobile.css {css_bytes}B 超 D2 豁免上限 32000B（chat-structure D2）"
+    print(f"✓ FE-03 预算实测：mobile.js {js_lines} 行（D2 豁免上限 2100），"
+          f"mobile.css {css_bytes}B（D2 豁免上限 32000）")
 
 
 def test_gf3_qa01_desktop_treasure_flow_forwards_loot_ceremony():

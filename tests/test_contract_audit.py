@@ -666,12 +666,15 @@ def test_CA_023_omen_catalog_alignment():
 # 份裸 _status_dict 快照的 77 个内键）∪ /world/director 快照顶层键
 # ∪ 静态清册补集（未抓子路径的返回键）∪ 本轮新增 stone_loss
 # ∪ 命令面板化新增 35 键（附录 A 全新顶层名，实算皆不在抓取 top_keys 与
-# 三端引用键中）；共 173 个。
+# 三端引用键中）∪ chat-structure 新增 chat_lines（抓取早于本功能，静态补集）；
+# 共 174 个。
 # 三端引用键 = workbench(res/j/data/payload) ∪ app.js(j/data) ∪
-# mobile(data/j/payload) 的顶层属性读（排除方法调用与 fetch 的 statusText）；
-# 修复后共 135 个（2026-11-09 command-panels 合并后：前端新读 19 个已下发键
-# + 附录 A 36 个待补键中 35 个后端已落地、仅 legacy_info 仍未下发）。
-# 未读 46 个（备查，不强制修）；死键 8 个（旧 7 个 + legacy_info，须在台账中有行，见注）。
+# mobile(data/j/payload) 的顶层属性读（排除方法调用、赋值写入与 fetch 的 statusText）；
+# 修复后共 137 个（2026-11-09 command-panels 合并后 135 个：前端新读 19 个已下发键
+# + 附录 A 36 个待补键中 35 个后端已落地、仅 legacy_info 仍未下发；
+# 2026-11-09 chat-structure：移动端交谈弹窗新读 avatar + 双端新读 chat_lines，
+# 三端引用 135 → 137）。
+# 未读 45 个（备查，不强制修）；死键 8 个（旧 7 个 + legacy_info，须在台账中有行，见注）。
 SERVER_TOP_KEYS_EXTRA = {
     # /world/director 快照顶层键（director_snapshot + app.py 补 evolution/summary_lines）
     "server_time", "director", "modifiers", "arcs", "faction", "echo", "era",
@@ -705,6 +708,10 @@ SERVER_TOP_KEYS_EXTRA = {
     "legends", "era_flow", "sect_quests", "relics", "pets", "prices",
     "atlas", "tombstone", "karma_chains", "quests", "promises", "recipes",
     "body_soul_detail", "demon", "ascend", "council", "sworn_quests",
+    # chat-structure 新增（2026-11-09）：交谈响应 chat_lines（server/world.py
+    # 交谈分支多点下发；抓取文件早于本功能，未含此键，故入静态补集，
+    # 与 CA-002 stone_loss 同例）
+    "chat_lines",
 }
 # 死键 8 个：前端读、服务端从不下发顶层键（旧 7 个皆有台账行或兜底说明，备查不修；
 # + legacy_info：2026-11-09 command-panels 合并后定稿。附录 A 36 个前端待补键中
@@ -720,12 +727,15 @@ KNOWN_DEAD_TOP_KEYS = {
     "new_realm",    # CA-008：P3，维持台账处置
     "legacy_info",  # command-panels：前端 cpLegacy 读 data.legacy_info（回落 data），服务端从不下发
 }
-# 未读 46 个（服务端下发、三端皆不读顶层键；备查，不强制修）
+# 未读 45 个（服务端下发、三端皆不读顶层键；备查，不强制修）
 # 2026-11-09 command-panels 合并后定稿：后端新增 35 键皆已被前端渲染读取，
 # 故不进未读集；未读集与前端分支的 46 键版一致。
+# 2026-11-09 chat-structure 定稿：avatar 由移动端交谈弹窗消费
+# （web/mobile.js openChatM/renderChatHeadM 读 data.avatar），由未读转已读，
+# 未读 46 → 45。
 FINAL_UNREAD_TOP_KEYS = {
     "action", "actions", "ai_ok", "alive", "arc_board_text", "attitude",
-    "avatar", "bagua", "board", "boosts", "bystanders", "character_id",
+    "bagua", "board", "boosts", "bystanders", "character_id",
     "chased", "crafted", "direction_text", "earned", "event_id", "first_night",
     "intent", "is_new_life", "karma_shadow", "lives", "lock_fallback", "lost_stones",
     "max_boosts", "modifiers", "new_location", "omen_status", "outcome", "output",
@@ -757,8 +767,11 @@ def _frontend_top_keys():
         text = _read_js(name)
         for a in als:
             for m in re.finditer(r"\b" + a + r"\.([A-Za-z_][A-Za-z0-9_]*)", text):
-                if text[m.end():].lstrip().startswith("("):
+                rest = text[m.end():].lstrip()
+                if rest.startswith("("):
                     continue
+                if rest.startswith("=") and not rest.startswith("=="):
+                    continue  # 赋值写入非响应键读（如 mobile chatSendM 的请求体 payload.to）
                 keys.add(m.group(1))
     keys.discard("statusText")  # fetch Response 属性，非游戏响应键
     return keys
@@ -767,28 +780,33 @@ def _frontend_top_keys():
 def test_CT01_bidirectional_diff():
     """CT-01（B.2 定稿）：双向差集断言。
 
-    服务端顶层键 173 个 vs 三端引用键 135 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
-    （46 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（8 个）。任一差集漂移即变红，
+    服务端顶层键 174 个 vs 三端引用键 137 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
+    （45 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（8 个）。任一差集漂移即变红，
     须同步更新台账 B.2 与本文件的定稿表。
     2026-11-09 command-panels 合并后定稿：服务端 138→173（后端新增附录 A 35 键）；
     三端读 80→135（前端新读 19 个已下发键 + 36 个附录 A 待补键，board 因 cpRank
     去复用仍留未读）；未读 65→46；死键 7→8（36 个待补键中 35 个随后端落地移出，
     仅 legacy_info 仍为死键——/道统 平铺键，前端以 data 回落渲染）。
+    2026-11-09 chat-structure 定稿：移动端交谈弹窗消费 avatar（openChatM/
+    renderChatHeadM 读 data.avatar）→ 未读 46→45；服务端新增 chat_lines
+    （抓取早于本功能，入 SERVER_TOP_KEYS_EXTRA 静态补集）→ 服务端 173→174；
+    双端新读 chat_lines + avatar → 三端读 135→137；mobile chatSendM 的请求体
+    赋值 payload.to 系写入非响应键读，采集口径排除赋值目标，不入差集；死键仍 8。
     """
     srv = _server_top_keys()
     fe = _frontend_top_keys()
-    assert len(srv) == 173, f"服务端顶层键须为 173 个，实得 {len(srv)}：{sorted(srv)}"
+    assert len(srv) == 174, f"服务端顶层键须为 174 个，实得 {len(srv)}：{sorted(srv)}"
     unread = srv - fe
     dead = fe - srv
     assert unread == FINAL_UNREAD_TOP_KEYS, (
-        f"未读差集漂移（{len(unread)} vs 定稿 46）："
+        f"未读差集漂移（{len(unread)} vs 定稿 45）："
         f"新增 {sorted(unread - FINAL_UNREAD_TOP_KEYS)}；"
         f"消失 {sorted(FINAL_UNREAD_TOP_KEYS - unread)}")
     assert dead == KNOWN_DEAD_TOP_KEYS, (
         f"死键差集漂移（{len(dead)} vs 定稿 8）："
         f"新增 {sorted(dead - KNOWN_DEAD_TOP_KEYS)}（须先补台账行）；"
         f"消失 {sorted(KNOWN_DEAD_TOP_KEYS - dead)}")
-    print(f"✓ CT-01：双向差集定稿（服务端 173 / 三端读 135 / 未读 46 / 死键 8）")
+    print(f"✓ CT-01：双向差集定稿（服务端 174 / 三端读 137 / 未读 45 / 死键 8）")
 
 
 def test_CT01_no_bad_patterns_repo_wide():
@@ -812,11 +830,15 @@ def test_CT01_no_bad_patterns_repo_wide():
 
 def test_CT04_mobile_budget_guard():
     """CT-04（预算断言，第五次豁免）：command-panels spec §7（2026-11-09 总管批准 D1）——
-    mobile.js ≤2100 行、mobile.css ≤29200B；token 纪律不豁免。"""
+    mobile.js ≤2100 行、mobile.css ≤29200B；token 纪律不豁免。
+    第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
+    ——mobile.css 上限 29200B → 32000B（实测 31324B）、mobile.js 上限 2100 行
+    不变（实测 1969 行）；出处：docs/compose/spec/chat-structure.md
+    （2026-11-09 总管批准），token 纪律不豁免照旧。"""
     lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     size = (WEB / "mobile.css").stat().st_size
-    assert lines <= 2100, f"mobile.js {lines} 行，超 D1 豁免上限 2100 行（command-panels §7）"
-    assert size <= 29200, f"mobile.css {size}B，超 D1 豁免上限 29200B（command-panels §7）"
+    assert lines <= 2100, f"mobile.js {lines} 行，超 D2 豁免上限 2100 行（chat-structure D2）"
+    assert size <= 32000, f"mobile.css {size}B，超 D2 豁免上限 32000B（chat-structure D2）"
     print(f"✓ CT-04：mobile.js {lines} 行 / mobile.css {size}B，均在硬线内")
 
 

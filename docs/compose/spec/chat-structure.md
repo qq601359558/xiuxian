@@ -116,3 +116,36 @@ text 与基线逐字一致（除 C 的 line 清洗在 text 中的体现外）。
 6. 发版 v0.3.14-gray.21：config.VERSION、README、CHANGELOG、docs/gray-runbook.md 同步，tag 推送核验。
 7. NAS 部署：部署前备份（代码目录与 data），git pull + docker compose up -d --build，
 /health 版本 = 0.3.14-gray.21；线上冒烟：新账号 /交谈 开启响应含 chat_lines、首页 200。
+
+## Finalize 记录（2026-11-09，v0.3.14 发版前）
+
+- **D2 预算第六次豁免**：实测 web/mobile.css = 31324B、web/mobile.js = 1969 行
+  （web/mobile.html = 176 行，净增 26 行，未超既有 ≤60 行断言，不纳入本次豁免）。
+  新上限统一为 mobile.css ≤32000B、mobile.js ≤2100 行，覆盖全仓 5 处预算断言：
+  tests/test_mobile_web.py、tests/test_contract_audit.py（CT04）、
+  tests/test_command_panels.py、tests/test_game_feel_frontend_contract.py
+  （原更严口径 css ≤28800B / js ≤1892 行一并统一至 D2）、
+  tests/test_game_feel_phase3_frontend.py。各测试 docstring 均注明
+  「第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量」
+  并引用本 spec。本 spec 前文「预算豁免 D1」曾以 31400B 为本功能内部裁决上限，
+  finalize 以 D2 的 32000B 统一全仓口径为准（实测 31324B 在两口径内均达标）。
+  附带对齐：tests/test_mobile_web.py 的 js 净增断言由 720 行对齐至 928 行
+  （= 文件上限 2100 − 基线 1172，即第五次豁免 docstring 已裁定值，此前代码未跟上；
+  实测净增 797 行）。
+- **CT01 定稿集更新（avatar 转已读）**：服务端仍在交谈开启响应下发 `avatar`
+  （server/world.py 多个 chat_open 返回点），移动端新增交谈弹窗已消费它
+  （web/mobile.js `openChatM`/`renderChatHeadM` 读 `data.avatar`），故
+  tests/test_contract_audit.py 的 `FINAL_UNREAD_TOP_KEYS` 删除 `avatar`，
+  未读 46 → 45 个；定稿数更新为服务端 174 / 三端读 137 / 未读 45 / 死键 8。
+  台账 docs/compose/contract-audit-ledger.md B.2 未读清单已同步（删 avatar、
+  46 个改 45 个，并加 2026-11-09 v0.3.14 注记行）。
+  同轮复测揭出的同类差集漂移（原未读断言先行变红、掩盖了死键断言，一并定稿）：
+  ① 服务端本功能新增顶层键 `chat_lines` 不在旧抓取文件中，按 CA-002 stone_loss
+  先例入 `SERVER_TOP_KEYS_EXTRA` 静态补集，服务端键 173 → 174；
+  ② 移动端 `chatSendM` 的请求体赋值 `payload.to = …` 系写入而非响应键读，
+  CT-01 前端键采集口径排除赋值目标（全仓三端仅此一处别名赋值），不入死键集。
+- **全量回归定性结论**：全量回归 13 failed 已由总管定性——其中 6 个为本分支
+  （chat-structure）引入的确定性新失败（5 个预算测试 + CT01 契约差集），
+  已由本 finalize 修复（D2 豁免 + CT01 avatar 转已读）并复测转绿；
+  其余 7 个为基线 / flaky / 活服务器用例，与本分支无关，本 finalize 未改动。
+  本 finalize 只改测试 / 文档 / spec，未改任何游戏行为代码，未改版本号、未部署。

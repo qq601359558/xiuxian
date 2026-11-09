@@ -395,12 +395,18 @@ def test_mobile_redesign_budgets():
     第五次豁免（command-panels）：CSS 上限 28800B → 29200B、mobile.js 文件
     上限 1892 行 → 2100 行（净增上限 720 → 928 行）——命令回复面板化通用
     渲染器 + 60 面板双端实现；出处：docs/compose/spec/command-panels.md §7
-    总管批准记录（2026-11-09），token 纪律不豁免照旧。"""
+    总管批准记录（2026-11-09），token 纪律不豁免照旧。
+    第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
+    ——CSS 上限 29200B → 32000B（实测 31324B）、mobile.js 文件上限 2100 行不变
+    （实测 1969 行），js 净增断言对齐第五次豁免已裁定的 928 行（文件上限
+    2100 − 基线 1172；此前代码仍写 720 系 D1 落码遗漏，实测净增 797 行）；
+    出处：docs/compose/spec/chat-structure.md，总管批准记录（2026-11-09），
+    token 纪律不豁免照旧。"""
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert css_bytes <= 29200, f"mobile.css {css_bytes}B 超 29200B 豁免预算（command-panels §7）"
+    assert css_bytes <= 32000, f"mobile.css {css_bytes}B 超 32000B 豁免预算（chat-structure D2）"
     html_lines = len((WEB / "mobile.html").read_text(encoding="utf-8").splitlines())
     js_lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
-    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 2100 行豁免上限（command-panels §7）"
-    assert js_lines - 1172 <= 720, f"mobile.js 净增 {js_lines - 1172} 行超 720（game-feel-phase2 §10）"
+    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 2100 行豁免上限（command-panels §7 / chat-structure D2）"
+    assert js_lines - 1172 <= 928, f"mobile.js 净增 {js_lines - 1172} 行超 928（command-panels §7 / chat-structure D2）"
     print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js {js_lines} 行（净增 +{js_lines - 1172}）")
