@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import copy
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -40,6 +41,9 @@ def _now(now: Optional[float] = None) -> float:
     return now if now is not None else time.time()
 
 
+_CAS_BASE_KEY = "_cas_base"
+
+
 def _load() -> Dict[str, Any]:
     try:
         data = WorldStateRepository.get(_KEY) or {}
@@ -59,6 +63,17 @@ def _load() -> Dict[str, Any]:
     if not isinstance(data.get("stats"), dict):
         data["stats"] = {"runs": 0, "accepted": 0, "rejected": 0, "attempts": 0}
     data["stats"].setdefault("attempts", 0)
+    # CAS（playability-block1 B1-2）：revision 为乐观并发版本，旧存档无此
+    # 字段默认 0；_cas_base 是本次加载的只读基线快照（不落盘），供 _save
+    # 在保存前重读比对、把本轮 delta 并入最新状态，禁止旧快照整体覆盖
+    # note_player_event 等并发写（口径对齐角色侧 save_if_unchanged）。
+    try:
+        data["revision"] = int(data.get("revision") or 0)
+    except Exception:
+        data["revision"] = 0
+    data[_CAS_BASE_KEY] = copy.deepcopy(
+        {k: v for k, v in data.items() if k != _CAS_BASE_KEY}
+    )
     return data
 
 
@@ -75,9 +90,128 @@ def _directive_type_cn(dtype: Any) -> Optional[str]:
     return TYPE_CN.get(str(dtype or ""))
 
 
+def _merge_list_append(current: list, base: list, outgoing: list, cap: int) -> list:
+    """列表字段 CAS 合并：保留并发方已追加项 + 本轮新增项，删除本轮明确移除项。"""
+    merged = list(current)
+    for item in outgoing:
+        if item not in base and item not in merged:
+            merged.append(copy.deepcopy(item))
+    for item in base:
+        if item not in outgoing and item in merged:
+            merged.remove(item)
+    return merged[-cap:] if cap > 0 else merged
+
+
+def _merge_active(current: list, base: list, outgoing: list) -> list:
+    """active 指令 CAS 合并：按 id 对齐——本轮新增追加、明确移除删除、
+    并发新增保留；同 id 以本轮（outgoing）版本为准（本轮负责其生命周期）。"""
+    def _key(d):
+        return d.get("id") if isinstance(d, dict) else None
+
+    base_ids = {_key(d) for d in base}
+    out_by_id = {_key(d): d for d in outgoing}
+    merged = []
+    seen = set()
+    for d in current:
+        k = _key(d)
+        if k in base_ids and k not in out_by_id:
+            continue  # 本轮已移除/过期
+        if k in out_by_id:
+            merged.append(copy.deepcopy(out_by_id[k]))
+        else:
+            merged.append(copy.deepcopy(d))  # 并发新增，本轮未动
+        seen.add(k)
+    for d in outgoing:
+        k = _key(d)
+        if k not in seen and k not in base_ids:
+            merged.append(copy.deepcopy(d))
+            seen.add(k)
+        elif k not in seen and k in base_ids:
+            merged.append(copy.deepcopy(d))
+            seen.add(k)
+    return merged
+
+
+def _cas_merge(current: Dict[str, Any], base: Dict[str, Any],
+               outgoing: Dict[str, Any]) -> Dict[str, Any]:
+    """以最新状态为底，把 outgoing 相对 base 的 delta 并入。
+
+    未被本轮改动的键一律保留 current（并发写存活）；标量键本轮改动胜出；
+    stats 按增量合并；player_events/history 按追加合并；active 按 id 合并。
+    """
+    merged = copy.deepcopy(current)
+    for key, new_val in outgoing.items():
+        if key in ("revision", _CAS_BASE_KEY):
+            continue
+        base_val = base.get(key)
+        if base_val == new_val:
+            continue  # 本轮未改此键：保留并发最新值
+        if key == "player_events" and isinstance(new_val, list) \
+                and isinstance(base_val, list) and isinstance(merged.get(key), list):
+            merged[key] = _merge_list_append(merged[key], base_val, new_val, cap=20)
+        elif key == "history" and isinstance(new_val, list) \
+                and isinstance(base_val, list) and isinstance(merged.get(key), list):
+            merged[key] = _merge_list_append(merged[key], base_val, new_val, cap=20)
+        elif key == "active" and isinstance(new_val, list) \
+                and isinstance(base_val, list) and isinstance(merged.get(key), list):
+            merged[key] = _merge_active(merged[key], base_val, new_val)
+        elif key == "stats" and isinstance(new_val, dict) and isinstance(base_val, dict) \
+                and isinstance(merged.get(key), dict):
+            stats = dict(merged[key])
+            for sk, sv in new_val.items():
+                bv = base_val.get(sk)
+                if isinstance(sv, (int, float)) and isinstance(bv, (int, float)) \
+                        and isinstance(stats.get(sk), (int, float)):
+                    stats[sk] = stats[sk] + (sv - bv)
+                elif sv != bv:
+                    stats[sk] = copy.deepcopy(sv)
+            merged[key] = stats
+        else:
+            merged[key] = copy.deepcopy(new_val)
+    # 本轮明确删除的键（base 有、outgoing 无）：current 未被并发改过才删
+    for key in base:
+        if key in ("revision", _CAS_BASE_KEY):
+            continue
+        if key not in outgoing and key in merged and merged.get(key) == base.get(key):
+            del merged[key]
+    return merged
+
+
 def _save(state: Dict[str, Any]) -> None:
+    """CAS 保存：保存前重读比对 revision。
+
+    无并发（revision 与基线一致）→ 直接落盘；被并发写过 → 以最新状态
+    为底并入本轮 delta 再存（_cas_merge），绝不旧快照整体覆盖。
+    落盘后把新 revision/基线回写 state，同一 state 多次 _save 可链式进行。
+    """
     try:
-        WorldStateRepository.set(_KEY, state)
+        base = state.get(_CAS_BASE_KEY)
+        outgoing = {k: v for k, v in state.items() if k != _CAS_BASE_KEY}
+        current = None
+        try:
+            current = WorldStateRepository.get(_KEY)
+        except Exception:
+            current = None
+        if not isinstance(current, dict):
+            current = {}
+        try:
+            cur_rev = int(current.get("revision") or 0)
+        except Exception:
+            cur_rev = 0
+        base_rev = None
+        if isinstance(base, dict):
+            try:
+                base_rev = int(base.get("revision") or 0)
+            except Exception:
+                base_rev = 0
+        if base_rev is not None and current and cur_rev != base_rev:
+            merged = _cas_merge(current, base, outgoing)
+        else:
+            merged = outgoing
+        merged["revision"] = cur_rev + 1
+        WorldStateRepository.set(_KEY, merged)
+        state["revision"] = merged["revision"]
+        state[_CAS_BASE_KEY] = copy.deepcopy(merged)
     except Exception:
         pass
 
@@ -117,11 +251,9 @@ def _prune_active(state: Dict[str, Any], now: float) -> None:
             except Exception:
                 pass
         state["active"] = active
-        # 读路径 prune 也要落库，否则 history/active 丢失
-        try:
-            WorldStateRepository.set(_KEY, state)
-        except Exception:
-            pass
+        # 读路径 prune 也要落库，否则 history/active 丢失（走 CAS _save，
+        # 不得用旧快照整体覆盖并发写）
+        _save(state)
     else:
         state["active"] = active
 
@@ -1224,13 +1356,20 @@ class WorldDirector:
         return (t - last) >= float(DIRECTOR_TICK_INTERVAL_SECONDS)
 
     @staticmethod
-    def run_cycle(
+    def prepare_cycle(
         trigger: str = "timer",
         *,
         force: bool = False,
         now: Optional[float] = None,
         gateway: Any = None,
-    ) -> Dict[str, Any]:
+    ):
+        """三段式·段一（调用方持 World.lock 时执行）：读快照 + 闸门 + 事实简报。
+
+        返回 (plan, early_result)：闸门未过时 plan=None 且 early_result 为
+        原 run_cycle 的跳过/拒绝结果（已按原口径 _save 落盘）；过闸时 plan
+        为纯数据 DTO（director 状态快照 dict + brief dict，不持角色对象），
+        AI 提案在段二锁外执行，落账在段三。与原 run_cycle 前半逐项同序。
+        """
         t = _now(now)
         state = _load()
         _prune_active(state, t)
@@ -1258,7 +1397,7 @@ class WorldDirector:
                 state["last_source"] = "skipped"
                 state["last_error"] = "cooldown"
                 _save(state)
-                return {
+                return None, {
                     "ok": False,
                     "skipped": "cooldown",
                     "message": f"天道未至再演之时（冷却 {DIRECTOR_MIN_INTERVAL_SECONDS:.0f}s）",
@@ -1272,7 +1411,7 @@ class WorldDirector:
                 state["last_source"] = "skipped"
                 state["last_error"] = "tick_gate"
                 _save(state)
-                return {"ok": False, "skipped": "tick_gate", "message": "导演 tick 闸未开"}
+                return None, {"ok": False, "skipped": "tick_gate", "message": "导演 tick 闸未开"}
 
         if len(state.get("active") or []) >= DIRECTOR_MAX_ACTIVE and not force:
             # 大劫预兆优先：满员时可替换最旧的一条非 calamity
@@ -1282,13 +1421,36 @@ class WorldDirector:
                 state["last_source"] = "skipped"
                 state["last_error"] = "max_active"
                 _save(state)
-                return {"ok": False, "skipped": "max_active", "message": "世间已有足够天道态势"}
+                return None, {"ok": False, "skipped": "max_active", "message": "世间已有足够天道态势"}
 
         # 进入实际提案阶段才计 runs
         state["stats"]["runs"] = int(state.get("stats", {}).get("runs") or 0) + 1
         state["stats"]["attempts"] = int(state["stats"].get("attempts") or 0) + 1
 
-        brief = gather_world_brief(t)
+        plan = {
+            "state": state,
+            "t": t,
+            "trigger": trigger,
+            "force": force,
+            "gateway": gateway,
+            "brief": gather_world_brief(t),
+        }
+        return plan, None
+
+    @staticmethod
+    def propose_cycle(plan: Dict[str, Any]):
+        """三段式·段二（锁外执行）：AI 提案（gateway 注入或 _ai_propose）。
+
+        只读写 plan DTO 与 AI 通道，不持 World.lock；内部对 director 状态
+        的驳回计数写走 CAS _save，不会覆盖并发 player_events。
+        返回 (cleaned, source, error)，与原 run_cycle 中段同义。
+        """
+        state = plan["state"]
+        t = plan["t"]
+        trigger = plan["trigger"]
+        force = plan["force"]
+        brief = plan["brief"]
+        gateway = plan.get("gateway")
         if gateway is not None:
             # 测试注入
             try:
@@ -1315,7 +1477,18 @@ class WorldDirector:
                     cleaned, source = _local_directives(brief, t), "local"
         else:
             cleaned, source, error = _ai_propose(brief, force=force, now=t)
+        return cleaned, source, error
 
+    @staticmethod
+    def apply_cycle(plan: Dict[str, Any], cleaned, source: str, error: str) -> Dict[str, Any]:
+        """三段式·段三（调用方持 World.lock 时执行）：规则落账 + CAS 落盘。
+
+        与原 run_cycle 后半逐项一致：error 短路、apply_directive 逐条落账、
+        active 修剪/历史、_save（CAS 并入窗口内并发写）、世界弧升格。
+        """
+        state = plan["state"]
+        t = plan["t"]
+        trigger = plan["trigger"]
         # 统一：批内去重 + 对活跃指令去重
         if cleaned:
             cleaned = _dedupe_cleaned(cleaned)
@@ -1387,6 +1560,27 @@ class WorldDirector:
             "arcs_spawned": arcs_spawned,
             "brief_hint": (applied_rows[0].get("title") if applied_rows else "天道沉寂"),
         }
+
+    @staticmethod
+    def run_cycle(
+        trigger: str = "timer",
+        *,
+        force: bool = False,
+        now: Optional[float] = None,
+        gateway: Any = None,
+    ) -> Dict[str, Any]:
+        """兼容入口：三段连跑（prepare → propose → apply），语义与原实现一致。
+
+        tick 路径由 World._tick_once 分段调用 prepare/propose/apply，把 AI
+        提案移出 World.lock；其余调用方（命令/事件触发）仍走本入口。
+        """
+        plan, early = WorldDirector.prepare_cycle(
+            trigger, force=force, now=now, gateway=gateway
+        )
+        if plan is None:
+            return early
+        cleaned, source, error = WorldDirector.propose_cycle(plan)
+        return WorldDirector.apply_cycle(plan, cleaned, source, error)
 
     @staticmethod
     @staticmethod

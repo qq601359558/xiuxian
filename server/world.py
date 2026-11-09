@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import contextlib
+import sqlite3
 import threading
 import time
 import uuid
@@ -102,6 +103,16 @@ _LOCK_SNAPSHOT_RESERVE_SECONDS = 0.3
 SERVER_BUSY_MESSAGE = "世界正在演化，请稍后重试"
 
 
+def is_db_locked_error(exc: BaseException) -> bool:
+    """DB 争用类异常判定（playability-block1 B1-1）：sqlite3.OperationalError
+    且消息含 locked/busy。此类异常是 tick/并发窗口的瞬时争用，注册/入世
+    路径应转 WorldBusyError → 503 可重试，绝不裸 500；其余异常照旧抛。"""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    msg = str(exc).lower()
+    return "locked" in msg or "busy" in msg
+
+
 # ---- 交谈结构化呈现（chat-structure spec §B）：chat_lines 拼装助手 ----
 # 语义：本次响应要在交谈视图新增呈现的行；前端只按字段渲染，不再解析 text。
 # 每条 text 在此统一过呈现清洗（§C，幂等）；text 字段本身保持原样不动。
@@ -182,10 +193,16 @@ class World:
                 continue
 
     def _tick_once(self):
-        """一轮 tick：整轮持锁（本轮 O1 不动），分阶段计时记 TICK 日志。
+        """一轮 tick（playability-block1 B1-2 三段式）：AI 阶段移出 World.lock。
 
-        下一轮“tick 内 AI 移出临界区”重构的定量输入即 phases 字段。
-        单阶段异常仍按现状 swallow，但记带阶段名的错误行。
+        分工：纯规则阶段维持锁内；agenda 与 director 两阶段走
+        「锁内取快照（DTO）→ 锁外调 AI → 锁内复验落盘」——agenda 经
+        NpcAgendaEngine.prepare/ai/apply_tick_world，director 经
+        WorldDirector.prepare/propose/apply_cycle。持锁时长只计锁内段
+        （hold_ms），整轮墙钟另记 wall_ms；phases 保留 agenda/director
+        总时长键并增 *_prepare/*_ai/*_apply 分段键。单阶段异常仍按现状
+        swallow，但记带阶段名的错误行。结算口径不变：规则结算仍在锁内
+        段一完成，AI 只改叙事/提案内容，落盘前复验（见各引擎段三）。
         """
         t_start = time.time()
         self._tick_count = getattr(self, "_tick_count", 0) + 1
@@ -194,6 +211,7 @@ class World:
         except Exception:
             pass
         phases: Dict[str, int] = {}
+        lock_hold_seconds = [0.0]
 
         def _run_phase(name: str, fn) -> None:
             t0 = time.time()
@@ -206,69 +224,121 @@ class World:
                     pass
             phases[name] = int((time.time() - t0) * 1000)
 
-        with self.lock:
-            def _jianghu():
-                from core.jianghu_sim import JianghuSimulator
+        def _locked_phase(name: str, fn) -> None:
+            with self.lock:
+                t0 = time.time()
+                _run_phase(name, fn)
+                lock_hold_seconds[0] += time.time() - t0
 
-                JianghuSimulator.simulate_offline()
+        def _unlocked_phase(name: str, fn) -> None:
+            _run_phase(name, fn)
 
-            _run_phase("jianghu", _jianghu)
+        def _jianghu():
+            from core.jianghu_sim import JianghuSimulator
 
-            def _agenda():
-                NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+            JianghuSimulator.simulate_offline()
 
-            _run_phase("agenda", _agenda)
+        _locked_phase("jianghu", _jianghu)
 
-            def _director():
+        # ---- agenda 三段式 ----
+        _agenda_holder: Dict[str, Any] = {}
+
+        def _agenda_prepare():
+            _agenda_holder["prepared"] = NpcAgendaEngine.prepare_tick_world(max_npcs=3, force=False)
+
+        _locked_phase("agenda_prepare", _agenda_prepare)
+
+        def _agenda_ai():
+            NpcAgendaEngine.ai_tick_world(_agenda_holder.get("prepared") or [])
+
+        _unlocked_phase("agenda_ai", _agenda_ai)
+
+        def _agenda_apply():
+            NpcAgendaEngine.apply_tick_world(_agenda_holder.get("prepared") or [])
+
+        _locked_phase("agenda_apply", _agenda_apply)
+        phases["agenda"] = (
+            phases.get("agenda_prepare", 0) + phases.get("agenda_ai", 0) + phases.get("agenda_apply", 0)
+        )
+
+        # ---- director 三段式 ----
+        _director_holder: Dict[str, Any] = {}
+
+        def _director_prepare():
+            from core.world_director import WorldDirector
+
+            plan, _early = WorldDirector.prepare_cycle(trigger="timer", force=False)
+            _director_holder["plan"] = plan
+
+        _locked_phase("director_prepare", _director_prepare)
+
+        def _director_ai():
+            plan = _director_holder.get("plan")
+            if plan is not None:
                 from core.world_director import WorldDirector
 
-                WorldDirector.run_cycle(trigger="timer", force=False)
+                _director_holder["proposal"] = WorldDirector.propose_cycle(plan)
 
-            _run_phase("director", _director)
+        _unlocked_phase("director_ai", _director_ai)
 
-            def _world_arc():
-                from core import world_arc
+        def _director_apply():
+            plan = _director_holder.get("plan")
+            proposal = _director_holder.get("proposal")
+            if plan is not None and proposal is not None:
+                from core.world_director import WorldDirector
 
-                world_arc.tick_world(max_advance=2)
+                cleaned, source, error = proposal
+                WorldDirector.apply_cycle(plan, cleaned, source, error)
 
-            _run_phase("world_arc", _world_arc)
+        _locked_phase("director_apply", _director_apply)
+        phases["director"] = (
+            phases.get("director_prepare", 0) + phases.get("director_ai", 0) + phases.get("director_apply", 0)
+        )
 
-            def _faction():
-                from core import faction
+        def _world_arc():
+            from core import world_arc
 
-                faction.tick_world()
+            world_arc.tick_world(max_advance=2)
 
-            _run_phase("faction", _faction)
+        _locked_phase("world_arc", _world_arc)
 
-            def _player_echo():
-                from core import player_echo
+        def _faction():
+            from core import faction
 
-                player_echo.decay_echoes()
+            faction.tick_world()
 
-            _run_phase("player_echo", _player_echo)
+        _locked_phase("faction", _faction)
 
-            def _era_reentry():
-                from core import era_reentry
+        def _player_echo():
+            from core import player_echo
 
-                era_reentry.tick()
+            player_echo.decay_echoes()
 
-            _run_phase("era_reentry", _era_reentry)
+        _locked_phase("player_echo", _player_echo)
 
-            def _auction():
-                from core.trade import AuctionEngine
+        def _era_reentry():
+            from core import era_reentry
 
+            era_reentry.tick()
+
+        _locked_phase("era_reentry", _era_reentry)
+
+        def _auction():
+            from core.trade import AuctionEngine
+
+            try:
+                AuctionEngine.advance(react=True)
+            except Exception as e:
                 try:
-                    AuctionEngine.advance(react=True)
-                except Exception as e:
-                    try:
-                        log_event("AUCTION", "advance_error", err=str(e)[:120])
-                    except Exception:
-                        pass
+                    log_event("AUCTION", "advance_error", err=str(e)[:120])
+                except Exception:
+                    pass
 
-            _run_phase("auction", _auction)
-        hold_ms = int((time.time() - t_start) * 1000)
+        _locked_phase("auction", _auction)
+        hold_ms = int(lock_hold_seconds[0] * 1000)
+        wall_ms = int((time.time() - t_start) * 1000)
         try:
-            log_event("TICK", "tick_end", tick_no=self._tick_count, hold_ms=hold_ms, phases=phases)
+            log_event("TICK", "tick_end", tick_no=self._tick_count, hold_ms=hold_ms, wall_ms=wall_ms, phases=phases)
         except Exception:
             pass
 
@@ -334,7 +404,14 @@ class World:
             raise ValueError("join requires an authenticated user_id")
         if _deadline is None:
             _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
-        return self._join_inner(name, user_id, auto_rebirth=auto_rebirth, _deadline=_deadline)
+        try:
+            return self._join_inner(name, user_id, auto_rebirth=auto_rebirth, _deadline=_deadline)
+        except sqlite3.OperationalError as e:
+            # B1-1 注册兜底：DB 争用（database is locked/busy）转繁忙语义，
+            # HTTP 层回 503 SERVER_BUSY，绝不裸 500；其他异常照旧抛。
+            if is_db_locked_error(e):
+                raise WorldBusyError(SERVER_BUSY_MESSAGE) from e
+            raise
 
     def _acquire_bounded(self, deadline: float) -> bool:
         """以 deadline 为界尝试取 World.lock（§2.2.4）。
@@ -1030,8 +1107,14 @@ class World:
         }
 
     def reincarnate(self, token: str, name: Optional[str] = None, boosts: Optional[List[str]] = None) -> Dict[str, Any]:
-        """转世：结算（若需）→ 新一世 → 消费道统点"""
-        with self.lock:
+        """转世：结算（若需）→ 新一世 → 消费道统点
+
+        B1-2：拿锁改有界（_bounded_lock 口径）——锁被 tick 等长期占用时
+        抛 WorldBusyError（HTTP 层 503 SERVER_BUSY），不许无界等待。
+        已持锁线程（handle 分发）经 RLock 重入立即成功，口径不变。
+        """
+        _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        with self._bounded_lock(_deadline):
             session = self._session(token)
             if not session:
                 return {"ok": False, "error": "会话无效"}
@@ -1198,6 +1281,20 @@ class World:
 
     # ---------------- 指令路由（权威） ----------------
     def handle(self, token: str, command: str) -> Dict[str, Any]:
+        """指令分发。B1-2：仅 /转世（含 /reborn）走有界拿锁——锁被长期
+        占用时抛 WorldBusyError（HTTP 层转 503 SERVER_BUSY 诚实文案），
+        不许无界等待；其余命令维持既有无界 with self.lock 不动。"""
+        _parts = command.strip().split() if isinstance(command, str) else []
+        _action0 = _parts[0].lower() if _parts else ""
+        if _action0 in ("/reborn", "/转世"):
+            _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+            with self._bounded_lock(_deadline):
+                return self._handle_locked(token, command)
+        with self.lock:
+            return self._handle_locked(token, command)
+
+    def _handle_locked(self, token: str, command: str) -> Dict[str, Any]:
+        """handle 实现体（调用方已持 World.lock；此处 RLock 重入无等待）。"""
         with self.lock:
             char = self.get_char(token)
             if not char:

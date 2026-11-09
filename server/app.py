@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,7 +16,7 @@ from urllib.parse import urlparse
 
 from config import AI_REQUIRED, ALLOW_LOCAL_AI, LAN_HOST, LAN_PORT, VERSION, ai_available
 from core.command_catalog import all_entries
-from server.world import LOCK_ACQUIRE_TIMEOUT_SECONDS, WORLD, WorldBusyError
+from server.world import LOCK_ACQUIRE_TIMEOUT_SECONDS, WORLD, WorldBusyError, is_db_locked_error
 from server.log import log_event
 
 
@@ -472,7 +473,14 @@ class GameHandler(BaseHTTPRequestHandler):
             username = str(data.get("username") or "").strip()
             password = str(data.get("password") or "")
             name = str(data.get("name") or username or "").strip()[:12]
-            reg = acct_register(username, password, display_name=name)
+            try:
+                reg = acct_register(username, password, display_name=name)
+            except sqlite3.OperationalError as e:
+                # B1-1 注册兜底：DB 争用（locked/busy）→ 503 可重试，绝不裸 500；
+                # 账号行未建成（异常在写入前/中发生且未提交），原样重试安全。
+                if is_db_locked_error(e):
+                    return _busy_response(self)
+                raise
             if not reg.get("ok"):
                 return _json_response(self, 400, reg)
             # login-latency-fix §2.2.4：同一 2 秒总界贯穿 join；拿不到锁则
@@ -569,6 +577,9 @@ class GameHandler(BaseHTTPRequestHandler):
                 result = WORLD.handle(token, command)
                 if not result.get("ok", True):
                     log_event("GATE", "action_rejected", cmd=command_name, error="ACTION_REJECTED")
+            except WorldBusyError:
+                # B1-2：/转世 等有界拿锁超时 → 503 SERVER_BUSY，不落 500。
+                return _busy_response(self)
             except Exception as error:
                 log_event(
                     "ERROR",
@@ -603,7 +614,10 @@ class GameHandler(BaseHTTPRequestHandler):
             else:
                 cmd = f"/交谈 {to}"
             log_event("CMD", "chat", cmd=cmd.split()[0] if cmd else "")
-            result = WORLD.handle(token, cmd)
+            try:
+                result = WORLD.handle(token, cmd)
+            except WorldBusyError:
+                return _busy_response(self)
             return _json_response(self, 200, result)
 
         return _json_response(self, 404, {"ok": False, "error": "not found"})
