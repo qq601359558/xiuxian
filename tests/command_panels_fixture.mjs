@@ -67,6 +67,17 @@ function check(id, cmd, data, probes, mode) {
     ok(strip(m).includes(p), id + " [mobile probe]", "missing: " + p + " | got: " + strip(m).slice(0, 200));
   }
 }
+// 小修轮：内部码不得原样进面板（映射前后对照：标签在场 + 原码缺席）
+function checkNo(id, cmd, data, forbidden) {
+  const d = desk.api.buildCommandPanel(cmd, data);
+  const m = mob.api.buildCommandPanel(cmd, data);
+  ok(d !== "", id + " [desktop non-empty]");
+  ok(m !== "", id + " [mobile non-empty]");
+  for (const f of forbidden) {
+    ok(!strip(d).includes(f), id + " [desktop no " + f + "]", "got: " + strip(d).slice(0, 200));
+    ok(!strip(m).includes(f), id + " [mobile no " + f + "]", "got: " + strip(m).slice(0, 200));
+  }
+}
 
 // ---- 静态契约（§4-K2）：块内不得出现 data.text 解析 / 捏造源 ----
 for (const [name, blk] of [["desktop", desk.block], ["mobile", mob.block]]) {
@@ -157,9 +168,15 @@ check("CP-17 sect", "/宗门", { sects: [{ name: "青云宗", alias: "青云", "
 check("CP-19 map", "/宝图", { treasure_map: { name: "古图·坎水", tier: 3, bagua: "坎", coords: "东三里", riddle: "枯井之下有玄光。", clue: "井边三尺", target_node: "落霞古洞", archetype: "解谜"}}, ["宝图研读", "古图·坎水", "坎", "枯井之下有玄光"]);
 check("CP-21 who", "/who", { who: { groups: [{ place: "青云坊市客栈", members: [{ name: "金满堂", realm: "金丹期中期"}]}]}}, ["天下名录", "青云坊市客栈", "金满堂"]);
 check("CP-23 bounty", "/告示", { bounties: [{ id: 1, target: "血衣侯", "赏金": 500, "缘由": "血煞缠身", "匿": false}]}, ["悬赏告示", "血衣侯", "赏金 500"]);
-check("CP-24 heaven", "/天道", { director: { last_run: 1794120908, stats: { runs: 1, accepted: 2, attempts: 1, rejected: 0}, active: [{ type: "sect_tension", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508}]}}, ["天道导演", "提案 1", "敌门暗涌"]);
+check("CP-24 heaven", "/天道", { director: { last_run: 1794120908, stats: { runs: 1, accepted: 2, attempts: 1, rejected: 0}, active: [{ type: "sect_tension", type_cn: "宗门紧张", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508}]}}, ["天道导演", "提案 1", "敌门暗涌", "宗门紧张"]);
+checkNo("CP-24 heaven-nocode", "/天道", { director: { last_run: 1794120908, stats: { runs: 1, accepted: 2, attempts: 1, rejected: 0}, active: [{ type: "sect_tension", type_cn: "宗门紧张", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508}]}}, ["sect_tension"]);
 check("CP-25 arcs", "/世界弧", { arcs: { "累计": { started: 2, upgraded: 0, resolved: 0}, "弧": [{ title: "敌门暗涌", stage: "prophesy", stage_deadline: 1794121808}], "近史": ["起弧·敌门暗涌"], "弧修饰": "热度地=落霞山灵泉"}}, ["世界弧", "预兆", "起弧 2", "敌门暗涌"]);
-check("CP-27 fate-pending", "/命格", { fate: { boons: [{ key: "dao1", name: "道骨天成", from_tier: 2, chosen_at: 1794120908}], pending: [{ candidates: [{ key: "k1", name: "剑心通明", desc: "剑道悟性大增", icon: "⚔"}], from_tier: 2}], power_bonus: 1.1}}, ["命格", "道骨天成", "剑心通明", "择 剑心通明", "×1.1"]);
+check("CP-27 fate-pending", "/命格", { fate: { boons: [{ key: "sword_heart", name: "剑心通明", source_cn: "道韵", from_tier: 2, chosen_at: 1794120908}], pending: [{ candidates: [{ key: "pure_yang", name: "纯阳烈煞", desc: "纯阳烈煞在身", icon: "☀"}], from_tier: 2}], power_bonus: 1.1}}, ["命格", "剑心通明", "道韵", "纯阳烈煞", "择 纯阳烈煞", "×1.1"]);
+checkNo("CP-27 fate-nocode", "/命格", { fate: { boons: [{ key: "sword_heart", name: "剑心通明", source_cn: "道韵", from_tier: 2, chosen_at: 1794120908}], pending: [{ candidates: [{ key: "pure_yang", name: "纯阳烈煞", desc: "纯阳烈煞在身", icon: "☀"}], from_tier: 2}], power_bonus: 1.1}}, ["sword_heart", "pure_yang"]);
+check("CP-27 fate-affix", "/命格", { fate: { boons: [{ key: "fate_pierce", name: "破煞", source_cn: "词缀", from_tier: 3, chosen_at: 1794120908}], pending: [], power_bonus: 1.0}}, ["命格", "破煞", "词缀"]);
+checkNo("CP-27 fate-affix-nocode", "/命格", { fate: { boons: [{ key: "fate_pierce", name: "破煞", source_cn: "词缀", from_tier: 3, chosen_at: 1794120908}], pending: [], power_bonus: 1.0}}, ["fate_pierce"]);
+check("CP-27 fate-unknown", "/命格", { fate: { boons: [{ key: "dao1", name: "道骨天成", from_tier: 2, chosen_at: 1794120908}], pending: [], power_bonus: 1.0}}, ["命格", "道骨天成"]);
+checkNo("CP-27 fate-unknown-nocode", "/命格", { fate: { boons: [{ key: "dao1", name: "道骨天成", from_tier: 2, chosen_at: 1794120908}], pending: [], power_bonus: 1.0}}, ["dao1"]);
 check("CP-28 respond", "/回应", { drama_pending: [{ id: "dr_1", npc_name: "铁算盘", text: "旧怨未消，今日便要讨个说法！", options: [{ key: "fight", label: "应战"}, { key: "avoid", label: "避走"}]}]}, ["待回应之事", "铁算盘", "应战"]);
 check("CP-29 links", "/因果", { links: [{ kind: "仇", "名": "铁算盘", "强度": 1, "缘由": "出身旧怨：背案在身"}]}, ["因果牵缠", "铁算盘", "强度 1"]);
 check("CP-30 faction", "/势力", { factions: { relations: [{ a: "九幽天魔宗", b: "青云宗", status: "hostile", score: -67, note: "天道导演·宗门紧张"}], orders: [], sieges: []}}, ["天下势力", "敌对", "−67"]);
@@ -168,7 +185,10 @@ check("CP-32 sectpower", "/宗门势", { sect_power: { rows: [{ "宗门": "青�
 check("CP-33 contribution", "/贡献", { contribution: { sect: "散修", points: 0, catalog: [{ name: "聚气丹", cost: 8}, { name: "玄元聚气丹", cost: 80, "需连环": 3}]}}, ["宗门贡献", "聚气丹", "8 贡献", "需连环≥3"]);
 check("CP-33 redeem-args", "/兑换 聚气丹", { contribution: { sect: "散修", points: 0, catalog: [{ name: "聚气丹", cost: 8}]}}, [], "empty");
 check("CP-35 npcgoods", "/npc货单 金满堂", { npc_goods: [{ name: "聚气丹", price: 40, "描述": "行气丹药"}]}, ["NPC 货单", "聚气丹", "40 灵石"]);
-check("CP-36 channel", "/频道", { channel: [{ severity: 2, type: "天象", text: "天象沉静如水。"}]}, ["世界频道", "天象", "★★"]);
+check("CP-36 channel", "/频道", { channel: [{ severity: 2, type: "天象", text: "天象沉静如水。"}, { severity: "major", type: "bond", type_cn: "结缘", text: "联调频道探针消息"}]}, ["世界频道", "天象", "★★", "结缘"]);
+checkNo("CP-36 channel-nocode", "/频道", { channel: [{ severity: 2, type: "天象", text: "天象沉静如水。"}, { severity: "major", type: "bond", type_cn: "结缘", text: "联调频道探针消息"}]}, ["bond"]);
+check("CP-36 channel-unknown", "/频道", { channel: [{ severity: 1, type: "panel_test", text: "探针消息"}]}, ["世界频道", "★"]);
+checkNo("CP-36 channel-unknown-nocode", "/频道", { channel: [{ severity: 1, type: "panel_test", text: "探针消息"}]}, ["panel_test"]);
 check("CP-37 legend", "/传说", { legends: { "近史": ["大劫之后自有记载"], "活跃权重": "暂无", "引用累计": 0}}, ["传说", "引用累计", "0"]);
 check("CP-38 era", "/纪元回流", { era_flow: { "上次回流": "11-08 06:55", "活跃权重": "暂无", "近传说": [], "引用累计": 0}}, ["纪元回流", "上次回流", "引用累计"]);
 check("CP-39 trade", "/交易", { trade: { partner: "审计员乙", status: "等待报价", offers: { me: { stones: 100, items: ["聚气丹"]}, partner: { stones: 0, items: []}}}}, ["当面交易", "审计员乙", "同意成交", "拒绝"]);
@@ -258,6 +278,50 @@ const t = strip(h);
 for (const bad of ["[object Object]", "undefined", "NaN"]) ok(!t.includes(bad), id + " [" + nm + " no " + bad + "]", t.slice(0, 200));
 }
 }
+
+// ---- 小修轮（内部码泄漏）：映射前后对照 —— 标签在场 + 原码缺席 ----
+check("CP-70 world-director", "/世情", { evolution: { director: { last_run_ts: 1794120908, stats: { runs: 1, accepted: 1, rejected: 0}, active: [{ type: "sect_tension", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508}, { type: "secret_realm_pressure", title: "秘境异动", narrative: "秘境灵压攀升。", expires_at: 1794124508}]}, era: { bias: { sect_tension: 3, secret_realm_pressure: 1}}}}, ["世情", "天道导演", "宗门紧张", "秘境压力", "纪元回流"]);
+checkNo("CP-70 world-director-nocode", "/世情", { evolution: { director: { last_run_ts: 1794120908, stats: { runs: 1, accepted: 1, rejected: 0}, active: [{ type: "sect_tension", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508}, { type: "secret_realm_pressure", title: "秘境异动", narrative: "秘境灵压攀升。", expires_at: 1794124508}]}, era: { bias: { sect_tension: 3, secret_realm_pressure: 1}}}}, ["sect_tension", "secret_realm_pressure"]);
+check("CP-70 scan-realm", "/探查", cap("158-scan"), ["神识探查", "苏婉清", "境界可辨"]);
+checkNo("CP-70 scan-realm-nocode", "/探查", cap("158-scan"), ["REALM"]);
+check("CP-70 scan-full", "/探查", { scan: [{ clarity: "FULL", description: "尽数洞悉的探查结果"}]}, ["神识探查", "尽数洞悉"]);
+checkNo("CP-70 scan-full-nocode", "/探查", { scan: [{ clarity: "FULL", description: "尽数洞悉的探查结果"}]}, ["FULL"]);
+check("CP-70 legacy", "/道统", cap("005-ro-legacy"), ["道统", "出身灵石", "延寿道体", "洗练灵根", "传承功法", "遗物留存", "前世心法", "旧缘重续"]);
+checkNo("CP-70 legacy-nocode", "/道统", cap("005-ro-legacy"), ["stones", "lifespan", "root", "skill", "art_memory", "bond_echo"]);
+check("CP-70 promises", "/诺言", { promises: [{ "对象": "金满堂", "类型": "arrive", "内容": "三日内抵达青云坊", "状态": "KEPT", "期限": 1794124508}, { "对象": "铁算盘", "类型": "quest", "内容": "代寻聚灵草", "状态": "BROKEN", "期限": 1794124508}, { "对象": "玄清子", "类型": "no_attack", "内容": "十日不攻青云宗", "状态": "DISSOLVED", "期限": 1794124508}]}, ["诺言账", "抵达", "委托", "不攻", "已践诺", "已违约", "已消散"]);
+checkNo("CP-70 promises-nocode", "/诺言", { promises: [{ "对象": "金满堂", "类型": "arrive", "内容": "三日内抵达青云坊", "状态": "KEPT", "期限": 1794124508}, { "对象": "铁算盘", "类型": "quest", "内容": "代寻聚灵草", "状态": "BROKEN", "期限": 1794124508}, { "对象": "玄清子", "类型": "no_attack", "内容": "十日不攻青云宗", "状态": "DISSOLVED", "期限": 1794124508}]}, ["arrive", "quest", "no_attack", "KEPT", "BROKEN", "DISSOLVED"]);
+check("CP-70 recipes", "/配方", { recipes: [{ name: "聚气丹方", kind: "pill", "产物": "聚气丹", "材料": ["聚灵草"], "炉火": "文火", "成率": 0.8, "境界足": true}, { name: "青锋剑方", kind: "equip", "产物": "青锋剑", "材料": ["玄铁"], "炉火": "文火", "成率": 0.8, "境界足": true}]}, ["配方", "聚气丹方", "丹药", "青锋剑方", "法宝"]);
+checkNo("CP-70 recipes-nocode", "/配方", { recipes: [{ name: "聚气丹方", kind: "pill", "产物": "聚气丹", "材料": ["聚灵草"], "炉火": "文火", "成率": 0.8, "境界足": true}, { name: "青锋剑方", kind: "equip", "产物": "青锋剑", "材料": ["玄铁"], "炉火": "文火", "成率": 0.8, "境界足": true}]}, ["pill", "equip"]);
+check("CP-70 quests", "/委托", { quests: { active: { publisher: "玄清子", rings_total: 3, ring_index: 0, ring: { kind: "deliver", desc: "送信至青云峰", progress: 0, need: 1}, reward_stones: 50, reward_merit: 2, expires_in_s: 86399}, offers: [{ npc: "小雀儿", realm: "练气期初期", rings: 2, reward_stones: 40, reward_merit: 1, first_ring: { kind: "fetch", desc: "寻得聚灵草一份"}}]}}, ["NPC 委托", "送信", "寻物"]);
+check("CP-70 quests-list", "/委托", { quests: [{ npc: "小雀儿", realm: "练气期初期", "环数": 3, "赏": "灵石 100 + 功德 5", "首环": { kind: "slay", text: "除妖"}}]}, ["NPC 委托", "除妖"]);
+checkNo("CP-70 quests-nocode", "/委托", { quests: { active: { publisher: "玄清子", rings_total: 3, ring_index: 0, ring: { kind: "deliver", desc: "送信至青云峰", progress: 0, need: 1}, reward_stones: 50, reward_merit: 2, expires_in_s: 86399}, offers: [{ npc: "小雀儿", realm: "练气期初期", rings: 2, reward_stones: 40, reward_merit: 1, first_ring: { kind: "fetch", desc: "寻得聚灵草一份"}}]}}, ["deliver", "fetch"]);
+checkNo("CP-70 quests-list-nocode", "/委托", { quests: [{ npc: "小雀儿", realm: "练气期初期", "环数": 3, "赏": "灵石 100 + 功德 5", "首环": { kind: "slay", text: "除妖"}}]}, ["slay"]);
+check("CP-70 chains", "/因果链", { karma_chains: [{ kind: "chou", "对方": "铁算盘", "发酵进度": 0.5, "近史": ["旧怨"], "上限": 120}, { kind: "nuo", "对方": "金满堂", "发酵进度": 0.3, "近史": ["旧诺"], "上限": 60}, { kind: "xue", "对方": "血衣侯", "发酵进度": 0.7, "近史": ["血仇"], "上限": 200}]}, ["因果链", "仇", "诺", "血仇"]);
+checkNo("CP-70 chains-nocode", "/因果链", { karma_chains: [{ kind: "chou", "对方": "铁算盘", "发酵进度": 0.5, "近史": ["旧怨"], "上限": 120}, { kind: "nuo", "对方": "金满堂", "发酵进度": 0.3, "近史": ["旧诺"], "上限": 60}, { kind: "xue", "对方": "血衣侯", "发酵进度": 0.7, "近史": ["血仇"], "上限": 200}]}, ["chou", "nuo", "xue"]);
+check("CP-70 trade", "/交易", { trade: { partner: "审计员乙", status: "OPEN", offers: { me: { stones: 100, items: ["聚气丹"]}, partner: { stones: 0, items: []}}}}, ["当面交易", "进行中"]);
+checkNo("CP-70 trade-nocode", "/交易", { trade: { partner: "审计员乙", status: "OPEN", offers: { me: { stones: 100, items: ["聚气丹"]}, partner: { stones: 0, items: []}}}}, ["OPEN"]);
+check("CP-70 here", "/here", { status: { location: "青云坊市客栈"}, count: 1, here: [{ name: "血衣侯", realm: "筑基期中期", attitude: "hostile", sect: "九幽天魔宗"}]}, ["同场", "血衣侯", "仇视"]);
+checkNo("CP-70 here-nocode", "/here", { status: { location: "青云坊市客栈"}, count: 1, here: [{ name: "血衣侯", realm: "筑基期中期", attitude: "hostile", sect: "九幽天魔宗"}]}, ["hostile"]);
+check("CP-70 council", "/议政", { council: { sect: "青云宗", session_no: 1, topic: { name: "开矿增收", desc: "开矿增收描述"}, seats: [{ name: "丹霞子", rank: "长老", stance: "support", line: "老夫赞成。"}], votes: { support: 1, oppose: 0, mine: null}}}, ["宗门议政", "丹霞子", "支持"]);
+checkNo("CP-70 council-nocode", "/议政", { council: { sect: "青云宗", session_no: 1, topic: { name: "开矿增收", desc: "开矿增收描述"}, seats: [{ name: "丹霞子", rank: "长老", stance: "support", line: "老夫赞成。"}], votes: { support: 1, oppose: 0, mine: null}}}, ["support"]);
+check("CP-70 faction", "/势力", { factions: { relations: [{ a: "九幽天魔宗", b: "青云宗", status: "hostile", score: -67, note: "天道导演·宗门紧张"}], orders: [], sieges: []}}, ["天下势力", "敌对"]);
+checkNo("CP-70 faction-nocode", "/势力", { factions: { relations: [{ a: "九幽天魔宗", b: "青云宗", status: "hostile", score: -67, note: "天道导演·宗门紧张"}], orders: [], sieges: []}}, ["hostile"]);
+check("CP-70 arcs", "/世界弧", { arcs: { "累计": { started: 2, upgraded: 0, resolved: 0}, "弧": [{ title: "敌门暗涌", stage: "prophesy", stage_deadline: 1794121808}], "近史": [], "弧修饰": ""}}, ["世界弧", "预兆"]);
+checkNo("CP-70 arcs-nocode", "/世界弧", { arcs: { "累计": { started: 2, upgraded: 0, resolved: 0}, "弧": [{ title: "敌门暗涌", stage: "prophesy", stage_deadline: 1794121808}], "近史": [], "弧修饰": ""}}, ["prophesy"]);
+check("CP-70 goals", "/目标", { goals: [{ title: "复仇旧怨", detail: "讨回公道", source: "avenge", progress: 0}, { title: "机缘在前", detail: "寻访机缘", source: "omen", progress: 0}, { title: "命途所指", detail: "顺命而行", source: "thread", progress: 0}]}, ["世间目标", "复仇", "机缘", "命途"]);
+checkNo("CP-70 goals-nocode", "/目标", { goals: [{ title: "复仇旧怨", detail: "讨回公道", source: "avenge", progress: 0}, { title: "机缘在前", detail: "寻访机缘", source: "omen", progress: 0}, { title: "命途所指", detail: "顺命而行", source: "thread", progress: 0}]}, ["avenge", "thread"]);
+check("CP-70 legend-bias", "/传说", { legends: { "近史": ["大劫之后自有记载"], "活跃权重": { sect_tension: 3, secret_realm_pressure: 1}, "引用累计": 0}}, ["传说", "宗门紧张", "秘境压力"]);
+checkNo("CP-70 legend-bias-nocode", "/传说", { legends: { "近史": ["大劫之后自有记载"], "活跃权重": { sect_tension: 3, secret_realm_pressure: 1}, "引用累计": 0}}, ["sect_tension", "secret_realm_pressure"]);
+check("CP-70 era-bias", "/纪元回流", { era_flow: { current_season: 1, last_reentry_ts: 1794187092, active_bias: { sect_tension: 2}, anchors: [], completed_eras: [], cited_count: 0}}, ["纪元回流", "宗门紧张"]);
+checkNo("CP-70 era-bias-nocode", "/纪元回流", { era_flow: { current_season: 1, last_reentry_ts: 1794187092, active_bias: { sect_tension: 2}, anchors: [], completed_eras: [], cited_count: 0}}, ["sect_tension"]);
+check("CP-70 wallet", "/钱包", { wallet: { username: "审计员", balance: 100, entries: [{ kind: "death_sweep", note: "坐化归集", amount: -50, ts: 1794120908}, { kind: "auction_refund", note: "流拍退款", amount: 100, ts: 1794120908}, { kind: "wallet_withdraw", note: "提取", amount: -20, ts: 1794120908}]}}, ["账户钱包", "死亡归集", "拍卖退款", "钱包提取"]);
+checkNo("CP-70 wallet-nocode", "/钱包", { wallet: { username: "审计员", balance: 100, entries: [{ kind: "death_sweep", note: "坐化归集", amount: -50, ts: 1794120908}, { kind: "auction_refund", note: "流拍退款", amount: 100, ts: 1794120908}, { kind: "wallet_withdraw", note: "提取", amount: -20, ts: 1794120908}]}}, ["death_sweep", "auction_refund", "wallet_withdraw"]);
+check("CP-70 createart", "/自创功法 测试", { art: { name: "残卷·测试", rank: "人品", nature: "正", cultivation_modifiers: { exp_gain_multiplier: 1.2}, spells: [{ name: "纯阳测试印", effect_type: "DAMAGE", multiplier: 1.2}], lore: "测试功法"}}, ["自创功法", "战斗伤害"]);
+checkNo("CP-70 createart-nocode", "/自创功法 测试", { art: { name: "残卷·测试", rank: "人品", nature: "正", cultivation_modifiers: { exp_gain_multiplier: 1.2}, spells: [{ name: "纯阳测试印", effect_type: "DAMAGE", multiplier: 1.2}], lore: "测试功法"}}, ["DAMAGE"]);
+check("CP-70 ai", "/ai", { ai_data: { mode: "OPENAI", base: "https://api.example", model: "deepseek-chat", ok: true}}, ["AI 自检", "OpenAI 兼容直连"]);
+checkNo("CP-70 ai-nocode", "/ai", { ai_data: { mode: "OPENAI", base: "https://api.example", model: "deepseek-chat", ok: true}}, ["OPENAI"]);
+check("CP-70 ai-ccswitch", "/ai", { ai_data: { mode: "CCSWITCH", base: "http://127.0.0.1:8080", model: "deepseek-chat", ok: true}}, ["AI 自检", "CC Switch 本机代理"]);
+checkNo("CP-70 ai-ccswitch-nocode", "/ai", { ai_data: { mode: "CCSWITCH", base: "http://127.0.0.1:8080", model: "deepseek-chat", ok: true}}, ["CCSWITCH"]);
 
 console.log(`\ncommand-panels fixture: ${pass} passed, ${fail} failed`);
 if (fail) { console.error("failures:\n" + failures.join("\n")); process.exit(1);}

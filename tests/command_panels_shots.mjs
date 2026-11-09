@@ -49,9 +49,9 @@ const cssD = fs.readFileSync(path.join(ROOT, "web/workbench.css"), "utf-8");
 const cssM = fs.readFileSync(path.join(ROOT, "web/mobile.css"), "utf-8");
 const lookStatus = cap("002-ro-look").status;
 
-const FATE_PENDING = { fate: { boons: [{ key: "dao1", name: "道骨天成", from_tier: 2, chosen_at: 1794120908 }], pending: [{ candidates: [{ key: "k1", name: "剑心通明", desc: "剑道悟性大增", icon: "⚔" }], from_tier: 2 }], power_bonus: 1.1 } };
+const FATE_PENDING = { fate: { boons: [{ key: "sword_heart", name: "剑心通明", source_cn: "道韵", from_tier: 2, chosen_at: 1794120908 }], pending: [{ candidates: [{ key: "pure_yang", name: "纯阳烈煞", desc: "纯阳烈煞在身", icon: "☀" }], from_tier: 2 }], power_bonus: 1.1 } };
 const BOARDS = { boards: [{ name: "realm", rows: [{ rank: 1, name: "幽冥老祖", realm: "化神期中期", sect: "九幽天魔宗", is_npc: true, score: 5100 }] }, { name: "power", rows: [{ rank: 1, name: "幽冥老祖", realm: "化神期中期", sect: "九幽天魔宗", is_npc: true, score: 63136.25 }] }] };
-const DIRECTOR = { director: { last_run: 1794120908, stats: { runs: 1, accepted: 2, attempts: 1, rejected: 0 }, active: [{ type: "sect_tension", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508 }] } };
+const DIRECTOR = { director: { last_run: 1794120908, stats: { runs: 1, accepted: 2, attempts: 1, rejected: 0 }, active: [{ type: "sect_tension", type_cn: "宗门紧张", title: "敌门暗涌", narrative: "两宗相争。", expires_at: 1794124508 }] } };
 const RECIPES = { recipes: [{ name: "聚气丹方", "产物": "聚气丹", "材料": ["聚灵草", "灵泉水"], "炉火": "文火", "成率": 0.8 }] };
 const QUESTS = { quests: [{ npc: "小雀儿", realm: "练气期初期", "环数": 3, "赏": "灵石 100 + 功德 5", "首环": "寻得聚灵草一份" }] };
 const MARKET = { status: { stones: 100015, vault: 0, market_listings: [{ name: "聚气丹", price: 40 }] } };
@@ -135,7 +135,7 @@ const SHOTS = [
 ["cp21-who", "CP-21", "/who", { who: { groups: [{ place: "青云坊市客栈", members: [{ name: "金满堂", realm: "金丹期中期" }] }] } }],
 ["cp22-agenda", "CP-22", "/议程", cap("053-ro-agenda")],
 ["cp23-bounty", "CP-23", "/告示", { bounties: [{ id: "b1", target: "悬赏测试丁", reward: 100, status: "OPEN", status_cn: "待猎", issuer: "联调客", anonymous: false, reason: "面板测试" }] }],
-["cp24-heaven", "CP-24", "/天道", { director: { last_run_ts: 1794187092, last_trigger: "tick", last_source: "local", last_error: null, stats: { runs: 60, accepted: 3, rejected: 0, attempts: 60 }, active: [{ type: "sect_tension", title: "敌门暗涌", location: "青云宗", expires_in_s: 3180, narrative: "测试叙事", applied: {} }] } }],
+["cp24-heaven", "CP-24", "/天道", { director: { last_run_ts: 1794187092, last_trigger: "tick", last_source: "local", last_error: null, stats: { runs: 60, accepted: 3, rejected: 0, attempts: 60 }, active: [{ type: "sect_tension", type_cn: "宗门紧张", title: "敌门暗涌", location: "青云宗", expires_in_s: 3180, narrative: "测试叙事", applied: {} }] } }],
 ["cp25-arcs", "CP-25", "/世界弧", { arcs: { stats: { spawned: 2, advanced: 0, climaxed: 0 }, arcs: [{ id: "a1", kind: "sect_crisis", title: "敌门暗涌·青云宗×九幽天魔宗", location: "青云宗", stage: "prophesy", stage_cn: "预兆", deadline_in_s: 480, last_log: "" }], history: ["1794186677|spawn|sect_crisis|敌门暗涌·青云宗×九幽天魔宗|a_499025f6"], modifiers: { heat_by_location: { "落霞山灵泉": 1.2 }, blood_tide_locations: [], sect_tensions: [["青云宗", "九幽天魔宗"]], realm_pressure_ids: [], calamity_forecast: {}, hunt_heat: {}, active_arc_kinds: ["sect_crisis"], n_arcs: 2 } } }],
 ["cp26-createart", "CP-26", "/自创功法", cap("156-create-art")],
 ["cp27-fate", "CP-27", "/命格", FATE_PENDING],
@@ -149,7 +149,7 @@ const SHOTS = [
 ["cp33b-redeem", "CP-33", "/兑换", { contribution: { sect: "散修", points: 0, catalog: [{ name: "聚气丹", cost: 8 }, { name: "玄元聚气丹", cost: 80, "需连环": 3 }] } }],
 ["cp34-scan", "CP-34", "/探查", cap("158-scan")],
 ["cp35-npcgoods", "CP-35", "/npc货单 金满堂", { npc_goods: [{ name: "聚气丹", price: 40, "描述": "行气丹药" }] }],
-["cp36-channel", "CP-36", "/频道", { channel: [{ severity: "major", type: "bond", text: "联调频道探针消息", actor: "联调客", location: "青云坊市客栈", ts: 1794187095 }] }],
+["cp36-channel", "CP-36", "/频道", { channel: [{ severity: "major", type: "bond", type_cn: "结缘", text: "联调频道探针消息", actor: "联调客", location: "青云坊市客栈", ts: 1794187095 }] }],
 ["cp37-legend", "CP-37", "/传说", { legends: { legends: [{ title: "联调史笔", text: "联调传说文本", season: 1, actor: "联调客", weight: 1 }], total: 2, active_bias: {} } }],
 ["cp38-era", "CP-38", "/纪元回流", { era_flow: { current_season: 1, last_reentry_ts: 1794187092, active_bias: {}, anchors: [], completed_eras: [], cited_count: 0 } }],
 ["cp39-trade", "CP-39", "/交易", { trade: { partner: "联调客", location: "青云坊市客栈", status: "OPEN", created_at: NOW, a: { name: "联调客", stones: 10, items: [], agreed: false }, b: { name: "联调交易乙", stones: 0, items: [], agreed: false } } }],

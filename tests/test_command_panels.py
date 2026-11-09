@@ -1206,6 +1206,153 @@ def test_M3_reason_code_mapped_to_label():
     print("✓ M3 reason 码映射中文标签（origin→出身牵连，无映射码省略后缀）")
 
 
+# ================================================================ 小修轮（内部码泄漏，2026-11-09）
+def test_fixup_director_type_cn():
+    """小修：导演 type → type_cn（TYPE_CN 全集）；type 原码保留。
+    /天道（heaven_board_data）与 /世情（director_snapshot）双出口同断言；
+    live active 为空时纯函数映射仍覆盖全集。"""
+    from core.era_reentry import TYPE_CN
+    from core.world_director import _directive_type_cn, director_snapshot, WorldDirector
+
+    assert len(TYPE_CN) == 7, TYPE_CN
+    for code, label in TYPE_CN.items():
+        assert _directive_type_cn(code) == label, code
+    assert _directive_type_cn("panel_test") is None
+    assert _directive_type_cn(None) is None
+
+    def _check_active(rows, where):
+        assert isinstance(rows, list), where
+        for a in rows:
+            assert "type" in a, a
+            if a["type"] in TYPE_CN:
+                assert a.get("type_cn") == TYPE_CN[a["type"]], f"{where}: {a}"
+            else:
+                assert "type_cn" not in a, f"{where}: 未映射码不得带 type_cn：{a}"
+
+    _check_active(WorldDirector.heaven_board_data()["active"], "heaven_board_data")
+    _check_active(director_snapshot()["director"]["active"], "director_snapshot")
+    token, _ = _join("导演码客")
+    r = _handle(token, "/天道")
+    assert r.get("ok") is True, r
+    _check_active(r["director"]["active"], "/天道 live")
+    r2 = _handle(token, "/世情")
+    assert r2.get("ok") is True, r2
+    ev = r2.get("evolution") or {}
+    _check_active((ev.get("director") or {}).get("active") or [], "/世情 live")
+    print("✓ 小修 导演 type→type_cn（7 类全映射，type 原码保留）")
+
+
+def test_fixup_channel_kind_cn():
+    """小修：/频道行 type → type_cn（KIND_CN）；未映射 kind 省略 type_cn，
+    type 原码保留（CP-36 panel_test 探针仍断言原码）。"""
+    from core.world_channel import KIND_CN, WorldChannel, kind_cn
+
+    assert kind_cn("bond") == "结缘"
+    assert kind_cn("panel_test") is None
+    assert KIND_CN.get("bond") == "结缘" and len(KIND_CN) == 23, len(KIND_CN)
+    token, _ = _join("频道码客")
+    WorldChannel.post("bond", "小修频道结缘探针", level="major",
+                      actor="测试", location=LOC, skip_limit=True)
+    WorldChannel.post("panel_test", "小修频道未知探针", level="minor",
+                      actor="测试", location=LOC, skip_limit=True)
+    r = _handle(token, "/频道")
+    assert r.get("ok") is True, r
+    ch = r.get("channel")
+    assert isinstance(ch, list) and ch, r
+    bond = next((m for m in ch if m.get("text") == "小修频道结缘探针"), None)
+    assert bond is not None, ch
+    assert bond["type"] == "bond" and bond.get("type_cn") == "结缘", bond
+    unknown = next((m for m in ch if m.get("text") == "小修频道未知探针"), None)
+    assert unknown is not None, ch
+    assert unknown["type"] == "panel_test" and "type_cn" not in unknown, unknown
+    print("✓ 小修 /频道 bond→结缘（type_cn），未知 kind 省略 type_cn")
+
+
+def test_fixup_scan_clarity_cn():
+    """小修：/探查 clarity → clarity_cn；REALM/FULL 为本轮补齐，
+    VAGUE 段同段对照；clarity 原码保留。"""
+    from core.combat import CLARITY_CN, CombatEngine
+
+    assert CLARITY_CN == {"VAGUE": "灵压未明", "CLEAR": "已辨明", "HIDDEN": "隐匿",
+                          "REALM": "境界可辨", "FULL": "尽数洞悉"}
+    scanner = _npc(_uniq("探查码客"))
+    target = _npc(_uniq("被探丁"))
+    rows = CombatEngine.scan_surroundings(scanner, [target])
+    assert len(rows) == 1 and rows[0]["clarity"] == "REALM", rows
+    assert rows[0]["clarity_cn"] == "境界可辨", rows
+    scanner.realm.tier = 2
+    rows2 = CombatEngine.scan_surroundings(scanner, [target])
+    assert len(rows2) == 1 and rows2[0]["clarity"] == "FULL", rows2
+    assert rows2[0]["clarity_cn"] == "尽数洞悉", rows2
+    # VAGUE 段：1 阶 1 子阶探查者（神识 125）vs 2 阶目标（隐匿 120），
+    # delta=5（灵根 +30 时为 35），落在 [0,40) 的模糊段。
+    scanner.realm.tier = 1
+    scanner.realm.sub_tier = 1
+    target.realm.tier = 2
+    rows3 = CombatEngine.scan_surroundings(scanner, [target])
+    assert len(rows3) == 1 and rows3[0]["clarity"] == "VAGUE", rows3
+    assert rows3[0]["clarity_cn"] == "灵压未明", rows3
+    token, uid = _join("探查活客")
+    probe = _npc(_uniq("活探丁"))
+    r = _handle(token, "/探查")
+    assert r.get("ok") is True, r
+    scan = r.get("scan") or []
+    mine = next((x for x in scan if x.get("name") == probe.name), None)
+    assert mine is not None, [x.get("name") for x in scan]
+    assert mine["clarity"] == "REALM" and mine.get("clarity_cn") == "境界可辨", mine
+    print("✓ 小修 /探查 REALM→境界可辨、FULL→尽数洞悉（clarity 原码保留）")
+
+
+def test_fixup_fate_boon_source_cn():
+    """小修：/命格 boon → source_cn（道韵/词缀）；未知码 dao1 省略；
+    fate_block 复制后附加，原 boon dict 不被原地改写；key 原码保留。"""
+    from core.ceremony import _boon_source_cn, fate_block
+
+    assert _boon_source_cn("sword_heart") == "道韵"
+    assert _boon_source_cn("pure_yang") == "道韵"
+    assert _boon_source_cn("fate_pierce") == "词缀"
+    assert _boon_source_cn("fate_lifesteal") == "词缀"
+    assert _boon_source_cn("dao1") is None
+    assert _boon_source_cn("") is None
+    token, uid = _join("命格码客")
+    c = _char(uid)
+    c.fate_boons = [
+        {"key": "sword_heart", "name": "剑心通明", "from_tier": 2, "chosen_at": 1794120908},
+        {"key": "fate_pierce", "name": "破煞", "from_tier": 3, "chosen_at": 1794120908},
+        {"key": "dao1", "name": "道骨天成", "from_tier": 2, "chosen_at": 1794120908},
+    ]
+    before = [dict(b) for b in c.fate_boons]
+    block = fate_block(c)
+    got = {b["key"]: b for b in block["boons"]}
+    assert got["sword_heart"].get("source_cn") == "道韵", got
+    assert got["fate_pierce"].get("source_cn") == "词缀", got
+    assert "source_cn" not in got["dao1"], got
+    assert c.fate_boons == before, "fate_block 不得原地改写角色存档 boon"
+    print("✓ 小修 /命格 source_cn（道韵/词缀，未知码省略，原档不改写）")
+
+
+def test_fixup_era_bias_cn():
+    """小修：纪元回流 active_bias → active_bias_cn（键为中文标签）；
+    /传说 legends 与 era_board_data 双出口；原 active_bias 键保留。"""
+    from core.era_reentry import TYPE_CN, era_board_data
+
+    data = era_board_data()
+    assert isinstance(data.get("active_bias"), dict), data
+    assert isinstance(data.get("active_bias_cn"), dict), data
+    for k in data["active_bias_cn"]:
+        assert k in set(TYPE_CN.values()), f"active_bias_cn 键须为中文标签：{k}"
+    for k, v in data["active_bias"].items():
+        assert data["active_bias_cn"].get(TYPE_CN.get(k, k)) == v, data
+    token, _ = _join("偏置码客")
+    r = _handle(token, "/传说")
+    assert r.get("ok") is True, r
+    lg = r.get("legends")
+    assert isinstance(lg, dict) and isinstance(lg.get("active_bias_cn"), dict), lg
+    for k in lg["active_bias_cn"]:
+        assert k in set(TYPE_CN.values()), f"/传说 active_bias_cn 键须为中文标签：{k}"
+    print("✓ 小修 纪元回流 active_bias_cn（键为中文标签，原键保留）")
+
+
 # ================================================================ M6：(c) 类文本对照（返工，2026-11-09）
 def test_text_unchanged_c_class_spot_checks():
     """M6 / AC-06：(c) 类 51 项抽样 ≥10 项抓取对照——响应文案须与基线抓取
