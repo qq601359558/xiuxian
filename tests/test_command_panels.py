@@ -1025,25 +1025,38 @@ def test_CP64_recipe_gated():
 
 # ================================================================ CP-65 /议政（gated）
 def test_CP65_council_gated():
-    token, uid = _join("议政客")
-    r0 = _handle(token, "/议政")
-    assert "council" not in r0, "散修态不得下发 council"
-    c = _char(uid)
-    c.sect = "青云宗"
-    CharacterRepository.save(c)
-    r = _handle(token, "/议政")
-    assert r.get("ok") is True, r
-    co = r.get("council")
-    assert isinstance(co, dict), r  # 有宗门态已抓到
-    assert co["sect"] == "青云宗"
-    assert co["topic"]["name"] in r["text"]
-    assert isinstance(co.get("seats"), list) and co["seats"]
-    for s in co["seats"]:
-        assert set(s) >= {"name", "stance", "stance_cn"}
-        assert s["name"] in r["text"]
-    votes = co.get("votes") or {}
-    assert f"支持 {votes.get('support', 0)}" in r["text"]
-    assert f"反对 {votes.get('oppose', 0)}" in r["text"]
+    # 快照—清空—恢复（M5 同类隔离，返工轮补）：议政会话 2h 投票窗口过期后
+    # panel_data 对已结算会话返回 seats=[]（core/council.py:524-539），
+    # 脏库残留的已结算会话会让“有宗门态席位非空”断言失败。删会话键使
+    # _advance 重开新场，finally 原样恢复。
+    _ABSENT = object()
+    saved_session = WorldStateRepository.get("sect_council:青云宗", _ABSENT)
+    WorldStateRepository.delete("sect_council:青云宗")
+    try:
+        token, uid = _join("议政客")
+        r0 = _handle(token, "/议政")
+        assert "council" not in r0, "散修态不得下发 council"
+        c = _char(uid)
+        c.sect = "青云宗"
+        CharacterRepository.save(c)
+        r = _handle(token, "/议政")
+        assert r.get("ok") is True, r
+        co = r.get("council")
+        assert isinstance(co, dict), r  # 有宗门态已抓到
+        assert co["sect"] == "青云宗"
+        assert co["topic"]["name"] in r["text"]
+        assert isinstance(co.get("seats"), list) and co["seats"]
+        for s in co["seats"]:
+            assert set(s) >= {"name", "stance", "stance_cn"}
+            assert s["name"] in r["text"]
+        votes = co.get("votes") or {}
+        assert f"支持 {votes.get('support', 0)}" in r["text"]
+        assert f"反对 {votes.get('oppose', 0)}" in r["text"]
+    finally:
+        if saved_session is _ABSENT:
+            WorldStateRepository.delete("sect_council:青云宗")
+        else:
+            WorldStateRepository.set("sect_council:青云宗", saved_session)
     print("✓ CP-65 /议政 council 与文本对账（gated：有宗门态已抓）")
 
 
