@@ -664,11 +664,13 @@ def test_CA_023_omen_catalog_alignment():
 # B.2 最终差集表（按顶层口径重算，定稿）：
 # 服务端顶层响应键 = 抓取 top_keys（261 文件，剔除 253-status-snapshot 这一
 # 份裸 _status_dict 快照的 77 个内键）∪ /world/director 快照顶层键
-# ∪ 静态清册补集（未抓子路径的返回键）∪ 本轮新增 stone_loss；共 138 个。
+# ∪ 静态清册补集（未抓子路径的返回键）∪ 本轮新增 stone_loss
+# ∪ 命令面板化新增 35 键（附录 A 全新顶层名，实算皆不在抓取 top_keys 与
+# 三端引用键中）；共 173 个。
 # 三端引用键 = workbench(res/j/data/payload) ∪ app.js(j/data) ∪
 # mobile(data/j/payload) 的顶层属性读（排除方法调用与 fetch 的 statusText）；
 # 修复后共 80 个（stone_loss 由 CA-002 面板新读）。
-# 未读 65 个（备查，不强制修）；死键 7 个（须在台账中有行，见注）。
+# 未读 100 个（备查，不强制修）；死键 7 个（须在台账中有行，见注）。
 SERVER_TOP_KEYS_EXTRA = {
     # /world/director 快照顶层键（director_snapshot + app.py 补 evolution/summary_lines）
     "server_time", "director", "modifiers", "arcs", "faction", "echo", "era",
@@ -685,6 +687,23 @@ SERVER_TOP_KEYS_EXTRA = {
     # /探险 成功路 payload 含 adventure（清册静态 union 漏列，代码 :2615 实证；
     # 亦见 CA-007 勘误——台账 CA-007 行称「从不下发」仅对无参榜单路成立）
     "adventure",
+    # 命令面板化新增（command-panels，附录 A 全新顶层名 35 个；实算皆不在
+    # 抓取 top_keys 与三端引用键中，故同步进未读集；前端岗渲染后逐键移出）：
+    # /榜 boards/board_rows · /秘境 realms · /寻宝 clue · /器灵 spirit
+    # /拍卖行 auction · /除凶 hunt · /宗门 sects · /宝图 treasure_map
+    # /who who · /告示 bounties · /关系 links · /势力 factions
+    # /宗门令 sect_orders · /宗门势 sect_power · /贡献·/兑换 contribution
+    # /npc货单 npc_goods · /频道 channel · /传说 legends · /纪元回流 era_flow
+    # /师门任务 sect_quests · /名物 relics · /灵宠 pets · /行情 prices
+    # /版图 atlas · /墓碑 tombstone · /因果链 karma_chains · /委托 quests
+    # /诺言 promises · /配方 recipes · /炼体·/炼神 body_soul_detail
+    # /镇魔 demon · /飞升榜 ascend · /议政 council · /结义任务 sworn_quests
+    "boards", "board_rows", "realms", "clue", "spirit", "auction", "hunt",
+    "sects", "treasure_map", "who", "bounties", "links", "factions",
+    "sect_orders", "sect_power", "contribution", "npc_goods", "channel",
+    "legends", "era_flow", "sect_quests", "relics", "pets", "prices",
+    "atlas", "tombstone", "karma_chains", "quests", "promises", "recipes",
+    "body_soul_detail", "demon", "ascend", "council", "sworn_quests",
 }
 # 死键 7 个：前端读、服务端从不下发顶层键（皆有台账行或兜底说明，备查不修）
 KNOWN_DEAD_TOP_KEYS = {
@@ -695,7 +714,7 @@ KNOWN_DEAD_TOP_KEYS = {
     "message",      # CA-034/CA-049：j.message 兜底链，P4 定性不修
     "new_realm",    # CA-008：P3，维持台账处置
 }
-# 未读 65 个（服务端下发、三端皆不读顶层键；备查，不强制修）
+# 未读 100 个（服务端下发、三端皆不读顶层键；备查，不强制修）
 FINAL_UNREAD_TOP_KEYS = {
     "action", "actions", "agendas", "ai_data", "ai_ok", "alive",
     "arc_board_text", "art", "arts", "attitude", "avatar", "bagua", "board",
@@ -709,6 +728,13 @@ FINAL_UNREAD_TOP_KEYS = {
     "season_theme", "session_issued", "settled", "settlement_pending",
     "source", "target_node_id", "target_node_name", "tasks", "traces",
     "trade", "wrong_location",
+    # 命令面板化新增 35 键（同 SERVER_TOP_KEYS_EXTRA；前端岗渲染后逐键移出）
+    "boards", "board_rows", "realms", "clue", "spirit", "auction", "hunt",
+    "sects", "treasure_map", "who", "bounties", "links", "factions",
+    "sect_orders", "sect_power", "contribution", "npc_goods", "channel",
+    "legends", "era_flow", "sect_quests", "relics", "pets", "prices",
+    "atlas", "tombstone", "karma_chains", "quests", "promises", "recipes",
+    "body_soul_detail", "demon", "ascend", "council", "sworn_quests",
 }
 
 
@@ -744,24 +770,24 @@ def _frontend_top_keys():
 def test_CT01_bidirectional_diff():
     """CT-01（B.2 定稿）：双向差集断言。
 
-    服务端顶层键 138 个 vs 三端引用键 80 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
-    （65 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（7 个）。任一差集漂移即变红，
+    服务端顶层键 173 个 vs 三端引用键 80 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
+    （100 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（7 个）。任一差集漂移即变红，
     须同步更新台账 B.2 与本文件的定稿表。
     """
     srv = _server_top_keys()
     fe = _frontend_top_keys()
-    assert len(srv) == 138, f"服务端顶层键须为 138 个，实得 {len(srv)}：{sorted(srv)}"
+    assert len(srv) == 173, f"服务端顶层键须为 173 个，实得 {len(srv)}：{sorted(srv)}"
     unread = srv - fe
     dead = fe - srv
     assert unread == FINAL_UNREAD_TOP_KEYS, (
-        f"未读差集漂移（{len(unread)} vs 定稿 65）："
+        f"未读差集漂移（{len(unread)} vs 定稿 100）："
         f"新增 {sorted(unread - FINAL_UNREAD_TOP_KEYS)}；"
         f"消失 {sorted(FINAL_UNREAD_TOP_KEYS - unread)}")
     assert dead == KNOWN_DEAD_TOP_KEYS, (
         f"死键差集漂移（{len(dead)} vs 定稿 7）："
         f"新增 {sorted(dead - KNOWN_DEAD_TOP_KEYS)}（须先补台账行）；"
         f"消失 {sorted(KNOWN_DEAD_TOP_KEYS - dead)}")
-    print(f"✓ CT-01：双向差集定稿（服务端 138 / 三端读 80 / 未读 65 / 死键 7）")
+    print(f"✓ CT-01：双向差集定稿（服务端 173 / 三端读 80 / 未读 100 / 死键 7）")
 
 
 def test_CT01_no_bad_patterns_repo_wide():

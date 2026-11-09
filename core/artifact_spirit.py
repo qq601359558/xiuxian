@@ -719,6 +719,34 @@ def panel_text(char: Any, now: Optional[float] = None) -> str:
     return "\n".join(lines)
 
 
+def panel_data(char: Any, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """器灵面板行集（/器灵 spirit 键；与 panel_text 同源）。
+
+    未穿戴任何法宝时返回 None（调用方不下发 spirit 键）。
+    """
+    eq = equipped_items(char)
+    if not eq:
+        return None
+    items = []
+    awakenable: List[str] = []
+    for it in eq:
+        tier = int(getattr(it, "tier", 0) or 0)
+        spirit = get_spirit(it)
+        can_awaken = _is_equip(it) and tier >= SPIRIT_MIN_TIER and spirit is None
+        if can_awaken:
+            awakenable.append(it.name)
+        items.append(
+            {
+                "name": it.name,
+                "tier": tier,
+                "tier_name": getattr(it, "tier_name", ""),
+                "spirit": dict(spirit) if spirit else None,
+                "can_awaken": can_awaken,
+            }
+        )
+    return {"items": items, "awakenable": awakenable}
+
+
 class ArtifactSpiritEngine:
     """器灵规则引擎门面（唤灵/温养/对话/加成/面板）。"""
 

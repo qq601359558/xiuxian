@@ -90,6 +90,38 @@ def success_rate(c: Character, recipe: Dict[str, Any]) -> float:
     return max(0.15, min(0.95, rate))
 
 
+def book_data(c: Character) -> List[Dict[str, Any]]:
+    """配方行集（/配方 recipes 键；与 format_book 同源）。"""
+    known = ensure_default_recipes(c)
+    book = _all_recipes()
+    rows = []
+    for rid in known:
+        r = book.get(rid)
+        if not r:
+            continue
+        ok_mats = True
+        for k, v in (r.get("materials") or {}).items():
+            if c.inventory.count(k) + c.arrays.count(k) < v:
+                ok_mats = False
+                break
+        rows.append(
+            {
+                "id": rid,
+                "name": r["name"],
+                "kind": r["kind"],
+                "output": r["output"],
+                "materials": dict(r.get("materials") or {}),
+                "stones_fee": r.get("stones_fee", 0),
+                "base_rate": r.get("base_rate"),
+                "rate": success_rate(c, r),
+                "req_tier": r.get("req_tier", 0),
+                "tier_ok": c.realm.tier >= r.get("req_tier", 0),
+                "can_craft": bool(ok_mats and c.spirit_stones >= r.get("stones_fee", 0)),
+            }
+        )
+    return rows
+
+
 def format_book(c: Character) -> str:
     known = ensure_default_recipes(c)
     book = _all_recipes()

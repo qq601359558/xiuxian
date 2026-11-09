@@ -170,6 +170,53 @@ class BodySoulEngine:
 
     # ---------------- 面板 ----------------
     @staticmethod
+    @staticmethod
+    def _track_data(c: Character, track: str) -> Dict[str, Any]:
+        cn = TRACK_CN[track]
+        cap = BODY_MAX_LEVEL if track == "body" else SOUL_MAX_LEVEL
+        level = BodySoulEngine.body_level(c) if track == "body" else BodySoulEngine.soul_level(c)
+        other = "soul" if track == "body" else "body"
+        other_level = BodySoulEngine.soul_level(c) if track == "body" else BodySoulEngine.body_level(c)
+        if track == "body":
+            pct = min(BODY_POWER_CAP, BODY_POWER_PER_LEVEL * level) * 100
+            effect = (
+                f"斗法战力 +{pct:.0f}%（每层 +1%，封顶 +10%）；"
+                f"已增寿 {BODY_LIFESPAN_PER_LEVEL * level:.0f} 岁（封顶 +10 岁）"
+            )
+        else:
+            effect = (
+                f"有效道心 +{BodySoulEngine.dao_heart_bonus(c)}（突破/心魔抗性判定读取，本体道心不变）；"
+                f"神识探查 +{BodySoulEngine.sense_bonus(c)}"
+            )
+        cost = next_cost(track, level)
+        if cost is None:
+            next_cost_d = None
+        else:
+            next_cost_d = {
+                "item": cost["item"],
+                "item_count": cost["item_count"],
+                "stones": cost["stones"],
+                "have_item": list(c.inventory or []).count(cost["item"]),
+                "have_stones": int(c.spirit_stones),
+            }
+        return {
+            "track": track,
+            "track_cn": cn,
+            "level": level,
+            "cap": cap,
+            "effect": effect,
+            "next_cost": next_cost_d,
+            "other_level": other_level,
+        }
+
+    @staticmethod
+    def detail_data(c: Character) -> Dict[str, Any]:
+        """炼体/炼神双轨结构（/炼体·/炼神 body_soul_detail 键；与 panel_text 同源）。"""
+        return {
+            "body": BodySoulEngine._track_data(c, "body"),
+            "soul": BodySoulEngine._track_data(c, "soul"),
+        }
+
     def panel_text(c: Character, track: str) -> str:
         cn = TRACK_CN[track]
         cap = BODY_MAX_LEVEL if track == "body" else SOUL_MAX_LEVEL

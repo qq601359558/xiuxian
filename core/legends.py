@@ -66,6 +66,14 @@ def add_legend(
     return item
 
 
+def count_legends(season: Optional[int] = None) -> int:
+    """传说总条数（/传说 legends.total；与 list_legends 同池）。"""
+    pool = _load()
+    if season is not None:
+        pool = [x for x in pool if int(x.get("season") or 0) == int(season)]
+    return len(pool)
+
+
 def list_legends(season: Optional[int] = None, limit: int = 15) -> List[Legend]:
     pool = _load()
     if season is not None:

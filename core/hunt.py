@@ -199,7 +199,8 @@ def _unregister_from_order(hunter_id: str, target_id: str) -> None:
         _save_orders(orders)
 
 
-def format_board(limit: int = 12) -> str:
+def list_board_rows(limit: int = 12) -> List[Dict[str, Any]]:
+    """除凶榜行集（/除凶 hunt 键；与 format_board 同源）。"""
     now = time.time()
     _purge_expired(now)
     _sweep_orders(now)
@@ -211,6 +212,25 @@ def format_board(limit: int = 12) -> str:
             ensure_order(c, now)  # F15：看板即发布点（惰性发令）
             rows.append(c)
     rows.sort(key=lambda x: -x.karma.sin_value)
+    hunts = _load()
+    out = []
+    for c in rows[:limit]:
+        out.append(
+            {
+                "name": c.name,
+                "realm": c.realm.name,
+                "mark": "血煞" if c.karma.is_blood_marked() else "重业",
+                "sin": c.karma.sin_value,
+                "location": c.location,
+                "is_npc": str(c.user_id).startswith("npc_"),
+                "hunters": sum(1 for v in hunts.values() if v.get("target_id") == c.id),
+            }
+        )
+    return out
+
+
+def format_board(limit: int = 12) -> str:
+    rows = list_board_rows(limit)
     if not rows:
         return "【除凶榜】天道清朗，暂无血煞缠身之人。"
     lines = [
@@ -230,14 +250,11 @@ def format_board(limit: int = 12) -> str:
             lines.append(mp)
     except Exception:
         pass
-    hunts = _load()
-    for c in rows[:limit]:
-        mark = "血煞" if c.karma.is_blood_marked() else "重业"
-        who = "NPC" if str(c.user_id).startswith("npc_") else "修士"
-        n_hunt = sum(1 for v in hunts.values() if v.get("target_id") == c.id)
+    for r in rows:
+        who = "NPC" if r["is_npc"] else "修士"
         lines.append(
-            f"· 【{c.name}】{c.realm.name} {mark} 业力{c.karma.sin_value} "
-            f"@ {c.location}（{who}·被{n_hunt}人盯上）"
+            f"· 【{r['name']}】{r['realm']} {r['mark']} 业力{r['sin']} "
+            f"@ {r['location']}（{who}·被{r['hunters']}人盯上）"
         )
     return "\n".join(lines)
 

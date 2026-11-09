@@ -304,6 +304,37 @@ class TreasureClueEngine:
         return f"【{tmap.name}】\n" + _current_step_text(chain)
 
     @staticmethod
+    def view_data(char: Any) -> Optional[Dict[str, Any]]:
+        """寻宝线索链行集（/寻宝 clue 键；与 view_text/_current_step_text 同源）。"""
+        tmap = TreasureClueEngine._find_chain_map(char, want_active=False)
+        if not tmap:
+            return None
+        chain = get_chain(tmap)
+        if not chain:
+            return None
+        steps = chain.get("steps") or []
+        idx = int(chain.get("step_index") or 0)
+        current = steps[idx] if 0 <= idx < len(steps) else None
+        return {
+            "map_name": tmap.name,
+            "chain_status": chain.get("status", ""),
+            "current_step": min(idx + 1, len(steps)) if steps else 0,
+            "total_steps": len(steps),
+            "current": (
+                {
+                    "kind": current.get("kind", ""),
+                    "kind_cn": _KIND_CN.get(current.get("kind"), "线索"),
+                    "node_name": current.get("node_name", ""),
+                    "riddle": current.get("riddle_text", ""),
+                    "options": list(current.get("options") or []),
+                }
+                if current
+                else None
+            ),
+            "can_abandon": chain.get("status") in ("active", "awaiting_chest"),
+        }
+
+    @staticmethod
     def abandon(char: Any, now: Optional[float] = None) -> Dict[str, Any]:
         """弃链：status=abandoned，该图不可再激活（§5.3 裁定）；图保留可直挖。"""
         try:

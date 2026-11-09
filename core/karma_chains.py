@@ -1156,6 +1156,51 @@ class KarmaChainEngine:
 
     # ---------------- 面板（双端同源） ----------------
     @staticmethod
+    @staticmethod
+    def _row(ch: "KarmaChain", t: float) -> Dict[str, Any]:
+        total = _duration_days(ch.kind, ch.polarity)
+        if ch.status in ACTIVE_STATUSES:
+            elapsed = int(max(0.0, (t - ch.created_at) // SECONDS_PER_GAME_DAY))
+            pct = min(99, int(100 * elapsed / max(1, total))) if total else 0
+        else:
+            elapsed = total
+            pct = 100
+        if ch.kind == "xue":
+            direction = "同门誓仇"
+        elif ch.polarity > 0:
+            direction = "对象念恩" if ch.kind == "en" else "对象念诺"
+        else:
+            direction = "对象记恨" if ch.kind == "chou" else "对象追诺"
+        return {
+            "kind": ch.kind,
+            "kind_cn": KIND_CN.get(ch.kind, ch.kind),
+            "status": ch.status,
+            "status_cn": STATUS_CN.get(ch.status, ch.status),
+            "counterparty": ch.counterparty_name,
+            "origin": ch.origin_summary,
+            "strength": ch.strength,
+            "elapsed_days": elapsed,
+            "total_days": total,
+            "ferment_pct": pct,
+            "direction": direction,
+        }
+
+    @staticmethod
+    def panel_data(char: Character, now: Optional[float] = None) -> List[Dict[str, Any]]:
+        """因果链行集（/因果链 karma_chains 键；与 panel_text 同源）。空态为 []。"""
+        t = now if now is not None else time.time()
+        try:
+            mine = KarmaChainEngine._repo().list_by_player(char.id)
+        except Exception:
+            mine = []
+        active = [c for c in mine if c.status in ACTIVE_STATUSES]
+        active.sort(key=lambda c: c.created_at)
+        history = [c for c in mine if c.status in TERMINAL_STATUSES]
+        history.sort(key=lambda c: c.resolved_at or c.created_at, reverse=True)
+        return [KarmaChainEngine._row(c, t) for c in active] + [
+            KarmaChainEngine._row(c, t) for c in history[:KARMA_CHAIN_HISTORY_N]
+        ]
+
     def panel_text(char: Character, now: Optional[float] = None) -> str:
         t = now if now is not None else time.time()
         try:

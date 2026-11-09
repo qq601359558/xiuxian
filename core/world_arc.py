@@ -708,6 +708,34 @@ def format_arc_board(now: Optional[float] = None) -> str:
     return "\n".join(lines)
 
 
+def arc_board_data(now: Optional[float] = None) -> Dict[str, Any]:
+    """世界弧面板结构（/世界弧 arcs 键；与 format_arc_board 同源）。"""
+    t = _now(now)
+    arcs = active_arcs(t)
+    state = _load()
+    rows = []
+    for a in arcs[:6]:
+        stage = a.get("stage")
+        rows.append(
+            {
+                "id": a.get("id"),
+                "kind": a.get("kind"),
+                "title": a.get("title"),
+                "location": a.get("location"),
+                "stage": stage,
+                "stage_cn": STAGE_CN.get(stage, stage),
+                "deadline_in_s": max(0, int(float(a.get("stage_deadline") or 0) - t)),
+                "last_log": (a.get("log") or [""])[-1],
+            }
+        )
+    return {
+        "stats": state.get("stats") or {},
+        "arcs": rows,
+        "history": list(state.get("history") or [])[-4:],
+        "modifiers": arc_modifiers(t),
+    }
+
+
 def handle_arc_command(parts: List[str], *, now: Optional[float] = None) -> Dict[str, Any]:
     """ /世界弧 | /弧 [推进 <id>] """
     t = _now(now)
