@@ -1,6 +1,6 @@
 # Spec：命令回复面板化（command-panels）
 
-- 状态：**阶段一 Spec（主策岗产出，待总管确认）**——未开工实现，无业务代码改动。
+- 状态：**已实现，已发布 v0.3.13-gray.20**——命令回复面板化全量上线（桌面 + 移动双端）。
 - 基线：`main = 2285d37`（v0.3.12-gray.19）；工作区：`.worktrees/command-panels`（detached，基线 2285d37）。
 - 用户原始需求（Martinez 微信原话，2026-11-08）：「还有个问题，比如查看个人信息，出来的是纯文字，很乱，应该是类似游戏面板那种效果，还有很多其他的命令回复」。已承诺：统一改成游戏面板样式——卡片分区、数值对齐，桌面和手机两端一起改。
 - 本 Spec 覆盖：目录 108 条主命令的全部回复呈现 + 分发独有命令的对账附录（§2、附录 B）。
@@ -627,3 +627,11 @@ wc -l web/mobile.js web/workbench.js web/mobile.html; stat -c '%n %s' web/mobile
 - **测试锁定**：夹具 `tests/command_panels_fixture.mjs` CP-70 新增 4 断言——`CP-70 faction-warm-allied`（/势力：无 `status_cn` 的 warm 行 →“亲近”兜底，有 `status_cn` 的 allied 行 →“结盟”优先）+ `checkNo`（`warm/allied/friendly/同盟` 缺席）、`CP-70 world-faction-warm-allied`（/世情：无 `status_cn` 的 warm/allied 行 →“亲近/结盟”）+ `checkNo`；pytest `tests/test_command_panels.py` 新增 `test_fixup_director_faction_status_cn`（`director_snapshot()` 与 /世情 live 双出口：每行含 `status/status_cn/score` 且 `status_cn == STATUS_CN[status]`）。
 - **§12.4 勘误**：原句“`cpWorld`/`cpFaction` 势力 status：hostile/tense/neutral/friendly/allied（`status_from_score` 五档闭合）”为错误表述，已在 §12.4 原地划线更正为实测口径（见上）；§12 行数回填：workbench.js 9314 → 9333、mobile.js 1773 → 1777（复审 O6，小修轮 +19/+4；R1 本轮行数不变）。
 - **验证（R1 轮，脏库一次）**：`node tests/command_panels_fixture.mjs` 全绿；`tests/test_command_panels.py` + `tests/test_contract_audit.py` 脏库全绿（见返修报告）。改动面仅前端映射 4 处 + 后端嵌套增键 + 夹具/测试，全量回归无需重跑（复审 1441/8 已背书）。
+
+### §12.6 · 发布 Finalize 回写（发布岗，2026-11-09）
+
+- **实现提交链**（分支 `feat/command-panels`，基线 main `2285d37` = v0.3.12-gray.19）：Spec `67bc9a9` → 后端合并 `1f1638d` → 前端合并 `c9c024b` → 集成修复 `965ee12` → 返工 `855a827`（M1/M2/M3/M5/M6 + D2 回填）/ `999c346`（CP65 隔离）→ M4 截图 `97ef67e`（186 页）→ 小修轮 `ca8f9ad` / `539419c` / `5a73334` / `4e6f989`（5 项清单 + 14 处同类映射 + 截图重拍）→ R1 返修 `97e8659` → 发版提交（本轮 Finalize：config `VERSION`、README、CHANGELOG、gray-runbook 四处同步 v0.3.13-gray.20，见 CHANGELOG.md v0.3.13-gray.20 节）→ `--no-ff` 合并入 main，打 annotated tag `v0.3.13-gray.20` 并推送（合并提交与 tag 核验见发版报告）。
+- **验收结论摘要**：通用面板渲染层双端上线（桌面 63 builder / 移动 65 builder，117 token 别名）；目录 108 条 + 附录 B 18 项 + gated 7 项全覆盖；后端附录 A 39 键（35 全新顶层键 + 4 补齐），只增键、文本逐字不变、数值语义零改动；截图 186 页（HTML + PNG 各一），横向溢出 0/186；预算 mobile.js 1777 行 / mobile.css 28454B / mobile.html 155 行（D1 豁免内），双端零裸 hex；CT-01 定稿 173/135/46/8；(c) 类文本对照 17 项；D2 已确认（2026-11-09，总管裁决）。QA 全量新鲜 DB 双跑两次均为 1442 passed / 8 failed，失败集与基线逐一相同，零新增；node fixture 2015/0；目标套件脏库 109 passed；对账 stage 2 真实渲染 33/33。
+- **评审结论**：独立首审 must-fix M1–M6 → 返工兑现 → 复审第二轮唯一 must-fix R1（势力 status 映射）→ R1 返修 `97e8659`（前端 4 处 + /世情后端补 `status_cn`，夹具 CP-70 与 `test_fixup_director_faction_status_cn` 锁定）→ QA 独立验证放行 GO（`~/workspace/reviews/command-panels-QA报告.md`，2026-11-09）。
+- **发布 Finalize 回写**：2026-11-09 发版 v0.3.13-gray.20——config `VERSION` / README / CHANGELOG / `docs/gray-runbook.md` 四处同步（回滚指 v0.3.12-gray.19，基线提交 `2285d37`）；本 Spec 状态改为「已实现，已发布 v0.3.13-gray.20」；分支 `--no-ff` 合并入 main，annotated tag `v0.3.13-gray.20` 推送并经 `git ls-remote` 核验与本地逐字一致；NAS 部署一次并验收通过（部署报告 `~/workspace/deploy-reports/tiandao-0.3.13-gray.20-nas-deploy.md`，.env md5 前后一致，`data/` 不动，旧镜像留 backup tag `tiandao:backup-0.3.12-gray.19`）；冒烟：公网首页与 /mobile.html 200。
+- **残留（不阻塞，另立工单）**：D-QA1（低严重度，预存）——`/行情` 面板与 `/坊市`·`/行情` 文本渲染 276 行 `mat_*` 原码行名，根因 `core/market.py:174 _rows_for_region` 以 `ITEM_CATALOG` 键为名、目录含中文名键与 id 键重复条目；修法为 id→中文名回落 + 同物去重，文本与面板同源修复。另复审 O1–O8 与 QA 观察项 O-QA1/O-QA2（截图冻结旧 `origin` 文本、右缘贴边等证据口径项）留痕，不阻塞。
