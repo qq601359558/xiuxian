@@ -305,26 +305,29 @@ class NpcAgendaEngine:
         notes = list(resolution.get("notes") or [])
         cascade_notes = list(resolution.get("cascade_notes") or [])
 
-        # 复验：角色仍存在且未被并发改写
-        fresh = None
-        fresh_updated_at = None
-        try:
-            fresh, fresh_updated_at = CharacterRepository.get_by_id_with_meta(npc_id)
-        except Exception:
-            fresh = None
-        if fresh is None or fresh.status == CharacterStatus.DEAD:
-            write_audit({
-                "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
-                "reason": "gone_or_dead", "outcome": resolution.get("outcome"),
-            })
-            return None
+        # 复验：角色仍存在且未被并发改写。仅当段一取得了 DB 基线时才做
+        # 陈旧判定；无基线（角色尚未落盘、以内存对象直接 tick 的既有调用
+        # 口径）沿原行为直接落盘，不误杀。
         baseline = prep.get("baseline_updated_at")
-        if baseline is not None and fresh_updated_at is not None and fresh_updated_at != baseline:
-            write_audit({
-                "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
-                "reason": "row_changed_during_ai", "outcome": resolution.get("outcome"),
-            })
-            return None
+        if baseline is not None:
+            fresh = None
+            fresh_updated_at = None
+            try:
+                fresh, fresh_updated_at = CharacterRepository.get_by_id_with_meta(npc_id)
+            except Exception:
+                fresh = None
+            if fresh is None or fresh.status == CharacterStatus.DEAD:
+                write_audit({
+                    "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
+                    "reason": "gone_or_dead", "outcome": resolution.get("outcome"),
+                })
+                return None
+            if fresh_updated_at is not None and fresh_updated_at != baseline:
+                write_audit({
+                    "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
+                    "reason": "row_changed_during_ai", "outcome": resolution.get("outcome"),
+                })
+                return None
         try:
             npc = Character.model_validate_json(prep["npc_json"])
         except Exception:
