@@ -667,8 +667,8 @@ def test_CA_023_omen_catalog_alignment():
 # ∪ 静态清册补集（未抓子路径的返回键）∪ 本轮新增 stone_loss；共 138 个。
 # 三端引用键 = workbench(res/j/data/payload) ∪ app.js(j/data) ∪
 # mobile(data/j/payload) 的顶层属性读（排除方法调用与 fetch 的 statusText）；
-# 修复后共 80 个（stone_loss 由 CA-002 面板新读）。
-# 未读 65 个（备查，不强制修）；死键 7 个（须在台账中有行，见注）。
+# 修复后共 135 个（2026-11-09 command-panels：新读 19 个已下发键 + 36 个附录 A 待补键）。
+# 未读 46 个（备查，不强制修）；死键 43 个（须在台账中有行，见注）。
 SERVER_TOP_KEYS_EXTRA = {
     # /world/director 快照顶层键（director_snapshot + app.py 补 evolution/summary_lines）
     "server_time", "director", "modifiers", "arcs", "faction", "echo", "era",
@@ -686,29 +686,32 @@ SERVER_TOP_KEYS_EXTRA = {
     # 亦见 CA-007 勘误——台账 CA-007 行称「从不下发」仅对无参榜单路成立）
     "adventure",
 }
-# 死键 7 个：前端读、服务端从不下发顶层键（皆有台账行或兜底说明，备查不修）
+# 死键 43 个：前端读、服务端从不下发顶层键（旧 7 个皆有台账行或兜底说明，备查不修；
 KNOWN_DEAD_TOP_KEYS = {
     # app.js /world/director 兜底读：evoSrc/server_time 覆盖，无可见异常（CA-044）
     "blood", "realms_open", "updated_at",
     "detail",       # CA-049：app.js j.detail 兜底链，P4 定性不修
     "entry_pending",  # CA-009/CA-036：P3，维持台账处置
     "message",      # CA-034/CA-049：j.message 兜底链，P4 定性不修
-    "new_realm",    # CA-008：P3，维持台账处置
+    "new_realm",    # CA-008：P3，维持台账处置    # command-panels（2026-11-09，spec 附录 A）：前端已实现、后端待落地的新顶层键；
+    # 后端键落地后 srv 顶层键数 138 也会变，CT-01 须随 backend 同步更新本表。
+    "ascend", "atlas", "auction", "board_rows", "boards", "body_soul_detail",
+    "bounties", "channel", "clue", "contribution", "council", "demon",
+    "era_flow", "factions", "hunt", "karma_chains", "legacy_info", "legends",
+    "links", "npc_goods", "pets", "prices", "promises", "quests",
+    "realms", "recipes", "relics", "sect_orders", "sect_power", "sect_quests",
+    "sects", "spirit", "sworn_quests", "tombstone", "treasure_map", "who",
 }
-# 未读 65 个（服务端下发、三端皆不读顶层键；备查，不强制修）
+# 未读 46 个（服务端下发、三端皆不读顶层键；备查，不强制修）
 FINAL_UNREAD_TOP_KEYS = {
-    "action", "actions", "agendas", "ai_data", "ai_ok", "alive",
-    "arc_board_text", "art", "arts", "attitude", "avatar", "bagua", "board",
-    "boosts", "bystanders", "character_id", "chased", "count", "crafted",
-    "defs", "direction_text", "director_quality", "drama", "drama_pending",
-    "earned", "event_id", "fate", "fate_thread", "first_night", "goals",
-    "intent", "is_new_life", "items", "karma_shadow", "lives", "lock_fallback",
-    "lost_stones", "max_boosts", "modifiers", "new_location", "omen_status",
-    "outcome", "output", "past_lives", "points", "profile", "qi", "quality",
-    "recipe", "rejected", "related", "scan", "scene_image", "season",
-    "season_theme", "session_issued", "settled", "settlement_pending",
-    "source", "target_node_id", "target_node_name", "tasks", "traces",
-    "trade", "wrong_location",
+    "action", "actions", "ai_ok", "alive", "arc_board_text", "attitude",
+    "avatar", "bagua", "board", "boosts", "bystanders", "character_id",
+    "chased", "crafted", "direction_text", "earned", "event_id", "first_night",
+    "intent", "is_new_life", "karma_shadow", "lives", "lock_fallback", "lost_stones",
+    "max_boosts", "modifiers", "new_location", "omen_status", "outcome", "output",
+    "past_lives", "points", "qi", "quality", "rejected", "related",
+    "scene_image", "season_theme", "session_issued", "settled", "settlement_pending", "source",
+    "target_node_id", "target_node_name", "traces", "wrong_location",
 }
 
 
@@ -744,9 +747,11 @@ def _frontend_top_keys():
 def test_CT01_bidirectional_diff():
     """CT-01（B.2 定稿）：双向差集断言。
 
-    服务端顶层键 138 个 vs 三端引用键 80 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
-    （65 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（7 个）。任一差集漂移即变红，
+    服务端顶层键 138 个 vs 三端引用键 135 个；未读差集须恰为 FINAL_UNREAD_TOP_KEYS
+    （46 个），死键差集须恰为 KNOWN_DEAD_TOP_KEYS（43 个）。任一差集漂移即变红，
     须同步更新台账 B.2 与本文件的定稿表。
+    2026-11-09 command-panels 更新：前端开始读 19 个已下发键（未读 65→46，board
+    因 cpRank 去复用仍留未读）；新增 36 个死键为 spec 附录 A 待补键（死键 7→43）。
     """
     srv = _server_top_keys()
     fe = _frontend_top_keys()
@@ -761,7 +766,7 @@ def test_CT01_bidirectional_diff():
         f"死键差集漂移（{len(dead)} vs 定稿 7）："
         f"新增 {sorted(dead - KNOWN_DEAD_TOP_KEYS)}（须先补台账行）；"
         f"消失 {sorted(KNOWN_DEAD_TOP_KEYS - dead)}")
-    print(f"✓ CT-01：双向差集定稿（服务端 138 / 三端读 80 / 未读 65 / 死键 7）")
+    print(f"✓ CT-01：双向差集定稿（服务端 138 / 三端读 135 / 未读 46 / 死键 43）")
 
 
 def test_CT01_no_bad_patterns_repo_wide():
@@ -784,11 +789,12 @@ def test_CT01_no_bad_patterns_repo_wide():
 
 
 def test_CT04_mobile_budget_guard():
-    """CT-04（预算断言，未放宽）：三期硬线 mobile.js ≤1660 行、mobile.css ≤27455B。"""
+    """CT-04（预算断言，第五次豁免）：command-panels spec §7（2026-11-09 总管批准 D1）——
+    mobile.js ≤2100 行、mobile.css ≤29200B；token 纪律不豁免。"""
     lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     size = (WEB / "mobile.css").stat().st_size
-    assert lines <= 1660, f"mobile.js {lines} 行，超三期硬线 1660"
-    assert size <= 27455, f"mobile.css {size}B，超三期硬线 27455B"
+    assert lines <= 2100, f"mobile.js {lines} 行，超 D1 豁免上限 2100 行（command-panels §7）"
+    assert size <= 29200, f"mobile.css {size}B，超 D1 豁免上限 29200B（command-panels §7）"
     print(f"✓ CT-04：mobile.js {lines} 行 / mobile.css {size}B，均在硬线内")
 
 

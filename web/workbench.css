@@ -646,3 +646,18 @@ body.is-acting-busy button[data-equip-act] {
 .gallery-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .gallery-tier { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid #c5e2d5; color: #64748b; }
 .gallery-tier.on { border-color: #c59b27; color: #8c6310; background: #fdf3d6; font-weight: 700; }
+
+/* 深色主题：面板卡沿用 .jade-panel 浅色半透面（与既有卡片一致），故无深色覆盖——文字两主题皆深色；勿加 dark:text-*（深色字落浅卡不可读，见 2026-11-09 截图复核）。 */
+/* 命令回复面板化（command-panels CP-00）：卡片分区 KV/行集 + 数值右对齐等宽 */
+.cp-kv { display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid rgba(20,106,89,.08); font-size:12px; line-height:1.6; }
+.cp-kv:last-child { border-bottom:none; }
+.cp-k { color:#64748b; flex:none; }
+.cp-v { color:#334155; text-align:right; }
+.cp-num { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; text-align:right; color:#0f172a; }
+.cp-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:7px 0; border-bottom:1px solid rgba(20,106,89,.08); font-size:12px; }
+.cp-row:last-child { border-bottom:none; }
+.cp-badge { font-size:11px; font-weight:700; color:#146a59; background:#e1f0e9; border-radius:999px; padding:1px 8px; white-space:nowrap; }
+.cp-sec { margin:2px 0 2px; font-size:11px; font-weight:700; letter-spacing:.14em; color:#8c6310; }
+.cp-bar { height:6px; border-radius:3px; background:#e1f0e9; overflow:hidden; margin-top:4px; }
+.cp-bar > i { display:block; height:100%; background:linear-gradient(90deg,#48927e,#c59b27); }
+.cp-fold > summary { cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.12em; color:#8c6310; padding:6px 0; }
