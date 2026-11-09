@@ -542,6 +542,12 @@ class NpcDialogueEngine:
                 line, delta = NpcDialogueEngine._local_line(npc, player, att, mind, words)
                 source = "local_fallback"
 
+        # 呈现清洗（chat-structure §C）：line 进入 text/回传/事件摘要前统一清洗，
+        # 仅剥 markdown 残留与换行规范，不改台词内容与结算。
+        from core.dialogue_text import clean_dialogue_text
+
+        line = clean_dialogue_text(line)
+
         if delta:
             att = shift_attitude(npc, player.id, delta, reason="交谈")
 
@@ -569,14 +575,16 @@ class NpcDialogueEngine:
         if banter_lines:
             try:
                 from core.scene_banter import format_banter
+                from core.dialogue_text import clean_dialogue_text as _cl
 
-                text += "\n" + format_banter(banter_lines)
+                text += "\n" + _cl(format_banter(banter_lines))
             except Exception:
                 pass
 
         return {
             "ok": True,
             "npc": npc.name,
+            "header": f"【{npc.name}·{mind.get('personality')}·{ATTITUDE_LABELS.get(att.get('label'),'中立')}】",
             "personality": mind.get("personality"),
             "attitude": att.get("label", "neutral"),
             "attitude_cn": ATTITUDE_LABELS.get(att.get("label", "neutral"), "中立"),

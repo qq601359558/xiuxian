@@ -147,6 +147,27 @@
       <button type="button" data-mview="world"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 15l3-4.5 2.5 3.5 2-2.5 3.5 4.5"/><path d="M6 17.5h12"/></svg></span><span>世界</span></button>
       <button type="button" data-mview="ops"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M10 5l2-2 2 2"/><path d="M8 16h8"/><path d="M12 16v5"/></svg></span><span>操作</span></button>
     </nav>
+
+    <!-- 交谈弹窗（chat-structure §A）：与桌面神识玉简同构，复用 /交谈 数据契约 -->
+    <div id="chatModalM" class="chatm-layer" hidden>
+      <div class="chatm-card" role="dialog" aria-label="神识交谈">
+        <div class="chatm-head">
+          <img id="chatAvatarM" class="chatm-ava" alt="" hidden />
+          <div class="chatm-titles">
+            <div id="chatTitleM" class="chatm-title">神识交谈</div>
+            <div id="chatSubM" class="chatm-sub"></div>
+          </div>
+          <button type="button" id="btnChatCloseM" class="chatm-x" aria-label="关闭">✕</button>
+        </div>
+        <div id="chatOldAccountM" class="chatm-old" hidden></div>
+        <div id="chatLogM" class="chatm-log" aria-live="polite"></div>
+        <form id="chatFormM" class="chatm-form">
+          <input id="chatInputM" type="text" placeholder="输入要说的话…" autocomplete="off" />
+          <button type="button" id="btnChatHangM" class="chatm-hang">断开</button>
+          <button type="submit" class="chatm-send">发送</button>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div id="toasts" aria-live="polite"></div>

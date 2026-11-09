@@ -24,6 +24,7 @@
   --font-ui: "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
   --font-num: ui-monospace,"SF Mono",Consolas,monospace;
   --sab: env(safe-area-inset-bottom, 0px);
+  --scrim: rgba(8,29,24,.45); /* chat-structure: 交谈层遮罩 */
 }
 html[data-theme="dark"] {
   --bg: #0a0d12; --surface: #12171f; --surface-2: #161c26;
@@ -43,6 +44,7 @@ html[data-theme="dark"] {
   --frame-1: #998e81; --frame-2: #bf8348; --frame-3: #cfd6dd; --frame-4: #efc44b; --frame-5: #b587f7; /* gallery: 品阶图框 */
   --frame-4-glow: rgba(224,180,60,.55); --frame-4-glow-strong: rgba(224,180,60,.75); --frame-5-glow: rgba(150,90,230,.6); --frame-5-glow-soft: rgba(150,90,230,.45); /* gallery: 品阶图框光晕 */
   --spirit-muted: #cbd5e1; --spirit-track: rgba(255,255,255,.18); /* gallery: 器灵面板次级色/轨道 */
+  --scrim: rgba(0,0,0,.55); /* chat-structure: 交谈层遮罩 */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -358,3 +360,28 @@ body.kb-open #toasts { bottom: 120px; /* QA-02：键盘态 120px = 60 坞 + 48 �
 .cp-badge { flex: none; font-size: 11px; font-weight: 700; color: var(--jade-700); background: var(--jade-100); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .cp-note { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin: 4px 0; }
 .cp-fold > summary { cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--gold-700); padding: 8px 0; }
+
+/* 交谈弹窗（chat-structure §A/D1）：与桌面神识玉简同构；色值一律走 token */
+.chatm-layer{position:fixed;inset:0;z-index:70;background:var(--scrim);display:flex;align-items:flex-end;justify-content:center}
+.chatm-layer[hidden]{display:none}
+.chatm-card{width:100%;max-width:560px;height:78dvh;background:var(--surface);border:1px solid var(--line-gold);border-bottom:none;border-radius:16px 16px 0 0;box-shadow:var(--shadow-card);display:flex;flex-direction:column;overflow:hidden}
+.chatm-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--grad-topbar);color:var(--on-jade)}
+.chatm-ava{width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--line-gold);flex:none}
+.chatm-titles{flex:1;min-width:0}
+.chatm-title{font-family:var(--font-display);font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chatm-sub{font-size:12px;opacity:.85}
+.chatm-x{flex:none;background:none;border:1px solid var(--line-gold);color:var(--on-jade);border-radius:8px;width:32px;height:32px;font-size:15px}
+.chatm-old{padding:8px 12px;font-size:12.5px;line-height:1.6;color:var(--warn);background:var(--gold-a08);border-bottom:1px solid var(--line);white-space:pre-wrap;max-height:22%;overflow-y:auto}
+.chatm-log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chatm-msg{display:flex;flex-direction:column;max-width:85%}
+.chatm-msg.sys{align-self:center;max-width:92%;font-size:12.5px;line-height:1.6;color:var(--muted);text-align:center;white-space:pre-wrap}
+.chatm-msg.npc{align-self:flex-start;align-items:flex-start}
+.chatm-msg.me{align-self:flex-end;align-items:flex-end}
+.chatm-who{font-size:12px;color:var(--gold-700);margin:0 2px 2px}
+.chatm-bubble{padding:8px 12px;border-radius:12px;font-size:14.5px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.chatm-msg.npc .chatm-bubble{background:var(--jade-100);color:var(--ink);border:1px solid var(--line);border-top-left-radius:4px}
+.chatm-msg.me .chatm-bubble{background:var(--grad-btn);color:var(--on-primary);border-top-right-radius:4px}
+.chatm-form{display:flex;gap:8px;padding:10px 12px calc(10px + var(--sab));border-top:1px solid var(--line);background:var(--surface-2)}
+.chatm-form input{flex:1;min-width:0;border:1px solid var(--input-line);border-radius:10px;padding:9px 12px;font-size:15px;background:var(--surface);color:var(--ink)}
+.chatm-send{flex:none;border:none;border-radius:10px;padding:9px 16px;background:var(--grad-btn);color:var(--on-primary);font-weight:700;box-shadow:var(--shadow-btn)}
+.chatm-hang{flex:none;border:1px solid var(--line-gold);border-radius:10px;padding:9px 12px;background:none;color:var(--gold-700)}

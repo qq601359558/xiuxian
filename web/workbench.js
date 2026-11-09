@@ -6607,7 +6607,14 @@
     if (state.chat.spiritMode) {
       chatMsg("你", c, "me");
       const data = await sendCmd("/灵语 " + c);
-      if (data && data.text) chatMsg(state.chat.npc || "器灵", data.text, "npc");
+      // 交谈结构化（chat-structure §B-8）：有 chat_lines 按字段渲染，无则回落整段文本
+      if (data && Array.isArray(data.chat_lines) && data.chat_lines.length) {
+        data.chat_lines.forEach((l) => {
+          if (l.cls === "sys") chatMsg("", l.text, "sys");
+          else chatMsg(l.who || state.chat.npc || "器灵", l.text, "npc");
+        });
+      }
+      else if (data && data.text) chatMsg(state.chat.npc || "器灵", data.text, "npc");
       else if (data && data.error) chatMsg("", data.error, "sys");
       return;
     }
@@ -6699,15 +6706,32 @@
         // 同上：开启后重渲染本响应的旧账行（截图验收问题 2）
         if (data.old_account) renderOldAccount(data.old_account);
       }
-      String(text).split("\n").filter(Boolean).forEach((ln) => {
-        if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字|天机偶发/.test(ln)) chatMsg("", ln, "sys");
-        else chatMsg(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
-      });
+      // 交谈结构化（chat-structure §B）：服务端 chat_lines 在场时只按字段渲染，
+      // 不再拆 text 正则猜行；不在场（demo/旧响应）回落既有拆行逻辑。
+      if (Array.isArray(data.chat_lines) && data.chat_lines.length) {
+        data.chat_lines.forEach((l) => {
+          if (l.cls === "sys") chatMsg("", l.text, "sys");
+          else if (l.cls === "me") chatMsg("你", l.text, "me");
+          else chatMsg(l.who || data.npc || "对方", l.text, "npc");
+        });
+      } else {
+        String(text).split("\n").filter(Boolean).forEach((ln) => {
+          if (/会话开始|可开口|挂断|同场】|会话记忆|直接打字|天机偶发/.test(ln)) chatMsg("", ln, "sys");
+          else chatMsg(data.npc || "对方", ln.replace(/^「|」$/g, ""), "npc");
+        });
+      }
       pushFeed(text, "npc");
       return;
     }
     if (data.chat_ended) {
-      chatMsg("", text || "神识联通已断开", "sys");
+      if (Array.isArray(data.chat_lines) && data.chat_lines.length) {
+        data.chat_lines.forEach((l) => {
+          if (l.cls === "sys") chatMsg("", l.text, "sys");
+          else chatMsg(l.who || data.npc || "对方", l.text, "npc");
+        });
+      } else {
+        chatMsg("", text || "神识联通已断开", "sys");
+      }
       pushFeed(text);
     }
   }

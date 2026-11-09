@@ -490,6 +490,7 @@ def apply_npc_reply(
             "success": True,
             "line": line,
             "ended": True,
+            "end_reason": rec["end_reason"],
             "message": line + "\n" + rec["end_reason"] + "\n（继续发送将不会得到回应；可重新 /交谈）",
         }
 

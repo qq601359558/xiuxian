@@ -62,6 +62,8 @@
     sugI: 0,
     selectedBagName: "",
     opsBuilt: false,
+    // 交谈弹窗（chat-structure §A）：visible=层可见，live=服务端会话存活
+    chat: { visible: false, live: false, npc: "", isPlayer: false, spirit: false, spiritItem: "", lines: [] },
   };
 
   function esc(s) {
@@ -119,7 +121,7 @@
       '<div class="spirit-mood"><i style="width:' + Math.max(0, Math.min(100, mood)) + '%"></i></div>' +
       '<div class="chiprow"><button type="button" class="chip" data-cmd="/器灵">器灵面板</button>' +
       '<button type="button" class="chip" data-cmd="/温养 ' + esc(eq.name) + '">温养</button>' +
-      '<button type="button" class="chip" data-fill="/灵语 ">灵语</button></div></div>';
+      '<button type="button" class="chip" data-spirit-item="' + esc(eq.name) + '" data-spirit-name="' + esc(sp.name || "器灵") + '">灵语</button></div></div>';
   }
   function clueChainHtmlM(it) {
     var cc = it && it.clue_chain;
@@ -698,9 +700,9 @@
         (r.rank ? " · " + esc(r.rank) : "") +
         "</div>" +
         '<div class="acts">' +
-        '<button type="button" class="btn primary" data-fill="/交谈 ' +
+        '<button type="button" class="btn primary" data-chat-name="' +
         esc(r.name) +
-        ' ">传音</button>' +
+        '">传音</button>' +
         '<button type="button" class="btn secondary" data-cmd="/交易 ' +
         esc(r.name) +
         '">交易</button>' +
@@ -834,7 +836,19 @@
         toast("请先填对方道号或传音内容", "bad");
         return;
       }
-      sendCmd(n && t ? "/交谈 " + n + " " + t : t || "/交谈 " + n);
+      // 交谈弹窗（chat-structure §A）：填名 → 开弹窗（有首句则开后即发）；仅内容 → 弹窗开着续发，否则回落旧命令路径
+      if (n) {
+        $("chatName").value = "";
+        $("chatText").value = "";
+        openChatWithM(n, t);
+      } else if (state.chat.visible) {
+        var inp = $("chatInputM");
+        if (inp) inp.value = t;
+        $("chatText").value = "";
+        chatSendM();
+      } else {
+        sendCmd(t);
+      }
     });
     $("btnGo").addEventListener("click", function () {
       sendCmd("/go " + $("goSelect").value);
@@ -1218,6 +1232,161 @@ var CP_BUILDERS_M = { profile: cpProfile, look: cpLook, here: cpHere, nearby: cp
 function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") return ""; var tok = String(cmd || "").trim().split(/\s+/)[0].replace(/^\//, "").toLowerCase(); var id = CP_ALIASES_M[tok]; if (!id) return ""; var fn = CP_BUILDERS_M[id]; if (typeof fn!== "function") return ""; try { var html = fn(data, cmd); return typeof html === "string"? html: "";} catch (_) { return "";}}
 // == command-panels: end ==
 
+// == chat-structure: 交谈弹窗（与桌面神识玉简同构；只按 chat_lines 字段渲染，不解析 text） ==
+  function renderChatHeadM(avatar) {
+    var t = $("chatTitleM"), s = $("chatSubM"), a = $("chatAvatarM");
+    if (t) t.textContent = state.chat.spirit ? (state.chat.npc || "器灵") : "与 " + (state.chat.npc || "对方") + " 交谈";
+    if (s) s.textContent = state.chat.spirit ? "器灵灵语" : state.chat.isPlayer ? "同道传音" : "神识交谈";
+    if (a) {
+      if (avatar) { a.src = avatar; a.hidden = false; }
+      else if (!state.chat.spirit) a.hidden = true;
+    }
+  }
+  function renderChatLogM() {
+    var log = $("chatLogM");
+    if (!log) return;
+    log.innerHTML = state.chat.lines.map(function (l) {
+      if (l.cls === "sys") return '<div class="chatm-msg sys">' + esc(l.text) + "</div>";
+      return '<div class="chatm-msg ' + (l.cls === "me" ? "me" : "npc") + '">' +
+        (l.cls === "me" ? "" : '<div class="chatm-who">' + esc(l.who || "") + "</div>") +
+        '<div class="chatm-bubble">' + esc(l.text) + "</div></div>";
+    }).join("");
+    log.scrollTop = log.scrollHeight;
+  }
+  function chatMsgM(who, text, cls) {
+    state.chat.lines.push({ who: who || "", text: String(text == null ? "" : text), cls: cls || "npc" });
+    renderChatLogM();
+  }
+  function renderOldAccountM(oa) {
+    var el = $("chatOldAccountM");
+    if (!el || !oa) return;
+    el.textContent = oldAccountTextM(oa);
+    el.hidden = false;
+  }
+  function openChatM(name, isPlayer, avatar) {
+    var same = state.chat.visible && !state.chat.spirit && state.chat.npc === name;
+    state.chat.visible = true;
+    state.chat.live = true;
+    state.chat.npc = name || "";
+    state.chat.isPlayer = !!isPlayer;
+    state.chat.spirit = false;
+    state.chat.spiritItem = "";
+    if (!same) {
+      state.chat.lines = [];
+      var oa = $("chatOldAccountM");
+      if (oa) { oa.hidden = true; oa.textContent = ""; }
+    }
+    renderChatHeadM(avatar);
+    renderChatLogM();
+    var m = $("chatModalM");
+    if (m) m.hidden = false;
+  }
+  function openSpiritChatM(itemName, spiritName) {
+    state.chat.visible = true;
+    state.chat.live = true;
+    state.chat.npc = spiritName || "器灵";
+    state.chat.isPlayer = false;
+    state.chat.spirit = true;
+    state.chat.spiritItem = itemName || "";
+    state.chat.lines = [];
+    var oa = $("chatOldAccountM");
+    if (oa) { oa.hidden = true; oa.textContent = ""; }
+    renderChatHeadM("");
+    chatMsgM("", "你凝神内视，与【" + state.chat.npc + "】灵语相通。", "sys");
+    renderChatLogM();
+    var m = $("chatModalM");
+    if (m) m.hidden = false;
+  }
+  function closeChatM() {
+    // 收束：仅收起弹窗，不结束服务端会话（与桌面 ✕ 同语义）
+    var m = $("chatModalM");
+    if (m) m.hidden = true;
+    state.chat.visible = false;
+  }
+  function hangChatM() {
+    var wasSpirit = state.chat.spirit;
+    closeChatM();
+    state.chat.live = false;
+    if (!wasSpirit && state.token && !state.demo) sendCmd("/挂断");
+  }
+  // 按字段路由交谈响应：返回 true = 已进弹窗（调用方不再落 feed）
+  function routeChatDataM(data, cmd) {
+    if (!data || typeof data !== "object") return false;
+    var lines = Array.isArray(data.chat_lines) ? data.chat_lines : [];
+    if (!(data.chat_open || (state.chat.visible && lines.length))) return false;
+    if (data.chat_open) {
+      if (!state.chat.visible || state.chat.spirit || (data.npc && data.npc !== state.chat.npc)) {
+        openChatM(data.npc || state.chat.npc || "", !!data.is_player, data.avatar);
+      } else {
+        state.chat.live = true;
+        if (data.is_player != null) state.chat.isPlayer = !!data.is_player;
+        renderChatHeadM(data.avatar);
+      }
+      if (data.old_account) renderOldAccountM(data.old_account);
+    }
+    if (lines.length) {
+      lines.forEach(function (l) {
+        if (!l || typeof l !== "object") return;
+        if (l.cls === "sys") chatMsgM("", l.text, "sys");
+        else if (l.cls === "me") chatMsgM("你", l.text, "me");
+        else chatMsgM(l.who || state.chat.npc || "对方", l.text, "npc");
+      });
+    } else if (data.chat_open) {
+      // 回落：无 chat_lines 的开启响应（demo/旧响应）→ text 整段作系统呈现
+      String(data.text || "").split("\n").filter(Boolean).forEach(function (ln) { chatMsgM("", ln, "sys"); });
+    } else if (data.chat_ended) {
+      chatMsgM("", data.text || "神识联通已断开", "sys");
+    }
+    if (data.ok === false && !lines.length && (data.error || data.message))
+      chatMsgM("", data.error || data.message, "sys");
+    if (data.chat_ended) state.chat.live = false;
+    return true;
+  }
+  async function openChatWithM(name, firstText) {
+    if (!name) return;
+    openChatM(name, false, "");
+    try {
+      var data = state.demo ? demoResult("/交谈 " + name) : await api("/chat", { token: state.token, to: name });
+      if (!routeChatDataM(data, "/交谈") && data && data.ok === false)
+        chatMsgM("", data.error || data.message || "无法开启交谈", "sys");
+      if (firstText) {
+        var inp = $("chatInputM");
+        if (inp) inp.value = firstText;
+        await chatSendM();
+      }
+    } catch (e) {
+      chatMsgM("", "传音失败：" + e.message, "sys");
+    }
+  }
+  async function chatSendM() {
+    var inp = $("chatInputM");
+    var c = inp ? inp.value.trim() : "";
+    if (!c || !state.chat.visible) return;
+    inp.value = "";
+    chatMsgM("你", c, "me");
+    try {
+      var data;
+      if (state.demo) {
+        chatMsgM(state.chat.npc || "对方", "（演示）神识微漾，此为演示回音。", "npc");
+        return;
+      }
+      if (state.chat.spirit) {
+        data = await api("/action", { token: state.token, command: "/灵语 " + c });
+        if (data.status) applyStatus(data.status);
+        if (!routeChatDataM(data, "/灵语") && data.text) chatMsgM(state.chat.npc || "器灵", data.text, "npc");
+      } else {
+        data = await api("/chat", { token: state.token, text: c, to: state.chat.npc });
+        routeChatDataM(data, "/说");
+      }
+      if (data && data.ok === false && !(data.chat_lines || []).length && (data.error || data.message))
+        chatMsgM("", data.error || data.message, "sys");
+    } catch (e) {
+      chatMsgM("", "传音失败：" + e.message, "sys");
+      toast(e.message, "bad");
+    }
+  }
+// == chat-structure: end ==
+
   async function sendCmd(cmd) {
     var c = (cmd || "").trim();
     if (!c) return;
@@ -1232,6 +1401,8 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       if (state.demo) data = demoResult(c);
       else data = await api("/action", { token: state.token, command: c });
       if (data.status) applyStatus(data.status);
+      // 交谈结构化（chat-structure §B）：命中路由的交谈响应只进弹窗，不落 feed
+      if (routeChatDataM(data, c)) return data;
       if (data.entry) { state.entry = data.entry; state.entryPending = false; if (state.view === "feed") renderFeed(); }
       if (data.origin_card) { state.originCard = data.origin_card; if (data.origin_card.just_created) showOriginOverlayM(); }
       if (data.ceremony || data.ceremony_next) maybeShowCeremonyQueueM(data.ceremony, data.ceremony_next);
@@ -1760,6 +1931,25 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
         try { if (t.checked) localStorage.setItem("ceremony_skip_" + t.getAttribute("data-ceremony-autoskip"), "1"); else localStorage.removeItem("ceremony_skip_" + t.getAttribute("data-ceremony-autoskip")); } catch (_) {}
       }
     });
+
+    // 交谈弹窗委托（chat-structure §A）：同场传音开弹窗 / 器灵灵语开弹窗
+    document.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var cn = t.closest("[data-chat-name]");
+      if (cn) { openChatWithM(cn.getAttribute("data-chat-name"), ""); return; }
+      var si = t.closest("[data-spirit-item]");
+      if (si) { openSpiritChatM(si.getAttribute("data-spirit-item"), si.getAttribute("data-spirit-name")); return; }
+    });
+    // 交谈弹窗自身控件：提交发送 / 收束 / 断开 / 点遮罩收起
+    var chatForm = $("chatFormM");
+    if (chatForm) chatForm.addEventListener("submit", function (e) { e.preventDefault(); chatSendM(); });
+    var chatClose = $("btnChatCloseM");
+    if (chatClose) chatClose.addEventListener("click", closeChatM);
+    var chatHang = $("btnChatHangM");
+    if (chatHang) chatHang.addEventListener("click", hangChatM);
+    var chatLayer = $("chatModalM");
+    if (chatLayer) chatLayer.addEventListener("click", function (e) { if (e.target === chatLayer) closeChatM(); });
 
     document.addEventListener("visibilitychange", function () {
       if (!document.hidden && state.token && !state.demo) refreshAll();

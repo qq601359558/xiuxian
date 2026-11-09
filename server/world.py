@@ -102,6 +102,34 @@ _LOCK_SNAPSHOT_RESERVE_SECONDS = 0.3
 SERVER_BUSY_MESSAGE = "世界正在演化，请稍后重试"
 
 
+# ---- 交谈结构化呈现（chat-structure spec §B）：chat_lines 拼装助手 ----
+# 语义：本次响应要在交谈视图新增呈现的行；前端只按字段渲染，不再解析 text。
+# 每条 text 在此统一过呈现清洗（§C，幂等）；text 字段本身保持原样不动。
+def _cl_sys(text: Any) -> Dict[str, Any]:
+    from core.dialogue_text import clean_dialogue_text
+
+    return {"who": "", "cls": "sys", "text": clean_dialogue_text(str(text or ""))}
+
+
+def _cl_npc(who: Any, text: Any) -> Dict[str, Any]:
+    from core.dialogue_text import clean_dialogue_text
+
+    return {"who": str(who or ""), "cls": "npc", "text": clean_dialogue_text(str(text or ""))}
+
+
+def _cl_text_lines(text: Any) -> List[Dict[str, Any]]:
+    """整段文本逐行 → sys 行（开启问候/挂断/记忆等系统拼装段用）。"""
+    return [_cl_sys(ln) for ln in str(text or "").split("\n") if ln.strip()]
+
+
+def _cl_bystanders(rows: Any) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for b in rows or []:
+        if isinstance(b, dict):
+            out.append(_cl_npc(b.get("who"), b.get("line")))
+    return out
+
+
 class WorldBusyError(Exception):
     """拿不到 World.lock 且该路径需要写操作（建角/收养/结算/发 token）。
 
@@ -1726,7 +1754,17 @@ class World:
                 res = ArtifactSpiritEngine.talk(char, words)
                 if res.get("changed"):
                     CharacterRepository.save(char)
-                return {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+                _spirit_resp = {"ok": bool(res.get("success")), "text": res.get("message", ""), "status": self._status_dict(char)}
+                if res.get("success"):
+                    # 交谈结构化（chat-structure §B-8）：灵语正文与注记分型下发，
+                    # 弹窗按字段渲染；不加 chat_open，命令框 /灵语 维持 feed 呈现。
+                    _spirit_resp["chat_lines"] = [
+                        _cl_npc(res.get("spirit_name") or "器灵", res.get("reply") or "")
+                    ] + [_cl_sys(n) for n in (res.get("notes") or []) if str(n).strip()]
+                    _spirit_resp["npc"] = res.get("spirit_name")
+                    _spirit_resp["spirit_name"] = res.get("spirit_name")
+                    _spirit_resp["item_name"] = res.get("item_name")
+                return _spirit_resp
             if action in ("/wallet", "/钱包"):
                 from core.wallet import wallet_panel_text
                 from storage.db import AccountRepository as _AR
@@ -3487,6 +3525,9 @@ class World:
                             return {
                                 "ok": True,
                                 "text": greet + f"\n\n【神识传音】你向同道【{target.name}】传音：“{words}” 灵念已达，静候回音。",
+                                "chat_lines": _cl_text_lines(greet) + [
+                                    _cl_sys(f"【神识传音】你向同道【{target.name}】传音：“{words}” 灵念已达，静候回音。")
+                                ],
                                 "chat_open": True,
                                 "npc": target.name,
                                 "avatar": _target_avatar,
@@ -3513,6 +3554,10 @@ class World:
                         return {
                             "ok": True,
                             "text": greet + "\n\n" + res.get("text", ""),
+                            "chat_lines": _cl_text_lines(greet)
+                            + [_cl_sys(res.get("header") or f"【{target.name}】")]
+                            + [_cl_npc(target.name, res.get("line") or "")]
+                            + _cl_bystanders(res.get("bystanders")),
                             "chat_open": True,
                             "npc": target.name,
                             "avatar": _target_avatar,
@@ -3525,6 +3570,8 @@ class World:
                     return {
                         "ok": True,
                         "text": greet + "\n\n（可开口：直接在聊天窗打字，无需 /说）",
+                        "chat_lines": _cl_text_lines(greet)
+                        + [_cl_sys("（可开口：直接在聊天窗打字，无需 /说）")],
                         "chat_open": True,
                         "npc": target.name,
                         "avatar": _target_avatar,
@@ -3548,12 +3595,14 @@ class World:
 
                     rej = reject_player_creation(words)
                     if rej:
-                        return {"ok": False, "error": rej["message"], "rejected": True, "chat_open": True}
+                        return {"ok": False, "error": rej["message"], "rejected": True, "chat_open": True,
+                                "chat_lines": [_cl_sys(rej["message"])]}
                 except Exception:
                     pass
                 said = npc_chat.player_say(char, words)
                 if not said.get("success"):
-                    return {"ok": False, "error": said.get("message", "无法发言"), "chat_ended": said.get("ended")}
+                    return {"ok": False, "error": said.get("message", "无法发言"), "chat_ended": said.get("ended"),
+                            "chat_lines": _cl_text_lines(said.get("message", "无法发言"))}
                 rec = said["session"]
                 npc = said["npc"]
                 from core.npc_mind import _is_npc
@@ -3568,16 +3617,21 @@ class World:
                 # 会话中若离地/死亡/被擒则终止
                 if npc.location != char.location or npc.status == CharacterStatus.DEAD:
                     npc_chat.close_session(char.id, "对方已不在同场，会话终止。", by="system")
-                    return {"ok": False, "error": "对方已不在同场，会话终止。", "chat_ended": True}
+                    return {"ok": False, "error": "对方已不在同场，会话终止。", "chat_ended": True,
+                            "chat_lines": [_cl_sys("对方已不在同场，会话终止。")]}
                 if npc.status == CharacterStatus.CAPTURED:
                     npc_chat.close_session(char.id, f"【{npc.name}】已被擒。", by="system")
-                    return {"ok": False, "error": f"【{npc.name}】已被擒，会话终止。", "chat_ended": True}
+                    return {"ok": False, "error": f"【{npc.name}】已被擒，会话终止。", "chat_ended": True,
+                            "chat_lines": [_cl_sys(f"【{npc.name}】已被擒，会话终止。")]}
 
                 if not is_target_npc:
                     # 真人同道：绝不走 AI，直接返回成功与双方历史
                     return {
                         "ok": True,
                         "text": f"【神识传音】你向同道【{npc.name}】传音：“{words}” 灵念已达，静候回音。",
+                        "chat_lines": [
+                            _cl_sys(f"【神识传音】你向同道【{npc.name}】传音：“{words}” 灵念已达，静候回音。")
+                        ],
                         "chat_open": True,
                         "chat_ended": False,
                         "npc": npc.name,
@@ -3611,6 +3665,11 @@ class World:
                             return {
                                 "ok": True,
                                 "text": act.get("text", ""),
+                                "chat_lines": [
+                                    _cl_npc(npc.name, ln)
+                                    for ln in str(act.get("text", "")).split("\n")
+                                    if ln.strip()
+                                ],
                                 "chat_open": False,
                                 "chat_ended": True,
                                 "npc": npc.name,
@@ -3637,6 +3696,11 @@ class World:
                         return {
                             "ok": True,
                             "text": act.get("text", ""),
+                            "chat_lines": [
+                                _cl_npc(npc.name, ln)
+                                for ln in str(act.get("text", "")).split("\n")
+                                if ln.strip()
+                            ],
                             "chat_open": True,
                             "chat_ended": False,
                             "npc": npc.name,
@@ -3647,6 +3711,7 @@ class World:
                     return {
                         "ok": False,
                         "error": act.get("error", "无法完成该动作"),
+                        "chat_lines": [_cl_sys(act.get("error", "无法完成该动作"))],
                         "chat_open": True,
                         "chat_ended": False,
                         "npc": npc.name,
@@ -3725,6 +3790,11 @@ class World:
                     hang = loc.get("hangup_reason") or ""
                     source = "local"
 
+                # 呈现清洗（chat-structure §C）：line 入会话记录与响应前统一清洗，
+                # 仅剥 markdown 残留/规范换行，不改台词内容与结算。
+                from core.dialogue_text import clean_dialogue_text as _cleanDlg
+
+                line = _cleanDlg(line)
                 out = npc_chat.apply_npc_reply(char.id, line, will_cont, d_att, hang)
                 if d_att:
                     try:
@@ -3743,14 +3813,20 @@ class World:
                         char, npc, transcript_tail=f"{said['player_text']}\n{line}"
                     )
                     if banter_list:
-                        banter_text = "\n" + format_banter(banter_list)
+                        banter_text = "\n" + _cleanDlg(format_banter(banter_list))
                         if not out.get("ended"):
                             append_banter_to_session(char.id, banter_list)
                 except Exception:
                     banter_text = ""
+                _say_lines = [_cl_npc(npc.name, out.get("line", line))] + _cl_bystanders(banter_list)
+                if out.get("ended"):
+                    if out.get("end_reason"):
+                        _say_lines.append(_cl_sys(out["end_reason"]))
+                    _say_lines.append(_cl_sys("（继续发送将不会得到回应；可重新 /交谈）"))
                 payload = {
                     "ok": True,
                     "text": (out.get("message", line) or "") + banter_text,
+                    "chat_lines": _say_lines,
                     "chat_open": not out.get("ended"),
                     "chat_ended": bool(out.get("ended")),
                     "npc": npc.name,
@@ -3775,7 +3851,8 @@ class World:
                 text = f"【挂断】与【{rec.get('npc_name')}】的会话已结束。"
                 if mem:
                     text += "\n" + mem
-                return {"ok": True, "text": text, "chat_ended": True, "npc": rec.get("npc_name")}
+                return {"ok": True, "text": text, "chat_ended": True, "npc": rec.get("npc_name"),
+                        "chat_lines": _cl_text_lines(text)}
             if action in ("/释放", "/release"):
                 from core.chat_actions import release_captive
 
@@ -5768,6 +5845,12 @@ class World:
                 if in_chat_npc:
                     payload["omen_chat"] = omen
                     payload["text"] = (payload.get("text") or "") + "\n\n" + (omen.get("text") or "")
+                    # 交谈结构化（chat-structure §B-9）：弹窗内奇遇以 sys 行追加，
+                    # 与 text 拼接同步，前端不再从 text 里拆奇遇段。
+                    if isinstance(payload.get("chat_lines"), list):
+                        payload["chat_lines"] = payload["chat_lines"] + [
+                            _cl_sys(omen.get("text") or "")
+                        ]
                 else:
                     payload["omen_inline"] = bool(omen.get("omen_inline", True))
                     payload["omen_title"] = omen.get("omen_title") or omen.get("title")

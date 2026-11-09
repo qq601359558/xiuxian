@@ -639,6 +639,10 @@ def talk(char: Any, raw_text: str, now: Optional[float] = None) -> Dict[str, Any
     else:
         line, tone = reply
         source = "ai"
+    # 呈现清洗（chat-structure §C）：仅剥 markdown 残留/规范换行，不改台词与结算
+    from core.dialogue_text import clean_dialogue_text
+
+    line = clean_dialogue_text(line)
     history.append({"who": spirit.get("name") or "器灵", "text": line})
     _save_context(char.id, str(item.uid), history)
 
@@ -667,6 +671,7 @@ def talk(char: Any, raw_text: str, now: Optional[float] = None) -> Dict[str, Any
         "changed": True,
         "message": msg,
         "reply": line,
+        "notes": ([growth_note] if growth_note else []) + [str(n) for n in notes],
         "tone": tone,
         "source": source,
         "item_name": item.name,
