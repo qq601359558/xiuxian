@@ -499,6 +499,69 @@ class CouncilEngine:
         return "\n".join(lines)
 
     @staticmethod
+    def panel_data(char: Character, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """议政面板结构（/议政 council 键；与 panel_text 同源）。散修为 None。"""
+        if not char.sect:
+            return None
+        now = now if now is not None else time.time()
+        sect = char.sect
+        session, _ = CouncilEngine._advance(sect, now)
+        state = CouncilEngine.get_sect_state(sect)
+        topic = topic_by_id(session.get("topic_id") or "")
+        base: Dict[str, Any] = {
+            "sect": sect,
+            "session_no": int(session.get("session_no") or 0) + 1,
+            "vault": state["vault"],
+            "prestige": state["prestige"],
+            "morale": state["morale"],
+            "topic": {
+                "id": session.get("topic_id"),
+                "name": topic.get("name"),
+                "desc": topic.get("desc"),
+            },
+            "settled": bool(session.get("settled")),
+        }
+        if session.get("settled") and session.get("result"):
+            result = session.get("result") or {}
+            base["result"] = {
+                "passed": result.get("passed"),
+                "support": result.get("support", 0),
+                "oppose": result.get("oppose", 0),
+                "effects": result.get("effects") or {},
+            }
+            base["next_open_in_s"] = max(0.0, float(session.get("next_open_at") or now) - now)
+            base["seats"] = []
+            base["votes"] = {
+                "support": int(result.get("support", 0)),
+                "oppose": int(result.get("oppose", 0)),
+                "mine": None,
+            }
+            return base
+        steps_map = session.get("lobby_steps") or {}
+        seats = []
+        for seat in CouncilEngine.elder_seats(sect):
+            steps = int(steps_map.get(seat["id"]) or 0)
+            stance = stance_of(session.get("topic_id") or "", seat, steps)
+            seats.append(
+                {
+                    "name": seat["name"],
+                    "rank": seat.get("rank") or "长老",
+                    "stance": stance,
+                    "stance_cn": _STANCE_LABEL[stance],
+                    "lobbied": steps > 0,
+                    "virtual": bool(seat.get("virtual")),
+                    "line": _elder_line(session.get("topic_id") or "", seat, stance),
+                }
+            )
+        votes = session.get("votes") or {}
+        p_support = sum(1 for v in votes.values() if v == "support")
+        p_oppose = sum(1 for v in votes.values() if v == "oppose")
+        base["closes_in_s"] = max(0.0, float(session.get("closes_at") or now) - now)
+        base["seats"] = seats
+        base["votes"] = {"support": p_support, "oppose": p_oppose, "mine": votes.get(char.id)}
+        return base
+
+    @staticmethod
     def vote(char: Character, side: str, now: Optional[float] = None) -> Dict[str, Any]:
         if CouncilEngine._dead(char):
             return CouncilEngine._reject("身死道消，议政之事已与你无关。")

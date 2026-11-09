@@ -492,6 +492,30 @@ def tick(now: Optional[float] = None) -> Dict[str, Any]:
     return {"season": sn, "changed": changed, "bias": active_bias(t)}
 
 
+def era_board_data(now: Optional[float] = None) -> Dict[str, Any]:
+    """纪元回流面板结构（/纪元回流 era_flow 键；与 format_era_board 同源）。"""
+    t = _now(now)
+    rebuild_active_bias(t)
+    state = _load()
+    bias = active_bias(t)
+    try:
+        from core.season import season_info
+
+        info = season_info(t)
+        cur = int(info.get("season_number") or 0)
+    except Exception:
+        cur = int(state.get("current_season") or 0)
+    return {
+        "current_season": cur,
+        "last_reentry_ts": state.get("last_reentry_ts"),
+        "active_bias": bias,
+        "active_bias_cn": {TYPE_CN.get(k, k): v for k, v in bias.items()},
+        "cited_count": int(state.get("cited_count") or 0),
+        "anchors": list(state.get("anchors") or []),
+        "completed_eras": list(state.get("completed_eras") or []),
+    }
+
+
 def handle_era_command(parts: List[str], now: Optional[float] = None) -> Dict[str, Any]:
     sub = (parts[1].strip().lower() if len(parts) > 1 else "")
     if sub in ("重建", "rebuild", "刷新"):

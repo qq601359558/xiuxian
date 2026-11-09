@@ -163,17 +163,17 @@ def test_fe02_call_sites_carry_ceremony_next_both_ends():
 
 def test_fe03_mobile_budgets_hardline_and_caps():
     """FE-03：交付实测对本轮硬线与现行断言上限双对照（spec §8）——
-    mobile.js ≤1660 行（硬线）且 ≤1892 行（现行上限）；mobile.css ≤27455B
-    （硬线）且 ≤28800B（现行上限）；CSS 新增必须全量 var() token（本轮零新增，
-    以文件内无裸 hex 的既有断言口径复核交给 test_mobile_web，此处只对字节数）。"""
+    第五次豁免（command-panels spec §7，2026-11-09 总管批准 D1）：
+    mobile.js 硬线 1660 行 → 2100 行、现行上限 1892 行 → 2100 行
+    （净增上限 720 → 928）；mobile.css 硬线 27455B → 29200B、现行上限
+    28800B → 29200B；token 纪律（no_bare_hex）不在豁免内，复核仍交
+    test_mobile_web。超新上限时停工回主策岗，不得擅自再改。"""
     js_lines = len(_read("mobile.js").splitlines())
     css_bytes = (WEB / "mobile.css").stat().st_size
-    assert js_lines <= 1660, f"mobile.js {js_lines} 行超三期硬线 1660 行（§8 停工线）"
-    assert js_lines <= 1892, f"mobile.js {js_lines} 行超现行上限 1892 行（二期 §10）"
-    assert css_bytes <= 27455, f"mobile.css {css_bytes}B 超三期硬线 27455B（§8 停工线）"
-    assert css_bytes <= 28800, f"mobile.css {css_bytes}B 超现行上限 28800B（二期 §10）"
-    print(f"✓ FE-03 预算实测：mobile.js {js_lines} 行（硬线 1660 / 上限 1892），"
-          f"mobile.css {css_bytes}B（硬线 27455 / 上限 28800）")
+    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 D1 豁免上限 2100 行（command-panels §7）"
+    assert css_bytes <= 29200, f"mobile.css {css_bytes}B 超 D1 豁免上限 29200B（command-panels §7）"
+    print(f"✓ FE-03 预算实测：mobile.js {js_lines} 行（D1 豁免上限 2100），"
+          f"mobile.css {css_bytes}B（D1 豁免上限 29200）")
 
 
 def test_gf3_qa01_desktop_treasure_flow_forwards_loot_ceremony():

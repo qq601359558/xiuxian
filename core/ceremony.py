@@ -136,10 +136,35 @@ def apply_fate_choice(character: Character, key: str) -> Dict[str, Any]:
     }
 
 
+def _boon_source_cn(key: str) -> Optional[str]:
+    """命格 key → 来源中文标签（/命格面板徽标用；key 原码保留，/命格 <key> 选择仍读 key）。
+
+    DAO_BOON_CATALOG 五键 →「道韵」；fate_<词缀 stat> →「词缀」（与
+    fate_pool_for 的 source 口径一致：dao/affix）；未知码（如旧夹具 dao1，
+    服务端无此键）→ None，面板按 M3 口径省略徽标。
+    """
+    try:
+        from core.dungeon import DAO_BOON_CATALOG
+    except Exception:
+        return None
+    if (key or "") in DAO_BOON_CATALOG:
+        return "道韵"
+    if (key or "").startswith("fate_"):
+        return "词缀"
+    return None
+
+
 def fate_block(character: Character) -> Dict[str, Any]:
     """status 只增 fate 块（§6 总表）：已选 + 待选原样下发。"""
+    boons = []
+    for b in (getattr(character, "fate_boons", None) or []):
+        row = dict(b) if isinstance(b, dict) else b
+        cn = _boon_source_cn(b.get("key", "") if isinstance(b, dict) else "")
+        if cn and isinstance(row, dict):
+            row["source_cn"] = cn
+        boons.append(row)
     return {
-        "boons": list(getattr(character, "fate_boons", None) or []),
+        "boons": boons,
         "pending": list(getattr(character, "fate_pending", None) or []),
         "power_bonus": FateBoonEngine.power_bonus(character),
     }

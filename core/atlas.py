@@ -262,6 +262,29 @@ class AtlasEngine:
         return None
 
     @staticmethod
+    def atlas_data(
+        char: Optional[Character],
+        now: Optional[float] = None,
+    ) -> List[Dict[str, Any]]:
+        """版图行集（/版图 atlas 键；与 panel_text 裸查分支同源）。"""
+        t = now if now is not None else time.time()
+        my_sect = char.sect if char is not None else None
+        rows = []
+        for region in _all_regions():
+            inf = AtlasEngine.influence_map(region, t)
+            dom = AtlasEngine.dominant_sect(region, t)
+            rows.append(
+                {
+                    "region": region,
+                    "dominant": dom,
+                    "dominant_value": float(inf.get(dom, 0.0)) if dom else 0.0,
+                    "mine": inf.get(my_sect) if my_sect else None,
+                    "influence": {k: float(v) for k, v in inf.items()},
+                }
+            )
+        return rows
+
+    @staticmethod
     def panel_text(
         char: Optional[Character],
         region_arg: Optional[str] = None,

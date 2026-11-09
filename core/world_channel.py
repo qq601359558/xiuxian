@@ -75,6 +75,41 @@ def _season_no() -> int:
         return 0
 
 
+# 频道 kind → 中文标签（/频道面板展示用；kind 原码保留，去重/限流仍读 kind）。
+# 标签取自各 post 点文本前缀（【血雨】/【天象】/【宗门令】/【落槌】……）；
+# 未映射的 kind（如测试探针 panel_test）返回 None，调用方省略 type_cn 键，
+# 面板按 M3 口径不渲染原码。
+KIND_CN = {
+    "kill": "击杀",
+    "break": "闭关突破",
+    "breakthrough": "渡劫功成",
+    "tribulation": "天劫",
+    "chain": "奇遇",
+    "faction": "宗门令",
+    "faction_siege": "宗门围剿",
+    "hunt": "除凶",
+    "karma_chain": "寻仇",
+    "locate": "舆图添新",
+    "echo": "望气",
+    "apocalypse": "大劫",
+    "season_theme": "天象",
+    "realm": "秘境开启",
+    "bond": "结缘",
+    "trade": "坊市",
+    "auction": "落槌",
+    "gm": "公告",
+    "director": "天道导演",
+    "world_omen": "天地异象",
+    "arc": "世界弧",
+    "boot": "开服",
+    "era_reentry": "纪元回流",
+}
+
+
+def kind_cn(kind: str) -> Optional[str]:
+    return KIND_CN.get(str(kind or ""))
+
+
 class WorldChannel:
     @staticmethod
     def post(

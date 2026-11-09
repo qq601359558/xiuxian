@@ -457,6 +457,65 @@ class QuestEngine:
 
     # ---------------- 面板 ----------------
     @staticmethod
+    @staticmethod
+    def panel_data(
+        char: Character, now: Optional[float] = None, rng: Optional[random.Random] = None
+    ) -> Dict[str, Any]:
+        """委托面板结构（/委托 quests 键；与 panel_text 同源）。"""
+        t = now if now is not None else time.time()
+        chain = char.active_quest
+        active = None
+        if chain:
+            ring = QuestEngine.current_ring(char)
+            active = {
+                "publisher": chain.publisher_name,
+                "publisher_id": chain.publisher_id,
+                "rings_total": len(chain.rings),
+                "ring_index": chain.ring_index,
+                "ring": (
+                    {
+                        "kind": ring.kind,
+                        "kind_cn": QUEST_KIND_CN.get(ring.kind, ring.kind),
+                        "desc": ring.desc,
+                        "progress": ring.progress,
+                        "need": ring.need,
+                        "deliver_npc_name": ring.deliver_npc_name,
+                        "item_name": ring.item_name,
+                    }
+                    if ring is not None
+                    else None
+                ),
+                "reward_stones": chain.reward_stones,
+                "reward_merit": chain.reward_merit,
+                "expires_in_s": max(0.0, chain.expires_at - t),
+            }
+        offers = []
+        for npc, ch in QuestEngine.offers_for(char, now=t, rng=rng):
+            first = ch.rings[0] if ch.rings else None
+            offers.append(
+                {
+                    "npc": npc.name,
+                    "realm": npc.realm.name,
+                    "rings": len(ch.rings),
+                    "reward_stones": ch.reward_stones,
+                    "reward_merit": ch.reward_merit,
+                    "first_ring": (
+                        {
+                            "kind": first.kind,
+                            "kind_cn": QUEST_KIND_CN.get(first.kind, first.kind),
+                            "desc": first.desc,
+                        }
+                        if first
+                        else None
+                    ),
+                }
+            )
+        return {
+            "active": active,
+            "offers": offers,
+            "cooldown_until": char.quest_cooldown_until,
+        }
+
     def panel_text(char: Character, now: Optional[float] = None, rng: Optional[random.Random] = None) -> str:
         t = now if now is not None else time.time()
         # 惰性结算收引擎内（评审 S1）：直调方也不会看到过期链仍「进行中」；

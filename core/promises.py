@@ -616,6 +616,42 @@ class PromiseEngine:
 
     # ---------------- 面板 ----------------
     @staticmethod
+    @staticmethod
+    def _row(p: "Promise", bucket: str, t: float) -> Dict[str, Any]:
+        if p.status == PromiseStatus.PENDING:
+            left = max(0.0, p.created_at + PROMISE_ACCEPT_TTL_SECONDS - t)
+        elif p.status == PromiseStatus.ACTIVE:
+            left = max(0.0, (p.deadline or 0) - t)
+        else:
+            left = 0.0
+        return {
+            "bucket": bucket,
+            "desc": p.desc,
+            "kind": p.kind,
+            "promiser": p.promiser_name,
+            "promisee": p.promisee_name,
+            "status": p.status.value,
+            "left_s": left,
+            "deadline": p.deadline,
+            "settle_note": p.settle_note or "",
+        }
+
+    @staticmethod
+    def panel_data(char: Character, now: Optional[float] = None) -> List[Dict[str, Any]]:
+        """诺言行集（/诺言 promises 键；与 panel_text 同源）。空态为 []。"""
+        t = now if now is not None else time.time()
+        mine = PromiseEngine._involving(char.id)
+        my_open = [p for p in mine if p.promiser_id == char.id and p.status.value not in TERMINAL_STATUSES]
+        to_accept = [p for p in mine if p.promisee_id == char.id and p.status == PromiseStatus.PENDING]
+        received = [p for p in mine if p.promisee_id == char.id and p.status == PromiseStatus.ACTIVE]
+        history = [p for p in mine if p.status.value in TERMINAL_STATUSES]
+        history.sort(key=lambda p: p.settled_at, reverse=True)
+        rows = [PromiseEngine._row(p, "我立之诺", t) for p in my_open]
+        rows += [PromiseEngine._row(p, "待我应诺", t) for p in to_accept]
+        rows += [PromiseEngine._row(p, "我受之诺", t) for p in received]
+        rows += [PromiseEngine._row(p, "近史", t) for p in history[:PROMISE_HISTORY_N]]
+        return rows
+
     def panel_text(char: Character, now: Optional[float] = None) -> str:
         t = now if now is not None else time.time()
         mine = PromiseEngine._involving(char.id)

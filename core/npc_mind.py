@@ -96,6 +96,28 @@ def _label_for_value(value: int) -> str:
     return "neutral"
 
 
+# M3（command-panels 返工，2026-11-09）：reason 码 → 中文展示标签。
+# shift_attitude 的 reason 入参混有内部码（出身植入的 "origin"）与中文
+# 标签（如"交谈"）；摘要是展示文本（/近况 relations[].summary 与面板
+# 同源直通），原码不得外泄。映射表内的码换中文标签；无映射的纯 ASCII
+# 码返回 None（调用方省略「：…」后缀，不原样输出）；其余中文叙事原样
+# 保留。refs 里的 reason:{reason} 保持原码（内部索引，npc_proactive
+# 的 origin 判定依赖它），数值语义与叙事内容一律不动。
+_REASON_LABELS = {
+    "origin": "出身牵连",
+}
+
+
+def _reason_label(reason: str) -> Optional[str]:
+    if not reason:
+        return "无名由"
+    if reason in _REASON_LABELS:
+        return _REASON_LABELS[reason]
+    if reason.isascii():
+        return None
+    return reason
+
+
 def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") -> Dict[str, Any]:
     mind = ensure_mind(npc)
     cur = ((mind.get("attitudes") or {}).get(other_id) or {}).get("value", 0)
@@ -103,10 +125,12 @@ def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") 
     result = NpcMindRepository.set_attitude(npc.id, other_id, new_v)
     if reason:
         try:
+            _label = _reason_label(reason)
+            _suffix = f"：{_label}" if _label else ""
             record_event(
                 type="ATTITUDE",
                 actor=npc,
-                summary=f"{npc.name}对目标态度变化：{reason}（{result.get('label')}）",
+                summary=f"{npc.name}对目标态度变化{_suffix}（{result.get('label')}）",
                 location=npc.location,
                 effects_digest=f"attitude {cur}->{new_v}",
             )
@@ -121,16 +145,17 @@ def shift_attitude(npc: Character, other_id: str, delta: int, reason: str = "") 
             before_label = _label_for_value(int(cur))
             after_label = result.get("label") or _label_for_value(new_value)
             if new_value != int(cur) or after_label != before_label:
-                reason_text = reason or "无名由"
+                reason_text = _reason_label(reason)
+                suffix = f"：{reason_text}" if reason_text else ""
                 if after_label != before_label:
                     summary = (
                         f"{npc.name}对你由{ATTITUDE_LABELS.get(before_label, '中立')}"
-                        f"转{ATTITUDE_LABELS.get(after_label, '中立')}：{reason_text}"
+                        f"转{ATTITUDE_LABELS.get(after_label, '中立')}{suffix}"
                     )
                 else:
                     summary = (
                         f"{npc.name}对你态度{'升温' if int(delta) > 0 else '降温'}"
-                        f"：{reason_text}"
+                        f"{suffix}"
                     )
                 refs = [
                     f"delta:{int(delta)}",

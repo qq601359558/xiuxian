@@ -1509,7 +1509,13 @@ class World:
                 tomb = find_tombstone(parts[1].strip())
                 if tomb is None:
                     return {"ok": True, "text": "江湖无此碑。"}
-                return {"ok": True, "text": tomb}
+                from core.inheritance import tombstone_data
+
+                return {
+                    "ok": True,
+                    "text": tomb,
+                    "tombstone": tombstone_data(parts[1].strip()),
+                }
             if action in ("/因果链", "/karma_chains"):
                 # 因果链面板（AI 天道事件链）：引擎同源文本，CLI 同命令同文案；
                 # 先惰性推进后呈现（照 /诺言 settle_due→panel_text 先例）；
@@ -1520,7 +1526,11 @@ class World:
                     KarmaChainEngine.advance_for(char)
                 except Exception:
                     pass
-                return {"ok": True, "text": KarmaChainEngine.panel_text(char)}
+                return {
+                    "ok": True,
+                    "text": KarmaChainEngine.panel_text(char),
+                    "karma_chains": KarmaChainEngine.panel_data(char),
+                }
             if action in ("/定相", "/gender"):
                 # 定相（gallery-gameplay §3.3）：纯外观自选，assert_alive 门禁
                 # 在引擎内；写路径以 CharacterRepository.save 收尾（§11）。
@@ -1646,7 +1656,11 @@ class World:
 
                 arg = parts[1] if len(parts) > 1 else ""
                 if not arg:
-                    return {"ok": True, "text": TreasureClueEngine.view_text(char), "status": self._status_dict(char)}
+                    ret = {"ok": True, "text": TreasureClueEngine.view_text(char), "status": self._status_dict(char)}
+                    clue = TreasureClueEngine.view_data(char)
+                    if clue is not None:
+                        ret["clue"] = clue
+                    return ret
                 if arg == "弃":
                     res = TreasureClueEngine.abandon(char)
                 else:
@@ -1661,7 +1675,11 @@ class World:
             if action in ("/器灵", "/spirit"):
                 # 法宝器灵面板/唤灵（gallery-gameplay §6）：无参面板同源文本；
                 # 「唤 <器物名>」唤灵，门禁在引擎内，写路径 save 收尾（§11）。
-                from core.artifact_spirit import ArtifactSpiritEngine, panel_text as _spirit_panel
+                from core.artifact_spirit import (
+                    ArtifactSpiritEngine,
+                    panel_data as _spirit_data,
+                    panel_text as _spirit_panel,
+                )
 
                 sub = parts[1] if len(parts) > 1 else ""
                 if sub == "唤":
@@ -1686,7 +1704,11 @@ class World:
                         except Exception:
                             pass
                     return _spirit_ret
-                return {"ok": True, "text": _spirit_panel(char), "status": self._status_dict(char)}
+                ret = {"ok": True, "text": _spirit_panel(char), "status": self._status_dict(char)}
+                sp = _spirit_data(char)
+                if sp is not None:
+                    ret["spirit"] = sp
+                return ret
             if action in ("/温养", "/nourish"):
                 # 温养（gallery-gameplay §6.4）：明价日限，门禁在引擎内。
                 from core.artifact_spirit import ArtifactSpiritEngine
@@ -1795,7 +1817,7 @@ class World:
                         lines.append(f"  · {m}")
                 return {"ok": True, "text": "\n".join(lines), "count": sum(len(v) for v in groups.values())}
             if action in ("/who",):
-                return {"ok": True, "text": self._who()}
+                return {"ok": True, "text": self._who(), "who": self._who_data()}
             if action in ("/go", "/前往"):
                 dest = parts[1] if len(parts) > 1 else ""
                 res = self._go(char, dest)
@@ -1983,12 +2005,26 @@ class World:
                     n = max(1, min(20, int(parts[1])))
                 return {"ok": True, "text": format_rumor_board(n)}
             if action in ("/channel", "/频道"):
-                from core.world_channel import WorldChannel
+                from core.world_channel import WorldChannel, kind_cn
 
                 n = 15
                 if len(parts) > 1 and parts[1].isdigit():
                     n = max(1, min(40, int(parts[1])))
-                return {"ok": True, "text": WorldChannel.format_board(n)}
+                rows = []
+                for m in reversed(WorldChannel.recent(limit=n)):
+                    row = {
+                        "severity": m.level,
+                        "type": m.kind,
+                        "text": m.text,
+                        "actor": m.actor,
+                        "location": m.location,
+                        "ts": m.ts,
+                    }
+                    cn = kind_cn(m.kind)
+                    if cn:
+                        row["type_cn"] = cn
+                    rows.append(row)
+                return {"ok": True, "text": WorldChannel.format_board(n), "channel": rows}
             if action in ("/notice", "/公告"):
                 from core.world_channel import WorldChannel
 
@@ -2040,7 +2076,23 @@ class World:
                 n = 15
                 if len(parts) > 1 and parts[1].isdigit():
                     n = max(1, min(30, int(parts[1])))
-                return {"ok": True, "text": format_board(n)}
+                from core.name_registry import list_heard
+
+                heard = list_heard(limit=n)
+                ret = {"ok": True, "text": format_board(n)}
+                if heard:
+                    ret["relics"] = [
+                        {
+                            "name": r.get("name"),
+                            "type": r.get("type"),
+                            "status": r.get("status"),
+                            "desc": r.get("desc"),
+                            "source": r.get("source"),
+                            "confidence": r.get("confidence"),
+                        }
+                        for r in heard
+                    ]
+                return ret
             if action in ("/追查", "/chase"):
                 from core.name_registry import chase
 
@@ -2160,8 +2212,9 @@ class World:
                     "status": self._status_dict(char),
                 }
             if action in ("/legend", "/传说", "/典籍"):
-                from core.legends import format_legends
-                from core.era_reentry import format_era_board
+                from core.era_reentry import active_bias, format_era_board
+                from core.legends import count_legends, format_legends, list_legends
+                from core.era_reentry import TYPE_CN as _ERA_TYPE_CN
 
                 season = None
                 if len(parts) > 1 and parts[1].lstrip("-").isdigit():
@@ -2171,17 +2224,50 @@ class World:
                     text += "\n\n" + format_era_board()
                 except Exception:
                     pass
-                return {"ok": True, "text": text}
+                _bias = active_bias()
+                return {
+                    "ok": True,
+                    "text": text,
+                    "legends": {
+                        "legends": [
+                            {
+                                "title": r.title,
+                                "text": r.text,
+                                "season": r.season,
+                                "actor": r.actor,
+                                "weight": r.weight,
+                            }
+                            for r in list_legends(season=season, limit=12)
+                        ],
+                        "total": count_legends(season),
+                        "active_bias": _bias,
+                        "active_bias_cn": {_ERA_TYPE_CN.get(k, k): v for k, v in _bias.items()},
+                    },
+                }
             if action in ("/links", "/关系"):
-                from core.collusion import format_links
+                from core.collusion import format_links, links_of
                 from storage.db import CharacterRepository as CR
 
+                def _links_rows(owner):
+                    rows = []
+                    for l in links_of(owner.id)[:12]:
+                        _oid, oname = l.other_side(owner.id)
+                        rows.append(
+                            {
+                                "kind": l.link_type,
+                                "name": oname,
+                                "strength": l.strength,
+                                "note": l.note or "",
+                            }
+                        )
+                    return rows
+
                 if len(parts) < 2:
-                    return {"ok": True, "text": format_links(char)}
+                    return {"ok": True, "text": format_links(char), "links": _links_rows(char)}
                 target = CR.find_alive_by_name("".join(parts[1:]))
                 if not target:
                     return {"ok": False, "error": f"未寻得【{''.join(parts[1:])}】"}
-                return {"ok": True, "text": format_links(target)}
+                return {"ok": True, "text": format_links(target), "links": _links_rows(target)}
             if action in ("/apocalypse", "/大劫"):
                 if len(parts) > 1 and parts[1] in ("结算", "settle"):
                     return self._settle_apocalypse()
@@ -2195,13 +2281,44 @@ class World:
                     "season": info,
                 }
             if action in ("/map", "/宝图", "/看宝图"):
-                from core.treasure_system import TreasureEngine
+                from core.treasure_system import TreasureEngine, calculate_fengshui_direction
+                from core.world_grid import WorldGridEngine
                 query = parts[1] if len(parts) > 1 else None
                 res = TreasureEngine.read_map(char, query)
                 # 线索链激活写在图实体内（随角色行落盘，gallery-gameplay §5.4）
                 if res.get("chain_changed"):
                     CharacterRepository.save(char)
-                return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                ret = {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
+                tmap = res.get("item") if res.get("success") else None
+                if tmap is not None:
+                    # 八卦/线索取纯规则 calculate_fengshui_direction（不复调含 AI
+                    # 分支的 get_directional_guide，防两次 AI 调用与口径分叉；
+                    # AI 关闭环境下两者逐字一致）。
+                    md = tmap.custom_metadata or {}
+                    target_node = WorldGridEngine.get_node(md.get("target_node_id", ""))
+                    curr_node = WorldGridEngine.get_node(char.location)
+                    guide = calculate_fengshui_direction(curr_node, target_node)
+                    coords = None
+                    if target_node is not None:
+                        coords = list(getattr(target_node, "coordinates", (0, 0)))
+                    ret["treasure_map"] = {
+                        "name": tmap.name,
+                        "tier": getattr(tmap, "tier", None),
+                        "target_node": md.get("target_node_name"),
+                        "target_node_id": md.get("target_node_id"),
+                        "coords": coords,
+                        "archetype": md.get("archetype"),
+                        "archetype_cn": {
+                            "combat": "凶地降妖",
+                            "element_puzzle": "五行天机阵",
+                            "ruin_hazard": "地渊残迹",
+                        }.get(md.get("archetype"), md.get("archetype")),
+                        "riddle": md.get("riddle_text"),
+                        "clue": guide.get("clue"),
+                        "bagua": guide.get("bagua"),
+                        "rhyme": guide.get("rhyme"),
+                    }
+                return ret
 
             if action in ("/dig", "/挖宝"):
                 from core.treasure_system import TreasureEngine
@@ -2336,6 +2453,7 @@ class World:
                     "ok": True,
                     "text": PetEngine.panel_text(char),
                     "status": self._status_dict(char),
+                    "pets": PetEngine.panel_data(char),
                 }
             if action in ("/契约", "/contract"):
                 if len(parts) < 2:
@@ -2419,6 +2537,7 @@ class World:
                     "ok": True,
                     "text": QuestEngine.panel_text(char),
                     "status": self._status_dict(char),
+                    "quests": QuestEngine.panel_data(char),
                 }
             if action in ("/acceptquest", "/接委托"):
                 if len(parts) < 2:
@@ -2446,6 +2565,7 @@ class World:
                     "ok": True,
                     "text": PromiseEngine.panel_text(char),
                     "status": self._status_dict(char),
+                    "promises": PromiseEngine.panel_data(char),
                 }
             if action in ("/promise", "/许诺"):
                 if len(parts) < 3:
@@ -2525,6 +2645,7 @@ class World:
                     "ok": True,
                     "text": BodySoulEngine.panel_text(char, track),
                     "status": self._status_dict(char),
+                    "body_soul_detail": BodySoulEngine.detail_data(char),
                 }
             if action in ("/demon", "/镇魔"):
                 # 心魔长期状态（F16）：无参=面板（打开即惰性结算魔念）；服丹/静坐=镇压（闭关不进白名单，天然锁门）
@@ -2543,7 +2664,12 @@ class World:
                     return {"ok": False, "error": "用法：/镇魔 或 /镇魔 服丹 或 /镇魔 静坐"}
                 text = DemonStateEngine.panel_text(char)
                 CharacterRepository.save(char)  # 面板已 sync 魔念，落库锚点
-                return {"ok": True, "text": text, "status": self._status_dict(char)}
+                return {
+                    "ok": True,
+                    "text": text,
+                    "status": self._status_dict(char),
+                    "demon": DemonStateEngine.panel_data(char),
+                }
             if action in ("/write_book", "/著书"):
                 # 著书立说（F11）：无参=面板；「写」=燃寿著书（闭关不进白名单，天然锁门）
                 sub = parts[1] if len(parts) > 1 else ""
@@ -2565,7 +2691,11 @@ class World:
             if action in ("/rank", "/榜单", "/榜"):
                 board = parts[1] if len(parts) > 1 else ""
                 if not board:
-                    return {"ok": True, "text": LeaderboardEngine.format_all(5)}
+                    return {
+                        "ok": True,
+                        "text": LeaderboardEngine.format_all(5),
+                        "boards": LeaderboardEngine.public_boards(5),
+                    }
                 alias = {
                     "境界": "realm", "战力": "power", "凶名": "notoriety",
                     "道行": "daohang", "传奇": "fame", "资产": "assets",
@@ -2573,13 +2703,23 @@ class World:
                     "dao": "daohang", "fame": "fame", "assets": "assets",
                 }
                 key = alias.get(board, board)
-                return {"ok": True, "text": LeaderboardEngine.format_board(key), "board": key}
+                ret = {"ok": True, "text": LeaderboardEngine.format_board(key), "board": key}
+                pub = LeaderboardEngine.public_board(key)
+                if pub.get("ok"):
+                    ret["board_rows"] = pub["rows"]
+                return ret
             if action in ("/ascend", "/飞升榜"):
                 # 飞升榜（F12）：历世纪念碑，只读已落账前世，与现世六榜互不相干
                 arg = parts[1] if len(parts) > 1 else None
-                return {"ok": True, "text": AscensionEngine.panel_text(char, arg)}
+                return {
+                    "ok": True,
+                    "text": AscensionEngine.panel_text(char, arg),
+                    "ascend": AscensionEngine.board_rows(char, arg),
+                }
             if action in ("/sect", "/宗门"):
-                return {"ok": True, "text": format_sect_board(char)}
+                from core.sect import sect_board_data
+
+                return {"ok": True, "text": format_sect_board(char), "sects": sect_board_data(char)}
             if action in ("/join_sect", "/拜入"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/拜入 <宗门>（须亲至总坛山门）"}
@@ -2649,9 +2789,9 @@ class World:
                 }
                 return self._append_natural_omen(char, payload, context=f"大荒探险 · {res.get('target', '')}")
             if action in ("/配方", "/recipes"):
-                from core.alchemy import format_book
+                from core.alchemy import book_data, format_book
 
-                return {"ok": True, "text": format_book(char)}
+                return {"ok": True, "text": format_book(char), "recipes": book_data(char)}
             if action in ("/炼丹", "/炼器"):
                 kind = "pill" if "丹" in action else "equip"
                 if len(parts) < 2:
@@ -2776,7 +2916,13 @@ class World:
                         except Exception:
                             _scene_image = ""
                     return {"ok": res.get("success"), "text": res.get("message", ""), "scene_image": _scene_image}
-                return {"ok": True, "text": SecretRealmEngine.board_text()}
+                from core.secret_realm import realm_status as _realm_status
+
+                return {
+                    "ok": True,
+                    "text": SecretRealmEngine.board_text(),
+                    "realms": _realm_status(),
+                }
             if action in ("/dungeon", "/禁地", "/锁妖塔", "/古窟"):
                 from core.dungeon import DungeonEngine, DUNGEON_FLOORS
                 sub = parts[1] if len(parts) > 1 else ""
@@ -2868,18 +3014,23 @@ class World:
                     return {"ok": True, "text": "诸位 NPC 皆在静观，世间无事。"}
                 return {"ok": True, "text": "\n".join(r.get("text", "") for r in acted), "count": len(acted)}
             if action in ("/天道", "/heaven", "/导演"):
-                from core.world_director import handle_heaven_command
+                from core.world_director import WorldDirector, handle_heaven_command
                 from core.tasks import hook_note
 
                 res = handle_heaven_command(action, parts)
+                if "director" not in res:
+                    res["director"] = WorldDirector.heaven_board_data()
                 n = hook_note(char, "look_board")
                 if n:
                     res["text"] = n + "\n" + (res.get("text") or "")
                 return res
             if action in ("/世界弧", "/arc", "/弧"):
-                from core.world_arc import handle_arc_command
+                from core.world_arc import arc_board_data, handle_arc_command
 
-                return handle_arc_command(parts)
+                res = handle_arc_command(parts)
+                if "arc" not in res:
+                    res["arcs"] = arc_board_data()
+                return res
             if action in ("/世界弧应劫", "/弧应劫", "/应劫"):
                 from core.world_arc import player_respond
 
@@ -2999,7 +3150,14 @@ class World:
                 from core.social_bonds import format_master_task
 
                 res = format_master_task(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                ret = {"ok": res.get("success"), "text": res.get("message", "")}
+                if res.get("success"):
+                    ret["sect_quests"] = {
+                        "master": res.get("master"),
+                        "task": res.get("task"),
+                        "done": bool(res.get("done")),
+                    }
+                return ret
             if action in ("/交师门",):
                 from core.social_bonds import submit_master_task
 
@@ -3009,7 +3167,14 @@ class World:
                 from core.social_bonds import format_sworn_task
 
                 res = format_sworn_task(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                ret = {"ok": res.get("success"), "text": res.get("message", "")}
+                if res.get("success"):
+                    ret["sworn_quests"] = {
+                        "partner": res.get("partner"),
+                        "task": res.get("task"),
+                        "done": bool(res.get("done")),
+                    }
+                return ret
             if action in ("/交结义",):
                 from core.social_bonds import submit_sworn_task
 
@@ -3018,12 +3183,19 @@ class World:
 
             # ---------------- Wave2：宗门贡献 ----------------
             if action in ("/贡献",):
+                from core.sect_contrib import shop_data
+
                 return {
                     "ok": True,
                     "text": (
                         f"【宗门贡献】{char.sect or '散修'} · {char.sect_contribution}\n"
                         + ("可 /上交 <货> · /兑换 · /宗门环" if char.sect else "先 /拜入 <宗门>")
                     ),
+                    "contribution": {
+                        "sect": char.sect or "散修",
+                        "points": char.sect_contribution,
+                        "catalog": shop_data(),
+                    },
                 }
             if action in ("/上交", "/donate"):
                 from core.sect_contrib import donate_item
@@ -3038,16 +3210,24 @@ class World:
                 res = donate_item(char, "".join(toks), qty)
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/兑换",):
-                from core.sect_contrib import format_shop, exchange
+                from core.sect_contrib import format_shop, exchange, shop_data
 
                 if len(parts) < 2:
-                    return {"ok": True, "text": format_shop() + f"\n当前贡献：{char.sect_contribution}"}
+                    return {
+                        "ok": True,
+                        "text": format_shop() + f"\n当前贡献：{char.sect_contribution}",
+                        "contribution": {
+                            "sect": char.sect or "散修",
+                            "points": char.sect_contribution,
+                            "catalog": shop_data(),
+                        },
+                    }
                 res = exchange(char, "".join(parts[1:]))
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/宗门环", "/sectring"):
                 from core.sect_contrib import format_ring
 
-                return {"ok": True, "text": format_ring(char)}
+                return {"ok": True, "text": format_ring(char), "status": self._status_dict(char)}
             if action in ("/接宗门环", "/accepring"):
                 from core.sect_contrib import accept_theme
 
@@ -3058,13 +3238,17 @@ class World:
                     pass
                 return {"ok": res.get("success"), "text": res.get("message", ""), "status": self._status_dict(char)}
             if action in ("/宗门势", "/sectpower"):
-                from core.sect_contrib import sect_powerboard
+                from core.sect_contrib import sect_power_data, sect_powerboard
 
-                return {"ok": True, "text": sect_powerboard()}
+                return {"ok": True, "text": sect_powerboard(), "sect_power": sect_power_data()}
             if action in ("/势力", "/faction"):
-                from core.faction import handle_faction_command, format_faction_board
+                from core.faction import board_data as _faction_board_data, handle_faction_command
 
-                return handle_faction_command(parts, char)
+                res = handle_faction_command(parts, char)
+                sub = (parts[1].strip().lower() if len(parts) > 1 else "")
+                if res.get("ok") and sub not in ("令", "missions"):
+                    res["factions"] = _faction_board_data(char)
+                return res
             if action in ("/望气", "/echo", "/天象"):
                 from core.player_echo import handle_echo_command
                 from core.tasks import hook_note
@@ -3075,13 +3259,31 @@ class World:
                     res["text"] = n + "\n" + (res.get("text") or "")
                 return res
             if action in ("/纪元回流", "/era", "/史笔回流"):
-                from core.era_reentry import handle_era_command
+                from core.era_reentry import era_board_data, handle_era_command
 
-                return handle_era_command(parts)
+                res = handle_era_command(parts)
+                res["era_flow"] = era_board_data()
+                return res
             if action in ("/宗门令", "/sectorder", "/势力令"):
-                from core.faction import handle_faction_command
+                from core.faction import handle_faction_command, list_missions
 
-                return handle_faction_command(["/势力", "令"], char)
+                res = handle_faction_command(["/势力", "令"], char)
+                if res.get("ok"):
+                    # 与 handle_faction_command 内部同源取令（本宗优先，无则全宗）。
+                    ms = list_missions(sect=getattr(char, "sect", "") or "", status="open")
+                    if not ms:
+                        ms = list_missions(status="open")
+                    res["sect_orders"] = [
+                        {
+                            "id": m.get("id"),
+                            "sect": m.get("sect"),
+                            "title": m.get("title"),
+                            "kind": m.get("kind"),
+                            "reward_contrib": m.get("reward_contrib"),
+                        }
+                        for m in ms
+                    ]
+                return res
             if action in ("/接宗门令", "/acceptorder"):
                 from core.faction import handle_accept_mission
 
@@ -3097,7 +3299,11 @@ class World:
             if action in ("/议政", "/council"):
                 from core.council import CouncilEngine
 
-                return {"ok": True, "text": CouncilEngine.panel_text(char)}
+                ret = {"ok": True, "text": CouncilEngine.panel_text(char)}
+                council = CouncilEngine.panel_data(char)
+                if council is not None:
+                    ret["council"] = council
+                return ret
             if action in ("/投票", "/vote"):
                 from core.council import CouncilEngine
 
@@ -3119,11 +3325,11 @@ class World:
 
             # ---------------- Wave2：除凶 ----------------
             if action in ("/除凶", "/hunt"):
-                from core.hunt import format_board, my_target
+                from core.hunt import format_board, list_board_rows, my_target
 
                 t = my_target(char)
                 extra = f"\n你接的令：【{t.name}】@ {t.location}" if t else "\n你未接令。"
-                return {"ok": True, "text": format_board() + extra}
+                return {"ok": True, "text": format_board() + extra, "hunt": list_board_rows()}
             # /接令 消歧：纯数字编号是悬赏板既有接令（下方 handler），非数字道号才是除凶接令
             _is_bounty_claim = action == "/接令" and len(parts) >= 2 and parts[1].isdigit()
             if action in ("/接除凶", "/接令") and not _is_bounty_claim:
@@ -3604,14 +3810,21 @@ class World:
                     for a in rows[:20]
                 ]}
             if action in ("/bounty", "/告示"):
-                return {"ok": True, "text": self._bounty_board()}
+                return {"ok": True, "text": self._bounty_board(), "bounties": self._bounty_rows()}
             if action in ("/market", "/坊市"):
-                return {"ok": True, "text": self._market(char)}
+                return {"ok": True, "text": self._market(char), "status": self._status_dict(char)}
             if action in ("/行情",):
-                return {"ok": True, "text": MarketEngine.trade_board(char.location)}
+                return {
+                    "ok": True,
+                    "text": MarketEngine.trade_board(char.location),
+                    "prices": MarketEngine.trade_board_data(char.location),
+                }
             if action in ("/atlas", "/版图"):
                 arg = parts[1] if len(parts) > 1 else None
-                return {"ok": True, "text": AtlasEngine.panel_text(char, arg)}
+                ret = {"ok": True, "text": AtlasEngine.panel_text(char, arg)}
+                if not arg:
+                    ret["atlas"] = AtlasEngine.atlas_data(char)
+                return ret
             if action in ("/buy", "/购买"):
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/购买 <货名> [数量]，先 /坊市 看货单"}
@@ -4226,12 +4439,18 @@ class World:
                 res = TradeEngine.open_trade(char, "".join(parts[1:]))
                 if not res.get("success"):
                     return {"ok": False, "error": res.get("message", "无法发起交易")}
-                return {"ok": True, "text": res["message"]}
+                ret = {"ok": True, "text": res["message"]}
+                if res.get("session") is not None:
+                    ret["trade"] = TradeEngine.trade_session_dict(res["session"], char.id)
+                return ret
             if action in ("/trade", "/交易"):
                 from core.trade import TradeEngine
 
                 res = TradeEngine.view(char)
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                ret = {"ok": res.get("success"), "text": res.get("message", "")}
+                if res.get("session") is not None:
+                    ret["trade"] = TradeEngine.trade_session_dict(res["session"], char.id)
+                return ret
             if action in ("/trade_offer", "/交易出"):
                 from core.trade import TradeEngine
 
@@ -4278,7 +4497,10 @@ class World:
                 if len(parts) < 2:
                     return {"ok": False, "error": "用法：/npc货单 <道号>"}
                 res = NpcShopEngine.catalog(char, "".join(parts[1:]))
-                return {"ok": res.get("success"), "text": res.get("message", "")}
+                ret = {"ok": res.get("success"), "text": res.get("message", "")}
+                if res.get("success") and res.get("goods") is not None:
+                    ret["npc_goods"] = res["goods"]
+                return ret
             if action in ("/npc_buy", "/npc买"):
                 from core.trade import NpcShopEngine
 
@@ -4317,7 +4539,16 @@ class World:
                 from core.trade import AuctionEngine
 
                 res = AuctionEngine.board()
-                return {"ok": True, "text": res["message"]}
+                return {
+                    "ok": True,
+                    "text": res["message"],
+                    "auction": {
+                        "lots": [
+                            AuctionEngine.lot_panel_dict(l)
+                            for l in (res.get("lots") or [])
+                        ]
+                    },
+                }
             if action in ("/auction_list", "/上拍"):
                 from core.trade import AuctionEngine
 
@@ -5129,6 +5360,40 @@ class World:
         for loc, names in sorted(by_loc.items()):
             lines.append(f"  {loc}：{'、'.join(names[:8])}")
         return "\n".join(lines)
+
+    def _who_data(self) -> Dict[str, Any]:
+        """在线名录结构（/who who 键；与 _who 同循环，成员全量）。"""
+        alive = CharacterRepository.list_all_alive()
+        by_loc: Dict[str, List[Dict[str, str]]] = {}
+        for a in alive:
+            by_loc.setdefault(a.location, []).append(
+                {"name": a.name, "realm": a.realm.name}
+            )
+        groups = [
+            {"place": loc, "members": members}
+            for loc, members in sorted(by_loc.items())
+        ]
+        return {"total": len(alive), "groups": groups}
+
+    def _bounty_rows(self) -> List[Dict[str, Any]]:
+        """告示板行集（/告示 bounties 键；与 _bounty_board 同源）。"""
+        board = BountyEngine.list_board(BountyRepository.list_all())
+        rows = []
+        for b in board:
+            status = b.status.value if hasattr(b.status, "value") else str(b.status)
+            rows.append(
+                {
+                    "id": b.id,
+                    "target": b.target_name,
+                    "reward": b.reward,
+                    "status": status,
+                    "status_cn": bounty_status_cn(b.status),
+                    "issuer": b.issuer_display(),
+                    "anonymous": bool(b.issuer_anonymous),
+                    "reason": b.reason,
+                }
+            )
+        return rows
 
     def _go(self, c: Character, dest: str) -> Dict[str, Any]:
         if c.status == CharacterStatus.CAPTURED:

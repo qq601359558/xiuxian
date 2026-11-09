@@ -120,6 +120,44 @@ class LeaderboardEngine:
         return {"ok": True, "boards": out}
 
     @staticmethod
+    def _public_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        # 附录 A 登记名：内部 value→score、is_player→!is_npc（一次性映射）。
+        return {
+            "rank": row["rank"],
+            "name": row["name"],
+            "realm": row["realm"],
+            "sect": row["sect"],
+            "is_npc": not row["is_player"],
+            "score": row["value"],
+        }
+
+    @staticmethod
+    def public_boards(n: int = 5) -> List[Dict[str, Any]]:
+        """六榜行集（/榜 裸查；n=5 与 format_all(5) 同源）。"""
+        data = LeaderboardEngine.all_boards(n)
+        return [
+            {
+                "key": k,
+                "name": v["title"],
+                "rows": [LeaderboardEngine._public_row(r) for r in v["rows"]],
+            }
+            for k, v in data["boards"].items()
+        ]
+
+    @staticmethod
+    def public_board(name: str, n: int = LEADERBOARD_TOP_N) -> Dict[str, Any]:
+        """单榜行集（/榜 <榜名>；与 board() 同源）。"""
+        res = LeaderboardEngine.board(name, n)
+        if not res.get("ok"):
+            return res
+        return {
+            "ok": True,
+            "title": res["title"],
+            "board": name,
+            "rows": [LeaderboardEngine._public_row(r) for r in res["rows"]],
+        }
+
+    @staticmethod
     def format_board(name: str, n: int = LEADERBOARD_TOP_N) -> str:
         res = LeaderboardEngine.board(name, n)
         if not res.get("ok"):

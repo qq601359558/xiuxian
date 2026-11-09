@@ -331,6 +331,32 @@ class PetEngine:
 
     # ---------------- 面板 ----------------
     @staticmethod
+    def panel_data(c: Character) -> List[Dict[str, Any]]:
+        """灵宠行集（/灵宠 pets 键；与 panel_text 同源）。空态为 []。"""
+        rows = []
+        for p in (c.pets or []):
+            cfg = PET_SPECIES.get(p.species) or {}
+            t_cn = PET_TENDENCY_CN.get(cfg.get("tendency", ""), "")
+            if p.state == "dead":
+                state = "已殁"
+            elif p.active:
+                state = "出战中"
+            else:
+                state = "休息"
+            rows.append(
+                {
+                    "name": p.name,
+                    "species": p.species,
+                    "tendency": t_cn,
+                    "level": level_for(p.growth),
+                    "growth": p.growth,
+                    "intimacy": p.intimacy,
+                    "state": state,
+                }
+            )
+        return rows
+
+    @staticmethod
     def panel_text(c: Character) -> str:
         lines = ["【灵宠】"]
         if c.pending_pet_species:

@@ -464,6 +464,7 @@ def format_master_task(c: Character) -> Dict[str, Any]:
         pass
     return {
         "success": True,
+        "master": m.name,
         "task": task,
         "done": bool(cur.get("done")),
         "message": (
@@ -542,6 +543,8 @@ def format_sworn_task(c: Character) -> Dict[str, Any]:
     mark = "✓" if cur.get("done") else "○"
     return {
         "success": True,
+        "partner": p.name,
+        "task": SWORN_TASKS[0],
         "done": bool(cur.get("done")),
         "message": (
             f"【结义任务 · 与 {p.name}】{mark} {SWORN_TASKS[0]['label']}\n"

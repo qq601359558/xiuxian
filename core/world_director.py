@@ -62,6 +62,19 @@ def _load() -> Dict[str, Any]:
     return data
 
 
+def _directive_type_cn(dtype: Any) -> Optional[str]:
+    """导演态势 type → 中文标签（面板展示用；type 原码保留，规则/去重仍读 type）。
+
+    权威表 core/era_reentry.py TYPE_CN；未映射的纯 ASCII 码返回 None（调用方
+    省略 type_cn 键，面板按 M3 口径不渲染原码）。
+    """
+    try:
+        from core.era_reentry import TYPE_CN
+    except Exception:
+        return None
+    return TYPE_CN.get(str(dtype or ""))
+
+
 def _save(state: Dict[str, Any]) -> None:
     try:
         WorldStateRepository.set(_KEY, state)
@@ -1376,6 +1389,37 @@ class WorldDirector:
         }
 
     @staticmethod
+    @staticmethod
+    def heaven_board_data(now: Optional[float] = None) -> Dict[str, Any]:
+        """天道导演面板结构（/天道 director 键；与 format_heaven_board 同源）。"""
+        t = _now(now)
+        state = _load()
+        _prune_active(state, t)
+        active = []
+        for d in (state.get("active") or [])[:8]:
+            row = {
+                "type": d.get("type"),
+                "title": d.get("title"),
+                "location": d.get("location"),
+                "expires_in_s": max(0, int(float(d.get("expires_at") or 0) - t)),
+                "narrative": d.get("narrative"),
+                "applied": d.get("applied") or {},
+            }
+            cn = _directive_type_cn(d.get("type"))
+            if cn:
+                row["type_cn"] = cn
+            active.append(row)
+        return {
+            "last_run_ts": state.get("last_run_ts"),
+            "last_trigger": state.get("last_trigger"),
+            "last_source": state.get("last_source"),
+            "last_error": state.get("last_error"),
+            "stats": state.get("stats") or {},
+            "active": active,
+            "history": list(state.get("history") or [])[-5:],
+            "modifiers": world_modifiers(t),
+        }
+
     def format_heaven_board(now: Optional[float] = None) -> str:
         t = _now(now)
         state = _load()
@@ -1538,6 +1582,22 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
     t = _now(now)
     state = _load()
     _prune_active(state, t)
+    snap_active = []
+    for d in (state.get("active") or [])[:8]:
+        row = {
+            "id": d.get("id"),
+            "type": d.get("type"),
+            "title": d.get("title"),
+            "narrative": d.get("narrative"),
+            "location": d.get("location"),
+            "source": d.get("source"),
+            "expires_at": d.get("expires_at"),
+            "applied": d.get("applied") or {},
+        }
+        cn = _directive_type_cn(d.get("type"))
+        if cn:
+            row["type_cn"] = cn
+        snap_active.append(row)
     snap: Dict[str, Any] = {
         "ok": True,
         "server_time": t,
@@ -1548,19 +1608,7 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
             "last_error": state.get("last_error") or "",
             "last_accepted": state.get("last_accepted") or 0,
             "stats": state.get("stats") or {},
-            "active": [
-                {
-                    "id": d.get("id"),
-                    "type": d.get("type"),
-                    "title": d.get("title"),
-                    "narrative": d.get("narrative"),
-                    "location": d.get("location"),
-                    "source": d.get("source"),
-                    "expires_at": d.get("expires_at"),
-                    "applied": d.get("applied") or {},
-                }
-                for d in (state.get("active") or [])[:8]
-            ],
+            "active": snap_active,
             "history": list(state.get("history") or [])[-8:],
             "board_text": "",
         },
@@ -1594,7 +1642,7 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
     except Exception:
         snap["arc_board_text"] = ""
     try:
-        from core.faction import faction_modifiers, format_faction_board, get_relation
+        from core.faction import STATUS_CN, faction_modifiers, format_faction_board, get_relation, status_from_score
         from config import SECTS_CONFIG as _SC
 
         fm = faction_modifiers(t)
@@ -1603,12 +1651,15 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
         for i, a in enumerate(names):
             for b in names[i + 1 :]:
                 r = get_relation(a, b, t)
+                # 与 faction.board_data 同源：status 为空时按分数重算，status_cn 必下发
+                st = r.get("status") or status_from_score(float(r.get("score") or 0))
                 relations.append(
                     {
                         "a": r.get("a") or a,
                         "b": r.get("b") or b,
                         "score": r.get("score"),
-                        "status": r.get("status"),
+                        "status": st,
+                        "status_cn": STATUS_CN.get(st, st),
                         "note": r.get("note"),
                     }
                 )

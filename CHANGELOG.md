@@ -1,5 +1,24 @@
 # 更新日志
 
+## v0.3.13-gray.20（2026-11-09）— 命令回复面板化
+
+定位：玩法呈现轮（兑现 Martinez「查看个人信息出来的是纯文字，很乱，应该是类似游戏面板那种效果，还有很多其他的命令回复」的承诺）。上一稳定点 v0.3.12-gray.19（2285d37）。分支 `feat/command-panels`（Spec `67bc9a9` → 后端合并 `1f1638d` → 前端合并 `c9c024b` → 集成修复 `965ee12` → 返工 `855a827`/`999c346` → M4 截图 `97ef67e` → 小修轮 `ca8f9ad`/`539419c`/`5a73334`/`4e6f989` → R1 返修 `97e8659`）。
+
+### 变更
+- 通用面板渲染层：桌面 `web/workbench.js` 与移动 `web/mobile.js` 各新增命令面板块（CP-00），`buildCommandPanel(cmd, data)` / `buildCommandPanelM` + 字段映射表（桌面 63 builder / 移动 65 builder，117 token 别名），`sendCmd` 面板优先分支（有面板 → `pushFeedHtml`，无面板 → 原 `pushFeed(data.text)` 不变）；数值口径缺失 → `—`、零值 → `0`（`??` 不用 `||`）、非整数 2 位小数、`rem_years` 复用 `fmtRemYears`；>12 行/>800 字折叠；空行集不出空卡、回落纯文本；不解析 `data.text` 拼面板（K2 静态扫描锁定）、不本地捏造
+- 覆盖：目录 108 条主命令全量清册（(a) 10 + (b) 47 + (c) 51）+ 附录 B 目录外 18 项 + gated 7 项（CP-35/39/40/41/64/65/66 均已真实非空抓取定稿），P0 /profile、/look 首优先；后端附录 A 登记 39 键（35 个全新顶层键 + `director`/`arcs`/`trade`/`recipe` 4 个补齐），只增键、文本逐字不变、数值语义零改动
+- 截图验收：`docs/compose/command-panels-shots/` 186 页（HTML + PNG 各一，桌面 1280 / 手机 390，含深色抽查 24 页、空态 11 页、每波代表合页），逐张目视 + 横向溢出扫描 0/186
+- 预算（D1 豁免内）：mobile.js 1777 行（≤2100，余 323）、mobile.css 28454B（≤29200B，余 746B）、mobile.html 155 行（净增 +0）；workbench.js 9333 行（桌面无硬线）；双端 CP 段零裸 hex（token 化）
+- 契约：CT-01 双向差集定稿 173/135/46/8（服务端 173、三端读 135、未读 46、死键 8）；(c) 类文本对照 17 项逐字锁定；D2 已确认（2026-11-09，总管裁决）：feed 内嵌卡替代该条纯文本块
+- 评审返工：首审 must-fix M1–M6（/宗门 `rules_tip` 补渲染、桌面零裸 hex、/近况 `origin`→「出身牵连」、186 页截图、CP15/16/31/65 隔离、(c) 类 17 项对照）→ 返工兑现；小修轮 5 项清单 + 14 处同类内部码映射（`*_cn` 优先模式）；复审第二轮唯一 must-fix R1（势力 status 映射缺 `warm`、`allied` 应为「结盟」且无视后端 `status_cn`）→ 前端 4 处 + /世情后端补 `status_cn` 修完，夹具 CP-70 与 `test_fixup_director_faction_status_cn` 锁定
+- 残留（不阻塞，另立工单）：D-QA1（低严重度，预存）——`/行情` 面板与 `/坊市`·`/行情` 文本渲染 276 行 `mat_*` 原码行名，根因 `core/market.py` 行构建层以 `ITEM_CATALOG` 键为名、目录含中文名键与 id 键重复条目；修法为 id→中文名回落 + 同物去重，文本与面板同源修复
+
+### 测试
+- QA 全量回归（新鲜 DB，连跑两次）：两次均为 **1442 passed / 8 failed**——失败集与基线 8 项逐一相同（鉴权、因果链、LAN feed、奇遇、死亡验收、status_dict×2、workbench API），新增失败 0；1442 = 1387（基线）+ 40（后端）+ 7（前端）+ 2（§12.3 声称 1436 的开发侧计数差）+ 5（小修轮 fixup 测试）+ 1（R1 新增测试）
+- 定向：node fixture **2015 passed / 0 failed**；目标套件 `test_command_panels.py + test_contract_audit.py + test_game_feel_phase3_frontend.py + test_mobile_web.py + test_command_catalog.py` 脏库 **109 passed**
+- 对账抽查：P0 /profile、/look 真实渲染双端通过；7 组面板数字 vs 文本同源全部一致；stage 2 真实渲染 33/33；12 张截图目视通过
+- 独立评审：首审 M1–M6 → 返工 → 复审 R1 唯一 must-fix → R1 返修 `97e8659` → QA 独立验证放行 GO（`~/workspace/reviews/command-panels-QA报告.md`）
+
 ## v0.3.12-gray.19（2026-11-08）— 前后端数据口径全量核查
 
 定位：缺陷修复轮（兑现「真人试玩之前先把服务端返回与前端渲染的口径全量核查一遍、扫清同类不一致再汇报」的承诺）。上一稳定点 v0.3.11-gray.18（af4d689）。分支 `feat/contract-audit`（Spec `cfcc878` → 台账初稿 `391a47b` → 总管裁决回写 `25fdd0e`/`05992c1`/`ab5ca4f` → 修复 `f2b8c41` → 返工 `1b9e2b6`）。

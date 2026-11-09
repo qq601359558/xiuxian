@@ -10,6 +10,17 @@ from config import (
 from core.models import Character, CharacterStatus, status_cn
 from core.character_integrity import CharacterIntegrity, CharacterIntegrityError
 
+# 探查清晰度 clarity → 中文标签（/探查面板展示用；clarity 原码保留）。
+# VAGUE/CLEAR/HIDDEN 为前端既有映射（仅作后端同源备份）；REALM/FULL 为
+# 本轮补齐：REALM=识破境界与血煞，FULL=神识穿透彻底洞悉。
+CLARITY_CN = {
+    "VAGUE": "灵压未明",
+    "CLEAR": "已辨明",
+    "HIDDEN": "隐匿",
+    "REALM": "境界可辨",
+    "FULL": "尽数洞悉",
+}
+
 
 class CombatEngine:
     """斗法与黑暗森林法则裁决引擎"""
@@ -51,6 +62,7 @@ class CombatEngine:
                 results.append({
                     "target_id": target.id,
                     "clarity": "VAGUE",
+                    "clarity_cn": CLARITY_CN["VAGUE"],
                     "description": "【未知灵压】东北方位隐隐有微弱灵力波动，虚实难辨，疑似有修士或妖兽伏行。"
                 })
             elif delta < 120:
@@ -60,6 +72,7 @@ class CombatEngine:
                     "target_id": target.id,
                     "name": target.name,
                     "clarity": "REALM",
+                    "clarity_cn": CLARITY_CN["REALM"],
                     "description": f"【修士行迹】发现散修【{target.name}】，境界约为【{target.realm.name}】{marked_str}。"
                 })
             else:
@@ -69,6 +82,7 @@ class CombatEngine:
                     "target_id": target.id,
                     "name": target.name,
                     "clarity": "FULL",
+                    "clarity_cn": CLARITY_CN["FULL"],
                     "realm": target.realm.name,
                     "stones": target.spirit_stones,
                     "sin": target.karma.sin_value,
