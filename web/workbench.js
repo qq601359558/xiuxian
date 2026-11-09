@@ -7146,7 +7146,7 @@ const f = ev.faction || {};
 if (f && typeof f === "object" && (Array.isArray(f.relations) || f.modifiers)) {
 const rels = (Array.isArray(f.relations)? f.relations: []).map((r) => cpRow(
 cpMain(cpStr(r.a) + " × " + cpStr(r.b), cpStr(r.note || "")),
-"分 " + cpSigned(r.score), cpLab({ hostile: "敌对", tense: "紧张", neutral: "中立", friendly: "友好", allied: "同盟" }, r.status))).join("");
+"分 " + cpSigned(r.score), r.status_cn || cpLab({ hostile: "敌对", tense: "紧张", neutral: "中立", warm: "亲近", allied: "结盟" }, r.status))).join("");
 const m = f.modifiers || {};
 const extra = [
 (m.hostile_pairs || []).map((p) => "敌对：" + p.join("×")).join("；"),
@@ -7479,7 +7479,7 @@ function cpFaction(data) {
   if (Array.isArray(f.relations) && f.relations.length) {
     secs.push(cpSec("宗门关系", f.relations.map((r) => cpRow(
       cpMain(cpStr(r.a) + " × " + cpStr(r.b), cpStr(r.note || r.source || "")),
-      "分 " + cpSigned(r.score), cpLab({ hostile: "敌对", tense: "紧张", neutral: "中立", friendly: "友好", allied: "同盟" }, r.status))).join("")));
+      "分 " + cpSigned(r.score), r.status_cn || cpLab({ hostile: "敌对", tense: "紧张", neutral: "中立", warm: "亲近", allied: "结盟" }, r.status))).join("")));
   }
   if (Array.isArray(f.orders) && f.orders.length) {
     secs.push(cpSec("宗门令", f.orders.map((o) => cpRow(

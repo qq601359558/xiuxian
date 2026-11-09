@@ -1242,6 +1242,30 @@ def test_fixup_director_type_cn():
     print("✓ 小修 导演 type→type_cn（7 类全映射，type 原码保留）")
 
 
+def test_fixup_director_faction_status_cn():
+    """R1：director_snapshot 的 faction relations 补 status_cn（与 /势力 board_data 同源
+    core/faction.py STATUS_CN）；status 原码保留，数值/分数不动。"""
+    from core.faction import STATUS_CN
+    from core.world_director import director_snapshot
+
+    def _check_relations(rows, where):
+        assert isinstance(rows, list) and rows, where
+        for r in rows:
+            assert set(r) >= {"a", "b", "status", "status_cn", "score"}, f"{where}: {r}"
+            assert r["status"] in STATUS_CN, f"{where}: 未知 status {r}"
+            assert r["status_cn"] == STATUS_CN[r["status"]], f"{where}: {r}"
+
+    _check_relations(director_snapshot()["faction"]["relations"], "director_snapshot")
+    token, _ = _join("世情势力客")
+    r = _handle(token, "/世情")
+    assert r.get("ok") is True, r
+    _check_relations(
+        ((r.get("evolution") or {}).get("faction") or {}).get("relations") or [],
+        "/世情 live",
+    )
+    print("✓ R1 director_snapshot faction relations 补 status_cn（与 STATUS_CN 同源）")
+
+
 def test_fixup_channel_kind_cn():
     """小修：/频道行 type → type_cn（KIND_CN）；未映射 kind 省略 type_cn，
     type 原码保留（CP-36 panel_test 探针仍断言原码）。"""

@@ -306,6 +306,12 @@ check("CP-70 council", "/议政", { council: { sect: "青云宗", session_no: 1,
 checkNo("CP-70 council-nocode", "/议政", { council: { sect: "青云宗", session_no: 1, topic: { name: "开矿增收", desc: "开矿增收描述"}, seats: [{ name: "丹霞子", rank: "长老", stance: "support", line: "老夫赞成。"}], votes: { support: 1, oppose: 0, mine: null}}}, ["support"]);
 check("CP-70 faction", "/势力", { factions: { relations: [{ a: "九幽天魔宗", b: "青云宗", status: "hostile", score: -67, note: "天道导演·宗门紧张"}], orders: [], sieges: []}}, ["天下势力", "敌对"]);
 checkNo("CP-70 faction-nocode", "/势力", { factions: { relations: [{ a: "九幽天魔宗", b: "青云宗", status: "hostile", score: -67, note: "天道导演·宗门紧张"}], orders: [], sieges: []}}, ["hostile"]);
+// R1：warm 为 status_from_score 真实档（无 status_cn 时前端映射兜底 → 亲近）；
+// allied 以后端 status_cn 优先 → 结盟（非旧表“同盟”），friendly 为死条目不得出现。
+check("CP-70 faction-warm-allied", "/势力", { factions: { relations: [{ a: "青云宗", b: "万剑仙门", status: "warm", score: 30, note: "互通有无"}, { a: "青云宗", b: "丹鼎阁", status: "allied", status_cn: "结盟", score: 60, note: "守望相助"}], orders: [], sieges: []}}, ["天下势力", "亲近", "结盟"]);
+checkNo("CP-70 faction-warm-allied-nocode", "/势力", { factions: { relations: [{ a: "青云宗", b: "万剑仙门", status: "warm", score: 30, note: "互通有无"}, { a: "青云宗", b: "丹鼎阁", status: "allied", status_cn: "结盟", score: 60, note: "守望相助"}], orders: [], sieges: []}}, ["warm", "allied", "friendly", "同盟"]);
+check("CP-70 world-faction-warm-allied", "/世情", { evolution: { faction: { relations: [{ a: "青云宗", b: "万剑仙门", status: "warm", score: 30, note: "互通有无"}, { a: "青云宗", b: "丹鼎阁", status: "allied", score: 60, note: "守望相助"}]}}}, ["世情", "势力格局", "亲近", "结盟"]);
+checkNo("CP-70 world-faction-warm-allied-nocode", "/世情", { evolution: { faction: { relations: [{ a: "青云宗", b: "万剑仙门", status: "warm", score: 30, note: "互通有无"}, { a: "青云宗", b: "丹鼎阁", status: "allied", score: 60, note: "守望相助"}]}}}, ["warm", "allied", "friendly", "同盟"]);
 check("CP-70 arcs", "/世界弧", { arcs: { "累计": { started: 2, upgraded: 0, resolved: 0}, "弧": [{ title: "敌门暗涌", stage: "prophesy", stage_deadline: 1794121808}], "近史": [], "弧修饰": ""}}, ["世界弧", "预兆"]);
 checkNo("CP-70 arcs-nocode", "/世界弧", { arcs: { "累计": { started: 2, upgraded: 0, resolved: 0}, "弧": [{ title: "敌门暗涌", stage: "prophesy", stage_deadline: 1794121808}], "近史": [], "弧修饰": ""}}, ["prophesy"]);
 check("CP-70 goals", "/目标", { goals: [{ title: "复仇旧怨", detail: "讨回公道", source: "avenge", progress: 0}, { title: "机缘在前", detail: "寻访机缘", source: "omen", progress: 0}, { title: "命途所指", detail: "顺命而行", source: "thread", progress: 0}]}, ["世间目标", "复仇", "机缘", "命途"]);

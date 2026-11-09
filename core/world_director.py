@@ -1642,7 +1642,7 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
     except Exception:
         snap["arc_board_text"] = ""
     try:
-        from core.faction import faction_modifiers, format_faction_board, get_relation
+        from core.faction import STATUS_CN, faction_modifiers, format_faction_board, get_relation, status_from_score
         from config import SECTS_CONFIG as _SC
 
         fm = faction_modifiers(t)
@@ -1651,12 +1651,15 @@ def director_snapshot(now: Optional[float] = None) -> Dict[str, Any]:
         for i, a in enumerate(names):
             for b in names[i + 1 :]:
                 r = get_relation(a, b, t)
+                # 与 faction.board_data 同源：status 为空时按分数重算，status_cn 必下发
+                st = r.get("status") or status_from_score(float(r.get("score") or 0))
                 relations.append(
                     {
                         "a": r.get("a") or a,
                         "b": r.get("b") or b,
                         "score": r.get("score"),
-                        "status": r.get("status"),
+                        "status": st,
+                        "status_cn": STATUS_CN.get(st, st),
                         "note": r.get("note"),
                     }
                 )
