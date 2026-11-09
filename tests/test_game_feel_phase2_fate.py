@@ -845,12 +845,13 @@ def test_ui01_status_dict_thread_shape():
     assert th is not None
     for key in ("id", "title", "status", "seed_source", "seed_ref",
                 "antagonist", "patron", "final_proposition",
-                "current_chapter", "chapters", "shelvable", "origin_present"):
+                "current_chapter", "current_target", "chapters", "shelvable", "origin_present"):
         assert key in th, key
     assert set(th["final_proposition"].keys()) == {"text", "status"}
+    # B1-4（playability-block1）：chapters 透传章内 check（存在时才带），故键集多 "check"。
     assert set(th["chapters"][0].keys()) == {
         "idx", "group", "kind", "tier", "title", "goal_text",
-        "status", "deadline_at"}
+        "status", "deadline_at", "check"}
 
 
 def test_ui02_entry_fate_and_drama_hooks(monkeypatch):
@@ -955,7 +956,8 @@ def test_ui04_fate_commands_via_handle():
     from core.command_catalog import catalog_json
 
     _cj = catalog_json()
-    assert _cj["count"] == 108
+    # B1-5（playability-block1）：新增 /修炼 主命令，实测计数 108→109。
+    assert _cj["count"] == 109
     _cmds = {e["cmd"] for e in _cj["commands"]}
     assert "/命途" in _cmds and "/回应" in _cmds
 

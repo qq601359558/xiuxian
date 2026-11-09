@@ -348,6 +348,20 @@ def build_entry(
                 f" · 命题：{_prop.get('text', '')}（{_prop_status_cn}）")
             if _th.status == "shelved":
                 fate_line += "（已搁置）"
+            # B1-4：目标给路——current_target 现查 NPC 所在，同场/异场各一句；为 null 时不加。
+            try:
+                from core.fate_thread import FateThreadEngine as _FTE_ct
+
+                _ct = (_FTE_ct.thread_status_dict(character) or {}).get("current_target")
+            except Exception:
+                _ct = None
+            if _ct:
+                if _ct.get("same_location"):
+                    fate_line += (
+                        f"。{_ct.get('npc_name')} 正在此处（{_ct.get('npc_location')}），"
+                        "可直接上前交谈")
+                else:
+                    fate_line += f"。{_ct.get('npc_name')} 在{_ct.get('npc_location')}"
     except Exception:
         pass
     fermenting = int(chains_summary.get("fermenting") or 0)
@@ -359,6 +373,9 @@ def build_entry(
         from core.relations import relations_recent_and_marks
 
         recent, _marks = relations_recent_and_marks(character.id, recent_limit=30, pool=30)
+        # B1-7：只动 briefing 层——过滤 reason="origin" 的出身留痕（非玩家目击的变化）；
+        # relations_marks 数据与命盘 relations_recent 一律不动。过滤后为空则该段为空。
+        recent = [x for x in recent if x.get("reason") != "origin"]
         fresh = [x for x in recent if float(x.get("ts") or 0) > float(since or 0)]
         relations_items = (fresh + [x for x in recent if x not in fresh])[:3]
     except Exception:

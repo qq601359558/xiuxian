@@ -1415,6 +1415,8 @@ class World:
                     }
 
             # 闭关锁定：洞府入定，只许观照/出关等只读敕令
+            # B1-5：/修炼 按 /闭关 同口径——同为入定重行为，二者均不在白名单内，
+            # 闭关中再发 /修炼 与 /闭关 一样被锁门拦截（行为一致，勿单独放行 /修炼）。
             if char.status == CharacterStatus.MEDITATING:
                 med_ok = (
                     "/look", "/地图", "look", "/道身",
@@ -1869,7 +1871,10 @@ class World:
                     except Exception:
                         pass
                 return res
-            if action in ("/meditate", "/闭关", "/打坐"):
+            if action in ("/meditate", "/闭关", "/打坐", "/修炼"):
+                # B1-5：/修炼 为一等入口，与 /闭关 同一 _meditate 处理（参数口径一致，
+                # 经既有生死/被擒/闭关门禁至此，不自创绕行）；精确匹配优先，与
+                # /炼体 修炼、/炼神 修炼 的子命令分发无冲突（那是 action=/炼体|/炼神）。
                 hours = 1.0
                 if len(parts) > 1:
                     try:
@@ -1983,8 +1988,7 @@ class World:
                     lines.append(f"【天道导演链路】自检失败：{e}")
                 lines += [
                     "",
-                    "若用 CC Switch：.env 设 USE_CCSWITCH=1，并保持 CC Switch 在线、",
-                    "当前 Claude 账号可用（在 CC Switch 界面切换账号）。",
+                    "灵机未至时，交谈与世间诸事会以常理应答，不必忧心。",
                     "健康结果已写入 world_state，失败时交谈/事件会降级并提示。",
                     "网页 HUD：/world/director · 按钮：天道/势力/望气/世界弧/纪元回流",
                 ]
@@ -4709,7 +4713,7 @@ class World:
                 if not ai_available() and not local_ai_allowed():
                     return {
                         "ok": False,
-                        "error": "【天道未启】自创功法需 AI 通道（配置 Key 或 USE_CCSWITCH=1）",
+                        "error": "【天道未启】自创功法需天道灵机应答，此刻灵机未至，暂不可创法。",
                     }
                 art = AIGateway.generate_custom_art(concept, char.name)
                 valid, check_msg = DSLValidator.validate_custom_art(art)

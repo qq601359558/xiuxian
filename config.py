@@ -972,10 +972,8 @@ def local_ai_allowed() -> bool:
 
 
 def ai_unavailable_message() -> str:
-    return (
-        "【天道未启】未配置服务器 AI（LLM_API_KEY），"
-        "交谈/言行/天命裁决无法进行。请在 .env 配置 LLM_API_BASE、LLM_API_KEY、LLM_MODEL。"
-    )
+    # B1-3：玩家文案只作世界观内表述；未配置/通道异常等运维细节由调用方走 log，不入此文案。
+    return "【天道未启】天道灵机暂未应答，此事须待灵机复苏后再行。"
 
 
 # ==================== AI 天道事件链（karma-event-chains §10 配置总表） ====================

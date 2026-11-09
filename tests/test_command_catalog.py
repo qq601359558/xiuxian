@@ -41,7 +41,8 @@ def test_catalog_phase2_new_commands():
     此处以实测口径落断言，并逐条验新命令的主命令/别名/用法齐备。
     """
     cj = catalog_json()
-    assert cj["count"] == 108
+    # B1-5（playability-block1）：新增 /修炼 主命令，实测计数 108→109。
+    assert cj["count"] == 109
     by_cmd = {e["cmd"]: e for e in cj["commands"]}
     assert "/命途" in by_cmd and "/回应" in by_cmd
     assert "/fate_thread" in by_cmd["/命途"]["aliases"]

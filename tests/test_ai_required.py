@@ -1,4 +1,4 @@
-"""AI 必选模式：无 Key 且未开降级时应拒绝核心交互"""
+"""AI 必选模式：无 Key 且未开降级时言行/斗法/心魔应拒绝；交谈例外走本地兜底（B1-3 新契约）"""
 import os
 import sys
 from pathlib import Path
@@ -36,9 +36,14 @@ def main():
     n = WorldClock.create_new_character("npc_ai_req", "路人")
     n.location = p.location = "青云坊市客栈"
 
+    # B1-3 新契约（playability-block1，2026-11-09 产品决策）：交谈不再因 AI 不可用
+    # 而拒绝——一律走本地兜底回话，且玩家文案不得含运维词。其余引擎（言行/斗法/
+    # 心魔）的无 AI 拒绝口径不变，仍在下方断言。
     r1 = NpcDialogueEngine.talk(n, p, "你好")
-    assert r1["ok"] is False
-    assert "AI" in r1["error"] or "天道" in r1["error"]
+    assert r1["ok"] is True, r1
+    assert r1.get("line"), r1
+    for _bad in ("CC Switch", "USE_CCSWITCH", "LLM_API", ".env", "server.log"):
+        assert _bad not in str(r1), f"交谈兜底泄漏运维词 {_bad}：{r1}"
 
     r2 = FreeActionEngine.resolve(p, "我四处张望")
     assert r2["ok"] is False
@@ -52,7 +57,7 @@ def main():
     r4 = HeartDemonEngine.resolve(p, s, choice_id="yield")
     assert r4["success"] is False
 
-    print("✓ 交谈/言行/斗法/心魔在无 AI 时均被拒绝")
+    print("✓ 交谈在无 AI 时走本地兜底；言行/斗法/心魔在无 AI 时均被拒绝")
     print("\n✅ AI 必选模式 测试通过")
 
 
