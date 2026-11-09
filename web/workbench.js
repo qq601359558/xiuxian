@@ -617,6 +617,17 @@
     }
   }
 
+  // 命令面板 feed 内嵌卡（command-panels D1）：html 为本文件通用渲染器产出
+  // （内部值已 esc），与纯文本项共用一条 feed 流。
+  function pushFeedHtml(html, kind) {
+    if (!html) return;
+    state.feed.push({ text: "", html: String(html), kind: kind || "ok", ts: Date.now() / 1000 });
+    if (state.feed.length > 200) state.feed = state.feed.slice(-200);
+    if (state.view === "sanctum" || state.view === "wilderness") {
+      renderBody();
+    }
+  }
+
   function kindOf(text) {
     const t = String(text || "");
     if (/^»/.test(t)) return "cmd";
@@ -2216,7 +2227,7 @@
           <span class="font-mono text-slate-600">【${esc(f.time || "辰时")}】</span>
           <span class="px-1.5 py-0.2 rounded bg-jade-100 text-jade-800 font-medium">因果显现</span>
         </div>
-        <p class="text-xs text-slate-700 leading-relaxed">${esc(f.text)}</p>
+        ${f.html ? f.html : `<p class="text-xs text-slate-700 leading-relaxed">${esc(f.text)}</p>`}
       </div>
     `).join("") : `
       <div class="relative pl-5 pb-2 border-l-2 border-jade-300">
@@ -6821,6 +6832,1127 @@
   // ==========================================================================
   // 底部神识敕令台 (Divine Sense Console)
   // ==========================================================================
+// ==========================================================================
+// 命令回复面板化（command-panels spec §3/§4/§5；CP-00 通用面板渲染器·桌面端）
+// feed 内嵌卡：buildCommandPanel(cmd, data) 输入当次 /action 响应，输出卡片
+// HTML 或 ""（"" = 无可用结构键，回落纯文本呈现）。铁律：只读结构键，禁解析
+// data.text、禁本地捏造；字段缺失显"—"，零值显 0（?? 判空，不用 ||）。
+// 后端新键未落地时对应面板返回 ""，键表见 docs/compose/spec/command-panels.md 附录 A。
+// == command-panels: begin ==
+
+function cpHas(v) { return v !== null && v !== undefined && v !== ""; }
+function cpPick(o) {
+  if (!o || typeof o !== "object") return undefined;
+  for (let i = 1; i < arguments.length; i++) {
+    const v = o[arguments[i]];
+    if (v !== null && v !== undefined && v !== "") return v;
+  }
+  return undefined;
+}
+function cpStr(v) { return v == null ? "" : String(v); }
+// 数值口径（§4-K5）：缺失显"—"；整数原样；非整数四舍五入到 2 位小数
+// （与 treasurePanelStatLine 的 Math.round(v*100)/100 同口径）；零值显 0。
+function cpNum(v, dec) {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return esc(String(v));
+  if (Number.isInteger(n)) return String(n);
+  const d = dec == null ? 2 : dec;
+  const m = Math.pow(10, d);
+  return String(Math.round(n * m) / m);
+}
+function cpYears(v) { return v == null ? "—" : fmtRemYears(v) + remYearsUnit(v); }
+function cpPct(v) {
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return (Math.round(n * 10) / 10) + "%";
+}
+function cpSigned(v, unit) {
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  if (n === 0) return "0" + (unit || "");
+  return (n > 0 ? "+" : "−") + Math.abs(n) + (unit || "");
+}
+function cpTime(ts) {
+  if (ts == null || ts === "") return "—";
+  const d = new Date(Number(ts) * 1000);
+  if (Number.isNaN(d.getTime())) return "—";
+  const p = (x) => String(x).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function cpRemain(ts) {
+  if (ts == null || ts === "") return "—";
+  const s = Math.max(0, Math.round(Number(ts) - Date.now() / 1000));
+  if (s >= 86400) return "约 " + Math.ceil(s / 86400) + " 天";
+  if (s >= 3600) return "约 " + Math.ceil(s / 3600) + " 小时";
+  if (s >= 60) return "约 " + Math.ceil(s / 60) + " 分";
+  return "约 " + s + " 秒";
+}
+function cpDaysLeft(deadlineAt) {
+  if (deadlineAt == null || deadlineAt === "") return "—";
+  const d = Math.ceil((Number(deadlineAt) - Date.now() / 1000) / 86400);
+  return d <= 0 ? "已到期" : "剩 " + d + " 天";
+}
+
+function cpCard(title, sub, inner) {
+  return `<div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">${esc(title)}</h3>
+      ${sub ? `<span class="text-[11px] text-slate-400 flex-none">${esc(sub)}</span>` : ""}
+    </div>
+    <div class="mt-1">${inner}</div>
+  </div>`;
+}
+function cpSec(title, inner) {
+  if (!inner) return "";
+  return `<div class="mt-3"><div class="cp-sec">${esc(title)}</div>${inner}</div>`;
+}
+function cpKv(k, v, isNum) {
+  return `<div class="cp-kv"><span class="cp-k">${esc(k)}</span><span class="${isNum ? "cp-num" : "cp-v"}">${v}</span></div>`;
+}
+function cpKvs(rows) {
+  const body = (rows || []).filter((r) => r).map((r) => cpKv(r[0], r[1], r[2])).join("");
+  return body ? `<div>${body}</div>` : "";
+}
+function cpRow(main, right, badge) {
+  return `<div class="cp-row"><div class="flex-1 min-w-0">${main}</div>${badge ? `<span class="cp-badge flex-none">${esc(badge)}</span>` : ""}${right != null ? `<span class="cp-num flex-none">${right}</span>` : ""}</div>`;
+}
+function cpRows(items, render, cap) {
+  if (!Array.isArray(items) || !items.length) return "";
+  const list = items.filter(Boolean);
+  if (!list.length) return "";
+  const n = cap || list.length;
+  let html = list.slice(0, n).map(render).join("");
+  if (list.length > n) {
+    html += `<details class="cp-fold"><summary>其余 ${list.length - n} 条</summary>${list.slice(n).map(render).join("")}</details>`;
+  }
+  return html;
+}
+function cpFold(title, inner, open) {
+  if (!inner) return "";
+  return `<details class="cp-fold"${open ? " open" : ""}><summary>${esc(title)}</summary>${inner}</details>`;
+}
+function cpChips(list) {
+  const btns = (list || []).filter(Boolean).map((c) => {
+    if (c.fill) return `<button type="button" class="btn sm secondary" data-act="focus-cmd:${esc(c.fill)}">${esc(c.label)}</button>`;
+    return `<button type="button" class="btn sm secondary" data-cmd="${esc(c.cmd)}">${esc(c.label)}</button>`;
+  }).join("");
+  return btns ? `<div class="flex flex-wrap gap-2 mt-2">${btns}</div>` : "";
+}
+function cpBar(pct) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  return `<div class="cp-bar"><i style="width:${p}%"></i></div>`;
+}
+function cpNarr(text) {
+  return text ? `<p class="text-xs text-slate-700 leading-relaxed mt-1">${esc(text)}</p>` : "";
+}
+function cpNote(text) {
+  return text ? `<p class="text-xs text-slate-500 leading-relaxed mt-1">${esc(text)}</p>` : "";
+}
+function cpMain(text, sub) {
+  return `<div class="text-xs text-slate-700 leading-relaxed">${esc(text)}${sub ? `<br><span class="text-slate-500">${esc(sub)}</span>` : ""}</div>`;
+}
+
+// ---- P0（CP-01 /profile、CP-02 /look）----
+function cpProfile(data) {
+const p = data.profile;
+if (!p || typeof p!== "object") return "";
+const head = cpKvs([
+["境界", esc(cpStr(p.realm)), false],
+["宗门", esc(cpStr(p.sect) + (p.rank && p.rank!== p.sect? " · " + p.rank: "")), false],
+["位置", esc(cpStr(p.location) + (p.location_region? "（" + p.location_region + "）": "")), false],
+["灵根", esc(cpStr(p.root)), false],
+]);
+const nums = cpKvs([
+["寿元", cpYears(p.rem_years), true],
+["修为", esc(cpStr(p.exp)), true],
+["灵石", cpNum(p.stones) + " 灵石", true],
+["金库", cpNum(p.vault) + " 灵石", true],
+["功德", cpNum(p.merit), true],
+["业力", cpNum(p.sin), true],
+["道心", cpNum(p.dao_heart), true],
+]);
+const skills = cpSec("法门", (Array.isArray(p.skills) && p.skills.length)
+? `<p class="text-xs text-slate-700 leading-relaxed">${esc(p.skills.join("、"))}</p>`: "");
+const bio = p.bio? cpSec("小传", cpNarr(p.bio)): "";
+const recent = (Array.isArray(p.recent) && p.recent.length)
+? cpSec("近日账录", p.recent.slice(0, 6).map((r) => cpNote("· " + r)).join("")): "";
+return cpCard("个人信息 · " + cpStr(p.name), cpStr(p.realm), head + cpSec("道身数值", nums) + skills + bio + recent);
+}
+function cpLook(data) {
+const s = data.status;
+if (!s || typeof s!== "object") return "";
+const nums = cpKvs([
+["境界", esc(cpStr(s.realm)), false],
+["寿元", cpYears(s.rem_years), true],
+["修为", esc(cpStr(s.exp)), true],
+["灵石", cpNum(s.stones) + " 灵石", true],
+["金库", cpNum(s.vault) + " 灵石", true],
+["功德", cpNum(s.merit), true],
+["业力", cpNum(s.sin), true],
+["道心", cpNum(s.dao_heart), true],
+["灵根", esc(cpStr(s.root)), false],
+["位置", esc(cpStr(s.location)), false],
+["灵气", s.qi_mult == null? "—": "×" + cpNum(s.qi_mult), true],
+]);
+const protect = s.newbie_protected
+? cpSec("新手庇护", cpKvs([["剩余", "约 " + cpNum(s.newbie_left_hours) + " 小时", true]])): "";
+const chips = cpChips([{ label: "查看同场 ›", cmd: "/here"}]);
+return cpCard("观照 · " + cpStr(s.name), cpStr(s.realm), nums + protect + chips);
+}
+
+// ---- P1（CP-03 ~ CP-19）----
+function cpHere(data) {
+const list = data.here;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((p) => {
+const chips = `<div class="flex gap-1.5 mt-1">
+<button type="button" class="btn sm secondary" data-cmd="/交谈 ${esc(p.name)}">交谈</button>
+<button type="button" class="btn sm secondary" data-cmd="/斗法 ${esc(p.name)}">斗法</button></div>`;
+return cpRow(
+cpMain(p.name + " · " + cpStr(p.realm), (p.sect || "") + (p.rank? " · " + p.rank: "") + (p.personality? " · " + p.personality: "") + (p.agenda? " · 议程：" + p.agenda + (p.agenda_progress!= null? "（进度 " + p.agenda_progress + "/5）": ""): "")) + chips,
+null, p.blood_marked? "血煞": (p.attitude_cn || p.attitude || ""));
+}).join("");
+const loc = data.status && data.status.location? data.status.location: "";
+return cpCard("同场 · " + (loc || "此地"), "共 " + (data.count!= null? data.count: list.length) + " 人", rows);
+}
+function cpGoalRow(g) {
+const src = { origin: "出身", fate_thread: "命途", fate: "命途", dao: "道途", newbie: "新入", season: "纪元", sect: "宗门", chance: "机缘"}[g.source] || g.source || "";
+return cpRow(cpMain("【" + src + "】" + cpStr(g.title), cpStr(g.detail)), "进度 " + cpNum(g.progress), g.status === "done"? "已成": "");
+}
+function cpNearby(data) {
+const e = data.entry;
+const goals = data.goals;
+const secs = [];
+if (e && typeof e === "object") {
+const lines = e.lines || {};
+const fate = cpStr(lines.fate);
+const chains = lines.chains && lines.chains.text? lines.chains.text: "";
+if (fate || chains) secs.push(cpSec("世间", (fate? cpNote(fate): "") + (chains? cpNote(chains): "")));
+const rels = Array.isArray(lines.relations)? lines.relations: [];
+if (rels.length) secs.push(cpSec("与你何干", rels.map((r) => cpNote("· " + (r.summary || ""))).join("")));
+const queue = Array.isArray(e.queue)? e.queue: [];
+if (queue.length) {
+secs.push(cpSec("找上门的事", queue.map((q) => {
+const opts = Array.isArray(q.options)? q.options: [];
+const chips = opts.length && q.target && q.target.command
+? cpChips(opts.map((o) => ({ label: o.label || o.key, cmd: q.target.command + " " + (o.key || "")}))): "";
+return cpRow(cpMain(cpStr(q.title), cpStr(q.text)), null, "") + chips;
+}).join("")));
+}
+}
+if (Array.isArray(goals) && goals.length) secs.push(cpSec("世间目标", goals.map(cpGoalRow).join("")));
+if (!secs.length) return "";
+return cpCard("近况", "", secs.join(""));
+}
+function cpGoals(data) {
+const list = data.goals;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((g) => cpRow(
+cpMain(cpStr(g.title), cpStr(g.detail) + (g.deadline_at!= null? " · " + cpDaysLeft(g.deadline_at): "")),
+"进度 " + cpNum(g.progress),
+g.status === "done"? "已成": ({ origin: "出身", fate_thread: "命途", fate: "命途", dao: "道途", newbie: "新入", season: "纪元", sect: "宗门", chance: "机缘"}[g.source] || "")));
+return cpCard("世间目标", list.length + " 条", rows.join(""));
+}
+function cpTasks(data) {
+const defs = data.defs || {};
+const tasks = data.tasks || {};
+const secs = [];
+const act = Array.isArray(tasks.active)? tasks.active: [];
+if (act.length) {
+secs.push(cpSec("进行中", act.map((t) => {
+const d = defs[t.task_id] || {};
+return cpRow(cpMain(cpStr(d.title || t.task_id), cpStr(d.summary)), "已完成 " + (Array.isArray(t.done_steps)? t.done_steps.length: 0) + " 步", "");
+}).join("")));
+}
+const done = Array.isArray(tasks.done)? tasks.done: [];
+if (done.length) {
+secs.push(cpSec("已完成", done.map((t) => {
+const d = defs[t.task_id] || {};
+return cpRow(cpMain(cpStr(d.title || t.task_id), cpStr(d.summary)), null, "已成");
+}).join("")));
+}
+if (!secs.length) return "";
+return cpCard("任务 · 指引与赏格", "", secs.join(""));
+}
+const CP_BOARD_CN = { realm: "境界榜", power: "战力榜", notoriety: "凶名榜", daohang: "道行榜", fame: "传奇榜", assets: "资产榜"};
+function cpBoardRowsHtml(rows) {
+return (rows || []).filter(Boolean).map((r, i) => cpRow(
+cpMain((r.rank!= null? r.rank: i + 1) + ". " + cpStr(r.name), [r.realm, r.sect].filter(Boolean).join(" · ")),
+"分 " + cpNum(r.score), r.is_npc? "NPC": "")).join("");
+}
+function cpRank(data) {
+if (Array.isArray(data.board_rows) && data.board_rows.length) {
+const title = "榜单";
+return cpCard(title, data.board_rows.length + " 名", cpBoardRowsHtml(data.board_rows));
+}
+let boards = data.boards;
+if (boards &&!Array.isArray(boards) && typeof boards === "object") {
+boards = Object.keys(boards).map((k) => ({ name: k, title: boards[k].title, rows: boards[k].rows}));
+}
+if (!Array.isArray(boards) ||!boards.length) return "";
+const folds = boards.map((b, i) => cpFold(
+(b.title || CP_BOARD_CN[b.name] || b.name || "榜单") + "（" + ((b.rows || []).length) + " 名）",
+cpBoardRowsHtml(b.rows), i === 0)).join("");
+return cpCard("天道榜单", boards.length + " 榜", folds);
+}
+function cpSecret(data) {
+const list = data.realms;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((r) => cpRow(
+cpMain(cpStr(r.name), [r.location, r.desc || r.description].filter(Boolean).join(" · ")),
+"危险 " + cpPct(cpPick(r, "危险%", "danger_pct", "danger")!= null && Number(cpPick(r, "危险%", "danger_pct", "danger")) <= 1? Number(cpPick(r, "危险%", "danger_pct", "danger")) * 100: cpPick(r, "危险%", "danger_pct", "danger")),
+cpStr(cpPick(r, "状态", "status", "state") || "") + (cpPick(r, "门槛", "threshold", "req_tier", "min_tier")!= null? " · 门槛 " + cpPick(r, "门槛", "threshold", "req_tier", "min_tier"): ""))).join("");
+return cpCard("秘境天机", list.length + " 处", rows);
+}
+function cpWorld(data) {
+const ev = data.evolution;
+if (!ev || typeof ev!== "object") return "";
+const secs = [];
+const d = ev.director || {};
+if (d && typeof d === "object" && (Array.isArray(d.active) || d.stats)) {
+const dst = d.stats || {};
+const kv = cpKvs([
+["上次运行", cpTime(d.last_run_ts), false],
+["累计", "提案 " + cpNum(dst.runs) + " · 落账 " + cpNum(dst.accepted) + " · 驳回 " + cpNum(dst.rejected), false],
+]);
+const act = (Array.isArray(d.active)? d.active: []).map((a) => cpRow(
+cpMain(cpStr(a.title), cpStr(a.narrative) + (a.expires_at!= null? " · 剩余 " + cpRemain(a.expires_at): "")),
+null, cpStr(a.type || ""))).join("");
+secs.push(cpFold("一 · 天道导演", kv + act, true));
+}
+if (Array.isArray(ev.arcs) && ev.arcs.length) {
+const stageCn = { prophesy: "预兆", escalation: "升级", resolution: "决算"};
+secs.push(cpFold("二 · 世界弧", ev.arcs.map((a) => cpRow(
+cpMain(cpStr(a.title), "下阶段 " + cpRemain(a.stage_deadline)),
+null, stageCn[a.stage] || a.stage || "")).join(""), false));
+}
+const f = ev.faction || {};
+if (f && typeof f === "object" && (Array.isArray(f.relations) || f.modifiers)) {
+const rels = (Array.isArray(f.relations)? f.relations: []).map((r) => cpRow(
+cpMain(cpStr(r.a) + " × " + cpStr(r.b), cpStr(r.note || "")),
+"分 " + cpSigned(r.score), ({ hostile: "敌对", tense: "紧张", neutral: "中立", friendly: "友好", allied: "同盟"})[r.status] || r.status || "")).join("");
+const m = f.modifiers || {};
+const extra = [
+(m.hostile_pairs || []).map((p) => "敌对：" + p.join("×")).join("；"),
+(m.tense_pairs || []).map((p) => "紧张：" + p.join("×")).join("；"),
+m.n_open_missions!= null? "开放宗门令：" + m.n_open_missions + " 条": "",
+].filter(Boolean).join(" · ");
+secs.push(cpFold("三 · 势力格局", rels + (extra? cpNote(extra): ""), false));
+}
+const echo = ev.echo || {};
+const blood = ev.blood;
+if ((echo && echo.modifiers) || (Array.isArray(blood) && blood.length)) {
+const m = (echo && echo.modifiers) || {};
+const kv = cpKvs([
+["血气", cpNum(m.blood_index), true],
+["恐慌", cpNum(m.fear_index), true],
+["除凶热度", "×" + cpNum(m.hunt_heat), true],
+]);
+const rows = (Array.isArray(blood)? blood: []).slice(0, 8).map((b) => cpRow(
+cpMain(cpStr(b.name), [b.realm, b.location].filter(Boolean).join(" · ")),
+"业力 " + cpNum(b.sin), "血煞")).join("");
+secs.push(cpFold("四 · 望气·血煞", kv + rows, false));
+}
+const era = ev.era || {};
+if (era && typeof era === "object" && (era.bias_cn || era.bias)) {
+const bias = era.bias_cn || era.bias || {};
+const keys = Object.keys(bias);
+secs.push(cpFold("五 · 纪元回流", keys.length
+? keys.map((k) => cpKv(k, esc(cpStr(bias[k])), true)).join("")
+: cpNote("活跃权重：暂无（传说未积）"), false));
+}
+if (Array.isArray(ev.realms_open) && ev.realms_open.length) {
+secs.push(cpFold("六 · 秘境开启", ev.realms_open.map((r) => cpRow(
+cpMain(cpStr(r.name), cpStr(r.location) + (r.desc? " · " + r.desc: "")),
+"危险 " + cpPct(r.danger!= null && Number(r.danger) <= 1? Number(r.danger) * 100: r.danger),
+r.is_open? "已开启": "")).join(""), false));
+}
+if (Array.isArray(ev.npc_brief) && ev.npc_brief.length) {
+secs.push(cpFold("七 · NPC 动向", ev.npc_brief.slice(0, 12).map((n) => cpRow(
+cpMain(cpStr(n.name), cpStr(n.location || "")), null, cpStr(n.agenda || ""))).join(""), false));
+}
+if (!secs.length) return "";
+return cpCard("世情 · 世界演变总览", (ev.summary_lines || []).join("；"), secs.join(""));
+}
+function cpClue(data) {
+const cl = data.clue;
+if (!cl || typeof cl!== "object") return "";
+const step = cl.current_step || {};
+const kv = cpKvs([
+["线索链", esc(cpStr(cl.chain)), false],
+["当前步", esc(cpStr(step.title || step.text || step)), false],
+]);
+const opts = Array.isArray(cl.options)? cl.options: [];
+const chips = opts.length? cpChips(opts.map((o) => ({ label: o.label || o.key, cmd: "/寻宝 " + (o.key || o.label || "")}))): "";
+return cpCard("寻宝 · 线索链", "", kv + (step.text && step.title? cpNarr(step.text): "") + chips);
+}
+function cpSpirit(data) {
+const sp = data.spirit;
+if (!sp || typeof sp!== "object") return "";
+const item = sp.item || {};
+const kv = cpKvs([
+["法宝", esc(cpStr(item.name || sp.item_name || sp.name)), false],
+["品阶", esc(cpStr(item.tier || sp.tier)), false],
+["成长", cpNum(cpPick(sp, "成长", "growth")), true],
+["状态", esc(cpStr(cpPick(sp, "状态", "state", "status"))), false],
+]);
+const list = Array.isArray(sp.awakenable || sp["可唤灵列表"])? (sp.awakenable || sp["可唤灵列表"]): [];
+const rows = list.map((it) => cpRow(cpMain(cpStr(it.name || it)), null, "")).join("");
+const nm = cpStr(item.name || sp.item_name || sp.name);
+const chips = nm? cpChips([
+{ label: "唤灵", cmd: "/器灵 唤 " + nm},
+{ label: "温养", cmd: "/温养 " + nm},
+]): "";
+return cpCard("器灵", "", kv + (rows? cpSec("可唤灵", rows): "") + chips);
+}
+function cpArts(data) {
+const secs = [];
+const arts = data.arts;
+if (Array.isArray(arts) && arts.length) {
+secs.push(cpSec("自创功法", arts.map((a) => {
+const cm = a.cultivation_modifiers || {};
+const spells = (Array.isArray(a.spells)? a.spells: []).map((s) => s.name).join("、");
+return cpRow(cpMain(cpStr(a.name), [a.rank_cn, a.nature_cn, spells? "神通：" + spells: ""].filter(Boolean).join(" · ")),
+cm.exp_gain_multiplier!= null? "修炼 ×" + cpNum(cm.exp_gain_multiplier): null, "");
+}).join("")));
+}
+const st = data.status || {};
+const skills = Array.isArray(st.skills)? st.skills: [];
+if (skills.length) secs.push(cpSec("已习得", `<p class="text-xs text-slate-700 leading-relaxed">${esc(skills.join("、"))}</p>`));
+if (!secs.length) return "";
+return cpCard("功法", "", secs.join(""));
+}
+function cpGallery(data) {
+const g = data.status && data.status.gallery;
+if (!g || typeof g!== "object") return "";
+const kv = cpKvs([
+["进度", cpNum(g.count) + "/" + cpNum(g.total), true],
+["称号", esc(cpStr(g.title) || "尚未得图鉴称号"), false],
+["未点亮", cpNum((g.total!= null && g.count!= null)? g.total - g.count: null), true],
+]);
+return cpCard("天道图鉴", "", kv + `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm primary" data-act="view:gallery">查看完整图鉴 ›</button></div>`);
+}
+function cpMarket(data) {
+const s = data.status;
+if (!s || typeof s!== "object") return "";
+const listings = Array.isArray(s.market_listings)? s.market_listings: [];
+const kv = cpKvs([
+["金库", cpNum(s.vault) + " 灵石", true],
+["随身", cpNum(s.stones) + " 灵石", true],
+["在售", cpNum(listings.length), true],
+]);
+return cpCard("坊市", "", kv + `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm primary" data-act="view:bazaar">查看完整坊市 ›</button></div>`);
+}
+function cpAuction(data) {
+const lots = data.auction && data.auction.lots;
+if (!Array.isArray(lots) ||!lots.length) return "";
+const rows = lots.map((l) => cpRow(
+cpMain("#" + cpStr(l.id) + " " + cpStr(l.name), "起拍 " + cpNum(cpPick(l, "起拍", "start_price", "start")) + " · 领先 " + cpStr(cpPick(l, "领先", "leader") || "暂无") + " · 余 " + cpStr(cpPick(l, "剩余", "remain", "remain_sec")) + " · 挂单人 " + cpStr(cpPick(l, "挂单人", "seller"))),
+"当前 " + cpNum(cpPick(l, "当前价", "price", "current_price")) + " 灵石", "")).join("");
+const chips = `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/上拍 ">上拍</button></div>`;
+return cpCard("拍卖行", lots.length + " 件在拍", rows + chips);
+}
+function cpHunt(data) {
+const list = data.hunt;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((h) => cpRow(
+cpMain(cpStr(h.name) + " · " + cpStr(h.realm), "地点 " + cpStr(cpPick(h, "地点", "location")) + " · 被 " + cpNum(cpPick(h, "被盯人数", "watchers", "hunted_by")) + " 人盯上"),
+"业力 " + cpNum(cpPick(h, "业力", "sin")), cpPick(h, "血煞", "blood")? "血煞": "")).join("");
+const chips = cpChips(list.slice(0, 4).map((h) => ({ label: "接令·" + h.name, cmd: "/接除凶 " + h.name})));
+return cpCard("除凶榜", list.length + " 人在榜", rows + chips);
+}
+function cpSect(data) {
+const list = data.sects;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((x) => cpRow(
+cpMain(cpStr(x.name) + (x.alias? "（" + x.alias + "）": ""), "总坛 " + cpStr(cpPick(x, "总坛", "hq", "headquarters")) + (Array.isArray(x["高层"]) && x["高层"].length? " · 高层：" + x["高层"].join("、"): Array.isArray(x.elders) && x.elders.length? " · 高层：" + x.elders.join("、"): "")),
+"月俸 " + cpNum(cpPick(x, "月俸", "salary")) + " · " + cpNum(cpPick(x, "人数", "members", "count")) + " 人",
+cpStr(cpPick(x, "门槛", "req", "requirement") || ""))).join("");
+const mine = data.status && data.status.sect? cpSec("自身宗籍", cpKvs([["宗门", esc(cpStr(data.status.sect)), false], ["职衔", esc(cpStr(data.status.rank)), false]])): "";
+return cpCard("天下仙门", list.length + " 宗", rows + mine);
+}
+function cpFateThread(data) {
+const th = data.fate_thread;
+if (!th || typeof th!== "object") return "";
+return fateThreadHtml({ thread: th});
+}
+function cpMap(data) {
+const m = data.treasure_map;
+if (!m || typeof m!== "object") return "";
+const tierCn = ["凡品", "人品", "地品", "天品", "仙品"][Number(m.tier) - 1] || cpStr(m.tier);
+const kv = cpKvs([
+["宝图", esc(cpStr(m.name)), false],
+["品阶", esc(tierCn), false],
+["卦位", esc(cpStr(m.bagua)), false],
+["坐标", esc(cpStr(m.coords)), false],
+["目标地点", esc(cpStr(cpPick(m, "target_node", "targetNodeName"))), false],
+["类型", esc(cpStr(m.archetype)), false],
+]);
+return cpCard("宝图研读", "", kv + cpNarr(m.riddle) + (m.clue? cpNote("线索：" + m.clue): ""));
+}
+
+// ---- P2（CP-20 ~ CP-35）----
+function cpHelp(data) {
+  const list = data.commands;
+  if (!Array.isArray(list) || !list.length) return "";
+  const groups = {};
+  const order = [];
+  list.forEach((c) => {
+    const g = c.category_cn || c.category || "其他";
+    if (!groups[g]) { groups[g] = []; order.push(g); }
+    groups[g].push(c);
+  });
+  const folds = order.map((g, i) => cpFold(g + "（" + groups[g].length + " 条）",
+    groups[g].map((c) => cpRow(cpMain(cpStr(c.usage || c.cmd), cpStr(c.desc)), null, "")).join(""), i === 0)).join("");
+  return cpCard("敕令目录", list.length + " 条", folds);
+}
+function cpWho(data) {
+  const groups = data.who && data.who.groups;
+  if (!Array.isArray(groups) || !groups.length) return "";
+  const folds = groups.map((g, i) => cpFold(cpStr(g.place) + "（" + ((g.members || []).length) + " 人）",
+    (g.members || []).map((m) => cpRow(cpMain(cpStr(m.name), ""), esc(cpStr(m.realm)), "")).join(""), i === 0)).join("");
+  return cpCard("天下名录", groups.length + " 处", folds);
+}
+function cpAgenda(data) {
+  const list = data.agendas;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((a) => cpRow(
+    cpMain(cpStr(a.name) + " · " + cpStr(a.type), cpStr(a.note || "") + (a.secondary ? " · " + a.secondary : "")),
+    "进度 " + cpNum(a.progress) + "/5", "")).join("");
+  return cpCard("NPC 议程", list.length + " 条", rows);
+}
+function cpBounty(data) {
+  const list = data.bounties;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((b) => cpRow(
+    cpMain(cpStr(b.target), cpStr(cpPick(b, "缘由", "reason")) + (cpPick(b, "匿", "anon") ? " · 匿名" : "")),
+    "赏金 " + cpNum(cpPick(b, "赏金", "bounty")) + " 灵石", "#" + cpStr(b.id))).join("");
+  const chips = cpChips(list.slice(0, 4).map((b) => ({ label: "接令 #" + b.id, cmd: "/接令 " + b.id })));
+  return cpCard("悬赏告示", list.length + " 条", rows + chips);
+}
+function cpHeaven(data) {
+  const d = data.director;
+  if (!d || typeof d !== "object") return "";
+  const dst = d.stats || d["累计"] || {};
+  const kv = cpKvs([
+    ["上次运行", cpTime(cpPick(d, "last_run", "last_run_ts")), false],
+    ["累计", typeof dst === "string" ? esc(dst) : ("提案 " + cpNum(dst.runs) + " · 尝试 " + cpNum(dst.attempts) + " · 落账 " + cpNum(dst.accepted) + " · 驳回 " + cpNum(dst.rejected)), false],
+  ]);
+  const act = Array.isArray(cpPick(d, "活跃指令", "active")) ? cpPick(d, "活跃指令", "active") : [];
+  const rows = act.map((a) => cpRow(
+    cpMain(cpStr(a.title), cpStr(a.narrative) + (a.expires_at != null ? " · 剩余 " + cpRemain(a.expires_at) : "")),
+    null, cpStr(a.type || ""))).join("");
+  return cpCard("天道导演", "", kv + rows);
+}
+function cpArcs(data) {
+  const a = data.arcs;
+  if (!a || typeof a !== "object") return "";
+  const list = Array.isArray(a) ? a : (a["弧"] || a.arcs || a.list || []);
+  const ast = (!Array.isArray(a) && (a["累计"] || a.stats)) || null;
+  const kv = ast ? cpKvs([["累计", typeof ast === "string" ? esc(ast) : ("起弧 " + cpNum(ast.started) + " · 升级 " + cpNum(ast.upgraded) + " · 决算 " + cpNum(ast.resolved)), false]]) : "";
+  const stageCn = { prophesy: "预兆", escalation: "升级", resolution: "决算" };
+  const rows = (Array.isArray(list) ? list : []).map((x) => cpRow(
+    cpMain(cpStr(x.title), "下阶段 " + cpRemain(x.stage_deadline)),
+    null, stageCn[x.stage] || x.stage || "")).join("");
+  const hist = (!Array.isArray(a) && (a["近史"] || a.history)) || [];
+  const histHtml = Array.isArray(hist) && hist.length
+    ? cpSec("近史", hist.slice(0, 6).map((h) => cpNote("· " + (typeof h === "string" ? h : (h.text || h.title || "")))).join("")) : "";
+  const mods = (!Array.isArray(a) && (a["弧修饰"] || a.modifiers)) || null;
+  const modsHtml = mods ? cpSec("弧修饰", cpNote(typeof mods === "string" ? mods : JSON.stringify(mods))) : "";
+  if (!kv && !rows && !histHtml && !modsHtml) return "";
+  return cpCard("世界弧", "", kv + rows + histHtml + modsHtml);
+}
+function cpCreateArt(data) {
+  const a = data.art;
+  if (!a || typeof a !== "object") return "";
+  const cm = a.cultivation_modifiers || {};
+  const kv = cpKvs([
+    ["功法", esc(cpStr(a.name)), false],
+    ["品阶", esc(cpStr(a.rank_cn || a.rank)), false],
+    ["正邪", esc(cpStr(a.nature_cn || a.nature)), false],
+    ["修炼加速", cm.exp_gain_multiplier != null ? "×" + cpNum(cm.exp_gain_multiplier) : "—", true],
+    ["燃寿代价", cm.lifespan_burn_per_year != null ? cpNum(cm.lifespan_burn_per_year) + " /年" : "—", true],
+    ["劫威加成", cm.tribulation_power_add != null ? cpSigned(cm.tribulation_power_add) : "—", true],
+  ]);
+  const spells = (Array.isArray(a.spells) ? a.spells : []).map((s) => cpRow(
+    cpMain(cpStr(s.name), cpStr(s.effect_type || "")), s.multiplier != null ? "×" + cpNum(s.multiplier) : null, "")).join("");
+  return cpCard("自创功法", "", kv + (spells ? cpSec("神通", spells) : "") + cpNarr(a.lore) + (a.effects_text ? cpNarr(a.effects_text) : ""));
+}
+function cpFate(data) {
+  const f = data.fate;
+  if (!f || typeof f !== "object") return "";
+  const secs = [];
+  const boons = Array.isArray(f.boons) ? f.boons : [];
+  if (boons.length) {
+    secs.push(cpSec("已定命格", boons.map((b) => cpRow(
+      cpMain(cpStr(b.name), "第 " + cpNum(b.from_tier) + " 阶抽定 · " + cpTime(b.chosen_at)),
+      null, cpStr(b.key || ""))).join("")));
+  }
+  const pending = Array.isArray(f.pending) ? f.pending : [];
+  if (pending.length && pending[0] && Array.isArray(pending[0].candidates)) {
+    const cands = pending[0].candidates;
+    secs.push(cpSec("待选命格（择一）", cands.map((c) => cpRow(
+      cpMain((c.icon ? c.icon + " " : "") + cpStr(c.name), cpStr(c.desc || "")),
+      null, "")).join("") + cpChips(cands.map((c) => ({ label: "择 " + (c.name || c.key), cmd: "/命格 " + c.key })))));
+  }
+  if (!secs.length) return "";
+  if (f.power_bonus != null) secs.push(cpSec("命格加成", cpKvs([["战力加成", "×" + cpNum(f.power_bonus), true]])));
+  return cpCard("命格", "", secs.join(""));
+}
+function cpRespond(data) {
+  const list = data.drama_pending || data.drama;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((d) => {
+    const opts = Array.isArray(d.options) ? d.options : [];
+    const chips = cpChips(opts.map((o) => ({ label: o.label || o.key, cmd: "/回应 " + d.id + " " + (o.key || "") })));
+    return cpRow(cpMain(cpStr(d.npc_name || d.title || d.id), cpStr(d.text)), null, "") + chips;
+  }).join("");
+  return cpCard("待回应之事", list.length + " 件", rows);
+}
+function cpLinks(data) {
+  const list = data.links;
+  if (!Array.isArray(list) || !list.length) return "";
+  const kindCn = { gratitude: "恩", grudge: "仇", promise: "诺", blood_feud: "血仇", favor: "恩", debt: "债" };
+  const rows = list.map((l) => cpRow(
+    cpMain(cpStr(cpPick(l, "名", "name", "npc_name")), cpStr(cpPick(l, "缘由", "reason"))),
+    "强度 " + cpNum(cpPick(l, "强度", "strength", "value")),
+    kindCn[l.kind] || l.kind || "")).join("");
+  return cpCard("因果牵缠", list.length + " 条", rows);
+}
+function cpFaction(data) {
+  const f = data.factions;
+  if (!f || typeof f !== "object") return "";
+  const secs = [];
+  if (Array.isArray(f.relations) && f.relations.length) {
+    secs.push(cpSec("宗门关系", f.relations.map((r) => cpRow(
+      cpMain(cpStr(r.a) + " × " + cpStr(r.b), cpStr(r.note || r.source || "")),
+      "分 " + cpSigned(r.score), ({ hostile: "敌对", tense: "紧张", neutral: "中立", friendly: "友好", allied: "同盟" })[r.status] || r.status || "")).join("")));
+  }
+  if (Array.isArray(f.orders) && f.orders.length) {
+    secs.push(cpSec("宗门令", f.orders.map((o) => cpRow(
+      cpMain("[" + cpStr(o.sect || "") + "] " + cpStr(o.content || o.title || ""), "id " + cpStr(o.id || "")),
+      "贡献 +" + cpNum(o.contribution), "")).join("")));
+  }
+  if (Array.isArray(f.sieges) && f.sieges.length) {
+    secs.push(cpSec("围剿", f.sieges.map((s) => cpRow(cpMain(cpStr(s.title || s.target || ""), cpStr(s.text || "")), null, "")).join("")));
+  }
+  if (f["累计"] != null) secs.push(cpSec("累计", cpNote(cpStr(f["累计"]))));
+  if (!secs.length) return "";
+  return cpCard("天下势力", "", secs.join(""));
+}
+function cpSectOrder(data) {
+  const list = data.sect_orders;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((o) => cpRow(
+    cpMain("[" + cpStr(o.sect) + "] " + cpStr(cpPick(o, "内容", "content")), "id " + cpStr(o.id)),
+    "贡献 +" + cpNum(cpPick(o, "贡献", "contribution")), "")).join("");
+  const chips = cpChips(list.slice(0, 4).map((o) => ({ label: "接令 " + o.id, cmd: "/接宗门令 " + o.id })));
+  return cpCard("宗门令", list.length + " 条", rows + chips);
+}
+function cpSectPower(data) {
+  const sp = data.sect_power;
+  if (!sp || typeof sp !== "object") return "";
+  const list = Array.isArray(sp) ? sp : (sp.rows || sp.list || sp["宗门"] || []);
+  if (!Array.isArray(list) || !list.length) return "";
+  const max = Math.max.apply(null, list.map((r) => Number(cpPick(r, "分", "score")) || 0).concat([1]));
+  const rows = list.map((r) => {
+    const score = Number(cpPick(r, "分", "score")) || 0;
+    return cpRow(cpMain(cpStr(cpPick(r, "宗门", "sect", "name")), cpNum(cpPick(r, "人数", "members", "count")) + " 人"),
+      "分 " + cpNum(score), "") + cpBar(score / max * 100);
+  }).join("");
+  const rel = [];
+  if (Array.isArray(sp.hostile)) rel.push("敌对：" + sp.hostile.map((p) => Array.isArray(p) ? p.join("×") : p).join("；"));
+  if (Array.isArray(sp.tense)) rel.push("紧张：" + sp.tense.map((p) => Array.isArray(p) ? p.join("×") : p).join("；"));
+  if (Array.isArray(sp["敌对"])) rel.push("敌对：" + sp["敌对"].join("；"));
+  if (Array.isArray(sp["紧张"])) rel.push("紧张：" + sp["紧张"].join("；"));
+  return cpCard("宗门实力", list.length + " 宗", rows + (rel.length ? cpNote(rel.join(" · ")) : ""));
+}
+function cpContribution(data, cmd) {
+  const hasArgs = /\s+\S/.test((cmd || "").trim());
+  if (hasArgs && /^\/?兑换/.test((cmd || "").trim())) return "";
+  const c = data.contribution;
+  if (!c || typeof c !== "object") return "";
+  const head = cpKvs([
+    ["宗门", esc(cpStr(c.sect)), false],
+    ["贡献", cpNum(c.points), true],
+  ]);
+  const cat = Array.isArray(c.catalog) ? c.catalog : [];
+  const rows = cat.map((it) => cpRow(
+    cpMain(cpStr(it.name), ""),
+    cpNum(cpPick(it, "cost", "贡献")) + " 贡献",
+    cpPick(it, "需连环", "need_streak") != null ? "需连环≥" + cpPick(it, "需连环", "need_streak") : "")).join("");
+  return cpCard("宗门贡献 · 兑换目录", "", head + (rows ? cpSec("兑换目录", rows) : ""));
+}
+function cpScan(data) {
+  const list = data.scan;
+  if (!Array.isArray(list) || !list.length) return "";
+  const clarityCn = { VAGUE: "灵压未明", CLEAR: "已辨明", HIDDEN: "隐匿" };
+  const rows = cpRows(list, (s) => cpRow(cpMain(cpStr(s.description || s.text || "")), null,
+    clarityCn[s.clarity] || s.clarity || ""), 12);
+  return cpCard("神识探查", list.length + " 条发现", rows);
+}
+function cpNpcGoods(data) {
+  const list = data.npc_goods;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((g) => cpRow(
+    cpMain(cpStr(g.name), cpStr(cpPick(g, "描述", "desc", "description"))),
+    cpNum(cpPick(g, "price", "价")) + " 灵石", "")).join("");
+  return cpCard("NPC 货单", list.length + " 件", rows);
+}
+
+// ---- P3（CP-36 ~ CP-45）----
+function cpChannel(data) {
+  const list = data.channel;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((n) => {
+    const stars = typeof n.severity === "number" ? "★".repeat(Math.max(1, Math.min(3, n.severity))) : "★";
+    return cpRow(cpMain(cpStr(n.text), ""), null, stars + " " + cpStr(n.type || ""));
+  }).join("");
+  return cpCard("世界频道", list.length + " 条", rows);
+}
+function cpLegend(data) {
+  const l = data.legends;
+  if (!l || typeof l !== "object") return "";
+  const hist = l["近史"] || l.history || [];
+  const kv = cpKvs([
+    ["活跃权重", esc(cpStr(cpPick(l, "活跃权重", "weights")) || "暂无"), false],
+    ["引用累计", cpNum(cpPick(l, "引用累计", "citations")), true],
+  ]);
+  const rows = (Array.isArray(hist) ? hist : []).map((h) => cpRow(cpMain(cpStr(typeof h === "string" ? h : (h.text || h.title || ""))), null, "")).join("");
+  if (!kv && !rows) return "";
+  return cpCard("传说 · 史笔", "", kv + rows);
+}
+function cpEra(data) {
+  const e = data.era_flow;
+  if (!e || typeof e !== "object") return "";
+  const lastFlow = cpPick(e, "上次回流", "last_flow", "last_flow_ts");
+  const kv = cpKvs([
+    ["上次回流", typeof lastFlow === "number" ? cpTime(lastFlow) : esc(cpStr(lastFlow) || "—"), false],
+    ["活跃权重", esc(cpStr(cpPick(e, "活跃权重", "weights")) || "暂无"), false],
+    ["引用累计", cpNum(cpPick(e, "引用累计", "citations")), true],
+  ]);
+  const legends = e["近传说"] || e.legends || [];
+  const rows = (Array.isArray(legends) ? legends : []).map((h) => cpRow(cpMain(cpStr(typeof h === "string" ? h : (h.text || h.title || ""))), null, "")).join("");
+  return cpCard("纪元回流", "", kv + rows);
+}
+function cpTrade(data) {
+  const t = data.trade;
+  if (!t || typeof t !== "object") return "";
+  const kv = cpKvs([
+    ["对方", esc(cpStr(t.partner)), false],
+    ["状态", esc(cpStr(t.status)), false],
+  ]);
+  let offers = "";
+  const sides = t.offers || t["报价双方"] || t.quotes;
+  if (sides && typeof sides === "object") {
+    const keys = Object.keys(sides);
+    offers = keys.map((k) => {
+      const o = sides[k] || {};
+      const stones = o.stones != null ? o.stones : o["灵石"];
+      const items = Array.isArray(o.items) ? o.items.join("、") : cpStr(o.items || o["物品"] || "");
+      return cpKv(k === "me" ? "我方报价" : k === "partner" ? "对方报价" : k,
+        esc("灵石 " + cpNum(stones) + (items ? " · " + items : "")), true);
+    }).join("");
+    offers = offers ? `<div>${offers}</div>` : "";
+  }
+  const chips = cpChips([
+    { label: "同意成交", cmd: "/交易同意" },
+    { label: "拒绝", cmd: "/交易拒绝" },
+  ]);
+  return cpCard("当面交易", "", kv + offers + chips);
+}
+function cpSectQuests(data) {
+  const q = data.sect_quests;
+  if (q == null) return "";
+  const list = Array.isArray(q) ? q : (q.list || q.quests || q.daily || []);
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.name || ""), cpStr(x.desc || x.text || "")), null,
+    x.done ? "已完成" : "")).join("");
+  return cpCard("师门任务", list.length + " 项", rows);
+}
+function cpMingwu(data) {
+  const list = data.relics;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = list.map((r) => cpRow(cpMain(cpStr(r.name), cpStr(cpPick(r, "线索", "clue"))), null, "")).join("");
+  return cpCard("名物 · 听闻册", list.length + " 件", rows);
+}
+function cpSectRing(data) {
+  const ring = data.status && data.status.sect_ring;
+  if (!ring || typeof ring !== "object" || !Array.isArray(ring.themes) || !ring.themes.length) return "";
+  const rows = ring.themes.map((t, i) => {
+    const chip = ring.done ? "" : cpChips([{ label: "接取此环", cmd: "/接宗门环 " + (t.id != null ? t.id : i + 1) }]);
+    return cpRow(cpMain(cpStr(t.label), cpStr(t.lore || "") + (t.need_item ? " · 需 " + t.need_item : "") + (t.need_streak ? " · 需连环≥" + t.need_streak : "")),
+      null, ring.accepted ? "已接取" : "") + chip;
+  }).join("");
+  return cpCard("宗门环 · " + cpStr(ring.day), ring.done ? "今日已完成" : "", rows);
+}
+function cpApocalypse(data) {
+  const s = data.season;
+  if (!s || typeof s !== "object") return "";
+  const kv = cpKvs([
+    ["纪元", "第 " + cpNum(s.season_number) + " 纪", true],
+    ["进度", "第 " + cpNum(s.day_in_season) + " 天/共 " + cpNum(s.total_days) + " 天", true],
+    ["剩余", "约 " + cpNum(s.remain_real_days) + " 天", true],
+    ["终局", s.is_ended ? "已终局" : (s.is_final_week ? "终局之周" : "灵机尚稳"), false],
+  ]);
+  return cpCard("大劫 · 纪元终局", "", kv + cpNote("大劫降临后输入 /大劫 结算，未飞升者应劫转世并结转道统。"));
+}
+function cpAi(data) {
+  const a = data.ai_data;
+  const dq = data.director_quality;
+  if ((!a || typeof a !== "object") && !dq) return "";
+  const kv = a ? cpKvs([
+    ["模式", esc(cpStr(a.mode)), false],
+    ["地址", esc(cpStr(a.base)), false],
+    ["模型", esc(cpStr(a.model)), false],
+    ["状态", a.ok ? "就绪" : esc(cpStr(a.error || "未就绪")), false],
+  ]) : "";
+  let checks = "";
+  if (dq && Array.isArray(dq.checks)) {
+    checks = cpSec("天道导演链路（" + cpNum(dq.passed) + "/" + cpNum(dq.total) + " 通过）",
+      dq.checks.map((c) => cpRow(cpMain(cpStr(c.name), cpStr(c.detail || "")), null, c.ok ? "✓" : "✗")).join(""));
+  }
+  return cpCard("AI 自检", "", kv + checks);
+}
+function cpAilog(data) {
+  const list = data.items;
+  if (!Array.isArray(list) || !list.length) return "";
+  const rows = cpRows(list, (it) => cpRow(
+    cpMain(cpStr(it.channel || it.kind || ""), (it.prompt || "").slice(0, 40) + ((it.prompt || "").length > 40 ? "…" : "")),
+    (it.duration_ms != null ? it.duration_ms + "ms" : "") + " · HTTP " + cpStr(it.http_status),
+    it.status || ""), 10);
+  return cpCard("AI 调用日志", list.length + " 条", rows);
+}
+
+// ---- 附录 (b) 类（CP-49 ~ CP-66；目录外命令）----
+function cpPet(data) {
+let list = data.pets;
+if (!Array.isArray(list) ||!list.length) {
+const one = data.status && data.status.pet;
+list = (one && typeof one === "object")? [one]: [];
+}
+if (!list.length) return "";
+const rows = list.map((p) => {
+const chips =!cpPick(p, "出战", "deployed")? cpChips([{ label: "出战", cmd: "/出战 " + (p.name || "")}]): "";
+return cpRow(cpMain(cpStr(p.name) + " · " + cpStr(cpPick(p, "种", "species", "kind")),
+"境界 " + cpStr(cpPick(p, "境界", "realm")) + " · 成长 " + cpNum(cpPick(p, "成长", "growth"))),
+null, (cpPick(p, "出战", "deployed")? "出战中": "") || cpStr(cpPick(p, "状态", "state", "status")) || "") + chips;
+}).join("");
+const total = data.status && data.status.pets_count;
+return cpCard("灵宠", total!= null? "共 " + total + "/3 只": list.length + " 只", rows);
+}
+function cpCave(data) {
+const c = data.status && data.status.cave;
+if (!c || typeof c!== "object") return "";
+const kv = cpKvs([
+["等级", cpNum(c.level) + " 级", true],
+["灵田", cpNum(c.plots_used) + "/" + cpNum(c.plots_total) + " 块", true],
+["成熟", cpNum(c.mature) + " 块", true],
+]);
+return cpCard("洞府灵田", "", kv + cpNote("洞府等级越高田越多，闭关也越快（最高 +5%）。"));
+}
+function cpMindArt(data) {
+const s = data.status;
+if (!s || typeof s!== "object" ||!s.arts) return "";
+const arts = s.arts || {};
+const kv = cpKvs([
+["主修", esc(cpStr(arts.main) || "（空）"), false],
+["辅修", esc((Array.isArray(arts.sub)? arts.sub: []).join("、") || "（空）"), false],
+["已习得", esc((Array.isArray(s.skills)? s.skills: []).join("、") || "—"), false],
+]);
+return cpCard("心法槽位", "", kv + cpNote("主修一门定乾坤，辅修二门助斗法。"));
+}
+function cpWallet(data) {
+const w = data.wallet;
+if (!w || typeof w!== "object") return "";
+const head = cpKvs([
+["户名", esc(cpStr(w.username) || "—"), false],
+["余额", cpNum(w.balance) + " 灵石", true],
+]);
+const entries = Array.isArray(w.entries)? w.entries: [];
+const rows = entries.length? cpSec("流水", cpRows(entries, (e) => cpRow(
+cpMain(cpStr(cpPick(e, "种类", "kind", "type")) + " · " + cpStr(cpPick(e, "备注", "note"))),
+cpSigned(cpPick(e, "金额", "amount"), " 灵石"), cpTime(cpPick(e, "ts", "time"))), 10)): "";
+const chips = `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/钱包提取 ">钱包提取</button></div>`;
+return cpCard("账户钱包", "", head + rows + chips);
+}
+function cpPrices(data) {
+const p = data.prices;
+if (!p || typeof p!== "object" ||!Array.isArray(p.regions) ||!p.regions.length) return "";
+const folds = p.regions.map((r, i) => cpFold(cpStr(r.name) + "（" + ((r.rows || []).length) + " 项）",
+(r.rows || []).map((row) => {
+const origin = cpPick(row, "产地系数", "origin", "origin_mult");
+const badge = origin == null? "": ("产地 " + (typeof origin === "number"? cpSigned(origin, "%"): origin));
+return cpRow(cpMain(cpStr(row.name), ""),
+"买 " + cpNum(cpPick(row, "买入", "buy")) + " / 回 " + cpNum(cpPick(row, "回收", "sell")), badge);
+}).join(""), i === 0)).join("");
+return cpCard("天下行情", p.as_of? "官价 · " + cpStr(p.as_of): "", folds);
+}
+function cpAtlas(data) {
+const list = data.atlas;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((r) => cpRow(
+cpMain(cpStr(cpPick(r, "region", "区域")), "主导 " + cpStr(cpPick(r, "主导", "leader"))),
+"本宗声威 " + cpNum(cpPick(r, "本宗声威", "prestige")), "")).join("");
+return cpCard("天下版图", list.length + " 区域",
+rows + `<div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/版图 ">查区域明细</button></div>`);
+}
+function cpTombstone(data) {
+const t = data.tombstone;
+if (!t || typeof t!== "object") return "";
+const kv = cpKvs([
+["道号", esc(cpStr(t.name)), false],
+["境界", esc(cpStr(t.realm)), false],
+["死因", esc(cpStr(cpPick(t, "cause", "死因"))), false],
+["道统点", cpNum(cpPick(t, "points", "道统点")), true],
+]);
+return cpCard("墓碑", "", kv + cpNarr(cpPick(t, "评语", "epitaph")));
+}
+function cpChains(data) {
+const list = data.karma_chains;
+if (!Array.isArray(list) ||!list.length) return "";
+const kindCn = { boon: "恩", grudge: "仇", promise: "诺", blood_feud: "血仇", favor: "恩"};
+const rows = list.map((c) => {
+const prog = cpPick(c, "发酵进度", "progress");
+let right = null;
+let bar = "";
+if (typeof prog === "number") {
+if (prog >= 0 && prog <= 1) { right = cpPct(prog * 100); bar = cpBar(prog * 100);}
+else right = "进度 " + cpNum(prog);
+}
+const hist = c["近史"] || c.history;
+return cpRow(cpMain(cpStr(cpPick(c, "对方", "target", "npc_name")),
+(Array.isArray(hist)? hist.slice(0, 2).join("；"): cpStr(hist || "")) + (cpPick(c, "上限", "cap")!= null? " · 上限 " + cpPick(c, "上限", "cap"): "")),
+right, kindCn[c.kind] || c.kind || "") + bar;
+}).join("");
+return cpCard("因果链", list.length + " 条", rows);
+}
+function cpQuests(data) {
+const list = data.quests;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((q) => {
+const reward = q["赏"] || q.reward;
+const rewardStr = typeof reward === "string"? reward
+: reward && typeof reward === "object"? ("灵石 " + cpNum(reward.stones) + " + 功德 " + cpNum(reward.merit)): "";
+const first = q["首环"] || q.first;
+const firstStr = typeof first === "string"? first
+: first && typeof first === "object"? ("【" + (first.kind || first.type || "") + "】" + (first.text || first.target || "")): "";
+const chips = cpChips([{ label: "接取委托", cmd: "/接委托 " + (q.npc || "")}]);
+return cpRow(cpMain("【" + cpStr(q.npc) + "】（" + cpStr(q.realm) + "）委托 " + cpNum(cpPick(q, "环数", "rings")) + " 环",
+(rewardStr? "赏 " + rewardStr + " · ": "") + (firstStr? "首环 " + firstStr: "")),
+null, "") + chips;
+}).join("");
+return cpCard("NPC 委托", list.length + " 件", rows);
+}
+function cpPromises(data) {
+const list = data.promises;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((p) => cpRow(
+cpMain(cpStr(cpPick(p, "对象", "target")) + " · " + cpStr(cpPick(p, "类型", "type")), cpStr(cpPick(p, "内容", "content"))),
+cpPick(p, "期限", "deadline")!= null? cpDaysLeft(cpPick(p, "期限", "deadline")): null,
+cpStr(cpPick(p, "状态", "status")) || "")).join("");
+return cpCard("诺言账", list.length + " 条未结之诺", rows);
+}
+function cpRecipeRow(r) {
+const mats = Array.isArray(r["材料"] || r.materials)? (r["材料"] || r.materials).join("、"): cpStr(r["材料"] || r.materials || "");
+const rate = cpPick(r, "成率", "rate");
+const rateStr = rate == null? "—": (typeof rate === "number" && rate <= 1? cpPct(rate * 100): cpPct(rate));
+return cpRow(cpMain(cpStr(r.name) + " · " + cpStr(cpPick(r, "产物", "product")),
+(mats? "材料：" + mats + " · ": "") + "炉火 " + cpStr(cpPick(r, "炉火", "fire"))),
+"成率 " + rateStr, cpPick(r, "境界足", "enough") === false? "境界不足": (cpStr(cpPick(r, "kind", "种类")) || ""));
+}
+function cpRecipes(data) {
+const list = data.recipes;
+if (!Array.isArray(list) ||!list.length) return "";
+return cpCard("配方", list.length + " 方", list.map(cpRecipeRow).join(""));
+}
+function cpBodySoul(data) {
+const d = data.body_soul_detail;
+if (!d || typeof d!== "object") return "";
+const track = (label, t) => {
+if (!t || typeof t!== "object") return "";
+const cost = cpPick(t, "下一层成本", "next_cost");
+const costStr = typeof cost === "string"? cost
+: cost && typeof cost === "object"? Object.keys(cost).map((k) => k + "×" + cost[k]).join(" + "): "";
+return cpSec(label, cpKvs([
+["层数", cpNum(cpPick(t, "level", "层")) + " / 10 层", true],
+["成效", esc(cpStr(cpPick(t, "成效", "effect"))), false],
+["下一层成本", esc(costStr || "—"), false],
+]));
+};
+const body = track("炼体", d.body);
+const soul = track("炼神", d.soul);
+if (!body &&!soul) return "";
+const chips = cpChips([
+{ label: "炼体修炼", fill: "/炼体 修炼 "},
+{ label: "炼神修炼", fill: "/炼神 修炼 "},
+]);
+return cpCard("炼体 · 炼神", "", body + soul + chips);
+}
+function cpDemon(data) {
+const d = data.demon;
+if (!d || typeof d!== "object") return "";
+const kv = cpKvs([
+["阶段", esc(cpStr(cpPick(d, "stage_name", "阶段"))), false],
+["魔念", cpNum(cpPick(d, "魔念", "thought")), true],
+["来源", esc(cpStr(cpPick(d, "来源", "source"))), false],
+]);
+const opts = d["镇压选项"] || d.options || [];
+const rows = (Array.isArray(opts)? opts: []).map((o) => {
+if (typeof o === "string") return cpRow(cpMain(o, ""), null, "");
+return cpRow(cpMain(cpStr(o.label || o.name || ""), cpStr(o.desc || "")), null, "");
+}).join("");
+const chips = cpChips((Array.isArray(opts)? opts: []).filter((o) => o && typeof o === "object" && o.cmd)
+.map((o) => ({ label: o.label || o.name, cmd: o.cmd})));
+return cpCard("镇魔 · 心魔长卷", "", kv + (rows? cpSec("镇压", rows): "") + chips);
+}
+function cpAscend(data) {
+const list = data.ascend;
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((a) => cpRow(
+cpMain(cpStr(a.name) + " · " + cpStr(a.realm), cpStr(cpPick(a, "cause", "死因"))),
+null, cpStr(cpPick(a, "纪元", "era")) || "")).join("");
+return cpCard("飞升榜 · 历世纪念碑", list.length + " 位", rows);
+}
+function cpLegacy(data) {
+const l = (data.legacy_info && typeof data.legacy_info === "object")? data.legacy_info: data;
+if (!l || typeof l!== "object" || (l.points == null && l.lives == null &&!Array.isArray(l.boosts))) return "";
+const head = cpKvs([
+["道统点", cpNum(l.points), true],
+["前世", cpNum(l.lives) + " 世", true],
+["已得", cpNum(l.earned), true],
+["单世上限", cpNum(l.max_boosts) + " 项", true],
+]);
+const boosts = Array.isArray(l.boosts)? l.boosts: [];
+const boostsHtml = boosts.length? cpSec("出身兑换（单世至多 " + cpNum(l.max_boosts) + " 项）",
+boosts.map((b) => cpRow(cpMain(cpStr(b.name), cpStr(b.desc)), cpNum(b.cost) + " 点", cpStr(b.key || ""))).join("")): "";
+const lives = Array.isArray(l.past_lives)? l.past_lives: [];
+const livesHtml = lives.length? cpSec("前世", lives.map((r) => cpRow(
+cpMain(cpStr(r.name || r.title || ""), cpStr(r.realm || r.cause || r.text || "")), null, "")).join("")): "";
+const shadow = Array.isArray(l.karma_shadow)? l.karma_shadow: [];
+const shadowHtml = shadow.length? cpSec("前世因果影子", shadow.map((s) => cpRow(
+cpMain(cpStr(s.name || s.npc_name || ""), cpStr(s.reason || "")),
+cpSigned(s.value!= null? s.value: s.attitude), "")).join("")): "";
+const traces = Array.isArray(l.traces)? l.traces: [];
+const tracesHtml = traces.length? cpSec("命盘刻痕", traces.map((t) => cpNote("· " + cpStr(typeof t === "string"? t: (t.text || t.summary || t.name || "")))).join("")): "";
+return cpCard("道统", l.alive === false? "此身已坐化": "", head + boostsHtml + livesHtml + shadowHtml + tracesHtml);
+}
+function cpRecipe(data) {
+const r = data.recipe;
+if (!r || typeof r!== "object") return "";
+return cpCard("新方 · " + cpStr(r.name), cpStr(cpPick(r, "kind", "种类") || ""),
+cpRecipeRow(r));
+}
+function cpCouncil(data) {
+const c = data.council;
+if (c == null) return "";
+const list = Array.isArray(c)? c: (c.proposals || c.motions || c.topics || c.items || []);
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.topic || x.name || ""), cpStr(x.text || x.desc || "")),
+null, cpStr(x.status || ""))).join("");
+return cpCard("宗门议政", list.length + " 项", rows);
+}
+function cpSwornQuests(data) {
+const q = data.sworn_quests;
+if (q == null) return "";
+const list = Array.isArray(q)? q: (q.list || q.quests || []);
+if (!Array.isArray(list) ||!list.length) return "";
+const rows = list.map((x) => cpRow(cpMain(cpStr(x.title || x.name || ""), cpStr(x.desc || x.text || "")),
+null, x.done? "已完成": "")).join("");
+return cpCard("结义任务", list.length + " 项", rows);
+}
+
+// ---- 分发：命令 token → 面板（别名据 core/command_catalog.py；/legacy 不映射，
+// 它分发到 /转世而非 /道统；未知 token 或无结构键时返回 "" 回落纯文本）----
+const CP_ALIASES = {
+look: "look", "道身": "look",
+profile: "profile", "人物": "profile", "角色": "profile",
+here: "here", "同场": "here",
+"近况": "nearby",
+"目标": "goals", goals: "goals",
+"任务": "tasks", tasks: "tasks", quest: "tasks",
+"榜": "rank", rank: "rank", "榜单": "rank",
+"秘境": "secret", secret: "secret",
+"世情": "world", "世界演变": "world", "演变": "world", worldinfo: "world",
+"寻宝": "clue", clue: "clue",
+"器灵": "spirit", spirit: "spirit",
+"功法": "arts", arts: "arts",
+"图鉴": "gallery", gallery: "gallery",
+"坊市": "market", market: "market",
+"拍卖行": "auction", auction: "auction",
+"除凶": "hunt", hunt: "hunt",
+"宗门": "sect", sect: "sect",
+"命途": "fate_thread", fate_thread: "fate_thread",
+"宝图": "map", map: "map", "看宝图": "map",
+"帮助": "help", help: "help", helpme: "help",
+who: "who", "天下": "who",
+"议程": "agenda", agenda: "agenda",
+"告示": "bounty", bountyboard: "bounty",
+"天道": "heaven", heaven: "heaven", "导演": "heaven",
+"世界弧": "arcs", arc: "arcs", "弧": "arcs",
+"自创功法": "createart", createart: "createart",
+"命格": "fate", fate: "fate",
+"回应": "respond", respond_drama: "respond",
+"因果": "links", "关系链": "links", "关系": "links",
+"势力": "faction", faction: "faction",
+"宗门令": "sectorder", sectorder: "sectorder",
+"宗门势": "sectpower", sectpower: "sectpower",
+"贡献": "contribution", "兑换": "contribution",
+"探查": "scan", scan: "scan",
+"npc货单": "npcgoods",
+"频道": "channel", channel: "channel",
+"传说": "legend", legend: "legend", "典籍": "legend",
+"纪元回流": "era", era: "era", "史笔回流": "era",
+"交易": "trade",
+"师门任务": "sectquests",
+"名物": "mingwu",
+"宗门环": "sectring", sectring: "sectring",
+"大劫": "apocalypse", apocalypse: "apocalypse",
+ai: "ai", "ai自检": "ai",
+"ai日志": "ailog", ailog: "ailog",
+"灵宠": "pet", "洞府": "cave", "心法": "mindart", "钱包": "wallet",
+"行情": "prices", "版图": "atlas", "墓碑": "tombstone", "因果链": "chains",
+"委托": "quests", "诺言": "promises", "配方": "recipes",
+"炼体": "bodysoul", "炼神": "bodysoul", "镇魔": "demon", "飞升榜": "ascend",
+"道统": "legacy", "悟丹": "recipe", "悟器": "recipe", "议政": "council",
+"结义任务": "swornquests",
+};
+const CP_BUILDERS = {
+profile: cpProfile, look: cpLook, here: cpHere, nearby: cpNearby, goals: cpGoals,
+tasks: cpTasks, rank: cpRank, secret: cpSecret, world: cpWorld, clue: cpClue,
+spirit: cpSpirit, arts: cpArts, gallery: cpGallery, market: cpMarket,
+auction: cpAuction, hunt: cpHunt, sect: cpSect, fate_thread: cpFateThread,
+map: cpMap, help: cpHelp, who: cpWho, agenda: cpAgenda, bounty: cpBounty,
+heaven: cpHeaven, arcs: cpArcs, createart: cpCreateArt, fate: cpFate,
+respond: cpRespond, links: cpLinks, faction: cpFaction, sectorder: cpSectOrder,
+sectpower: cpSectPower, contribution: cpContribution, scan: cpScan,
+npcgoods: cpNpcGoods, channel: cpChannel, legend: cpLegend, era: cpEra,
+trade: cpTrade, sectquests: cpSectQuests, mingwu: cpMingwu, sectring: cpSectRing,
+apocalypse: cpApocalypse, ai: cpAi, ailog: cpAilog, pet: cpPet, cave: cpCave,
+mindart: cpMindArt, wallet: cpWallet, prices: cpPrices, atlas: cpAtlas,
+tombstone: cpTombstone, chains: cpChains, quests: cpQuests, promises: cpPromises,
+recipes: cpRecipes, bodysoul: cpBodySoul, demon: cpDemon, ascend: cpAscend,
+legacy: cpLegacy, recipe: cpRecipe, council: cpCouncil, swornquests: cpSwornQuests,
+};
+function buildCommandPanel(cmd, data) {
+if (!data || typeof data!== "object") return "";
+const tok = String(cmd || "").trim().split(/\s+/)[0].replace(/^\//, "").toLowerCase();
+const id = CP_ALIASES[tok];
+if (!id) return "";
+const fn = CP_BUILDERS[id];
+if (typeof fn!== "function") return "";
+try {
+const html = fn(data, cmd);
+return typeof html === "string"? html: "";
+} catch (_) {
+return "";
+}
+}
+// == command-panels: end ==
+
   async function sendCmd(cmd) {
     let c = (cmd || "").trim();
     if (!c) return;
@@ -6878,7 +8010,11 @@
       }
 
       if (data.status) applyStatus(data.status, reqEpoch);
-      if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
+      // 命令面板（command-panels D1）：有结构键时卡片替代该条纯文本块；
+      // 无结构键（(c) 类 / 后端键未落地）时回落纯文本呈现。
+      const panelHtml = buildCommandPanel(c, data);
+      if (panelHtml) pushFeedHtml(panelHtml, data.ok === false ? "bad" : undefined);
+      else if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
       applyOmenPayload(data);
       // 游戏感第一期只增字段：/action 响应可携带 entry / origin_card / ceremony
       if (data.entry) { state.entry = data.entry; state.entryPending = false; }

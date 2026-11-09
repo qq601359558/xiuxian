@@ -1,0 +1,720 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SC-waves desktop light</title><style>/* ==========================================================================
+   天道因果录 · 灵蕴玄枢 水墨翡翠白玉设计系统
+   Stitch 原生高保真样式 · 100% 纯正简体中文
+   ========================================================================== */
+
+/* 宣纸淡墨与温润羊脂白玉背景 */
+.bg-paper-pattern {
+  background-color: #f4faf6;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(20, 106, 89, 0.04) 0%, transparent 40%),
+    radial-gradient(circle at 85% 75%, rgba(197, 155, 39, 0.05) 0%, transparent 45%),
+    linear-gradient(to bottom, #f8fcf9, #eef6f2);
+}
+
+/* 羊脂白玉半透面板 */
+.jade-panel {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(183, 219, 203, 0.7);
+  box-shadow: 0 4px 20px -2px rgba(20, 106, 89, 0.05);
+}
+
+.jade-panel-elevated {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(208, 170, 98, 0.45);
+  box-shadow: 0 12px 36px -6px rgba(20, 106, 89, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.jade-panel-hover {
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.jade-panel-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -8px rgba(20, 106, 89, 0.15), 0 0 0 1px rgba(197, 155, 39, 0.4);
+}
+
+/* Material Symbols 纯净渲染：避免任何非符号回退为文本 */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
+
+/* 八角微倒角与金边 */
+.clip-octagon {
+  clip-path: polygon(12% 0%, 88% 0%, 100% 12%, 100% 88%, 88% 100%, 12% 100%, 0% 88%, 0% 12%);
+}
+.clip-tablet {
+  clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+/* 全局滚动条优雅定制 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(225, 240, 233, 0.4);
+}
+::-webkit-scrollbar-thumb {
+  background: #9bcbb9;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #48927e;
+}
+
+/* 按钮通用 */
+button {
+  cursor: pointer;
+  user-select: none;
+}
+.hidden {
+  display: none !important;
+}
+
+/* ==========================================================================
+   入世门庭 (Gate Seal & Login)
+   ========================================================================== */
+.gate {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: 
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(46, 125, 107, 0.15), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, #f2f8f5 100%);
+}
+.gate-card {
+  width: 100%; max-width: 440px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(197, 155, 39, 0.45);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px -8px rgba(20, 106, 89, 0.2), 0 0 25px -2px rgba(197, 155, 39, 0.35);
+  padding: 36px 32px;
+  text-align: center;
+}
+.gate-seal {
+  width: 64px; height: 64px; margin: 0 auto 16px;
+  background: linear-gradient(135deg, #146a59, #48927e);
+  border: 2px solid #e0b43c;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Ma Shan Zheng", cursive;
+  font-size: 32px; color: #ffffff;
+  box-shadow: 0 4px 16px rgba(20, 106, 89, 0.25);
+}
+.gate-hero h1 {
+  font-family: "Noto Serif SC", serif;
+  font-size: 26px; font-weight: 700;
+  color: #10332c;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.gate-hero p {
+  font-size: 13px; color: #48927e;
+  margin-bottom: 24px;
+}
+.gate-tabs {
+  display: flex; background: rgba(20, 106, 89, 0.08);
+  border-radius: 8px; padding: 4px; margin-bottom: 20px;
+}
+.gate-tabs .tab {
+  flex: 1; padding: 8px 12px; font-size: 14px; font-weight: 500;
+  border-radius: 6px; color: #33483f; transition: all 0.2s ease;
+}
+.gate-tabs .tab.active {
+  background: #146a59; color: #ffffff;
+  box-shadow: 0 2px 8px rgba(20, 106, 89, 0.2);
+}
+.field {
+  text-align: left; margin-bottom: 14px;
+}
+.field label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: #146a59; margin-bottom: 4px;
+}
+.field input {
+  width: 100%; padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #c5e2d5;
+  border-radius: 8px;
+  color: #10332c;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+.field input:focus {
+  outline: none;
+  border-color: #2a7e6c;
+  box-shadow: 0 0 0 3px rgba(42, 126, 108, 0.15);
+  background: #ffffff;
+}
+.gate-actions { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 10px 18px; font-family: "Noto Serif SC", serif;
+  font-size: 14px; font-weight: 600; letter-spacing: 0.04em;
+  border-radius: 8px; transition: all 180ms ease;
+}
+.btn.primary {
+  background: linear-gradient(135deg, #146a59 0%, #2a7e6c 100%);
+  color: #ffffff;
+  border: 1px solid rgba(224, 180, 60, 0.4);
+  box-shadow: 0 4px 12px rgba(20, 106, 89, 0.2);
+}
+.btn.primary:hover {
+  background: linear-gradient(135deg, #10332c 0%, #146a59 100%);
+}
+.btn.secondary {
+  background: rgba(255, 255, 255, 0.9);
+  color: #146a59;
+  border: 1px solid #c5e2d5;
+}
+.btn.secondary:hover {
+  background: #e1f0e9;
+  border-color: #146a59;
+}
+.btn.ghost {
+  background: transparent;
+  color: #33483f;
+  border: 1px dashed #9bcbb9;
+}
+.btn.ghost:hover {
+  background: rgba(20, 106, 89, 0.05);
+  color: #146a59;
+}
+.btn.block { width: 100%; }
+.btn.sm { padding: 6px 12px; font-size: 12px; }
+.gate-msg {
+  min-height: 20px; font-size: 13px; color: #ba1a1a;
+  margin-top: 6px; text-align: center;
+}
+.gate-foot {
+  margin-top: 20px; font-size: 11px; color: #6cae9a; line-height: 1.6;
+}
+.gate-foot code {
+  background: #e1f0e9; padding: 2px 6px; border-radius: 4px; color: #146a59;
+}
+
+/* ==========================================================================
+   右侧滑入式神识浮匣 (Side Drawer)
+   ========================================================================== */
+.side-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 360px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(20, 106, 89, 0.2);
+  box-shadow: -8px 0 32px rgba(20, 106, 89, 0.15);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 60;
+  display: flex; flex-direction: column;
+}
+.side-drawer.open {
+  transform: translateX(0);
+}
+.drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(8, 29, 25, 0.35);
+  backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 55;
+}
+.drawer-backdrop.open {
+  opacity: 1; pointer-events: auto;
+}
+
+/* ==========================================================================
+   神识交谈弹窗 (Modal) & Toast
+   ========================================================================== */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(8, 29, 25, 0.45);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 70; padding: 20px;
+}
+.slab {
+  width: 100%; max-width: 560px;
+  padding: 24px;
+}
+.toasts {
+  position: fixed; top: 80px; right: 24px; z-index: 90;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(20, 106, 89, 0.3);
+  box-shadow: 0 4px 16px rgba(20, 106, 89, 0.15);
+  color: #10332c;
+  pointer-events: auto;
+  animation: toastIn 0.2s ease-out;
+}
+.toast.gold {
+  border-color: #c59b27;
+  color: #8c6310;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 搜索建议浮层 */
+.suggest-box {
+  position: absolute; bottom: calc(100% + 8px); left: 0; right: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(16px);
+  border: 1px solid #c5e2d5;
+  border-radius: 12px;
+  box-shadow: 0 -8px 24px rgba(20, 106, 89, 0.15);
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.suggest-item {
+  padding: 8px 12px; border-radius: 8px; font-size: 13px;
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  color: #10332c;
+}
+.suggest-item:hover, .suggest-item.active {
+  background: #e1f0e9;
+  color: #146a59;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   九天碧虚洞府专用动效与水墨白玉通微弹窗
+   ========================================================================== */
+.jade-dialog-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 29, 25, 0.55);
+  backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 80; padding: 16px;
+  animation: jadeFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.jade-dialog-card {
+  width: 100%; max-width: 580px;
+  background: #fbfdfa;
+  border: 1px solid rgba(20, 106, 89, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 20px 48px rgba(8, 29, 25, 0.35), 0 0 0 1px rgba(197, 155, 39, 0.25);
+  overflow: hidden;
+  animation: jadeScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+@keyframes jadeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes jadeScaleUp {
+  from { opacity: 0; transform: scale(0.94) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 聚灵吐纳光环 */
+.meditating-glow {
+  position: relative;
+}
+.meditating-glow::after {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 14px;
+  border: 2px solid rgba(20, 106, 89, 0.6);
+  box-shadow: 0 0 24px rgba(20, 106, 89, 0.45);
+  pointer-events: none;
+  animation: meditatePulse 2.8s infinite ease-in-out;
+}
+@keyframes meditatePulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); box-shadow: 0 0 32px rgba(197, 155, 39, 0.6); }
+}
+
+/* 雷劫天威震颤 */
+.tribulation-shake {
+  animation: thunderShake 0.45s infinite ease-in-out;
+}
+@keyframes thunderShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  40% { transform: translate(3px, -2px) rotate(0.5deg); }
+  60% { transform: translate(-2px, -2px) rotate(0.3deg); }
+  80% { transform: translate(2px, 2px) rotate(-0.3deg); }
+}
+
+/* 飘字真元升华 */
+.spirit-float-badge {
+  position: absolute;
+  pointer-events: none;
+  font-family: inherit;
+  font-weight: 700;
+  color: #146a59;
+  animation: floatUpFade 1.6s forwards ease-out;
+  z-index: 40;
+}
+@keyframes floatUpFade {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  25% { opacity: 1; transform: translateY(-16px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-48px) scale(1); }
+}
+
+/* 大荒秘境斗法碰撞动效 */
+.combat-clash {
+  animation: combatClash 0.6s ease-in-out infinite;
+}
+@keyframes combatClash {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.05) rotate(-2deg); filter: drop-shadow(0 0 8px rgba(225, 29, 72, 0.6)); }
+  50% { transform: scale(0.96) rotate(2deg); filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.8)); }
+  75% { transform: scale(1.03) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* 胜战机缘辉芒 */
+.victory-glow {
+  animation: victoryGlow 2s infinite ease-in-out;
+}
+@keyframes victoryGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(217, 119, 6, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(217, 119, 6, 0.75); }
+}
+
+/* 坊市解石与盲匣光效 */
+.unseal-glow {
+  animation: unsealGlow 1.5s ease-in-out infinite;
+}
+@keyframes unsealGlow {
+  0%, 100% { box-shadow: 0 0 15px rgba(217, 119, 6, 0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.9); transform: scale(1.02); }
+}
+
+/* 地摊招徕灵光 */
+.stall-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.stall-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent, rgba(255,255,255,0.25), transparent);
+  transform: rotate(30deg);
+  animation: stallShimmer 3s infinite linear;
+}
+@keyframes stallShimmer {
+  0% { transform: translateX(-100%) rotate(30deg); }
+  100% { transform: translateX(100%) rotate(30deg); }
+}
+
+/* 天道神念推演中：写操作互斥与微光反馈 */
+body.is-acting-busy button[data-wild-act],
+body.is-acting-busy button[data-sanctum-act],
+body.is-acting-busy button[data-bazaar-act],
+body.is-acting-busy button[data-bag-act],
+body.is-acting-busy button[data-equip-act] {
+  opacity: 0.75;
+  transition: opacity 0.25s ease;
+}
+
+/* ==========================================================================
+   沉浸式 2D 洞天仙境视窗 (Immersive Cultivation Viewport)
+   ========================================================================== */
+.sanctum-canvas-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  border-radius: 20px;
+  overflow: hidden;
+  background-color: #0b0f17;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), inset 0 0 80px rgba(0, 0, 0, 0.85);
+}
+
+@keyframes cultivatorBreath {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    filter: drop-shadow(0 0 15px rgba(62, 207, 142, 0.4)) drop-shadow(0 0 30px rgba(212, 175, 55, 0.25));
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+    filter: drop-shadow(0 0 28px rgba(62, 207, 142, 0.65)) drop-shadow(0 0 50px rgba(212, 175, 55, 0.45));
+  }
+}
+
+.cultivator-breathing {
+  animation: cultivatorBreath 4.8s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+@keyframes compassSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.compass-rotating {
+  animation: compassSpin 75s linear infinite;
+  transform-origin: center center;
+}
+
+.jade-slip-dialog {
+  background: rgba(12, 16, 24, 0.95);
+  border: 2px solid rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.85), 0 0 20px rgba(20, 106, 89, 0.35);
+}
+
+.equip-slot-chip {
+  background: rgba(16, 24, 38, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 10px;
+  padding: 6px 10px;
+  transition: all 0.2s ease;
+}
+.equip-slot-chip:hover {
+  border-color: rgba(212, 175, 55, 0.6);
+  background: rgba(24, 36, 56, 0.95);
+}
+
+/* ==========================================================================
+   主界面内联奇遇芯片条 (悬浮于神识敕令台正上方，全视图可见)
+   ========================================================================== */
+.inline-omen-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1400px;
+  padding: 0 16px;
+  z-index: 85;
+  display: none;
+  pointer-events: none;
+}
+.inline-omen-bar.is-open {
+  display: block;
+  animation: omenBarRise 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.omen-bar-inner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(10, 20, 18, 0.94);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), inset 0 0 22px rgba(45, 106, 79, 0.35);
+  backdrop-filter: blur(10px);
+}
+.omen-tag {
+  font-family: "Noto Serif SC", serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f3d9a4;
+  white-space: nowrap;
+}
+.omen-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.omen-chip {
+  pointer-events: auto;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #d8efe4;
+  background: rgba(20, 106, 89, 0.35);
+  border: 1px solid rgba(62, 207, 142, 0.45);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.omen-chip:hover,
+.omen-chip:focus-visible {
+  color: #10241d;
+  background: linear-gradient(135deg, #7fdcb2 0%, #3ecf8e 100%);
+  border-color: rgba(212, 175, 55, 0.85);
+  outline: none;
+}
+.omen-abandon {
+  color: #cbbfa4;
+  background: transparent;
+  border: 1px dashed rgba(212, 175, 55, 0.45);
+}
+.omen-abandon:hover,
+.omen-abandon:focus-visible {
+  color: #2b1d06;
+  background: linear-gradient(135deg, #f0d79a 0%, #c59b27 100%);
+}
+
+@keyframes omenBarRise {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 640px) {
+  .inline-omen-bar { bottom: 132px; }
+  .omen-bar-inner { gap: 8px; padding: 9px 12px; }
+  .omen-tag { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-omen-bar.is-open { animation: none; }
+  .omen-chip { transition: none; }
+}
+
+
+
+
+
+
+/* ==========================================================================
+   图库接入（gallery-gameplay §3.6/§3.8/§8/§10.3）：深墨蓝描金同族样式
+   ========================================================================== */
+.gallery-img { object-fit: cover; background: #0b1d16; }
+.frame-tier-1 { border: 2px solid #8a7f72; box-shadow: none; border-radius: 10px; display: inline-block; overflow: hidden; }
+.frame-tier-2 { border: 2px solid #b0763a; border-radius: 10px; display: inline-block; overflow: hidden; }
+.frame-tier-3 { border: 2px solid #c0c7ce; border-radius: 10px; display: inline-block; overflow: hidden; }
+.frame-tier-4 { border: 2px solid #e0b43c; box-shadow: 0 0 14px rgba(224, 180, 60, .55); border-radius: 10px; display: inline-block; overflow: hidden; }
+.frame-tier-5 { border: 2px solid #a678e8; box-shadow: 0 0 18px rgba(150, 90, 230, .6); border-radius: 10px; display: inline-block; overflow: hidden; animation: frameFlow 3.2s ease-in-out infinite; }
+@keyframes frameFlow { 0%, 100% { box-shadow: 0 0 10px rgba(150, 90, 230, .45); } 50% { box-shadow: 0 0 22px rgba(224, 180, 60, .75); } }
+@media (prefers-reduced-motion: reduce) { .frame-tier-5 { animation: none; } }
+.gallery-portrait-card { display: flex; gap: 12px; align-items: flex-start; background: rgba(11, 29, 22, .06); border: 1px solid rgba(197, 155, 39, .35); border-radius: 12px; padding: 10px; }
+.gallery-portrait { width: 96px; height: 128px; border-radius: 10px; flex: none; }
+.gallery-portrait-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gallery-gender-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.art-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.art-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #10332c; background: #f2f8f5; border: 1px solid #c5e2d5; border-radius: 999px; padding: 2px 8px 2px 2px; }
+.art-thumb { width: 26px; height: 26px; border-radius: 50%; }
+.bag-thumb, .equip-thumb { width: 40px; height: 40px; display: block; }
+.inspector-img { width: 52px; height: 52px; display: block; }
+.here-avatar { width: 34px; height: 34px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.chat-avatar { width: 44px; height: 44px; border-radius: 50%; flex: none; margin-right: 10px; border: 1px solid rgba(243, 217, 130, .6); object-fit: cover; }
+.omen-image { width: 100%; max-height: 120px; border-radius: 10px; border: 1px solid rgba(212, 175, 55, .5); }
+.omen-bar-inner .omen-image { flex: 1 1 100%; }
+.spirit-block { background: rgba(11, 29, 22, .85); color: #e8f3dc; border: 1px solid rgba(197, 155, 39, .45); border-radius: 10px; padding: 8px 10px; font-size: 11px; }
+.spirit-head { display: flex; justify-content: space-between; font-weight: 700; color: #f3d982; }
+.spirit-meta { opacity: .9; margin-top: 2px; }
+.spirit-mood { height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; margin: 6px 0; }
+.spirit-mood > i { display: block; height: 100%; background: linear-gradient(90deg, #48927e, #e0b43c); }
+.spirit-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.clue-chain { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 11px; color: #684807; background: rgba(253, 243, 214, .7); border: 1px solid rgba(197, 155, 39, .45); border-radius: 10px; padding: 8px 10px; }
+.clue-chain.muted { color: #64748b; background: rgba(241, 245, 249, .7); border-color: #cbd5e1; }
+.clue-acts { display: inline-flex; gap: 6px; }
+.gallery-view .gallery-group { background: rgba(255,255,255,.86); border: 1px solid rgba(183, 219, 203, .7); border-radius: 16px; padding: 16px; }
+.gallery-group h3 { font-size: 14px; font-weight: 700; color: #10332c; margin-bottom: 10px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.gallery-cell { margin: 0; border: 1px solid #c5e2d5; border-radius: 12px; overflow: hidden; background: #fdfbf7; }
+.gallery-cell img { width: 100%; height: 150px; display: block; }
+.gallery-cell figcaption { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; font-size: 11px; color: #475569; }
+.gallery-cell figcaption strong { font-size: 12px; color: #10332c; }
+.gallery-cell.unlit img.gallery-silhouette { filter: grayscale(1) brightness(.45) contrast(.9); }
+.gallery-progress { height: 10px; border-radius: 5px; background: #e1f0e9; overflow: hidden; margin: 10px 0; }
+.gallery-progress > i { display: block; height: 100%; background: linear-gradient(90deg, #48927e, #c59b27); }
+.gallery-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.gallery-tier { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid #c5e2d5; color: #64748b; }
+.gallery-tier.on { border-color: #c59b27; color: #8c6310; background: #fdf3d6; font-weight: 700; }
+
+/* 深色主题：面板卡沿用 .jade-panel 浅色半透面（与既有卡片一致），故无深色覆盖——文字两主题皆深色；勿加 dark:text-*（深色字落浅卡不可读，见 2026-11-09 截图复核）。 */
+/* 命令回复面板化（command-panels CP-00）：卡片分区 KV/行集 + 数值右对齐等宽 */
+.cp-kv { display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid rgba(20,106,89,.08); font-size:12px; line-height:1.6; }
+.cp-kv:last-child { border-bottom:none; }
+.cp-k { color:#64748b; flex:none; }
+.cp-v { color:#334155; text-align:right; }
+.cp-num { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; text-align:right; color:#0f172a; }
+.cp-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:7px 0; border-bottom:1px solid rgba(20,106,89,.08); font-size:12px; }
+.cp-row:last-child { border-bottom:none; }
+.cp-badge { font-size:11px; font-weight:700; color:#146a59; background:#e1f0e9; border-radius:999px; padding:1px 8px; white-space:nowrap; }
+.cp-sec { margin:2px 0 2px; font-size:11px; font-weight:700; letter-spacing:.14em; color:#8c6310; }
+.cp-bar { height:6px; border-radius:3px; background:#e1f0e9; overflow:hidden; margin-top:4px; }
+.cp-bar > i { display:block; height:100%; background:linear-gradient(90deg,#48927e,#c59b27); }
+.cp-fold > summary { cursor:pointer; font-size:11px; font-weight:700; letter-spacing:.12em; color:#8c6310; padding:6px 0; }
+
+.text-jade-950{color:#081d19}.text-slate-400{color:#94a3b8}.text-slate-500{color:#64748b}.text-slate-700{color:#334155}.text-xs{font-size:12px;line-height:1.5}.text-sm{font-size:14px;line-height:1.5}
+body{margin:0;padding:16px;font-family:system-ui,sans-serif;}
+.shot-wrap{max-width:720px;margin:0 auto;}
+.shot-note{font-size:12px;color:#666;margin:0 0 12px;line-height:1.6;}
+.shot-item{margin-bottom:18px;}
+.shot-echo{font-size:13px;font-weight:700;margin:0 0 6px;}
+.shot-text{font-size:13px;line-height:1.7;white-space:pre-wrap;}
+</style></head><body class="bg-paper-pattern"><div class="shot-wrap"><p class="shot-note">命令回复面板化 §8 截图源页：面板 HTML 由真实面板块渲染，数据为合同审计真实抓取 + Spec 附录 A 合成 payload；样式为真实 workbench.css / mobile.css 内联。沙盒无法加载 Tailwind CDN，故工具类由页内垫片实现面板实际用到的 4 个文字色类 + 2 个字号（色值取自 index.html tailwind.config / Tailwind 默认 slate 色板，不随货）；其余间距/布局类不生效，布局比生产环境疏松——内容/数值/颜色以真实 CSS 为准。</p><div class="shot-item"><div class="shot-echo">» /世情</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">世情 · 世界演变总览</h3>
+      <span class="text-[11px] text-slate-400 flex-none">天道活跃态势 2 条；世界弧 2 场；血煞 8 人</span>
+    </div>
+    <div class="mt-1"><details class="cp-fold" open><summary>一 · 天道导演</summary><div><div class="cp-kv"><span class="cp-k">上次运行</span><span class="cp-v">11-08 06:55</span></div><div class="cp-kv"><span class="cp-k">累计</span><span class="cp-v">提案 1 · 落账 2 · 驳回 0</span></div></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">敌门暗涌·青云宗×九幽天魔宗<br><span class="text-slate-500">【青云宗】与【九幽天魔宗】势同水火，门下在坊市与野外屡有龃龉，天道静观其变。 · 剩余 约 0 秒</span></div></div><span class="cp-badge flex-none">sect_tension</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">秘境躁动·落霞古洞<br><span class="text-slate-500">【落霞古洞】禁制波动，附近灵气紊乱，机缘与杀劫并存。 · 剩余 约 0 秒</span></div></div><span class="cp-badge flex-none">secret_realm_pressure</span></div></details><details class="cp-fold"><summary>二 · 世界弧</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">敌门暗涌·青云宗×九幽天魔宗<br><span class="text-slate-500">下阶段 约 0 秒</span></div></div><span class="cp-badge flex-none">预兆</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">秘境躁动·落霞古洞<br><span class="text-slate-500">下阶段 约 0 秒</span></div></div><span class="cp-badge flex-none">预兆</span></div></details><details class="cp-fold"><summary>三 · 势力格局</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">青云宗 × 万剑仙门<br><span class="text-slate-500">初始格局</span></div></div><span class="cp-badge flex-none">中立</span><span class="cp-num flex-none">分 −5</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">九幽天魔宗 × 青云宗<br><span class="text-slate-500">天道导演·宗门紧张</span></div></div><span class="cp-badge flex-none">敌对</span><span class="cp-num flex-none">分 −67</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">四海散修商会 × 青云宗<br><span class="text-slate-500">初始格局</span></div></div><span class="cp-badge flex-none">中立</span><span class="cp-num flex-none">分 +15</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">万剑仙门 × 九幽天魔宗<br><span class="text-slate-500">初始格局</span></div></div><span class="cp-badge flex-none">紧张</span><span class="cp-num flex-none">分 −25</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">四海散修商会 × 万剑仙门<br><span class="text-slate-500">初始格局</span></div></div><span class="cp-badge flex-none">中立</span><span class="cp-num flex-none">分 +10</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">四海散修商会 × 九幽天魔宗<br><span class="text-slate-500">初始格局</span></div></div><span class="cp-badge flex-none">中立</span><span class="cp-num flex-none">分 −5</span></div><p class="text-xs text-slate-500 leading-relaxed mt-1">敌对：九幽天魔宗×青云宗 · 紧张：万剑仙门×九幽天魔宗 · 开放宗门令：2 条</p></details><details class="cp-fold"><summary>四 · 望气·血煞</summary><div><div class="cp-kv"><span class="cp-k">血气</span><span class="cp-num">0</span></div><div class="cp-kv"><span class="cp-k">恐慌</span><span class="cp-num">0</span></div><div class="cp-kv"><span class="cp-k">除凶热度</span><span class="cp-num">×1</span></div></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">幽冥老祖<br><span class="text-slate-500">化神期中期 · 九幽天魔宗坛</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 500</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">血衣侯<br><span class="text-slate-500">金丹期中期 · 九幽天魔宗坛</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 320</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">血刀老祖<br><span class="text-slate-500">筑基期中期 · 黑风绝渊</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 280</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">厉无锋<br><span class="text-slate-500">金丹期初期 · 九幽天魔宗坛</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 200</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">毒娘子<br><span class="text-slate-500">筑基期初期 · 黑风绝渊</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 150</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">骨姬<br><span class="text-slate-500">练气期圆满 · 九幽天魔宗坛</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 120</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">山君<br><span class="text-slate-500">筑基期后期 · 落霞山灵泉</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 110</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">赤练子<br><span class="text-slate-500">筑基期初期 · 落霞山灵泉</span></div></div><span class="cp-badge flex-none">血煞</span><span class="cp-num flex-none">业力 90</span></div></details><details class="cp-fold"><summary>五 · 纪元回流</summary><p class="text-xs text-slate-500 leading-relaxed mt-1">活跃权重：暂无（传说未积）</p></details><details class="cp-fold"><summary>六 · 秘境开启</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">落霞古洞<br><span class="text-slate-500">落霞山灵泉 · 落霞山深处残破古洞，偶有玉简与灵泉现世。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 35%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">黑风绝渊裂隙<br><span class="text-slate-500">黑风绝渊 · 绝渊裂隙通往上古战场残片，机缘与杀劫并存。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 55%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">万星遗迹残址<br><span class="text-slate-500">万星古岛 · 真仙遗迹一角，金丹以下入内多半尸骨无存。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 70%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">剑冢残碑<br><span class="text-slate-500">万剑仙门峰 · 万剑外围无主剑冢，残剑如林，剑意噬人。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 40%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">荒古兽巢<br><span class="text-slate-500">青云山外围 · 青云山外围兽潮巢穴，妖丹与血食之地。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 38%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">幽冥鬼市<br><span class="text-slate-500">黑风绝渊 · 绝渊深处鬼市幻影，可拾阴物，亦易被勾去半条魂。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 62%</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">灵药残圃<br><span class="text-slate-500">落霞山灵泉 · 古药园残圃，灵芝遍地，守圃傀儡尚存。</span></div></div><span class="cp-badge flex-none">已开启</span><span class="cp-num flex-none">危险 28%</span></div></details><details class="cp-fold"><summary>七 · NPC 动向</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">丹霞子<br><span class="text-slate-500">宗门玄元洞府</span></div></div><span class="cp-badge flex-none">夺宝</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">林惊羽<br><span class="text-slate-500">青云宗外门山门</span></div></div><span class="cp-badge flex-none">巡守宗门/地盘</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">苏婉清<br><span class="text-slate-500">宗门玄元洞府</span></div></div><span class="cp-badge flex-none">闭关求突破</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">石猛<br><span class="text-slate-500">青云宗外门山门</span></div></div><span class="cp-badge flex-none">巡守宗门/地盘</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">赵小满<br><span class="text-slate-500">青云宗外门山门</span></div></div><span class="cp-badge flex-none">结交/打探</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">青萝<br><span class="text-slate-500">宗门玄元洞府</span></div></div><span class="cp-badge flex-none">闭关求突破</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">剑圣·独孤败<br><span class="text-slate-500">万剑仙门峰</span></div></div><span class="cp-badge flex-none">闭关求突破</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">断岳剑尊<br><span class="text-slate-500">万剑仙门峰</span></div></div><span class="cp-badge flex-none">巡守宗门/地盘</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">白霜<br><span class="text-slate-500">洗剑池洞天</span></div></div><span class="cp-badge flex-none">闭关求突破</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">赤霄<br><span class="text-slate-500">万剑仙门峰</span></div></div><span class="cp-badge flex-none">巡守宗门/地盘</span></div></details></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /图鉴</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">天道图鉴</h3>
+      
+    </div>
+    <div class="mt-1"><div><div class="cp-kv"><span class="cp-k">进度</span><span class="cp-num">6/139</span></div><div class="cp-kv"><span class="cp-k">称号</span><span class="cp-v">尚未得图鉴称号</span></div><div class="cp-kv"><span class="cp-k">未点亮</span><span class="cp-num">133</span></div></div><div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm primary" data-act="view:gallery">查看完整图鉴 ›</button></div></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /榜</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">天道榜单</h3>
+      <span class="text-[11px] text-slate-400 flex-none">2 榜</span>
+    </div>
+    <div class="mt-1"><details class="cp-fold" open><summary>境界榜（1 名）</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">1. 幽冥老祖<br><span class="text-slate-500">化神期中期 · 九幽天魔宗</span></div></div><span class="cp-badge flex-none">NPC</span><span class="cp-num flex-none">分 5100</span></div></details><details class="cp-fold"><summary>战力榜（1 名）</summary><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">1. 幽冥老祖<br><span class="text-slate-500">化神期中期 · 九幽天魔宗</span></div></div><span class="cp-badge flex-none">NPC</span><span class="cp-num flex-none">分 63136.25</span></div></details></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /命格</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">命格</h3>
+      
+    </div>
+    <div class="mt-1"><div class="mt-3"><div class="cp-sec">已定命格</div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">道骨天成<br><span class="text-slate-500">第 2 阶抽定 · 11-08 06:55</span></div></div><span class="cp-badge flex-none">dao1</span></div></div><div class="mt-3"><div class="cp-sec">待选命格（择一）</div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">⚔ 剑心通明<br><span class="text-slate-500">剑道悟性大增</span></div></div></div><div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-cmd="/命格 k1">择 剑心通明</button></div></div><div class="mt-3"><div class="cp-sec">命格加成</div><div><div class="cp-kv"><span class="cp-k">战力加成</span><span class="cp-num">×1.1</span></div></div></div></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /钱包</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">账户钱包</h3>
+      
+    </div>
+    <div class="mt-1"><div><div class="cp-kv"><span class="cp-k">户名</span><span class="cp-v">—</span></div><div class="cp-kv"><span class="cp-k">余额</span><span class="cp-num">0 灵石</span></div></div><div class="flex flex-wrap gap-2 mt-2"><button type="button" class="btn sm secondary" data-act="focus-cmd:/钱包提取 ">钱包提取</button></div></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /天道</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">天道导演</h3>
+      
+    </div>
+    <div class="mt-1"><div><div class="cp-kv"><span class="cp-k">上次运行</span><span class="cp-v">11-08 06:55</span></div><div class="cp-kv"><span class="cp-k">累计</span><span class="cp-v">提案 1 · 尝试 1 · 落账 2 · 驳回 0</span></div></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">敌门暗涌<br><span class="text-slate-500">两宗相争。 · 剩余 约 0 秒</span></div></div><span class="cp-badge flex-none">sect_tension</span></div></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /道统</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">道统</h3>
+      
+    </div>
+    <div class="mt-1"><div><div class="cp-kv"><span class="cp-k">道统点</span><span class="cp-num">0</span></div><div class="cp-kv"><span class="cp-k">前世</span><span class="cp-num">0 世</span></div><div class="cp-kv"><span class="cp-k">已得</span><span class="cp-num">0</span></div><div class="cp-kv"><span class="cp-k">单世上限</span><span class="cp-num">3 项</span></div></div><div class="mt-3"><div class="cp-sec">出身兑换（单世至多 3 项）</div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">出身灵石<br><span class="text-slate-500">降生时储物袋多 150 块灵石，便于拜山或购阵盘。</span></div></div><span class="cp-badge flex-none">stones</span><span class="cp-num flex-none">1 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">延寿道体<br><span class="text-slate-500">降生自然寿元额外 +8 岁，大限稍缓。</span></div></div><span class="cp-badge flex-none">lifespan</span><span class="cp-num flex-none">2 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">洗练灵根<br><span class="text-slate-500">灵根吸收效率 +0.25（有上限），修炼更顺。</span></div></div><span class="cp-badge flex-none">root</span><span class="cp-num flex-none">4 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">传承功法<br><span class="text-slate-500">前世道统残篇化入识海，开局自带一门额外法门。</span></div></div><span class="cp-badge flex-none">skill</span><span class="cp-num flex-none">2 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">遗物留存<br><span class="text-slate-500">自前世行囊中选 1 件遗物随真灵转世（heirloom:&lt;物品名&gt;），每世限 1 件。</span></div></div><span class="cp-badge flex-none">heirloom</span><span class="cp-num flex-none">5 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">前世心法<br><span class="text-slate-500">唤醒前世第一门功法的记忆，新角降生即会，每世限 1 门。</span></div></div><span class="cp-badge flex-none">art_memory</span><span class="cp-num flex-none">4 点</span></div><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">旧缘重续<br><span class="text-slate-500">本次转世因果影子衰减减弱（保留 75%，上限 50），旧缘更浓。</span></div></div><span class="cp-badge flex-none">bond_echo</span><span class="cp-num flex-none">3 点</span></div></div></div>
+  </div></div><div class="shot-item"><div class="shot-echo">» /配方</div><div class="jade-panel rounded-2xl p-4 shadow-sm">
+    <div class="flex items-baseline justify-between gap-2">
+      <h3 class="text-sm font-bold text-jade-950">配方</h3>
+      <span class="text-[11px] text-slate-400 flex-none">1 方</span>
+    </div>
+    <div class="mt-1"><div class="cp-row"><div class="flex-1 min-w-0"><div class="text-xs text-slate-700 leading-relaxed">聚气丹方 · 聚气丹<br><span class="text-slate-500">材料：聚灵草、灵泉水 · 炉火 文火</span></div></div><span class="cp-num flex-none">成率 80%</span></div></div>
+  </div></div></div></body></html>

@@ -347,3 +347,14 @@ body.kb-open #toasts { bottom: 120px; /* QA-02：键盘态 120px = 60 坞 + 48 �
 .scene-card .card-eyebrow { padding: 8px 16px 12px; }
 .world-scene-img { width: 100%; height: 120px; display: block; }
 .pet-thumb { width: 40px; height: 40px; border-radius: 10px; vertical-align: middle; margin-right: 8px; }
+
+/* 命令回复面板化（command-panels CP-00）：卡片分区 KV/行集 + 数值右对齐等宽 */
+.cp-card h3 { margin-bottom: 4px; }
+.cp-sec { margin: 10px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--gold-700); }
+.cp-num { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.cp-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+.cp-row:last-child { border-bottom: none; }
+.cp-row-m { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cp-badge { flex: none; font-size: 11px; font-weight: 700; color: var(--jade-700); background: var(--jade-100); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.cp-note { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin: 4px 0; }
+.cp-fold > summary { cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--gold-700); padding: 8px 0; }
