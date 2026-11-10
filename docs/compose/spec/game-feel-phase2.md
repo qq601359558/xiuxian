@@ -202,7 +202,7 @@ Pydantic 模型 `FateThread`（新文件 `core/fate_thread.py`，引擎 `FateThr
 
 | 章 | check kind（绑定规则按序取首个可绑者） | 参数 |
 |---|---|---|
-| 0 立命 | `visit_location`（种子 NPC 当前地点）→ 若种子 NPC 无固定地点则 `npc_attitude_at_least` | `{ref: <地点名>, npc_id}` / `{npc_id, value: -10}`（到访或照面即推进） |
+| 0 立命 | `visit_location`（种子 NPC 当前地点）→ 若种子 NPC 无固定地点则 `npc_attitude_at_least` | `{ref: <地点名>, npc_id}` / `{npc_id, value: -10}`（到访+在场+与目标 NPC 交谈一轮才推进，见下方求值口径修订） |
 | 1 经营·一 | `promise_kept_count`（新 kind）→ `stones_at_least` | `{count: 1}` / `{amount: 200}` |
 | 2 经营·二 | `chain_resolved`（与对手/引路人之间任一链）→ `item_in_bag`（旧事遗物或种子关联物）→ `npc_attitude_at_least` | `{npc_id, outcome: "any"}` / `{item_ref}` / `{npc_id, value: 15}` |
 | 3 冲突 | `chain_resolved`（对手链，outcome any）→ `npc_attitude_at_least`（对手） | `{npc_id}` / `{npc_id, value: 0}` |
@@ -210,7 +210,8 @@ Pydantic 模型 `FateThread`（新文件 `core/fate_thread.py`，引擎 `FateThr
 | 5 暮年 | = 终局命题 check 原样（与 fate 目标同体，见下） | — |
 
 **新 kind 求值口径（只读既有账，AI 零参与）**：
-- `visit_location {ref, npc_id?}`：`ref ∈ thread.visited`（§3.6 的迁跃落点记录）即 done；带 npc_id 时还须该 NPC 当前 location == ref（到访时人在场才算照面）。求值器需读 thread——经 `FateThreadRepository.list_by_player(character.id)` 取 active 线的 visited（求值器以 try/except 包裹，读不到按 pending）。
+- `visit_location {ref, npc_id?}`：`ref ∈ thread.visited`（§3.6 的迁跃落点记录）即 done；带 npc_id 时还须该 NPC 当前 location == ref（到访时人在场才算照面），**且须与该 NPC 有过一轮交谈**（`GoalEngine._talked_with_npc` 命中才 done）。求值器需读 thread——经 `FateThreadRepository.list_by_player(character.id)` 取 active 线的 visited（求值器以 try/except 包裹，读不到按 pending）。
+  > 修订注记（2026-11-10）：原口径「到访+在场即 done」已被取代——带 npc_id 的「去见某人」类章节须交谈一轮才完成。决策依据见 `docs/compose/spec/playability-block1.md`「决策记录」（Martinez 2026-11-10 确认，路线 b）。
 - `promise_kept_count {count}`：`PromiseEngine._involving(character.id)` 中 status==KEPT 的条数 ≥ count 即 done（与 `promise_settled` 同数据源）。
 - `chain_resolved {ref?, npc_id?, outcome}`：ref 非空时查该 chain id 的 status ∈ 终态（resolved/dissipated 等仓储终态口径以 `KarmaChain` 模型 status 枚举为准）；ref 为空时查 `list_by_player` 中 counterparty==npc_id 且 status ∈ 终态的任一链。outcome="any" 不限 polarity；outcome 指明 en/chou 时按链 kind 匹配。
 - `thread_climax {ref: <thread_id>}`：该线 idx4 章 status==done 即 done。**只许出现在 fate 命题目标上**，且只由 §3.6 的 fate 求值序在章节派生**之后**求值（先派生章节、再求值目标，顺序写死，防自引用死锁）；E5 终判时同序。

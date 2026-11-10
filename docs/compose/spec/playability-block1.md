@@ -64,6 +64,12 @@
   双端一致（workbench handleChatData / mobile openChatM 路径）。
 
 ### B1-4 目标给路（对应清单 4）
+- **完成语义变更（2026-11-10 决策，路线 b，见文末「决策记录」）**：带 `npc_id` 的
+  `visit_location` 章（「去见某人」类，如命途第一章）在既有「到访（`ref ∈ thread.visited`）
+  + 目标 NPC 在场（`npc.location == ref`）」之外，**新增「须与目标 NPC 有过一轮交谈」
+  条件**（`GoalEngine._talked_with_npc` 命中：会话记录含双方发言、已落账的交谈记忆摘要，
+  或按对持久留存的已交谈标记，任一命中即算）。无 `npc_id` 的纯地点访问章保持旧口径。
+  老语义「到访即成（到访+在场即 done）」**已被本决策取代**，不得再按老语义实现或断言。
 - 服务端 `core/fate_thread.py:908-947` thread_status_dict：chapters_out 透传章内 `check`
   {kind, ref, npc_id}（存在时）；新增顶层 `current_target`：取第一个 active 且 visit 类 check 的章，
   现查目标 NPC（id 来自 check.npc_id）得 {npc_id, npc_name, npc_location, same_location}
@@ -108,6 +114,20 @@
   已习得/未习得」已撤销——status.skills 存的是功法名、spells_catalog 是 5 个神通名，
   全仓无「已习得神通」数据源，交集恒空、逐项标注恒为「未习得」，本身即误读来源。
   现行口径：图鉴段只作全录展示，不标任何习得态。
+
+## 决策记录
+
+- **2026-11-10 · M1 路线 (b) 确认（Martinez 亲口拍板）**：带 `npc_id` 的「去见某人」类
+  章节（`visit_location` + `npc_id`）必须真正与目标 NPC 交谈一轮才完成，不再「到访即成」。
+  本决策取代此前 B1-4 与 game-feel-phase2 §3.5 的老语义（到访+在场即 done）；
+  `docs/compose/spec/game-feel-phase2.md` §3.5 求值口径与章 0 备注已同步修订，
+  相关测试契约（ft03/ft06/ui02）已同步改写并留 superseded 可见记录。
+- **2026-11-10 · WAL 耐久口径声明（随块一并入本决策记录）**：`storage/db.py` 的
+  `_connect` 以 `journal_mode=WAL` + `synchronous=NORMAL` 覆盖全部仓储写——钱包、流水、
+  角色等所有仓储均经同一 `_connect` 入口，同一连接口径，无例外通道。RPO 说明：
+  进程崩溃不丢已提交数据；操作系统崩溃/断电可能丢最近几次提交。取舍理由：换取
+  tick 持锁由 ~20s 降至秒级（commit 不再逐次 fsync）。此取舍为块一有意决策，
+  非缺陷；热备份须先做 `wal_checkpoint(TRUNCATE)` 落盘（见 `tools/reset_world.py`）。
 
 ## Out of Scope
 - handle() 全局锁改造（仅 /转世 有界化）；tick 其余阶段拆锁；AI 上游可用性本身；

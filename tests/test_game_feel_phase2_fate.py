@@ -289,7 +289,14 @@ def test_ft02_unfinished_two_homes():
     assert t2.seed_source != "unfinished"
 
 
-def test_ft03_chapter_done_via_visit_and_next_activated():
+# --- SUPERSEDED 契约记录（不得静默改写，留痕）---
+# 旧测试名：test_ft03_chapter_done_via_visit_and_next_activated
+# 旧语义：「到访即成」——visit_location 章只要 ref ∈ visited 且目标 NPC 在场即 done。
+# 取代依据：Martinez 2026-11-10 亲口拍板路线 (b)——带 npc_id 的「去见某人」类章节
+# 必须真正与目标 NPC 交谈一轮才完成。见 docs/compose/spec/playability-block1.md
+# 「决策记录」与 B1-4 修订、game-feel-phase2.md §3.5 修订注记。
+# 新测试名如实反映新语义：test_ft03_chapter_done_via_talk_and_next_activated。
+def test_ft03_chapter_done_via_talk_and_next_activated():
     npc = _npc("FT三向导", location="万剑仙门峰")
     char = _manual_origin_char("FT三", npc)
     thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
@@ -371,6 +378,8 @@ def test_ft05_thread_module_produces_no_numbers():
         assert before == after
 
 
+# SUPERSEDED 注记（ft06）：旧断言要点——visit_location 仅凭 visited 命中 + NPC 在场即 done；
+# 已按新契约改写（须交谈一轮）。取代依据：Martinez 2026-11-10 路线 (b) 决策，见 playability-block1.md 决策记录。
 def test_ft06_new_check_kinds_and_climax_order():
     from core.karma_chains import KarmaChain
     from core.promises import Promise, PromiseStatus
@@ -880,6 +889,9 @@ def test_ui01_status_dict_thread_shape():
         "status", "deadline_at", "check"}
 
 
+# SUPERSEDED 注记（ui02）：旧断言要点——仅预置 visited 即可在 build_entry 内派生 fate_chapter；
+# 已按新契约改写（带 npc_id 时须先交谈一轮，否则求值 pending、不出 fate_chapter）。
+# 取代依据：Martinez 2026-11-10 路线 (b) 决策，见 playability-block1.md 决策记录。
 def test_ui02_entry_fate_and_drama_hooks(monkeypatch):
     from core.briefing import build_entry
 
