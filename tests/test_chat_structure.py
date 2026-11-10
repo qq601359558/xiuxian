@@ -141,6 +141,36 @@ def test_say_action_chat_lines():
 
 
 # ---------------------------------------------------------------------------
+# M3（块一修复轮3）：/说 chat_actions 未结束分支不得绕过命途求值
+# ---------------------------------------------------------------------------
+def test_say_gift_action_branch_evaluates_goals(monkeypatch):
+    """赠礼走 chat_actions 的 ok+未结束 return 路径；旧实现该路径直接
+    return、跳过主链求值块。用 FateThreadEngine.evaluate_for 计数探针
+    钉住：该分支返回前必须至少求值一次。"""
+    from core.fate_thread import FateThreadEngine
+
+    w = _world()
+    tok, char = _join(w, "结构求值客")
+    npc = _npc_name(char)
+    assert w.handle(tok, f"/交谈 {npc}").get("chat_open") is True
+    calls = {"n": 0}
+    orig = FateThreadEngine.evaluate_for
+
+    def _counting(cls, c, *a, **k):
+        calls["n"] += 1
+        return orig(c, *a, **k)
+
+    monkeypatch.setattr(
+        FateThreadEngine, "evaluate_for", classmethod(_counting))
+    calls["n"] = 0  # /交谈 本身的求值点不计入
+    r = w.handle(tok, "/说 赠你10灵石")
+    assert r.get("ok") is True, r
+    assert r.get("action") == "gift", r
+    assert r.get("chat_ended") is False, r
+    assert calls["n"] >= 1, "chat_actions 未结束分支返回前须做命途求值（M3）"
+
+
+# ---------------------------------------------------------------------------
 # §B 真人目标：/交谈 与 /说 均为 sys 传音确认，is_player 在场
 # ---------------------------------------------------------------------------
 def test_player_target_chat_lines():
