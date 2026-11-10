@@ -289,13 +289,38 @@ def test_ft02_unfinished_two_homes():
     assert t2.seed_source != "unfinished"
 
 
-def test_ft03_chapter_done_via_visit_and_next_activated():
+# --- SUPERSEDED 契约记录（不得静默改写，留痕）---
+# 旧测试名：test_ft03_chapter_done_via_visit_and_next_activated
+# 旧语义：「到访即成」——visit_location 章只要 ref ∈ visited 且目标 NPC 在场即 done。
+# 取代依据：Martinez 2026-11-10 亲口拍板路线 (b)——带 npc_id 的「去见某人」类章节
+# 必须真正与目标 NPC 交谈一轮才完成。见 docs/compose/spec/playability-block1.md
+# 「决策记录」与 B1-4 修订、game-feel-phase2.md §3.5 修订注记。
+# 新测试名如实反映新语义：test_ft03_chapter_done_via_talk_and_next_activated。
+def test_ft03_chapter_done_via_talk_and_next_activated():
     npc = _npc("FT三向导", location="万剑仙门峰")
     char = _manual_origin_char("FT三", npc)
     thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
     assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    # 复测再修（B1-4）：到访 ≠ 完成——须先走到向导面前，再与之交谈一轮
+    char.location = "万剑仙门峰"
+    CharacterRepository.save(char)
     res = FateThreadEngine.record_visit(char, "万剑仙门峰")
     th = res["thread"]
+    assert th.chapters[0]["status"] == "active"
+    from core import npc_chat
+
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    # 注意：evaluate_for 原地改传入的 char（章节派生新目标挂在其 goals 上），
+    # 须传内存中的 char 而非新取对象，否则章节 1 的目标只落在丢弃对象上；
+    # 线已由 evaluate_for 回存，char 须调用方回存。
+    res3 = FateThreadEngine.evaluate_for(char)
+    if res3.get("changed"):
+        CharacterRepository.save(char)
+    th = res3["thread"]
     assert th.chapters[0]["status"] == "done"
     assert th.chapters[1]["status"] == "active"
     inst = (th.chapters[1]["check"] or {}).get("instance")
@@ -303,6 +328,177 @@ def test_ft03_chapter_done_via_visit_and_next_activated():
     goal = next(g for g in char.goals if g.get("id") == th.chapters[1]["goal_id"])
     assert goal["source"] == "thread"
     assert (goal.get("check") or {}).get("instance") == inst
+
+
+def test_ft03b_talked_evidence_survives_session_switch():
+    """M4 回归：谈 A（未挂断/未落摘要）后切去与 B 开会话，单槽被覆盖，
+    A 的交谈证据不得消失——A 章求值仍可成（旧实现只认单槽+摘要会误判）。"""
+    npc_a = _npc("FT三乙向导甲")
+    npc_b = _npc("FT三乙向导乙")
+    char = _manual_origin_char("FT三乙", npc_a)
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["npc_id"] == npc_a.id
+    char.location = LOC
+    CharacterRepository.save(char)
+    FateThreadEngine.record_visit(char, LOC)
+    from core import npc_chat
+
+    # 与 A 谈一轮（不挂断、不落摘要）
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc_a)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    assert npc_chat.has_talked_pair(char.id, npc_a.id) is True
+    # 切去与 B 开会话：单槽被 B 覆盖，A 的会话记录不再是当前槽
+    opened_b = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc_b)
+    assert opened_b.get("success") is True, opened_b
+    said_b = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "道友安好")
+    assert said_b.get("success") is True, said_b
+    npc_chat.apply_npc_reply(char.id, "安好，请坐。", True)
+    slot = (npc_chat._load_all() or {}).get(char.id) or {}
+    assert slot.get("npc_id") == npc_b.id, "前置条件：单槽已切到 B"
+    # 证据仍在：按对标记命中，求值 A 章可成
+    char_now = CharacterRepository.get_by_id(char.id)
+    assert GoalEngine._talked_with_npc(char_now, npc_a) is True
+    res = FateThreadEngine.evaluate_for(char_now)
+    if res.get("changed"):
+        CharacterRepository.save(char_now)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+
+
+def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
+    """MF-1 回归（复审 6b）：经 /说 chat_actions 赠礼（未结束）分支与目标
+    NPC 谈一轮——该分支手工 append NPC 发言、不经 apply_npc_reply，旧实现
+    不写 M4 按对标记；切去与他人开会话（单槽覆盖）后，目标章的交谈证据
+    永久丢失、永不完成。修复口径：append 成功后补 mark_talked_pair，此后
+    record_visit 触发求值时带 npc_id 的 visit_location 章应 done。
+
+    漏口复现关键（staging 修订）：赠礼分支内的即时求值不得提前成章，
+    证据只能靠按对标记留存。原 staging 靠「visited 未含 ref」挡成章，
+    已被 ft03d 的 C 口径取代——出生地同场原地谈完本就应即时成章，
+    再靠 visited 缺失挡章等于把已修缺陷当装置。故 staging 改挡在
+    另一半：赠礼时目标 NPC 暂离 ref（npc.location ≠ ref，求值恒
+    pending），玩家与 A、B 均暂置于万剑仙门峰同场完成赠礼与切会话；
+    末段 A 迁回 ref 后 record_visit 触发求值，隔离目标不变。
+    """
+    from core import npc_chat
+    from server.world import WORLD
+
+    WORLD.stop_tick()
+    npc_a = _npc("FT三丙向导甲")
+    npc_b = _npc("FT三丙向导乙", location="万剑仙门峰")
+    char = _manual_origin_char("FT三丙", npc_a)
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["npc_id"] == npc_a.id
+    assert thread.chapters[0]["check"]["ref"] == LOC
+    assert LOC not in (thread.visited or []), \
+        "前置条件：visited 未含 ref（本测试全程不靠 visited 挡章，见 docstring）"
+    # ensure_thread 把章节目标挂在内存 char 上（不自行落盘），须回存，
+    # 否则 World 按 DB 重读 char 时章节目标缺失（ft03 同口径）。
+    CharacterRepository.save(char)
+    # staging：A 暂离 ref、玩家随行至万剑仙门峰（B 亦在此），赠礼与
+    # 切会话都在该地同场进行；此时求值被 npc.location ≠ ref 挡住。
+    npc_a.location = "万剑仙门峰"
+    CharacterRepository.save(npc_a)
+    npc_a = CharacterRepository.get_by_id(npc_a.id)
+    assert npc_a.location != LOC, "前置条件：赠礼时目标 NPC 不在 ref"
+    char.location = "万剑仙门峰"
+    CharacterRepository.save(char)
+    char = CharacterRepository.get_by_id(char.id)
+
+    joined = WORLD.join(char.name, user_id=char.user_id)
+    tok = joined.get("token")
+    assert tok, joined
+    r0 = WORLD.handle(tok, f"/交谈 {npc_a.name}")
+    assert r0.get("chat_open") is True, r0
+    r = WORLD.handle(tok, "/说 赠你10灵石")
+    assert r.get("ok") is True, r
+    assert r.get("action") == "gift", r
+    assert r.get("chat_ended") is False, r
+    # 赠礼后章仍 active（目标 NPC 不在 ref）：证据此时只能靠按对标记留存
+    th_mid = FateThreadRepository.get_by_id(thread.id)
+    assert th_mid.chapters[0]["status"] == "active", th_mid.chapters[0]
+
+    # 切去与 B 开会话：单槽被 B 覆盖，A 的会话记录不再是当前槽
+    rb = WORLD.handle(tok, f"/交谈 {npc_b.name}")
+    assert rb.get("chat_open") is True, rb
+    slot = (npc_chat._load_all() or {}).get(char.id) or {}
+    assert slot.get("npc_id") == npc_b.id, "前置条件：单槽已切到 B"
+    assert npc_chat.has_talked_pair(char.id, npc_a.id) is True, \
+        "赠礼分支谈完一轮后应留下按 (玩家, 目标NPC) 对的交谈标记（MF-1）"
+
+    # A 迁回 ref 后再触发求值：迁跃落点记 visited 后 evaluate，目标章应 done
+    npc_a.location = LOC
+    CharacterRepository.save(npc_a)
+    char_now = CharacterRepository.get_by_id(char.id)
+    res = FateThreadEngine.record_visit(char_now, LOC)
+    if res.get("changed"):
+        CharacterRepository.save(char_now)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+
+
+def test_ft03d_born_at_target_talk_in_place_completes():
+    """出生地同场回归（simr2b 复现）：角色出生地即第一章 ref、目标 NPC
+    同场、从未 /go 过（visited 从未落账），原地交谈一轮后章节应 done。
+
+    卡点定性：visited 只由 /go 落点 record_visit 写入，出生地从未被记入；
+    旧求值只认 visited 一半，原地把话谈完（交谈证据正确落账）章节仍
+    active，必须离场再 /go 返回才完成。修复口径（C，纯求值、零写入）：
+    visit_location 求值时「角色当前所在地 == ref」视为已到访，与
+    visited 命中取或；visited 账本身不写、不污染其 /go 落点语义。
+    两半钉住：交谈前仅原地站立（到访一半成立、交谈一半缺）仍 active；
+    交谈后两半齐 → done，且 visited 仍未被写入（零写入口径）。
+    """
+    npc = _npc("FT三丁向导")  # 默认 LOC，与出生地同场
+    char = _manual_origin_char("FT三丁", npc)  # 默认 location=LOC、birthplace=LOC
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["ref"] == LOC
+    assert thread.chapters[0]["check"]["npc_id"] == npc.id
+    assert char.location == LOC, "前置条件：角色就在出生地（=章节 ref）"
+    assert LOC not in (thread.visited or []), \
+        "前置条件：从未 /go，visited 未含出生地 ref"
+    # ensure_thread 把章节目标挂在内存 char 上，须回存（ft03c 同口径）
+    CharacterRepository.save(char)
+
+    # 仅原地站立（未交谈）：到访一半成立、交谈一半缺 → 仍 active
+    assert GoalEngine._talked_with_npc(
+        CharacterRepository.get_by_id(char.id),
+        CharacterRepository.get_by_id(npc.id)) is False
+    res0 = FateThreadEngine.evaluate_for(char)
+    if res0.get("changed"):
+        CharacterRepository.save(char)
+    assert res0["thread"].chapters[0]["status"] == "active", \
+        res0["thread"].chapters[0]
+
+    # 原地交谈一轮（不 /go、不 record_visit）
+    from core import npc_chat
+
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    assert GoalEngine._talked_with_npc(
+        CharacterRepository.get_by_id(char.id),
+        CharacterRepository.get_by_id(npc.id)) is True
+
+    # 交谈后求值：两半齐 → 章节 done、下一章 active；visited 仍零写入
+    res = FateThreadEngine.evaluate_for(char)
+    if res.get("changed"):
+        CharacterRepository.save(char)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+    assert LOC not in (th.visited or []), \
+        "C 口径为纯求值：完成不得靠回写 visited 污染 /go 落点账"
 
 
 def test_ft04_death_seal_and_next_life_seed():
@@ -353,6 +549,8 @@ def test_ft05_thread_module_produces_no_numbers():
         assert before == after
 
 
+# SUPERSEDED 注记（ft06）：旧断言要点——visit_location 仅凭 visited 命中 + NPC 在场即 done；
+# 已按新契约改写（须交谈一轮）。取代依据：Martinez 2026-11-10 路线 (b) 决策，见 playability-block1.md 决策记录。
 def test_ft06_new_check_kinds_and_climax_order():
     from core.karma_chains import KarmaChain
     from core.promises import Promise, PromiseStatus
@@ -369,6 +567,14 @@ def test_ft06_new_check_kinds_and_climax_order():
         char, source="thread", title="访", detail="d",
         check={"kind": "visit_location", "ref": LOC, "npc_id": npc.id},
         instance=f"{thread.id}:c0")
+    # 复测再修（B1-4）：带 npc_id 的 visit 章须与目标交谈一轮才成
+    from core import npc_chat
+
+    _opened = npc_chat.open_session(char, npc)
+    assert _opened.get("success") is True, _opened
+    _said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert _said.get("success") is True, _said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
     GoalEngine.evaluate_checked_goals(char, time.time())
     assert g["status"] == "done"
     g2 = GoalEngine.add_checked_goal(
@@ -845,14 +1051,18 @@ def test_ui01_status_dict_thread_shape():
     assert th is not None
     for key in ("id", "title", "status", "seed_source", "seed_ref",
                 "antagonist", "patron", "final_proposition",
-                "current_chapter", "chapters", "shelvable", "origin_present"):
+                "current_chapter", "current_target", "chapters", "shelvable", "origin_present"):
         assert key in th, key
     assert set(th["final_proposition"].keys()) == {"text", "status"}
+    # B1-4（playability-block1）：chapters 透传章内 check（存在时才带），故键集多 "check"。
     assert set(th["chapters"][0].keys()) == {
         "idx", "group", "kind", "tier", "title", "goal_text",
-        "status", "deadline_at"}
+        "status", "deadline_at", "check"}
 
 
+# SUPERSEDED 注记（ui02）：旧断言要点——仅预置 visited 即可在 build_entry 内派生 fate_chapter；
+# 已按新契约改写（带 npc_id 时须先交谈一轮，否则求值 pending、不出 fate_chapter）。
+# 取代依据：Martinez 2026-11-10 路线 (b) 决策，见 playability-block1.md 决策记录。
 def test_ui02_entry_fate_and_drama_hooks(monkeypatch):
     from core.briefing import build_entry
 
@@ -862,6 +1072,15 @@ def test_ui02_entry_fate_and_drama_hooks(monkeypatch):
     # 预置 visited（不求值）：章节派生须发生在 build_entry 内才成 queue 项
     thread.visited = [LOC]
     FateThreadRepository.save(thread)
+    # 复测再修（B1-4）：带 npc_id 的 visit 章须与向导交谈一轮才成，否则
+    # build_entry 内求值仍 pending，不出 fate_chapter 项
+    from core import npc_chat
+
+    _opened = npc_chat.open_session(char, npc)
+    assert _opened.get("success") is True, _opened
+    _said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert _said.get("success") is True, _said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
     entry = build_entry(char, since=0.0, now=time.time(), allow_proactive=False)
     kinds = [q.get("kind") for q in entry["queue"]]
     assert "fate_chapter" in kinds
@@ -955,7 +1174,8 @@ def test_ui04_fate_commands_via_handle():
     from core.command_catalog import catalog_json
 
     _cj = catalog_json()
-    assert _cj["count"] == 108
+    # B1-5（playability-block1）：新增 /修炼 主命令，实测计数 108→109。
+    assert _cj["count"] == 109
     _cmds = {e["cmd"] for e in _cj["commands"]}
     assert "/命途" in _cmds and "/回应" in _cmds
 

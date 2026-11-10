@@ -410,3 +410,21 @@ def test_mobile_redesign_budgets():
     assert js_lines <= 2100, f"mobile.js {js_lines} 行超 2100 行豁免上限（command-panels §7 / chat-structure D2）"
     assert js_lines - 1172 <= 928, f"mobile.js 净增 {js_lines - 1172} 行超 928（command-panels §7 / chat-structure D2）"
     print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js {js_lines} 行（净增 +{js_lines - 1172}）")
+
+
+def test_mf3_spells_catalog_no_learned_labels():
+    """MF-3（块一评审，前提纠正）：神通图鉴撤销逐项习得标——skills 存功法名、
+    spells_catalog 为神通名，无已习得神通数据源，交集恒空属误读。
+    双端只保留段标题「神通图鉴（全录）」，learned/unlearned 标注与 CSS 删除。"""
+    wb_js = (WEB / "workbench.js").read_text(encoding="utf-8")
+    mb_js = (WEB / "mobile.js").read_text(encoding="utf-8")
+    wb_css = (WEB / "workbench.css").read_text(encoding="utf-8")
+    mb_css = (WEB / "mobile.css").read_text(encoding="utf-8")
+    for src, name in ((wb_js, "workbench.js"), (mb_js, "mobile.js")):
+        assert "神通图鉴（全录）" in src, name
+        assert "learned" not in src, name
+        assert '"未习得"' not in src, name  # 逐项标签字面量（「尚未习得功法」为功法区既有文案，不在此列）
+    for src, name in ((wb_css, "workbench.css"), (mb_css, "mobile.css")):
+        assert ".art-chip.learned" not in src, name
+        assert ".art-chip.unlearned" not in src, name
+    print("✓ MF-3 神通图鉴：习得标与 CSS 已撤销、段标题保留")

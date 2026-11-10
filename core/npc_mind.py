@@ -424,7 +424,18 @@ class NpcDialogueEngine:
         # 玩家侧：灵石/行囊，谈买卖时才有意义
         inv_brief = "、".join(player.inventory[:8]) or "无"
         # 货单摘要（谈交易时给 AI 可卖什么，避免「不卖这个」）
-        goods_brief = "、".join(f"{n}({c['price']}灵石)" for n, c in list(ITEM_CATALOG.items())[:8])
+        # B1-6：目录双键（中文名/id 同物两键）——显示名取 cfg.name 并按 id 去重，防原码经叙事泄漏
+        _goods_seen: set = set()
+        _goods_parts: List[str] = []
+        for _k, _c in ITEM_CATALOG.items():
+            _ident = _c.get("id") or _c.get("name") or _k
+            if _ident in _goods_seen:
+                continue
+            _goods_seen.add(_ident)
+            _goods_parts.append(f"{_c.get('name') or _k}({_c['price']}灵石)")
+            if len(_goods_parts) >= 8:
+                break
+        goods_brief = "、".join(_goods_parts)
         # 时间
         try:
             from core.season import season_status_text
@@ -513,16 +524,18 @@ class NpcDialogueEngine:
             delta = max(-10, min(10, delta))
             source = "ai"
         else:
-            # 配置了 Key 却失败：不要静默用固定模板冒充 AI
-            if ai_available() and not local_ai_allowed():
-                return {
-                    "ok": False,
-                    "error": (
-                        "【造化未应】AI 网关无响应或鉴权失败。"
-                        "若用 CC Switch：.env 设 USE_CCSWITCH=1 并保证 CC Switch 在线、账号健康；"
-                        "或检查 LLM_API_*。详情见 data/server.log。"
-                    ),
-                }
+            # 产品决策（2026-11-09 Martinez 清单，B1-3）：兜底优先于静默报错——AI 失败/不可用
+            # 一律走本地兜底，原「不假冒 AI」意图废止；运维细节只进 log_event，不入玩家文案。
+            try:
+                from server.log import log_event as _log_event
+
+                _log_event(
+                    "AI", "talk_local_fallback",
+                    npc=npc.name, ai_available=bool(ai_available()),
+                    local_allowed=bool(local_ai_allowed()),
+                )
+            except Exception:
+                pass
             # 本地兜底也按职分给「本行买卖」语气
             pers = mind.get("personality") or ""
             if any(k in words for k in ("丹", "药", "买", "卖", "价", "灵石")) and (
@@ -530,7 +543,17 @@ class NpcDialogueEngine:
             ):
                 try:
                     from config import ITEM_CATALOG
-                    pills = [n for n, c in ITEM_CATALOG.items() if c.get("kind") == "pill"]
+                    # B1-6：按 cfg.name 显示、按 id 去重（目录双键防原码/重复）
+                    _pill_seen: set = set()
+                    pills: List[str] = []
+                    for _k, _c in ITEM_CATALOG.items():
+                        if _c.get("kind") != "pill":
+                            continue
+                        _ident = _c.get("id") or _c.get("name") or _k
+                        if _ident in _pill_seen:
+                            continue
+                        _pill_seen.add(_ident)
+                        pills.append(_c.get("name") or _k)
                     pill_s = "、".join(pills[:4]) or "聚气丹、筑基丹"
                     line = f"{npc.name}拨弄药瓶：「{pill_s} 都在架上，官人要哪味？也可直接 /购买。」"
                     delta = 1

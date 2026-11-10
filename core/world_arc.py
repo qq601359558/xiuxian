@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import (
     DIRECTIVE_TO_ARC,
-    LLM_TIMEOUT_SECONDS,
     SEASON_WARN_DAYS,
     SECRET_REALMS,
     WORLD_ARC_ESCALATE_SEC,
@@ -399,7 +398,12 @@ def _escalate_text(kind: str, title: str, loc: str, arc: Dict[str, Any]) -> str:
 
 
 def _ai_stage_text(arc: Dict[str, Any], stage: str, template_text: str) -> str:
-    """有 AI 时按弧上下文改写阶段叙事；失败回退模板（结果已由规则定）"""
+    """有 AI 时按弧上下文改写阶段叙事；失败回退模板（结果已由规则定）
+
+    块一评审 MF-1：本函数在 world tick 锁内（阶段推进、每 tick ≤2 次）
+    被调用，AI 仅作叙事点缀——短超时 2s 且 count_failure=False
+    （失败不计入主通道熔断），超时/失败走模板兜底，与既有失败路径一致。
+    """
     try:
         import config as cfg
 
@@ -424,7 +428,7 @@ def _ai_stage_text(arc: Dict[str, Any], stage: str, template_text: str) -> str:
             "template": template_text,
             "participants": arc.get("participants") or [],
         }
-        r = invoke("world_arc_stage", payload=payload, actor_id=arc.get("id") or "arc", timeout=LLM_TIMEOUT_SECONDS)
+        r = invoke("world_arc_stage", payload=payload, actor_id=arc.get("id") or "arc", timeout=2, count_failure=False)
         if r.get("ok") and isinstance(r.get("data"), dict):
             line = str(r["data"].get("narrative") or r["data"].get("text") or "").strip()
             if line:

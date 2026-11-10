@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import contextlib
+import sqlite3
 import threading
 import time
 import uuid
@@ -102,6 +103,16 @@ _LOCK_SNAPSHOT_RESERVE_SECONDS = 0.3
 SERVER_BUSY_MESSAGE = "世界正在演化，请稍后重试"
 
 
+def is_db_locked_error(exc: BaseException) -> bool:
+    """DB 争用类异常判定（playability-block1 B1-1）：sqlite3.OperationalError
+    且消息含 locked/busy。此类异常是 tick/并发窗口的瞬时争用，注册/入世
+    路径应转 WorldBusyError → 503 可重试，绝不裸 500；其余异常照旧抛。"""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    msg = str(exc).lower()
+    return "locked" in msg or "busy" in msg
+
+
 # ---- 交谈结构化呈现（chat-structure spec §B）：chat_lines 拼装助手 ----
 # 语义：本次响应要在交谈视图新增呈现的行；前端只按字段渲染，不再解析 text。
 # 每条 text 在此统一过呈现清洗（§C，幂等）；text 字段本身保持原样不动。
@@ -182,10 +193,16 @@ class World:
                 continue
 
     def _tick_once(self):
-        """一轮 tick：整轮持锁（本轮 O1 不动），分阶段计时记 TICK 日志。
+        """一轮 tick（playability-block1 B1-2 三段式）：AI 阶段移出 World.lock。
 
-        下一轮“tick 内 AI 移出临界区”重构的定量输入即 phases 字段。
-        单阶段异常仍按现状 swallow，但记带阶段名的错误行。
+        分工：纯规则阶段维持锁内；agenda 与 director 两阶段走
+        「锁内取快照（DTO）→ 锁外调 AI → 锁内复验落盘」——agenda 经
+        NpcAgendaEngine.prepare/ai/apply_tick_world，director 经
+        WorldDirector.prepare/propose/apply_cycle。持锁时长只计锁内段
+        （hold_ms），整轮墙钟另记 wall_ms；phases 保留 agenda/director
+        总时长键并增 *_prepare/*_ai/*_apply 分段键。单阶段异常仍按现状
+        swallow，但记带阶段名的错误行。结算口径不变：规则结算仍在锁内
+        段一完成，AI 只改叙事/提案内容，落盘前复验（见各引擎段三）。
         """
         t_start = time.time()
         self._tick_count = getattr(self, "_tick_count", 0) + 1
@@ -194,6 +211,7 @@ class World:
         except Exception:
             pass
         phases: Dict[str, int] = {}
+        lock_hold_seconds = [0.0]
 
         def _run_phase(name: str, fn) -> None:
             t0 = time.time()
@@ -206,69 +224,121 @@ class World:
                     pass
             phases[name] = int((time.time() - t0) * 1000)
 
-        with self.lock:
-            def _jianghu():
-                from core.jianghu_sim import JianghuSimulator
+        def _locked_phase(name: str, fn) -> None:
+            with self.lock:
+                t0 = time.time()
+                _run_phase(name, fn)
+                lock_hold_seconds[0] += time.time() - t0
 
-                JianghuSimulator.simulate_offline()
+        def _unlocked_phase(name: str, fn) -> None:
+            _run_phase(name, fn)
 
-            _run_phase("jianghu", _jianghu)
+        def _jianghu():
+            from core.jianghu_sim import JianghuSimulator
 
-            def _agenda():
-                NpcAgendaEngine.tick_world(max_npcs=3, force=False)
+            JianghuSimulator.simulate_offline()
 
-            _run_phase("agenda", _agenda)
+        _locked_phase("jianghu", _jianghu)
 
-            def _director():
+        # ---- agenda 三段式 ----
+        _agenda_holder: Dict[str, Any] = {}
+
+        def _agenda_prepare():
+            _agenda_holder["prepared"] = NpcAgendaEngine.prepare_tick_world(max_npcs=3, force=False)
+
+        _locked_phase("agenda_prepare", _agenda_prepare)
+
+        def _agenda_ai():
+            NpcAgendaEngine.ai_tick_world(_agenda_holder.get("prepared") or [])
+
+        _unlocked_phase("agenda_ai", _agenda_ai)
+
+        def _agenda_apply():
+            NpcAgendaEngine.apply_tick_world(_agenda_holder.get("prepared") or [])
+
+        _locked_phase("agenda_apply", _agenda_apply)
+        phases["agenda"] = (
+            phases.get("agenda_prepare", 0) + phases.get("agenda_ai", 0) + phases.get("agenda_apply", 0)
+        )
+
+        # ---- director 三段式 ----
+        _director_holder: Dict[str, Any] = {}
+
+        def _director_prepare():
+            from core.world_director import WorldDirector
+
+            plan, _early = WorldDirector.prepare_cycle(trigger="timer", force=False)
+            _director_holder["plan"] = plan
+
+        _locked_phase("director_prepare", _director_prepare)
+
+        def _director_ai():
+            plan = _director_holder.get("plan")
+            if plan is not None:
                 from core.world_director import WorldDirector
 
-                WorldDirector.run_cycle(trigger="timer", force=False)
+                _director_holder["proposal"] = WorldDirector.propose_cycle(plan)
 
-            _run_phase("director", _director)
+        _unlocked_phase("director_ai", _director_ai)
 
-            def _world_arc():
-                from core import world_arc
+        def _director_apply():
+            plan = _director_holder.get("plan")
+            proposal = _director_holder.get("proposal")
+            if plan is not None and proposal is not None:
+                from core.world_director import WorldDirector
 
-                world_arc.tick_world(max_advance=2)
+                cleaned, source, error = proposal
+                WorldDirector.apply_cycle(plan, cleaned, source, error)
 
-            _run_phase("world_arc", _world_arc)
+        _locked_phase("director_apply", _director_apply)
+        phases["director"] = (
+            phases.get("director_prepare", 0) + phases.get("director_ai", 0) + phases.get("director_apply", 0)
+        )
 
-            def _faction():
-                from core import faction
+        def _world_arc():
+            from core import world_arc
 
-                faction.tick_world()
+            world_arc.tick_world(max_advance=2)
 
-            _run_phase("faction", _faction)
+        _locked_phase("world_arc", _world_arc)
 
-            def _player_echo():
-                from core import player_echo
+        def _faction():
+            from core import faction
 
-                player_echo.decay_echoes()
+            faction.tick_world()
 
-            _run_phase("player_echo", _player_echo)
+        _locked_phase("faction", _faction)
 
-            def _era_reentry():
-                from core import era_reentry
+        def _player_echo():
+            from core import player_echo
 
-                era_reentry.tick()
+            player_echo.decay_echoes()
 
-            _run_phase("era_reentry", _era_reentry)
+        _locked_phase("player_echo", _player_echo)
 
-            def _auction():
-                from core.trade import AuctionEngine
+        def _era_reentry():
+            from core import era_reentry
 
+            era_reentry.tick()
+
+        _locked_phase("era_reentry", _era_reentry)
+
+        def _auction():
+            from core.trade import AuctionEngine
+
+            try:
+                AuctionEngine.advance(react=True)
+            except Exception as e:
                 try:
-                    AuctionEngine.advance(react=True)
-                except Exception as e:
-                    try:
-                        log_event("AUCTION", "advance_error", err=str(e)[:120])
-                    except Exception:
-                        pass
+                    log_event("AUCTION", "advance_error", err=str(e)[:120])
+                except Exception:
+                    pass
 
-            _run_phase("auction", _auction)
-        hold_ms = int((time.time() - t_start) * 1000)
+        _locked_phase("auction", _auction)
+        hold_ms = int(lock_hold_seconds[0] * 1000)
+        wall_ms = int((time.time() - t_start) * 1000)
         try:
-            log_event("TICK", "tick_end", tick_no=self._tick_count, hold_ms=hold_ms, phases=phases)
+            log_event("TICK", "tick_end", tick_no=self._tick_count, hold_ms=hold_ms, wall_ms=wall_ms, phases=phases)
         except Exception:
             pass
 
@@ -334,7 +404,14 @@ class World:
             raise ValueError("join requires an authenticated user_id")
         if _deadline is None:
             _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
-        return self._join_inner(name, user_id, auto_rebirth=auto_rebirth, _deadline=_deadline)
+        try:
+            return self._join_inner(name, user_id, auto_rebirth=auto_rebirth, _deadline=_deadline)
+        except sqlite3.OperationalError as e:
+            # B1-1 注册兜底：DB 争用（database is locked/busy）转繁忙语义，
+            # HTTP 层回 503 SERVER_BUSY，绝不裸 500；其他异常照旧抛。
+            if is_db_locked_error(e):
+                raise WorldBusyError(SERVER_BUSY_MESSAGE) from e
+            raise
 
     def _acquire_bounded(self, deadline: float) -> bool:
         """以 deadline 为界尝试取 World.lock（§2.2.4）。
@@ -1030,8 +1107,14 @@ class World:
         }
 
     def reincarnate(self, token: str, name: Optional[str] = None, boosts: Optional[List[str]] = None) -> Dict[str, Any]:
-        """转世：结算（若需）→ 新一世 → 消费道统点"""
-        with self.lock:
+        """转世：结算（若需）→ 新一世 → 消费道统点
+
+        B1-2：拿锁改有界（_bounded_lock 口径）——锁被 tick 等长期占用时
+        抛 WorldBusyError（HTTP 层 503 SERVER_BUSY），不许无界等待。
+        已持锁线程（handle 分发）经 RLock 重入立即成功，口径不变。
+        """
+        _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+        with self._bounded_lock(_deadline):
             session = self._session(token)
             if not session:
                 return {"ok": False, "error": "会话无效"}
@@ -1198,6 +1281,20 @@ class World:
 
     # ---------------- 指令路由（权威） ----------------
     def handle(self, token: str, command: str) -> Dict[str, Any]:
+        """指令分发。B1-2：仅 /转世（含 /reborn）走有界拿锁——锁被长期
+        占用时抛 WorldBusyError（HTTP 层转 503 SERVER_BUSY 诚实文案），
+        不许无界等待；其余命令维持既有无界 with self.lock 不动。"""
+        _parts = command.strip().split() if isinstance(command, str) else []
+        _action0 = _parts[0].lower() if _parts else ""
+        if _action0 in ("/reborn", "/转世"):
+            _deadline = time.monotonic() + LOCK_ACQUIRE_TIMEOUT_SECONDS
+            with self._bounded_lock(_deadline):
+                return self._handle_locked(token, command)
+        with self.lock:
+            return self._handle_locked(token, command)
+
+    def _handle_locked(self, token: str, command: str) -> Dict[str, Any]:
+        """handle 实现体（调用方已持 World.lock；此处 RLock 重入无等待）。"""
         with self.lock:
             char = self.get_char(token)
             if not char:
@@ -1415,6 +1512,8 @@ class World:
                     }
 
             # 闭关锁定：洞府入定，只许观照/出关等只读敕令
+            # B1-5：/修炼 按 /闭关 同口径——同为入定重行为，二者均不在白名单内，
+            # 闭关中再发 /修炼 与 /闭关 一样被锁门拦截（行为一致，勿单独放行 /修炼）。
             if char.status == CharacterStatus.MEDITATING:
                 med_ok = (
                     "/look", "/地图", "look", "/道身",
@@ -1869,7 +1968,10 @@ class World:
                     except Exception:
                         pass
                 return res
-            if action in ("/meditate", "/闭关", "/打坐"):
+            if action in ("/meditate", "/闭关", "/打坐", "/修炼"):
+                # B1-5：/修炼 为一等入口，与 /闭关 同一 _meditate 处理（参数口径一致，
+                # 经既有生死/被擒/闭关门禁至此，不自创绕行）；精确匹配优先，与
+                # /炼体 修炼、/炼神 修炼 的子命令分发无冲突（那是 action=/炼体|/炼神）。
                 hours = 1.0
                 if len(parts) > 1:
                     try:
@@ -1954,18 +2056,19 @@ class World:
                 return {"ok": True, "text": "\n".join(lines), "items": rows}
             if action in ("/ai", "/ai自检"):
                 from ai.gateway import probe_ai_channel, ccswitch_runtime
-                from config import LLM_API_BASE, LLM_MODEL, LLM_API_KEY, USE_CCSWITCH
+                from config import LLM_MODEL, USE_CCSWITCH
                 from core.world_director import director_quality_report
 
                 rt = ccswitch_runtime() if USE_CCSWITCH else {}
                 health = probe_ai_channel(force=True)
                 ok = bool(health.get("ok"))
-                mode = "CC Switch 本机代理" if USE_CCSWITCH else "OpenAI 兼容直连"
-                base = rt.get("base") or LLM_API_BASE
+                # MF-2（块一评审）：玩家面板去运维泄漏——模式只作中性表述，
+                # 通道地址（LLM_API_BASE 原文）不出现在文本与结构化回包中。
+                mode = "本机代理" if USE_CCSWITCH else "云端直连"
                 model = rt.get("model") or LLM_MODEL
                 lines = [
                     f"【AI 自检】模式：{mode}",
-                    f"地址：{base} · 模型：{model}",
+                    f"模型：{model}",
                     f"对话测试：{'成功 ' + str(health.get('sample') or '') if ok else '失败 — ' + str(health.get('error') or '')}",
                     "",
                 ]
@@ -1983,16 +2086,20 @@ class World:
                     lines.append(f"【天道导演链路】自检失败：{e}")
                 lines += [
                     "",
-                    "若用 CC Switch：.env 设 USE_CCSWITCH=1，并保持 CC Switch 在线、",
-                    "当前 Claude 账号可用（在 CC Switch 界面切换账号）。",
+                    "灵机未至时，交谈与世间诸事会以常理应答，不必忧心。",
                     "健康结果已写入 world_state，失败时交谈/事件会降级并提示。",
                     "网页 HUD：/world/director · 按钮：天道/势力/望气/世界弧/纪元回流",
                 ]
+                # 回包副本脱敏：去掉通道地址、模式改中性口径（存储的
+                # health 原件不动，运维侧仍可经 world_state 查看）。
+                ai_data = dict(health or {})
+                ai_data.pop("base", None)
+                ai_data["mode"] = mode
                 return {
                     "ok": True,
                     "text": "\n".join(lines),
                     "ai_ok": ok,
-                    "ai_data": health,
+                    "ai_data": ai_data,
                     "director_quality": q,
                 }
             if action in ("/帮助", "/help", "/指令"):
@@ -3553,6 +3660,22 @@ class World:
                                 W.set(npc_chat._KEY, d)
                         except Exception:
                             pass
+                        # 命途求值点（块一复测再修 B1-4）：/交谈 <人> <话一并交谈
+                        # 同为一轮交谈，与 /说 回路同口径立即求值。
+                        try:
+                            from core.goals import evaluate_checked_goals as _eval_goals_talk
+
+                            if _eval_goals_talk(char):
+                                CharacterRepository.save(char)
+                        except Exception:
+                            pass
+                        try:
+                            from core.fate_thread import FateThreadEngine as _FTE_talk
+
+                            if _FTE_talk.evaluate_for(char).get("changed"):
+                                CharacterRepository.save(char)
+                        except Exception:
+                            pass
                         return {
                             "ok": True,
                             "text": greet + "\n\n" + res.get("text", ""),
@@ -3610,6 +3733,30 @@ class World:
                 from core.npc_mind import _is_npc
                 is_target_npc = _is_npc(npc)
 
+                def _eval_after_chat(_char):
+                    """M3（修复轮3）：/说 各出口统一的命途求值点。
+
+                    口径与主链一致：evaluate_checked_goals + FateThreadEngine
+                    .evaluate_for 两段各自 try/except 包裹、不炸主流程；
+                    求值翻转/changed 才 CharacterRepository.save 回存。
+                    chat_actions 的两路提前 return 与主对话链统一调用本 helper，
+                    不再绕过求值（此前动作分支说完话章节永不推进）。
+                    """
+                    try:
+                        from core.goals import evaluate_checked_goals as _ev_goals
+
+                        if _ev_goals(_char):
+                            CharacterRepository.save(_char)
+                    except Exception:
+                        pass
+                    try:
+                        from core.fate_thread import FateThreadEngine as _FTE_ev
+
+                        if _FTE_ev.evaluate_for(_char).get("changed"):
+                            CharacterRepository.save(_char)
+                    except Exception:
+                        pass
+
                 # 头像下发（gallery-gameplay §10.3-5）：与同场 list_here
                 # 共用一处解析，本分支各 chat_open 返回点统一带 avatar。
                 from core.here import avatar_path_for_character as _avatar_fn
@@ -3664,6 +3811,7 @@ class World:
                                 attitude_delta=0,
                                 hangup_reason=act.get("hangup_reason") or "会话终止。",
                             )
+                            _eval_after_chat(char)
                             return {
                                 "ok": True,
                                 "text": act.get("text", ""),
@@ -3693,8 +3841,18 @@ class World:
                                 rec2["updated_at"] = time.time()
                                 d[char.id] = rec2
                                 W.set(npc_chat._KEY, d)
+                                # MF-1（复审 6b）：本分支手工 append 不经
+                                # apply_npc_reply，须同口径补写 M4 按对标记——
+                                # player_say 已记玩家句、本次 NPC 文本已 append，
+                                # 双方各 ≥1 自动满足；否则切去与他人开会话
+                                # （单槽覆盖）后目标章交谈证据永久丢失。
+                                try:
+                                    npc_chat.mark_talked_pair(char.id, npc.id)
+                                except Exception:
+                                    pass
                             except Exception:
                                 pass
+                        _eval_after_chat(char)
                         return {
                             "ok": True,
                             "text": act.get("text", ""),
@@ -3806,6 +3964,11 @@ class World:
                         CharacterRepository.save(npc)
                     except Exception:
                         pass
+                # 命途求值点（块一复测再修 B1-4）：与目标 NPC 的一轮交谈是
+                # 第一章 visit_location 的完成条件之一（见 goals._talked_with_npc），
+                # 回复落账后立即求值，否则章须等下一次迁跃/登录触发才推进。
+                # M3：统一走 _eval_after_chat（chat_actions 两路分支同口径）。
+                _eval_after_chat(char)
                 banter_text = ""
                 banter_list: list = []
                 try:
@@ -4709,7 +4872,7 @@ class World:
                 if not ai_available() and not local_ai_allowed():
                     return {
                         "ok": False,
-                        "error": "【天道未启】自创功法需 AI 通道（配置 Key 或 USE_CCSWITCH=1）",
+                        "error": "【天道未启】自创功法需天道灵机应答，此刻灵机未至，暂不可创法。",
                     }
                 art = AIGateway.generate_custom_art(concept, char.name)
                 valid, check_msg = DSLValidator.validate_custom_art(art)

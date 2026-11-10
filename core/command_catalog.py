@@ -66,7 +66,8 @@ COMMANDS: List[Dict[str, Any]] = [
     {"cmd": "/议程", "aliases": ["/agenda"], "usage": "/议程", "desc": "NPC 当前议程一览", "category": "world"},
 
     # 修炼
-    {"cmd": "/闭关", "aliases": ["/meditate"], "usage": "/闭关 [小时]", "desc": "挂机闭关吐纳（有有效窗口，枯坐无益）", "category": "cultivate"},
+    {"cmd": "/闭关", "aliases": ["/meditate"], "usage": "/闭关 [小时]", "desc": "挂机闭关吐纳（有有效窗口，枯坐无益）；/修炼 与此同源，见 /修炼", "category": "cultivate"},
+    {"cmd": "/修炼", "aliases": [], "usage": "/修炼 [小时]", "desc": "即入定修行，与 /闭关 同源（同一入定结算，租金与禁忌见闭关反馈）", "category": "cultivate"},
     {"cmd": "/出关", "aliases": [], "usage": "/出关", "desc": "结束闭关并结算", "category": "cultivate"},
     {"cmd": "/突破", "aliases": ["/break"], "usage": "/突破", "desc": "引动大境界天劫（须修为圆满）", "category": "cultivate"},
     {"cmd": "/归隐", "aliases": [], "usage": "/归隐 [h]", "desc": "闭关归隐，进入离线庇护", "category": "cultivate"},

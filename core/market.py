@@ -174,9 +174,18 @@ class MarketEngine:
     def _rows_for_region(region: Optional[str], day: Optional[str] = None) -> List[Dict[str, Any]]:
         """货单行；region 为 None 时是标价原样，否则附区域市价字段"""
         out = []
-        for name, cfg in ITEM_CATALOG.items():
+        seen: set = set()
+        for key, cfg in ITEM_CATALOG.items():
             if cfg.get("kind") == "map" or cfg.get("npc_sell") is False:
                 continue  # 天地机缘之物，商会无从兜售
+            # B1-6：目录双键（中文名/id 同物两键，不动目录本身）——展示层统一
+            # 显示名 = cfg.name or 键，按 cfg.id（无则显示名）去重；区域系数/产地
+            # 按显示名查（TRADE_ITEM_ORIGIN 以显示名为键），与按 id 寻址等价。
+            name = cfg.get("name") or key
+            ident = cfg.get("id") or name
+            if ident in seen:
+                continue
+            seen.add(ident)
             row = {
                 "name": name,
                 "kind": cfg["kind"],

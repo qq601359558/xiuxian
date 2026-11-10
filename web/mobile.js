@@ -177,15 +177,22 @@
     try {
       res = await fetch(base + path, opts);
     } catch (e) {
-      throw new Error("无法感应阵枢灵脉（请确认服务已启动）");
+      var netErr = new Error("无法感应阵枢灵脉（请确认服务已启动）");
+      netErr.status = 0;
+      throw netErr;
     }
     if (!res.ok) {
       var msg = res.statusText || String(res.status);
+      var srvMsg = "";
       try {
         var j = await res.json();
         msg = j.error || j.message || msg;
+        srvMsg = j.message || "";
       } catch (_) {}
-      throw new Error(msg);
+      var httpErr = new Error(msg);
+      httpErr.status = res.status;
+      httpErr.serverMessage = srvMsg;
+      throw httpErr;
     }
     return res.json();
   }
@@ -441,14 +448,15 @@
     if (st.skills && st.skills.length) {
       // 功法图（art_images，后端下发）
       var artImgs = st.art_images || {};
-      html += '<div class="kv"><span class="k">法门图</span><span class="v art-chips">' +
+      html += '<div class="kv"><span class="k">已习得法门</span><span class="v art-chips">' +
         st.skills.map(function (n) {
           return '<span class="art-chip">' + galleryImg(artImgs[n], "art-thumb", n) + "<span>" + esc(n) + "</span></span>";
         }).join("") + "</span></div>";
     }
     if (st.spells_catalog && st.spells_catalog.length) {
-      // 神通图（spells_catalog[].img，后端下发）
-      html += '<div class="kv"><span class="k">神通图</span><span class="v art-chips">' +
+      // 神通图鉴（全录）（spells_catalog[].img，后端下发）：MF-3 前提纠正——
+      // skills 存功法名、catalog 为神通名，无已习得神通数据源，不再标习得态
+      html += '<div class="kv"><span class="k">神通图鉴（全录）</span><span class="v art-chips">' +
         st.spells_catalog.map(function (sp) {
           return '<span class="art-chip">' + galleryImg(sp.img, "art-thumb", sp.name || "神通") + "<span>" + esc(sp.name || "") + "</span></span>";
         }).join("") + "</span></div>";
@@ -769,6 +777,7 @@
       '<div class="ops-grid">' +
       '<button type="button" class="btn primary ops-hero" data-cmd="/突破">突破</button>' +
       '<button type="button" class="btn secondary" data-cmd="/闭关">闭关</button>' +
+      '<button type="button" class="btn secondary" data-cmd="/修炼">修炼</button>' +
       '<button type="button" class="btn secondary" data-cmd="/出关">出关</button>' +
       '<button type="button" class="btn secondary" data-cmd="/探险">探险</button>' +
       '<button type="button" class="btn secondary" data-cmd="/奇遇">奇遇</button>' +
@@ -929,6 +938,7 @@
     var lines = e.lines || {};
     var html = '<div class="card"><p class="card-eyebrow">入局 · 当下之事</p>';
     if (lines.fate) html += '<p class="world-para">' + esc(lines.fate) + "</p>";
+    html += fateTargetHtmlM(state.status && state.status.fate);
     if (lines.chains && (lines.chains.text || lines.chains.fermenting != null)) html += '<p class="world-para">' + esc(lines.chains.text || ("发酵中因果链 " + lines.chains.fermenting + " 条")) + "</p>";
     if (Array.isArray(lines.relations)) lines.relations.forEach(function (r) { if (r && r.summary) html += '<p class="world-para">' + esc(r.summary) + "</p>"; });
     var pvObj = e.proactive && typeof e.proactive === "object" ? e.proactive : null;
@@ -1035,6 +1045,29 @@
   var THREAD_STATUS_CN_M = { active: "进行中", shelved: "已搁置", completed: "已了结", broken: "中道崩殂", inherited: "留待来世", done: "已成", failed: "未成" };
   var CHAPTER_STATUS_CN_M = { done: "已成", active: "进行中", locked: "未启", failed: "未成" };
   var CHAPTER_TIER_CN_M = { short: "短期", mid: "中期", final: "终局" };
+  // B1-4 目标给路：current_target 由后端 thread_status_dict 下发（thread 顶层键，
+  // 入局侧同名键）；缺失/null 即不渲染按钮，不自造地点/人名。
+  function fateTargetOfM(fate) {
+    var cands = [
+      fate && fate.thread && fate.thread.current_target,
+      fate && fate.current_target,
+      state.entry && state.entry.current_target,
+      state.status && state.status.fate && state.status.fate.thread && state.status.fate.thread.current_target,
+    ];
+    for (var i = 0; i < cands.length; i++) {
+      var t = cands[i];
+      if (t && typeof t === "object" && (t.npc_name || t.npc_location)) return t;
+    }
+    return null;
+  }
+  function fateTargetHtmlM(fate) {
+    var t = fateTargetOfM(fate);
+    if (!t) return "";
+    var name = esc(t.npc_name || ""), loc = esc(t.npc_location || "");
+    if (t.same_location)
+      return kv("就在此处 · " + (t.npc_location || ""), t.npc_name ? '<button type="button" class="chip primary" data-cmd="/交谈 ' + name + '">上前交谈</button>' : "");
+    return kv((t.npc_name ? t.npc_name + " " : "") + "在" + (t.npc_location || ""), t.npc_location ? '<button type="button" class="chip" data-cmd="/go ' + loc + '">前往</button>' : "");
+  }
   function fateThreadHtmlM(fate) {
     var th = fate && typeof fate === "object" ? fate.thread : null;
     if (!th || typeof th !== "object") return "";
@@ -1042,6 +1075,7 @@
     html += kv("种子来源", esc((THREAD_SEED_CN_M[th.seed_source] || th.seed_source || "—") + (th.status ? " · " + (THREAD_STATUS_CN_M[th.status] || th.status) : "")));
     if (th.antagonist && th.antagonist.name) html += kv("对手", esc(th.antagonist.name));
     if (th.patron && th.patron.name) html += kv("引路人", esc(th.patron.name));
+    html += fateTargetHtmlM(fate);
     (Array.isArray(th.chapters) ? th.chapters : []).forEach(function (c) {
       if (!c) return;
       var cur = c.status === "active" && (th.current_chapter == null || c.idx === th.current_chapter);
@@ -1309,6 +1343,11 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     state.chat.live = false;
     if (!wasSpirit && state.token && !state.demo) sendCmd("/挂断");
   }
+  // B1-3：交谈发送失败时清空双输入框（弹窗 chatInputM 与底部 cmdInput），可直接重发
+  function clearChatInputsM() {
+    var ci = $("chatInputM"); if (ci) ci.value = "";
+    var di = $("cmdInput"); if (di) di.value = "";
+  }
   // 按字段路由交谈响应：返回 true = 已进弹窗（调用方不再落 feed）
   function routeChatDataM(data, cmd) {
     if (!data || typeof data !== "object") return false;
@@ -1337,6 +1376,7 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     }
     if (data.ok === false && !lines.length && (data.error || data.message))
       chatMsgM("", data.error || data.message, "sys");
+    if (data.ok === false) clearChatInputsM();
     if (data.chat_ended) state.chat.live = false;
     return true;
   }
@@ -1345,8 +1385,10 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     openChatM(name, false, "");
     try {
       var data = state.demo ? demoResult("/交谈 " + name) : await api("/chat", { token: state.token, to: name });
-      if (!routeChatDataM(data, "/交谈") && data && data.ok === false)
+      if (!routeChatDataM(data, "/交谈") && data && data.ok === false) {
         chatMsgM("", data.error || data.message || "无法开启交谈", "sys");
+        clearChatInputsM();
+      }
       if (firstText) {
         var inp = $("chatInputM");
         if (inp) inp.value = firstText;
@@ -1380,10 +1422,13 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
         data = await api("/chat", payload);
         routeChatDataM(data, "/说");
       }
-      if (data && data.ok === false && !(data.chat_lines || []).length && (data.error || data.message))
+      if (data && data.ok === false && !(data.chat_lines || []).length && (data.error || data.message)) {
         chatMsgM("", data.error || data.message, "sys");
+        clearChatInputsM();
+      }
     } catch (e) {
       chatMsgM("", "传音失败：" + e.message, "sys");
+      clearChatInputsM();
       toast(e.message, "bad");
     }
   }
@@ -1443,6 +1488,7 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       state.commands = [
         { cmd: "/look", desc: "观照道身状态" },
         { cmd: "/闭关", desc: "洞府入定吐纳" },
+        { cmd: "/修炼", desc: "即入定修行，与闭关同源" },
         { cmd: "/出关", desc: "提前收功出关" },
         { cmd: "/突破", desc: "引动九天雷劫破境" },
         { cmd: "/探险", desc: "踏入十方大荒历练" },
@@ -1638,8 +1684,11 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       await loadCommands();
       await refreshAll();
     } catch (err) {
-      $("gateMsg").textContent = err.message || "入世受阻";
-      toast(err.message, "bad");
+      // B1-1 文案分流（仅注册/登录调用点）：503 显示后端诚实文案（j.message），
+      // 400 等显示后端 error 原文；「无法感应」仅真网络失败（status 0）。
+      var authMsg = err.status === 503 ? (err.serverMessage || "世界正在演化，请稍后重试") : (err.message || "入世受阻");
+      $("gateMsg").textContent = authMsg;
+      toast(authMsg, "bad");
     } finally {
       btn.disabled = false;
       btn.textContent = old;

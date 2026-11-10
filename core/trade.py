@@ -737,11 +737,18 @@ class NpcShopEngine:
             f"（{mult_note} ×{mult:.2f}）"
         ]
         rows = []
-        for name, cfg in ITEM_CATALOG.items():
+        _seen: set = set()
+        for _key, cfg in ITEM_CATALOG.items():
             if cfg.get("kind") not in kinds:
                 continue
+            # B1-6：显示名 = cfg.name or 键，按 cfg.id（无则显示名）去重（目录双键不动）
+            _name = cfg.get("name") or _key
+            _ident = cfg.get("id") or _name
+            if _ident in _seen:
+                continue
+            _seen.add(_ident)
             price = max(1, int(cfg["price"] * mult))
-            rows.append((price, name, cfg))
+            rows.append((price, _name, cfg))
         rows.sort(key=lambda x: x[0])
         goods = [
             {"name": name, "kind": cfg["kind"], "price": price, "desc": cfg.get("desc", "")}

@@ -182,14 +182,22 @@ def ai_ready() -> bool:
 
 def ai_block_reason() -> str:
     if ai_available() or local_ai_allowed():
-        # 有通道但最近探测失败时给出可操作提示
+        # 有通道但最近探测失败：玩家文案只作世界观内表述（SF-4）；
+        # last_error 原文与自检指引属运维细节，只进 log，不弹给玩家。
         try:
             health = ai_health_status()
             if health.get("last_error"):
-                return (
-                    f"AI 通道已配置，但最近一次探测失败：{health['last_error']}。"
-                    f"可 /ai 自检；交谈/事件将降级本地模板。"
-                )
+                try:
+                    from server.log import log_event
+
+                    log_event(
+                        "GATE",
+                        "ai_block_reason_probe_failed",
+                        err=str(health.get("last_error"))[:180],
+                    )
+                except Exception:
+                    pass
+                return "【天道未启】天道灵机暂未应答，此事须待灵机复苏后再行。"
         except Exception:
             pass
         return ""
@@ -238,7 +246,7 @@ def probe_ai_channel(force: bool = False) -> Dict[str, Any]:
             ok = bool(data and data.get("line"))
             result["ok"] = ok
             if not ok:
-                result["error"] = "对话测试未返回有效内容（见 data/server.log）"
+                result["error"] = "对话测试未返回有效内容"
             else:
                 result["error"] = ""
                 result["sample"] = str(data)[:80]
@@ -428,13 +436,24 @@ def _anthropic_chat_json_ex(
     return _handle(resp)
 
 
-def _chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Dict[str, Any]]:
+def _chat_json(
+    prompt: str,
+    timeout: float = LLM_TIMEOUT_SECONDS,
+    *,
+    count_failure: bool = True,
+) -> Optional[Dict[str, Any]]:
     """优先 CC Switch，其次 OpenAI 兼容接口；失败返回 None。
 
     熔断（D4）单点：打开时不发网络请求、立即返回 None；每次调用按结局
     记一次成功/可数失败/不可数结局。重试规则（D1.2）：OpenAI 兼容分支
     仅 HTTP 400 时允许一次不带 response_format 的重试；超时、连接异常、
     HTTP 5xx、其他 4xx、解析失败一律只发一次即返回 None。
+
+    count_failure=False（块一评审 MF-1 接缝）：纯叙事点缀调用（锁内合谋/
+    世界弧阶段文案/ai_flavor 点缀，短超时 2s、失败即走本地句兜底）专用——其可数失败
+    不计入主通道熔断（改记 neutral：closed 态无副作用；若本次恰为半开
+    探测，neutral 仍按既有口径重开熔断，探测语义不被点缀调用架空）。
+    成功仍记 record_success：点缀调通即证明通道健康，与主通道同口径。
     """
     if not breaker.allow():
         return None
@@ -458,7 +477,10 @@ def _chat_json(prompt: str, timeout: float = LLM_TIMEOUT_SECONDS) -> Optional[Di
     if data is not None:
         breaker.record_success()
     elif kind in _BREAKER_COUNTABLE:
-        breaker.record_failure(kind)
+        if count_failure:
+            breaker.record_failure(kind)
+        else:
+            breaker.record_neutral()
     elif kind is not None:
         breaker.record_neutral()
     return data

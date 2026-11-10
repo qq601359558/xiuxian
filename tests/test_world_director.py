@@ -521,3 +521,38 @@ if __name__ == "__main__":
     test_expire_directive_writes_chronicle()
     test_jianghu_power_reads_heat()
     print("\nworld_director tests all passed")
+
+
+def test_sf1_merge_active_noid_items_preserved():
+    """SF-1：无 id 项不得以 None 为键互相覆盖——current/outgoing 的无 id
+    项各自保留、不丢失、不重复；同 id 合并口径不变。"""
+    from core.world_director import _merge_active
+
+    a = {"type": "omen", "title": "甲象"}
+    b = {"type": "omen", "title": "乙象"}
+    c = {"type": "omen", "title": "丙象"}
+    merged = _merge_active([dict(a), dict(b)], [dict(a)], [dict(a), dict(c)])
+    titles = [d.get("title") for d in merged]
+    assert sorted(titles) == ["丙象", "乙象", "甲象"], merged
+    assert len(merged) == 3, merged
+
+    # 多个无 id 项同批出现不塌缩为一条
+    merged2 = _merge_active([], [], [dict(a), dict(b)])
+    assert len(merged2) == 2, merged2
+
+    # 未变更的无 id 项只保留一份
+    merged3 = _merge_active([dict(a)], [dict(a)], [dict(a)])
+    assert len(merged3) == 1, merged3
+
+    # 本轮明确移除的无 id 项丢弃（与 id 项同口径）
+    merged4 = _merge_active([dict(a)], [dict(a)], [])
+    assert merged4 == [], merged4
+
+    # id 项口径不变：同 id 以 outgoing 为准、并发新增保留、本轮移除丢弃
+    base = [{"id": "d_1", "title": "旧"}, {"id": "d_2", "title": "将移"}]
+    current = [dict(x) for x in base] + [{"id": "d_3", "title": "并发新增"}]
+    outgoing = [{"id": "d_1", "title": "新"}]
+    merged5 = _merge_active(current, base, outgoing)
+    by_id = {d["id"]: d["title"] for d in merged5}
+    assert by_id == {"d_1": "新", "d_3": "并发新增"}, merged5
+    print("✓ SF-1 _merge_active：无 id 项各自保留不塌缩、id 口径不变")
