@@ -56,6 +56,34 @@ def test_polish_outcome_shape():
     print("✓ 落账判词非空")
 
 
+def test_ask_short_timeout_no_circuit_count(monkeypatch):
+    """MF-1 复审收口：_ask / polish 路径调 _chat_json 时 timeout<=2
+    且 count_failure is False（纯叙事点缀，不计主通道熔断）。"""
+    import ai.gateway as gw
+
+    calls = []
+
+    def _fake_chat_json(prompt, timeout=12.0, *, count_failure=True):
+        calls.append({"timeout": timeout, "count_failure": count_failure})
+        return {"line": "润色句"}
+
+    monkeypatch.setattr(gw, "_chat_json", _fake_chat_json)
+    monkeypatch.setattr(gw, "ai_ready", lambda: True)
+    monkeypatch.setattr(ai_flavor, "_consume", lambda: True)
+
+    # _ask 直调：调用方传 10.0 也须被钳制到 <=2
+    assert ai_flavor._ask("prompt", timeout=10.0) == "润色句"
+    # polish 路径：twist_rumor 内部传 timeout=10.0，同样须收口
+    assert ai_flavor.twist_rumor("有人在坊市打架") == "润色句"
+    assert ai_flavor.polish_auction_settle("剑", "甲", 100, "乙") == "润色句"
+    assert ai_flavor.polish_karma_outcome("en", 1, "甲", "乙", "已落账") == "润色句"
+    assert len(calls) == 4
+    for c in calls:
+        assert c["timeout"] <= 2.0, c
+        assert c["count_failure"] is False, c
+    print("✓ ai_flavor 收口：timeout<=2 且 count_failure=False")
+
+
 if __name__ == "__main__":
     test_fallback_without_ai()
     test_budget_gate()

@@ -36,7 +36,8 @@
     world_state 行加 revision（或以既有 updated 字段比对），保存前重读比对，被并发写过则
     以最新状态为底重新并入本轮 delta 后再存，禁止旧快照整体覆盖 `record_player_event`
     （:930-953）等并发写。角色侧 `save_if_unchanged`（:1092-1100）为既有先例，口径对齐。
-  - 其余 6 阶段维持锁内（纯规则结算，无 AI）。
+  - 其余阶段维持锁内（规则结算为主；锁内仍有 ai_flavor 等纯叙事点缀调用，
+    失败走本地兜底——见 Finalize MF-1 收口：短超时 2s 且不计主通道熔断）。
 - /转世无界锁：`handle()`（world.py:1172-1173）全局改锁不在本轮；仅 /转世 分发路径改走
   有界获取（复用 `_bounded_lock`/`LOCK_ACQUIRE_TIMEOUT_SECONDS` 口径，world.py:99/311-329），
   超时回 503 诚实文案（写路径 SERVER_BUSY 既有口径），不许无界等待。
@@ -136,10 +137,13 @@
 
 ### 评审修复轮（2026-11-10，MF-1~MF-3 + SF-1/SF-2/SF-4）
 
-- **MF-1 锁内 AI 点缀短超时**：tick 锁内两处纯叙事点缀改短超时 2s——合谋
-  （`core/collusion.py` try_collude_pair 新增 ai_timeout=2.0 透传至 _chat_json）、
-  世界弧阶段文案（`core/world_arc.py` _ai_stage_text 经 ai.router.invoke(timeout=2)）；
-  超时/失败走既有本地句/模板兜底，规则结算未动。熔断记账：已给网关加干净接缝
+- **MF-1 锁内 AI 点缀短超时**：tick 锁内纯叙事点缀改短超时 2s 且不计主通道熔断，
+  共三处收口——合谋（`core/collusion.py` try_collude_pair 新增 ai_timeout=2.0 透传至 _chat_json）、
+  世界弧阶段文案（`core/world_arc.py` _ai_stage_text 经 ai.router.invoke(timeout=2)）、
+  ai_flavor 集中收口（`core/ai_flavor.py` _ask 内统一钳制 timeout<=2.0 并透传
+  count_failure=False 给 _chat_json，一次改动覆盖全部 polish 调用点，含锁内三条残留链：
+  拍卖结算 polish_auction_settle、传闻扭曲 twist_rumor、因果链润色 polish_karma_outcome；
+  命令路径的同类调用语义同为纯叙事点缀，同口径收口）；超时/失败走既有本地句/模板兜底，规则结算未动。熔断记账：已给网关加干净接缝
   `_chat_json(..., count_failure=False)`（router.invoke 同名透传，仅默认网关生效），
   点缀失败改记 neutral 不计入主通道熔断（closed 态无副作用；半开探测时 neutral
   仍按既有口径重开，探测语义不被架空；成功仍记 record_success）。直测锁定该口径。
@@ -156,7 +160,9 @@
   丢弃、同一项多侧出现只留一份），补直测。
 - **SF-2 agenda 无基线车道收窄**：段一取基线抛异常（baseline=None）时，段三落盘前
   重读该行——行已存在按陈旧丢弃（write_audit reason=baseline_missing_row_exists）；
-  仅行确实不存在才沿原内存对象口径落盘。补双向测试。
+  仅行确实不存在才沿原内存对象口径落盘。复审收口：重读抛异常按陈旧丢弃
+  （write_audit reason=baseline_missing_read_failed，fail-closed，与有基线分支读失败
+  按 gone_or_dead 丢弃同口径）；仅重读明确返回 (None, None) 才沿原行为落盘。补双向测试。
 - **SF-4 同类清扫**：`ai/gateway.py` ai_block_reason「已配置但探测失败」分支改世界观内
   文案（last_error 原文只进 log、不带自检指引）；`core/world_director.py` 质量自检
   detail「有 Key/CCSWITCH」改中性「已配置/未配置」。扩锁定测试覆盖该分支输出。

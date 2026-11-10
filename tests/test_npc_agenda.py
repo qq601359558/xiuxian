@@ -142,6 +142,40 @@ def test_sf2_apply_no_baseline_row_exists_discards(monkeypatch):
     print("✓ SF-2 无基线+行存在：陈旧丢弃、存档未被覆盖")
 
 
+def test_sf2_apply_no_baseline_read_failed_discards(monkeypatch):
+    """SF-2 复审收口：段一取基线抛异常（baseline=None）且段三重读仍抛
+    异常 → 按陈旧丢弃（fail-closed），不得把「读失败」等同于「行不存在」
+    而落盘覆盖现存存档。"""
+    init_db()
+    from storage.db import CharacterRepository
+
+    n = _npc("无基线重读失败客", user_id="npc_sf2_readfail")
+    CharacterRepository.save(n)
+
+    orig = CharacterRepository.get_by_id_with_meta
+
+    def _boom(char_id):
+        raise RuntimeError("read boom")
+
+    monkeypatch.setattr(
+        CharacterRepository, "get_by_id_with_meta", staticmethod(_boom))
+    try:
+        prep = NpcAgendaEngine.prepare_tick_one(n, force=True)
+        assert prep is not None
+        assert prep.get("baseline_updated_at") is None
+
+        before = CharacterRepository.get_by_id(n.id)
+        r = NpcAgendaEngine.apply_tick_one_prepared(prep)
+        assert r is None, r
+        after = CharacterRepository.get_by_id(n.id)
+        assert after is not None
+        assert after.model_dump_json() == before.model_dump_json()
+    finally:
+        monkeypatch.setattr(
+            CharacterRepository, "get_by_id_with_meta", orig)
+    print("✓ SF-2 无基线+重读失败：陈旧丢弃、存档未被覆盖")
+
+
 def test_sf2_apply_no_baseline_row_missing_proceeds(monkeypatch):
     """SF-2：段一取基线抛异常（baseline=None）+ 行确实不存在（内存对象
     口径）→ 沿原行为正常落盘，不误杀。"""

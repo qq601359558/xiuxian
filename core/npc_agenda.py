@@ -333,11 +333,19 @@ class NpcAgendaEngine:
             # 收窄——落盘前重读该行：行已存在说明段一时 DB 中已有存档，
             # 无基线即无法证明未被并发改写，按陈旧丢弃（write_audit 同口径）；
             # 仅行确实不存在（尚未落盘的内存对象口径）才沿原行为直接落盘。
+            # SF-2 复审收口：重读抛异常 ≠ 行不存在。读失败无法证明行
+            # 不存在，按陈旧丢弃（fail-closed，与有基线分支读失败按
+            # gone_or_dead 丢弃同口径）；仅重读明确返回 (None, None)
+            # 才沿原行为落盘。
             fresh_no_base = None
             try:
                 fresh_no_base, _fu = CharacterRepository.get_by_id_with_meta(npc_id)
             except Exception:
-                fresh_no_base = None
+                write_audit({
+                    "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",
+                    "reason": "baseline_missing_read_failed", "outcome": resolution.get("outcome"),
+                })
+                return None
             if fresh_no_base is not None:
                 write_audit({
                     "ts": now, "actor": npc_id, "kind": "npc_tick_stale_discarded",

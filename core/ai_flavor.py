@@ -47,8 +47,13 @@ def _consume() -> bool:
     return True
 
 
-def _ask(prompt: str, timeout: float = 12.0) -> Optional[str]:
-    """有 AI 且有预算才问；只取一行文本。"""
+def _ask(prompt: str, timeout: float = 2.0) -> Optional[str]:
+    """有 AI 且有预算才问；只取一行文本。
+
+    MF-1 复审收口：本层全部调用均为纯叙事点缀（失败走本地兜底），
+    超时统一收短至 2s 且不计入主通道熔断——调用方传入的 timeout
+    若更大一律钳制到 2.0，覆盖全部 polish 调用点。
+    """
     try:
         from ai.gateway import _chat_json, ai_ready
 
@@ -56,7 +61,7 @@ def _ask(prompt: str, timeout: float = 12.0) -> Optional[str]:
             return None
         if not _consume():
             return None
-        data = _chat_json(prompt, timeout=timeout)
+        data = _chat_json(prompt, timeout=min(timeout, 2.0), count_failure=False)
         if not data:
             return None
         for k in ("line", "text", "prompt", "narrative", "flavor"):
