@@ -621,7 +621,7 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
     brief = _TOPIC_BRIEF.get(_topic) or (last_text.strip()[:12] or "方才那话")
     _pools: Dict[str, Any] = {
         "谨慎": [
-            "「{name}」审视你片刻：「话先说一半——你提『{brief}』，究竟想探什么？」",
+            "「{name}」审视你片刻：「话先说一半——你提『{brief}』，究竟想探什么。」",
             "「{name}」按住袖口：「此地耳目不少。『{brief}』之事，低声些。」",
             "「{name}」沉吟道：「『{brief}』我记下了。无凭无据的话，我可不会轻信。」",
         ],
@@ -636,9 +636,9 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
             "「{name}」皮笑肉不笑：「说吧。『{brief}』若是戏弄于我，后果你清楚。」",
         ],
         "好斗": [
-            "「{name}」按住兵刃：「『{brief}』？少绕弯子，要打还是要谈？」",
+            "「{name}」按住兵刃：「『{brief}』？少绕弯子，要打还是要谈。」",
             "「{name}」瞪眼道：「痛快些！『{brief}』这事，我拳头比嘴快。」",
-            "「{name}」活动筋骨：「提『{brief}』作甚？先与我过两招再说！」",
+            "「{name}」活动筋骨：「提『{brief}』作甚？先与我过两招再说。」",
         ],
         "贪": [
             "「{name}」搓了搓手：「『{brief}』？先说说，这事值多少灵石。」",
@@ -648,7 +648,7 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
         "市侩": [
             "「{name}」笑眯眯道：「好说好说——『{brief}』，咱们慢慢商量。」",
             "「{name}」压低声音：「『{brief}』这事有门路，就看道友会不会做人了。」",
-            "「{name}」四下张望：「消息、货路、人情——『{brief}』你到底想要哪一样？」",
+            "「{name}」四下张望：「消息、货路、人情——『{brief}』你到底想要哪一样。」",
         ],
         "清高": [
             "「{name}」淡淡道：「嗯，『{brief}』之事，吾已知之。」",
@@ -688,7 +688,7 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
         ],
         "wary": [
             "不过丑话说在前头，我可不会轻信外人。",
-            "你问得倒细，只是我凭什么据实相告？",
+            "你问得倒细，只是我凭什么据实相告。",
             "此地耳目众多，有些话点到为止。",
             "我这人向来只信眼见，不信空口。",
         ],

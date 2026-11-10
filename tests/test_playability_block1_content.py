@@ -273,6 +273,34 @@ def test_b13_fallback_attitude_bands_differ():
                  char_ids=[player.id] + [c.id for c, _ in made])
 
 
+def test_b13_fallback_haodou_three_periods_all_rotations():
+    """M6①（修复轮3）：「好斗」兜底池逐句补齐句号——三句结构按句号计数
+    须恒 ≥3（首句池/态度句池/邀续句任一轮换组合都成立，含 wary 态度档）。"""
+    from core import npc_chat
+    from core.npc_mind import shift_attitude
+    from storage.db import NpcMindRepository
+
+    player, puid = _mk("p_haodou", "斗客")
+    npc, nuid = _mk("npc_haodou", "好斗客")
+    try:
+        NpcMindRepository.upsert(npc.id, "好斗易怒", {}, {})
+        npc = CharacterRepository.get_by_id(npc.id)
+        for label, delta in (("neutral", 0), ("wary", -20)):
+            if delta:
+                shift_attitude(npc, player.id, delta, reason="测试戒备")
+                npc = CharacterRepository.get_by_id(npc.id)
+            for t in range(8):  # turns>=8 走挂断分支；0..7 已覆盖各子池每一入口
+                rec = {"willingness": 80, "turns": t,
+                       "messages": [{"who": player.name, "text": "道友近来可好"}]}
+                out = npc_chat.local_hangup_or_reply(npc, player, rec)
+                assert out.get("will_continue") is True, out
+                assert out["line"].count("。") >= 3, \
+                    f"好斗兜底（{label}, turns={t}）须 ≥3 句（按句号计）：{out['line']}"
+        print("✓ M6① 好斗兜底三句：全轮换组合句号计数 ≥3")
+    finally:
+        _cleanup(user_ids=[puid, nuid], char_ids=[player.id, npc.id])
+
+
 # ================= B1-5：/修炼 =================
 
 def test_b15_xiulian_dispatch_gate_and_catalog():

@@ -97,6 +97,44 @@ def test_collusion_skips_ai_when_breaker_open(tmpdb, monkeypatch):
         breaker_reset()
 
 
+def test_collusion_skips_ai_when_breaker_half_open(tmpdb, monkeypatch):
+    """M6②（修复轮3）：half_open 态口径钉住——合谋 AI 点缀不发请求。
+
+    现实现只认 closed 才发（collusion.py 熔断门）：half_open 的唯一探测
+    名额留给主通道，点缀调用不得占用；half_open 时走本地句兜底。
+    本测试只钉口径、不改实现（若要放行试探，留复审定）。
+    """
+    from ai.gateway import breaker, breaker_reset, breaker_state
+    from core.collusion import try_collude_pair
+    import ai.gateway as gw
+
+    a = _npc("合谋半开甲")
+    b = _npc("合谋半开乙")
+    KarmaLinkRepository.save(KarmaLink(
+        a_id=a.id, a_name=a.name, b_id=b.id, b_name=b.name,
+        link_type="恩", strength=3, created_at=time.time()))
+    try:
+        breaker_reset()
+        # 直接置 half_open（模拟 open 冷却到期、探测名额待主通道使用）
+        breaker.state = "half_open"
+        breaker._probe_in_flight = True
+        assert breaker_state()["state"] == "half_open"
+        calls = []
+
+        def _boom(*args, **kwargs):
+            calls.append(1)
+            raise AssertionError("熔断 half_open 时合谋不得发 AI 调用")
+
+        monkeypatch.setattr(gw, "_chat_json", _boom)
+        res = try_collude_pair(a, b)
+        assert res is not None, "合谋应回本地句而非 None"
+        assert res.get("source") == "rule", res
+        assert calls == [], "half_open 时 _chat_json 不得被调用"
+        print("✓ M6② 合谋熔断 half_open 不发 AI、走本地句（口径钉住）")
+    finally:
+        breaker_reset()
+
+
 def test_collusion_uses_ai_when_breaker_closed(tmpdb, monkeypatch):
     from ai.gateway import breaker_reset, breaker_state
     from core.collusion import try_collude_pair
