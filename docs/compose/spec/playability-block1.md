@@ -162,7 +162,7 @@
   重读该行——行已存在按陈旧丢弃（write_audit reason=baseline_missing_row_exists）；
   仅行确实不存在才沿原内存对象口径落盘。复审收口：重读抛异常按陈旧丢弃
   （write_audit reason=baseline_missing_read_failed，fail-closed，与有基线分支读失败
-  按 gone_or_dead 丢弃同口径）；仅重读明确返回 (None, None) 才沿原行为落盘。补双向测试。
+  按 gone_or_dead 丢弃同口径）；仅重读明确返回 (None, None) 才沿原行为落盘。补三向测试（行存在/重读失败/行不存在）。
 - **SF-4 同类清扫**：`ai/gateway.py` ai_block_reason「已配置但探测失败」分支改世界观内
   文案（last_error 原文只进 log、不带自检指引）；`core/world_director.py` 质量自检
   detail「有 Key/CCSWITCH」改中性「已配置/未配置」。扩锁定测试覆盖该分支输出。

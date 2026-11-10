@@ -88,4 +88,5 @@ if __name__ == "__main__":
     test_fallback_without_ai()
     test_budget_gate()
     test_polish_outcome_shape()
+    test_ask_short_timeout_no_circuit_count()
     print("\n✅ ai_flavor 测试通过")
