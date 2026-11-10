@@ -27,6 +27,18 @@ def backup_db() -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not DB_PATH.exists():
         return DB_PATH
+    # 块一复测再修（B1-2）：库已切 WAL 模式（见 storage.db._connect），
+    # 热拷只拷 .db 会丢 -wal 里未检查点的数据；拷前先检查点落盘。
+    try:
+        import sqlite3
+
+        _c = sqlite3.connect(DB_PATH)
+        try:
+            _c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            _c.close()
+    except Exception:
+        pass
     ts = time.strftime("%Y%m%d_%H%M%S")
     dest = DATA_DIR / f"tiandao_backup_{ts}.db"
     shutil.copy2(DB_PATH, dest)

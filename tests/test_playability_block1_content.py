@@ -191,6 +191,88 @@ def test_b13_npc_chat_pool_per_personality():
                  char_ids=[player.id] + [c.id for c, _ in made])
 
 
+def test_b13_fallback_three_sentences_no_repeat_retest_texts():
+    """块一复测再修（B1-3）：复测原话两连问，断 AI 兜底须为三句性格化
+    回复、两轮互异、不复述玩家原话截断、无运维词；重开会话亦不撞首句。"""
+    from core import npc_chat
+    from storage.db import NpcMindRepository, WorldStateRepository
+
+    player, puid = _mk("p_fall", "断言客")
+    npc, nuid = _mk("npc_fall", "清高客")
+    try:
+        WorldStateRepository.delete(npc_chat._KEY)
+        NpcMindRepository.upsert(npc.id, "清高自持", {}, {})
+        npc = CharacterRepository.get_by_id(npc.id)
+        opened = npc_chat.open_session(player, npc)
+        assert opened.get("success") is True, opened
+        lines = []
+        for text in ("道友你好，在下初到此地，想请教剑道修行之事",
+                     "那依道友之见，新人当先修何物？"):
+            said = npc_chat.player_say(CharacterRepository.get_by_id(player.id), text)
+            assert said.get("success") is True, said
+            out = npc_chat.local_hangup_or_reply(
+                CharacterRepository.get_by_id(npc.id),
+                CharacterRepository.get_by_id(player.id), said["session"])
+            assert out.get("will_continue") is True, out
+            line = out["line"]
+            assert line.count("。") >= 3, f"兜底须多句（≥3 句）：{line}"
+            assert "想请教剑" not in line and "道友你好，在下初到此地" not in line, \
+                f"兜底不得原样复述玩家截断原话：{line}"
+            _assert_clean(line, "断 AI 兜底")
+            npc_chat.apply_npc_reply(player.id, line, True)
+            lines.append(line)
+        assert lines[0] != lines[1], f"连续两轮兜底不得同一句：{lines}"
+        # 重开会话：_local_seq 跨会话接续，首句不得撞回第一轮
+        npc_chat.close_session(player.id, "测试重开", by="player")
+        opened2 = npc_chat.open_session(
+            CharacterRepository.get_by_id(player.id),
+            CharacterRepository.get_by_id(npc.id))
+        assert opened2.get("success") is True, opened2
+        said3 = npc_chat.player_say(CharacterRepository.get_by_id(player.id),
+                                    "再请教一句")
+        out3 = npc_chat.local_hangup_or_reply(
+            CharacterRepository.get_by_id(npc.id),
+            CharacterRepository.get_by_id(player.id), said3["session"])
+        assert out3["line"] != lines[0], f"重开会话首句不得撞回第一轮：{out3['line']}"
+        assert out3["line"].count("。") >= 3, out3["line"]
+        print("✓ B1-3 复测再修：断 AI 兜底三句、两轮互异、重开不撞")
+    finally:
+        _cleanup(user_ids=[puid, nuid], char_ids=[player.id, npc.id])
+
+
+def test_b13_fallback_attitude_bands_differ():
+    """块一复测再修（B1-3）：同性格 NPC，态度友善 vs 敌对时兜底第二句
+    口径须不同（友善带亲近意、敌对带戒备意）。"""
+    from core import npc_chat
+    from core.npc_mind import shift_attitude
+    from storage.db import NpcMindRepository, WorldStateRepository
+
+    player, puid = _mk("p_att", "态度客")
+    made = []
+    try:
+        WorldStateRepository.delete(npc_chat._KEY)
+        outs = {}
+        for suffix, delta in (("you", 50), ("di", -50)):
+            npc, nuid = _mk(f"npc_att_{suffix}", f"态度{suffix}")
+            made.append((npc, nuid))
+            NpcMindRepository.upsert(npc.id, "清高自持", {}, {})
+            npc = CharacterRepository.get_by_id(npc.id)
+            shift_attitude(npc, player.id, delta, reason="测试态度")
+            npc = CharacterRepository.get_by_id(npc.id)
+            rec = {"willingness": 80, "turns": 0,
+                   "messages": [{"who": player.name, "text": "道友近来可好"}]}
+            out = npc_chat.local_hangup_or_reply(npc, player, rec)
+            assert out.get("will_continue") is True, out
+            outs[suffix] = out["line"]
+        assert outs["you"] != outs["di"], f"态度不同兜底应不同：{outs}"
+        assert any(k in outs["you"] for k in ("投缘", "坦荡", "心意", "交情")), outs["you"]
+        assert any(k in outs["di"] for k in ("旧账", "少套近乎", "耐心有限", "搭腔")), outs["di"]
+        print("✓ B1-3 复测再修：兜底态度口径随友善/敌对分化")
+    finally:
+        _cleanup(user_ids=[puid] + [u for _, u in made],
+                 char_ids=[player.id] + [c.id for c, _ in made])
+
+
 # ================= B1-5：/修炼 =================
 
 def test_b15_xiulian_dispatch_gate_and_catalog():
@@ -388,6 +470,109 @@ def test_b14_current_target_null_without_visit_chapter():
         print("✓ B1-4 fate：无 visit 类章时 current_target 为 null")
     finally:
         _cleanup(user_ids=[puid], char_ids=[player.id], thread_ids=[tid])
+
+
+def test_b14_visit_chapter_needs_talk():
+    """块一复测再修（B1-4）：带 npc_id 的 visit_location 章节，抵达 ≠ 完成，
+    须与目标 NPC 真实交谈一轮才完成；无 npc_id 的纯地点章仍到访即成。"""
+    from core.fate_thread import FateThreadEngine
+    from core.goals import GoalEngine
+    from core import npc_chat
+
+    player, puid = _mk("p_fate3", "访客", location=LOC)
+    npc, nuid = _mk("npc_fate3", "被访客", location=LOC)
+    tid = _mk_thread(player, npc.id)
+    try:
+        check = {"kind": "visit_location", "ref": LOC, "npc_id": npc.id}
+        now = time.time()
+        p = CharacterRepository.get_by_id(player.id)
+        assert GoalEngine._eval_check(p, check, now, final=False) is None
+        # 抵达目标所在地（记 visited），但未交谈 → 仍未完成（复测根因）
+        FateThreadEngine.record_visit(p, LOC)
+        p = CharacterRepository.get_by_id(player.id)
+        assert GoalEngine._eval_check(p, check, now, final=False) is None
+        # 与目标 NPC 真实交谈一轮 → 完成
+        opened = npc_chat.open_session(p, CharacterRepository.get_by_id(npc.id))
+        assert opened.get("success") is True, opened
+        said = npc_chat.player_say(CharacterRepository.get_by_id(player.id), "幸会，道友")
+        assert said.get("success") is True, said
+        npc_chat.apply_npc_reply(player.id, "回礼，道友请坐。", True)
+        p = CharacterRepository.get_by_id(player.id)
+        assert GoalEngine._eval_check(p, check, now, final=False) == "done"
+        # 无 npc_id 的纯地点章：到访即成（旧行为不变）
+        check2 = {"kind": "visit_location", "ref": LOC}
+        assert GoalEngine._eval_check(p, check2, now, final=False) == "done"
+        print("✓ B1-4 复测再修：visit 章须与目标交谈才完成；纯地点章到访即成")
+    finally:
+        _cleanup(user_ids=[puid, nuid], char_ids=[player.id, npc.id], thread_ids=[tid])
+
+
+def test_b14_talk_completes_chapter_via_world(monkeypatch):
+    """块一复测再修（B1-4 端到端）：/go 抵达目标所在地后第一章仍在，
+    目标卡 same_location=true 且可上前交谈；断 AI 下一轮 /说 后章节完成。"""
+    from server.world import World
+    from core.fate_thread import FateThreadEngine
+    from core.goals import GoalEngine
+    from storage.db import FateThreadRepository
+
+    _force_ai_off(monkeypatch)
+    w = World(auto_tick=False)
+    uid = f"u_b14e2e_{_tag()}"
+    r = w.join(f"访途行客{_tag()}", user_id=uid)
+    tok = r["token"]
+    char = w.get_char(tok)
+    npc = None
+    nuid = ""
+    tid = ""
+    try:
+        player = CharacterRepository.get_by_id(char.id)
+        # 注意：_mk 生成的 user_id 是 pb1ct_ 前缀，_is_npc 会判假，/说 将走
+        # 真人传音分支而非 NPC 对话链；此处须用真 npc_ 前缀建目标 NPC。
+        from core.clock import WorldClock
+
+        npc = WorldClock.create_new_character(f"npc_b14e2e_{_tag()}", f"引见客{_tag()}")
+        npc.location = LOC
+        npc.born_at = time.time() - 80 * 3600.0
+        CharacterRepository.save(npc)
+        npc = CharacterRepository.get_by_id(npc.id)
+        nuid = npc.user_id
+        tid = _mk_thread(player, npc.id)
+        goal = GoalEngine.add_checked_goal(
+            player, source="thread", title="去见那个人", detail="当面说清",
+            check={"kind": "visit_location", "ref": LOC, "npc_id": npc.id},
+            instance=f"{tid}:c0",
+        )
+        thread = FateThreadEngine._active_thread(player.id)
+        thread.chapters[0]["goal_id"] = goal["id"]
+        thread.chapters[0]["check"]["instance"] = f"{tid}:c0"
+        FateThreadRepository.save(thread)
+        CharacterRepository.save(player)
+        # 先把玩家放到远处，再 /go 抵达目标所在地
+        player.location = FAR_LOC
+        CharacterRepository.save(player)
+        r_go = w.handle(tok, f"/go {LOC}")
+        assert r_go.get("ok") is True, r_go
+        sd = FateThreadEngine.thread_status_dict(
+            CharacterRepository.get_by_id(player.id))
+        assert sd["chapters"][0]["status"] == "active", sd
+        ct = sd.get("current_target")
+        assert ct and ct["same_location"] is True, ct
+        # 上前交谈：/交谈 + 断 AI 下一轮 /说（裸文本路由）→ 章节完成
+        r_talk = w.handle(tok, f"/交谈 {npc.name}")
+        assert r_talk.get("ok") is True, r_talk
+        r_say = w.handle(tok, "道友你好，在下初到此地，想请教一二")
+        assert r_say.get("ok") is True, r_say
+        assert r_say.get("source") == "local", r_say
+        _assert_clean(r_say.get("text") or "", "/说 回复")
+        sd2 = FateThreadEngine.thread_status_dict(
+            CharacterRepository.get_by_id(player.id))
+        assert sd2["chapters"][0]["status"] == "done", sd2
+        assert sd2.get("current_target") is None, sd2
+        print("✓ B1-4 复测再修端到端：/go 到场章仍在，交谈一轮后章节完成")
+    finally:
+        _cleanup(user_ids=[uid, nuid], char_ids=[c for c in
+                 [char.id if char else None, npc.id if npc else None] if c],
+                 thread_ids=[tid] if tid else [], tokens=[tok])
 
 
 # ================= B1-7：briefing relations 过滤 origin =================

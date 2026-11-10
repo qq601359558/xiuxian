@@ -312,6 +312,13 @@ def open_session(player: Character, npc: Character) -> Dict[str, Any]:
         shared_msgs = get_p2p_history(player.id, npc.id)
 
     d = _load_all()
+    # 块一复测再修（B1-3）：本地兜底轮换种子 _local_seq 跨会话接续，
+    # 新开会话不归零，否则与上次会话的首句必撞同一模板。
+    _prev_seq = 0
+    try:
+        _prev_seq = int((d.get(player.id) or {}).get("_local_seq") or 0)
+    except Exception:
+        _prev_seq = 0
     d[player.id] = {
         "npc_id": npc.id,
         "npc_name": npc.name,
@@ -324,6 +331,7 @@ def open_session(player: Character, npc: Character) -> Dict[str, Any]:
         "end_reason": "",
         "running_attitude_delta": 0,
         "is_player": not is_target_npc,
+        "_local_seq": _prev_seq,
     }
     _save_all(d)
     return {"success": True, "session": d[player.id], "npc": npc, "is_player": not is_target_npc}
@@ -500,7 +508,17 @@ def apply_npc_reply(
 
 
 def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]) -> Dict[str, Any]:
-    """无 AI 时：按性格/态度本地一句，并可能挂断"""
+    """无 AI 时：按性格/态度本地三句，并可能挂断。
+
+    块一复测再修（B1-3）：断 AI 交谈的兜底须是“性格化兜底”——多句、
+    像人话，不许只剩单句罐头搪塞。结构固定为三句：① 承话题首句
+    （沿用各性格池，贴着玩家末句的归类走）；② 态度句（按 NPC 对
+    玩家的态度取友善/中立/戒备/敌对四档口径）；③ 邀续句（请对方
+    接着说）。三句各自由独立池轮换，组合周期远大于单会话轮数。
+    轮换种子：会话记录里持久的 _local_seq（跨会话不断，open_session
+    接续旧值）；无会话记录时（直调/测试）退化为 turns。三句只叙情性，
+    零数值（红线）。挂断分支（轮数已满/意愿过低）仍为单句作别，不动。
+    """
     pers = ""
     try:
         from core.npc_mind import ensure_mind
@@ -508,6 +526,12 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
         pers = (ensure_mind(npc) or {}).get("personality") or ""
     except Exception:
         pers = ""
+    try:
+        from core.npc_mind import attitude_toward
+
+        _att_label = str((attitude_toward(npc, player.id) or {}).get("label") or "neutral")
+    except Exception:
+        _att_label = "neutral"
     w = int(rec.get("willingness") or 50)
     turns = int(rec.get("turns") or 0)
     # 越聊越不耐烦
@@ -528,7 +552,6 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
             last_text = str(_msgs[-1].get("text") or "")
     except Exception:
         last_text = ""
-    brief = (last_text.strip()[:16] or "方才那话")
     if any(k in last_text for k in ("杀", "找死", "滚", "动手", "挑衅")):
         _topic = "attitude"
     elif any(k in last_text for k in ("买", "卖", "价", "灵石", "交易", "生意")):
@@ -541,6 +564,16 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
         _topic = "greet"
     else:
         _topic = "general"
+    # 复测教训：原 brief 取末句前 16 字，常在半句处截断，只剩复述。
+    # 已归类的话题改用话题短语，不再原样复述；未归类才取 12 字短摘。
+    _TOPIC_BRIEF = {
+        "attitude": "方才那番话",
+        "trade": "这笔买卖",
+        "ask": "所问之事",
+        "realm": "机缘之事",
+        "greet": "此番来意",
+    }
+    brief = _TOPIC_BRIEF.get(_topic) or (last_text.strip()[:12] or "方才那话")
     _pools: Dict[str, Any] = {
         "谨慎": [
             "「{name}」审视你片刻：「话先说一半——你提『{brief}』，究竟想探什么？」",
@@ -593,9 +626,72 @@ def local_hangup_or_reply(npc: Character, player: Character, rec: Dict[str, Any]
         if _key != "通用" and _key in pers:
             _pool = _opts
             break
-    _seed = turns + sum(ord(ch) for ch in (_topic + last_text))
-    _tpl = _pool[_seed % len(_pool)]
-    line = _tpl.replace("{name}", npc.name).replace("{brief}", brief)
+    # ② 态度句：按 NPC 对玩家的态度取档，每档 4 条（与首句池 3 条错位，
+    # 组合周期 12 轮，单会话（8 轮挂断）内不重整句）。
+    _second: Dict[str, Any] = {
+        "friendly": [
+            "你我既投缘，有话不妨直说。",
+            "道友坦荡，我自不会藏着掖着。",
+            "这份心意我领了，且听我慢慢道来。",
+            "冲着这份交情，我多言两句也无妨。",
+        ],
+        "neutral": [
+            "此事我且记下，是非曲直还须再看。",
+            "话说到这份上，我便与你多言两句。",
+            "你我初识，言尽于此已是不易。",
+            "这话我听进去了，至于如何，且看后事。",
+        ],
+        "wary": [
+            "不过丑话说在前头，我可不会轻信外人。",
+            "你问得倒细，只是我凭什么据实相告？",
+            "此地耳目众多，有些话点到为止。",
+            "我这人向来只信眼见，不信空口。",
+        ],
+        "hostile": [
+            "哼，你我之间那笔旧账还没算清。",
+            "少套近乎——有话快说，说完便走。",
+            "我耐心有限，莫要以为我会好言相待。",
+            "今日我肯搭腔，已是看在同场一场的分上。",
+        ],
+    }
+    if _att_label in ("friendly", "ally"):
+        _second_pool = _second["friendly"]
+    elif _att_label == "hostile":
+        _second_pool = _second["hostile"]
+    elif _att_label == "wary":
+        _second_pool = _second["wary"]
+    else:
+        _second_pool = _second["neutral"]
+    # ③ 邀续句：请对方接着说，3 条。
+    _closers = [
+        "你且接着说。",
+        "然后呢？不妨说得再细些。",
+        "此事容我想想，你先说下去。",
+    ]
+    # 轮换种子（复测教训：原 seed = turns + sum(ord(话题+末句))，两句
+    # 不同的话哈希值模 3 恰好抵消 turns 的递增，两次撞上同一模板）：
+    # 会话记录里持久的 _local_seq 单调递增（open_session 跨会话接续），
+    # 无会话记录时退化为 turns；三句取 base、base+1、base+2 错位下标。
+    _seq = None
+    try:
+        _d = _load_all() or {}
+        _cur = _d.get(player.id) or {}
+        if _cur:
+            _seq = int(_cur.get("_local_seq") or 0)
+            _cur["_local_seq"] = _seq + 1
+            _d[player.id] = _cur
+            _save_all(_d)
+    except Exception:
+        _seq = None
+    _base = _seq if _seq is not None else turns
+    try:
+        rec["_local_seq"] = (_seq + 1) if _seq is not None else int(rec.get("_local_seq") or 0)
+    except Exception:
+        pass
+    _first = _pool[_base % len(_pool)].replace("{name}", npc.name).replace("{brief}", brief)
+    _att = _second_pool[(_base + 1) % len(_second_pool)]
+    _close = _closers[(_base + 2) % len(_closers)]
+    line = f"{_first}{_att}{_close}"
     return {"line": line, "will_continue": True, "attitude_delta": 0}
 
 

@@ -3660,6 +3660,22 @@ class World:
                                 W.set(npc_chat._KEY, d)
                         except Exception:
                             pass
+                        # 命途求值点（块一复测再修 B1-4）：/交谈 <人> <话一并交谈
+                        # 同为一轮交谈，与 /说 回路同口径立即求值。
+                        try:
+                            from core.goals import evaluate_checked_goals as _eval_goals_talk
+
+                            if _eval_goals_talk(char):
+                                CharacterRepository.save(char)
+                        except Exception:
+                            pass
+                        try:
+                            from core.fate_thread import FateThreadEngine as _FTE_talk
+
+                            if _FTE_talk.evaluate_for(char).get("changed"):
+                                CharacterRepository.save(char)
+                        except Exception:
+                            pass
                         return {
                             "ok": True,
                             "text": greet + "\n\n" + res.get("text", ""),
@@ -3913,6 +3929,24 @@ class World:
                         CharacterRepository.save(npc)
                     except Exception:
                         pass
+                # 命途求值点（块一复测再修 B1-4）：与目标 NPC 的一轮交谈是
+                # 第一章 visit_location 的完成条件之一（见 goals._talked_with_npc），
+                # 回复落账后立即求值，否则章须等下一次迁跃/登录触发才推进。
+                # 口径与 E3/T2 同：求值翻转才回存角色。
+                try:
+                    from core.goals import evaluate_checked_goals as _eval_goals_chat
+
+                    if _eval_goals_chat(char):
+                        CharacterRepository.save(char)
+                except Exception:
+                    pass
+                try:
+                    from core.fate_thread import FateThreadEngine as _FTE_chat
+
+                    if _FTE_chat.evaluate_for(char).get("changed"):
+                        CharacterRepository.save(char)
+                except Exception:
+                    pass
                 banter_text = ""
                 banter_list: list = []
                 try:

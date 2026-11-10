@@ -20,9 +20,32 @@ from core.karma_chains import KarmaChain
 from core.trade import AuctionLot, AuctionStatus
 
 
+def _connect():
+    """本模块唯一建连入口（块一复测再修 B1-2）。
+
+    根因：tick 持锁 ~10s 的稳态大头不是 CPU——单线程实测 faction/
+    agenda 全套仅 ~0.1s，而是每次 commit 都要 fsync：本机 btrfs 卷
+    上单次 commit 约 70–100ms，tick 各锁内阶段合计几十次 commit，
+    锁内耗时遂以秒计。journal_mode=WAL（随库文件持久化）+
+    synchronous=NORMAL（每次连接设置）后，commit 不再逐次 fsync，
+    同口径 20 次 commit 由 ~1400ms 降至 ~26ms；规则结算与数值一字不动。
+    耐久取舍：进程崩溃不丢已提交数据，仅操作系统崩溃/断电可能丢
+    最近几次提交——对局域网游戏服可接受，换回数秒级持锁。
+    备份注意：WAL 模式下热拷只拷 tiandao.db 会丢 -wal 里未检查点
+    的数据，见 tools/reset_world.py backup_db 的检查点。
+    """
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
+    return conn
+
+
 def init_db():
     """初始化数据库表"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
 
     # 1. 修士表
@@ -302,7 +325,7 @@ class WorldMessageRepository:
 
     @staticmethod
     def save(msg) -> None:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -317,7 +340,7 @@ class WorldMessageRepository:
 
     @staticmethod
     def list_recent(limit: int = 20, since_ts: float = 0.0, channels=None):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         # channel 过滤下推到 SQL，避免 LIMIT 后再滤导致公告被 world 挤掉
         if channels:
@@ -346,7 +369,7 @@ class WorldMessageRepository:
 
         now = _t.time()
         cutoff = now - ttl_hours * 3600.0
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM world_messages WHERE ts < ?", (cutoff,))
         deleted_ttl = cursor.rowcount or 0
@@ -365,7 +388,7 @@ class WorldMessageRepository:
 
     @staticmethod
     def count_since(ts: float, levels=None) -> int:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM world_messages WHERE ts > ?", (float(ts or 0.0),)
@@ -395,7 +418,7 @@ class WorldStateRepository:
     def get(key: str, default=None):
         import json
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM world_state WHERE key = ?", (key,))
         row = cursor.fetchone()
@@ -411,7 +434,7 @@ class WorldStateRepository:
     def set(key: str, value) -> None:
         import json
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -428,7 +451,7 @@ class WorldStateRepository:
 
     @staticmethod
     def delete(key: str) -> None:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM world_state WHERE key = ?", (key,))
         conn.commit()
@@ -454,7 +477,7 @@ class CharacterRepository:
         from core.character_integrity import CharacterIntegrity
 
         CharacterIntegrity.audit_character(character, auto_repair=True)
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         now = time.time()
         character.version = getattr(character, "version", 0) + 1
@@ -477,7 +500,7 @@ class CharacterRepository:
     @staticmethod
     def get_by_id_with_meta(char_id: str) -> Tuple[Optional[Character], Optional[float]]:
         """按 id 取角色 + 该行的 updated_at（供 save_if_unchanged 的乐观并发校验）。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json, updated_at FROM characters WHERE id = ?", (char_id,))
         row = cursor.fetchone()
@@ -501,7 +524,7 @@ class CharacterRepository:
         if updated_at is None:
             return False
         CharacterIntegrity.audit_character(character, auto_repair=True)
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             cur = conn.cursor()
@@ -546,7 +569,7 @@ class CharacterRepository:
 
     @staticmethod
     def get_by_user_id(user_id: str) -> Optional[Character]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM characters WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
@@ -557,7 +580,7 @@ class CharacterRepository:
 
     @staticmethod
     def get_by_name(name: str) -> Optional[Character]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM characters WHERE name = ?", (name,))
         row = cursor.fetchone()
@@ -568,7 +591,7 @@ class CharacterRepository:
 
     @staticmethod
     def get_by_id(char_id: str) -> Optional[Character]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM characters WHERE id = ?", (char_id,))
         row = cursor.fetchone()
@@ -580,7 +603,7 @@ class CharacterRepository:
     @staticmethod
     def find_alive_by_name(name: str) -> Optional[Character]:
         """按道号找在世角色；唯一命中优先，否则同名取首个在世。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM characters WHERE name = ? AND status != 'DEAD'",
@@ -594,7 +617,7 @@ class CharacterRepository:
 
     @staticmethod
     def list_all_alive() -> List[Character]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM characters WHERE status != 'DEAD'")
         rows = cursor.fetchall()
@@ -612,7 +635,7 @@ class LegacyRepository:
 
     @staticmethod
     def save(account: LegacyAccount):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO player_legacy (user_id, data_json, updated_at)
@@ -627,7 +650,7 @@ class LegacyRepository:
     @staticmethod
     def get(user_id: str) -> Optional[LegacyAccount]:
         """只读取账户行（account-death：_status_dict 钱包块用，不建行、无写盘副作用）。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM player_legacy WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
@@ -641,7 +664,7 @@ class LegacyRepository:
 
     @staticmethod
     def get_or_create(user_id: str) -> LegacyAccount:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM player_legacy WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
@@ -655,7 +678,7 @@ class LegacyRepository:
     @staticmethod
     def list_all() -> List[LegacyAccount]:
         """只读全量（F12 飞升榜用）：损坏行跳过不崩，不写盘。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM player_legacy ORDER BY rowid")
         rows = cursor.fetchall()
@@ -674,7 +697,7 @@ class BountyRepository:
 
     @staticmethod
     def save(bounty: Bounty):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO bounties (id, data_json, status, target_id, created_at)
@@ -700,7 +723,7 @@ class BountyRepository:
 
     @staticmethod
     def list_all() -> List[Bounty]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM bounties ORDER BY created_at DESC")
         rows = cursor.fetchall()
@@ -709,7 +732,7 @@ class BountyRepository:
 
     @staticmethod
     def list_open_for_target(target_id: str) -> List[Bounty]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM bounties WHERE target_id = ? AND status IN ('OPEN','CLAIMED')",
@@ -725,7 +748,7 @@ class KarmaLinkRepository:
 
     @staticmethod
     def save(link: KarmaLink):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO karma_links (id, data_json, created_at)
@@ -737,7 +760,7 @@ class KarmaLinkRepository:
 
     @staticmethod
     def list_all() -> List[KarmaLink]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM karma_links ORDER BY created_at DESC")
         rows = cursor.fetchall()
@@ -750,7 +773,7 @@ class MarketListingRepository:
 
     @staticmethod
     def save(listing: MarketListing):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO market_listings (id, data_json, status, seller_id, created_at)
@@ -770,7 +793,7 @@ class MarketListingRepository:
 
     @staticmethod
     def list_all() -> List[MarketListing]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM market_listings ORDER BY created_at DESC")
         rows = cursor.fetchall()
@@ -783,7 +806,7 @@ class PawnTicketRepository:
 
     @staticmethod
     def save(ticket):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO pawn_tickets (id, data_json, status, owner_id, created_at)
@@ -803,7 +826,7 @@ class PawnTicketRepository:
 
     @staticmethod
     def list_all() -> List[PawnTicket]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM pawn_tickets ORDER BY created_at ASC")
         rows = cursor.fetchall()
@@ -820,7 +843,7 @@ class BookRepository:
 
     @staticmethod
     def save(book: Book):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO books (id, data_json, author_id, holder_id, created_at)
@@ -841,7 +864,7 @@ class BookRepository:
 
     @staticmethod
     def list_all() -> List[Book]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM books ORDER BY created_at ASC")
         rows = cursor.fetchall()
@@ -850,7 +873,7 @@ class BookRepository:
 
     @staticmethod
     def delete(book_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
         conn.commit()
@@ -862,7 +885,7 @@ class PromiseRepository:
 
     @staticmethod
     def save(promise: Promise):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO promises (id, data_json, status, promiser_id, promisee_id, created_at)
@@ -883,7 +906,7 @@ class PromiseRepository:
 
     @staticmethod
     def list_all() -> List[Promise]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM promises ORDER BY created_at ASC")
         rows = cursor.fetchall()
@@ -892,7 +915,7 @@ class PromiseRepository:
 
     @staticmethod
     def delete(promise_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM promises WHERE id = ?", (promise_id,))
         conn.commit()
@@ -904,7 +927,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def save(chain: KarmaChain):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO karma_chains (id, data_json, status, player_id, counterparty_id, created_at)
@@ -927,7 +950,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def get(chain_id: str) -> Optional[KarmaChain]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM karma_chains WHERE id = ?", (chain_id,))
         row = cursor.fetchone()
@@ -941,7 +964,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def list_all() -> List[KarmaChain]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM karma_chains ORDER BY created_at ASC")
         rows = cursor.fetchall()
@@ -956,7 +979,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def list_by_player(player_id: str) -> List[KarmaChain]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM karma_chains WHERE player_id = ? ORDER BY created_at ASC",
@@ -974,7 +997,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def list_active() -> List[KarmaChain]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM karma_chains WHERE status IN ('latent','fermenting') "
@@ -992,7 +1015,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def list_by_pair(player_id: str, counterparty_id: str) -> List[KarmaChain]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM karma_chains WHERE player_id = ? AND counterparty_id = ? "
@@ -1011,7 +1034,7 @@ class KarmaChainRepository:
 
     @staticmethod
     def delete(chain_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM karma_chains WHERE id = ?", (chain_id,))
         conn.commit()
@@ -1034,7 +1057,7 @@ class FateThreadRepository:
 
     @staticmethod
     def save(thread):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO fate_threads (id, data_json, status, player_id, created_at)
@@ -1057,7 +1080,7 @@ class FateThreadRepository:
     def get_by_id(thread_id: str):
         if not thread_id:
             return None
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM fate_threads WHERE id = ?", (thread_id,))
         row = cursor.fetchone()
@@ -1071,7 +1094,7 @@ class FateThreadRepository:
 
     @staticmethod
     def list_all():
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM fate_threads ORDER BY created_at ASC")
         rows = cursor.fetchall()
@@ -1087,7 +1110,7 @@ class FateThreadRepository:
 
     @staticmethod
     def list_by_player(player_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT data_json FROM fate_threads WHERE player_id = ? ORDER BY created_at ASC",
@@ -1113,7 +1136,7 @@ class FateThreadRepository:
 
     @staticmethod
     def delete(thread_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM fate_threads WHERE id = ?", (thread_id,))
         conn.commit()
@@ -1125,7 +1148,7 @@ class AuctionLotRepository:
 
     @staticmethod
     def save(lot: AuctionLot):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO auction_lots (id, data_json, status, seller_id, created_at)
@@ -1145,7 +1168,7 @@ class AuctionLotRepository:
 
     @staticmethod
     def list_all() -> List[AuctionLot]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT data_json FROM auction_lots ORDER BY created_at DESC")
         rows = cursor.fetchall()
@@ -1158,7 +1181,7 @@ class ChronicleRepository:
 
     @staticmethod
     def record(event_type: str, actor_name: str, summary: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         INSERT INTO world_chronicle (event_type, actor_name, summary, created_at)
@@ -1169,7 +1192,7 @@ class ChronicleRepository:
 
     @staticmethod
     def get_recent(limit: int = 5) -> List[str]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("""
         SELECT summary, created_at FROM world_chronicle
@@ -1185,7 +1208,7 @@ class JianghuEventRepository:
 
     @staticmethod
     def append(rec: Dict) -> None:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1207,7 +1230,7 @@ class JianghuEventRepository:
 
     @staticmethod
     def list_recent(limit: int = 20, since: Optional[float] = None, kind: Optional[str] = None) -> List[Dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         q = "SELECT data_json FROM jianghu_events WHERE 1=1"
         args: list = []
@@ -1265,7 +1288,7 @@ class EventLedgerRepository:
         chain_id: Optional[str] = None,
         refs: Optional[List[str]] = None,
     ):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1291,7 +1314,7 @@ class EventLedgerRepository:
         limit: int = 8,
     ) -> List[dict]:
         """按当事人/地点检索近期事件，时间倒序"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1323,7 +1346,7 @@ class EventLedgerRepository:
     ) -> List[dict]:
         """按 target + type 索引查询（game-feel-phase1 §5.3）：走既有
         idx_ev_target 索引、ts 倒序；refs_json 解析回 refs 串列表。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1357,7 +1380,7 @@ class EventLedgerRepository:
     @staticmethod
     def query_feud_pairs(character_id: str, limit: int = 5) -> List[dict]:
         """拉与自己相关的杀戮/仇怨类事件（复仇工作流用）"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1389,7 +1412,7 @@ class CharacterBioRepository:
 
     @staticmethod
     def save(character_id: str, bio_text: str, traits: Optional[dict] = None):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1407,7 +1430,7 @@ class CharacterBioRepository:
 
     @staticmethod
     def get(character_id: str) -> Optional[str]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute("SELECT bio_text FROM character_bios WHERE character_id = ?", (character_id,))
         row = cursor.fetchone()
@@ -1430,7 +1453,7 @@ class NpcAgendaRepository:
         progress: int = 0,
         extra: Optional[dict] = None,
     ):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1458,7 +1481,7 @@ class NpcAgendaRepository:
 
     @staticmethod
     def get(npc_id: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT npc_id, npc_name, agenda_type, target_hint, note, state, last_tick, progress, extra_json "
@@ -1483,7 +1506,7 @@ class NpcAgendaRepository:
 
     @staticmethod
     def list_all() -> List[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT npc_id, npc_name, agenda_type, target_hint, note, state, last_tick, progress, extra_json "
@@ -1508,7 +1531,7 @@ class NpcAgendaRepository:
 
     @staticmethod
     def mark_tick(npc_id: str, last_action: str = "", progress: Optional[int] = None, state: Optional[str] = None):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         if progress is None and state is None:
             cursor.execute(
@@ -1540,7 +1563,7 @@ class NpcMindRepository:
         traits: Optional[dict] = None,
         attitudes: Optional[dict] = None,
     ):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1565,7 +1588,7 @@ class NpcMindRepository:
 
     @staticmethod
     def get(npc_id: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT personality, traits_json, attitudes_json FROM npc_minds WHERE npc_id = ?",
@@ -1589,7 +1612,7 @@ class NpcMindRepository:
     @staticmethod
     def list_all() -> List[dict]:
         """全量心智行（转世留痕态度快照用）：[{npc_id, personality, traits, attitudes}]"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT npc_id, personality, traits_json, attitudes_json FROM npc_minds"
@@ -1645,7 +1668,7 @@ class AuthSessionRepository:
 
     @staticmethod
     def save(token: str, user_id: str, character_id: str, name: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         now = time.time()
         cur.execute(
@@ -1674,7 +1697,7 @@ class AuthSessionRepository:
 
     @staticmethod
     def get(token: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute(
             "SELECT token, user_id, character_id, name, last_seen FROM auth_sessions WHERE token = ?",
@@ -1697,14 +1720,14 @@ class AuthSessionRepository:
 
     @staticmethod
     def delete(token: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         conn.cursor().execute("DELETE FROM auth_sessions WHERE token = ?", (token,))
         conn.commit()
         conn.close()
 
     @staticmethod
     def latest_for_user(user_id: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute(
             "SELECT token, user_id, character_id, name FROM auth_sessions WHERE user_id = ? ORDER BY last_seen DESC LIMIT 1",
@@ -1725,7 +1748,7 @@ class AccountRepository:
         import uuid as _uuid
 
         uid = f"acct_{_uuid.uuid4().hex[:12]}"
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         try:
             cur.execute(
@@ -1744,7 +1767,7 @@ class AccountRepository:
 
     @staticmethod
     def get_by_username(username: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute(
             "SELECT user_id, username, password_hash, salt FROM accounts WHERE username = ?",
@@ -1764,7 +1787,7 @@ class AccountRepository:
     @staticmethod
     def get_username(user_id: str) -> str:
         """按 user_id 取账户名（account-death：钱包块户名展示；无此账户时返回空串）。"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT username FROM accounts WHERE user_id = ?", (user_id,))
         row = cur.fetchone()
@@ -1779,7 +1802,7 @@ class AccountRepository:
         本方法绝不写库——World.join 在 app 层 touch_login 之前调用，
         读到的必是上一次登录的旧值。
         """
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT last_login FROM accounts WHERE user_id = ?", (user_id,))
         row = cur.fetchone()
@@ -1790,7 +1813,7 @@ class AccountRepository:
 
     @staticmethod
     def touch_login(user_id: str):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         conn.cursor().execute(
             "UPDATE accounts SET last_login = ? WHERE user_id = ?",
             (time.time(), user_id),
@@ -1808,7 +1831,7 @@ class AccountRepository:
         会话行时返回 False 且一行不删。单条 SQL 原子判定，堵住“同凭证另路
         登录已建角成功、回滚却删掉账号行”的竞态窗口。
         """
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         try:
             cur = conn.cursor()
             cur.execute(
@@ -1831,7 +1854,7 @@ class GeneratedNameRepository:
 
     @staticmethod
     def save(name: str, kind: str, data: dict) -> bool:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         try:
             cur.execute(
@@ -1852,7 +1875,7 @@ class GeneratedNameRepository:
 
     @staticmethod
     def all_names() -> set:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT name FROM generated_names")
         rows = {r[0] for r in cur.fetchall()}
@@ -1861,7 +1884,7 @@ class GeneratedNameRepository:
 
     @staticmethod
     def get(name: str) -> Optional[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute("SELECT data_json FROM generated_names WHERE name = ?", (name,))
         row = cur.fetchone()
@@ -1875,7 +1898,7 @@ class GeneratedNameRepository:
 
     @staticmethod
     def list_kind(kind: str, limit: int = 20):
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect()
         cur = conn.cursor()
         cur.execute(
             "SELECT name, data_json FROM generated_names WHERE kind = ? ORDER BY created_at DESC LIMIT ?",

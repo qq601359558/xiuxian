@@ -294,8 +294,26 @@ def test_ft03_chapter_done_via_visit_and_next_activated():
     char = _manual_origin_char("FT三", npc)
     thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
     assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    # 复测再修（B1-4）：到访 ≠ 完成——须先走到向导面前，再与之交谈一轮
+    char.location = "万剑仙门峰"
+    CharacterRepository.save(char)
     res = FateThreadEngine.record_visit(char, "万剑仙门峰")
     th = res["thread"]
+    assert th.chapters[0]["status"] == "active"
+    from core import npc_chat
+
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    # 注意：evaluate_for 原地改传入的 char（章节派生新目标挂在其 goals 上），
+    # 须传内存中的 char 而非新取对象，否则章节 1 的目标只落在丢弃对象上；
+    # 线已由 evaluate_for 回存，char 须调用方回存。
+    res3 = FateThreadEngine.evaluate_for(char)
+    if res3.get("changed"):
+        CharacterRepository.save(char)
+    th = res3["thread"]
     assert th.chapters[0]["status"] == "done"
     assert th.chapters[1]["status"] == "active"
     inst = (th.chapters[1]["check"] or {}).get("instance")
@@ -369,6 +387,14 @@ def test_ft06_new_check_kinds_and_climax_order():
         char, source="thread", title="访", detail="d",
         check={"kind": "visit_location", "ref": LOC, "npc_id": npc.id},
         instance=f"{thread.id}:c0")
+    # 复测再修（B1-4）：带 npc_id 的 visit 章须与目标交谈一轮才成
+    from core import npc_chat
+
+    _opened = npc_chat.open_session(char, npc)
+    assert _opened.get("success") is True, _opened
+    _said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert _said.get("success") is True, _said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
     GoalEngine.evaluate_checked_goals(char, time.time())
     assert g["status"] == "done"
     g2 = GoalEngine.add_checked_goal(
@@ -863,6 +889,15 @@ def test_ui02_entry_fate_and_drama_hooks(monkeypatch):
     # 预置 visited（不求值）：章节派生须发生在 build_entry 内才成 queue 项
     thread.visited = [LOC]
     FateThreadRepository.save(thread)
+    # 复测再修（B1-4）：带 npc_id 的 visit 章须与向导交谈一轮才成，否则
+    # build_entry 内求值仍 pending，不出 fate_chapter 项
+    from core import npc_chat
+
+    _opened = npc_chat.open_session(char, npc)
+    assert _opened.get("success") is True, _opened
+    _said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert _said.get("success") is True, _said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
     entry = build_entry(char, since=0.0, now=time.time(), allow_proactive=False)
     kinds = [q.get("kind") for q in entry["queue"]]
     assert "fate_chapter" in kinds

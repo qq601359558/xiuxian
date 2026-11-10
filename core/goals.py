@@ -433,13 +433,14 @@ class GoalEngine:
                 ref = str(check.get("ref") or "")
                 if not ref:
                     return None
-                from storage.db import FateThreadRepository
+                # 块一复测再修（B1-4）：取线口径与 FateThreadEngine._active_thread
+                # 一致（最新一条 active/shelved 线）。此前此处自扫 list 首条，
+                # 玩家搁置旧线另开新线时，求值会读旧线的 visited——旧线到过
+                # 的地点会让新线章节误成，或新线到过的地点因读旧线而不成。
+                # 单线时与旧口径完全等价。
+                from core.fate_thread import FateThreadEngine
 
-                thread = next(
-                    (th for th in FateThreadRepository.list_by_player(character.id)
-                     if th.status in ("active", "shelved")),
-                    None,
-                )
+                thread = FateThreadEngine._active_thread(character.id)
                 if thread is None or ref not in (thread.visited or []):
                     return None
                 npc_id = str(check.get("npc_id") or "")
@@ -448,6 +449,14 @@ class GoalEngine:
 
                     npc = CharacterRepository.get_by_id(npc_id)
                     if npc is None or npc.location != ref:
+                        return None
+                    # 块一复测再修（B1-4）：带 npc_id 的寻访章（命途第一章）
+                    # 不能只凭“到过该地”就成——否则玩家抵达当场章即成，
+                    # 目标卡的「就在此处 + 上前交谈」永不可达（见复测 B/D 号）。
+                    # 章题本就是「有些话须当面说清」：须与该 NPC 有过一轮
+                    # 交谈（会话记录含双方发言，或已落账的交谈记忆）才成。
+                    # 无 npc_id 的纯地点访问（兜底分支）保持旧口径。
+                    if not GoalEngine._talked_with_npc(character, npc):
                         return None
                 return "done"
             if kind == "promise_kept_count":
@@ -505,6 +514,38 @@ class GoalEngine:
             if nm:
                 names.append(nm)
         return any(item_ref in (n or "") for n in names)
+
+    @staticmethod
+    def _talked_with_npc(character: Character, npc: Character) -> bool:
+        """是否与该 NPC 有过一轮交谈（块一复测再修 B1-4 的判定信号）。
+
+        两路既有账，任一命中即算：① 进行中/已结束的交谈会话记录里
+        同时出现玩家与该 NPC 的发言（open_session 建会话、player_say
+        记玩家句、apply_npc_reply 记 NPC 句；会话关闭后记录仍保留）；
+        ② 已落账的交谈记忆摘要（close_session 写，换会话也不丢）。
+        只读，不写任何账；任一读账失败按“未谈过”计（pending，不误判）。
+        """
+        try:
+            from core import npc_chat
+
+            rec = (npc_chat._load_all() or {}).get(character.id) or {}
+            if rec.get("npc_id") == npc.id:
+                msgs = rec.get("messages") or []
+                who = {str(m.get("who") or "") for m in msgs}
+                if character.name in who and npc.name in who:
+                    return True
+        except Exception:
+            pass
+        try:
+            from core.npc_chat import _load_memory, _mem_key
+
+            mem = _load_memory() or {}
+            row = mem.get(_mem_key(character.id, npc.id)) or {}
+            if row.get("summaries"):
+                return True
+        except Exception:
+            pass
+        return False
 
     @staticmethod
     def on_breakthrough_major(character: Character) -> None:
