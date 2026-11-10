@@ -192,6 +192,15 @@ def _mark_talked_pair(player_id: str, npc_id: str) -> None:
         pass
 
 
+def mark_talked_pair(player_id: str, npc_id: str) -> None:
+    """公开包装：按 (玩家, NPC) 对记「已完成一轮交谈」标记（见 _mark_talked_pair）。
+
+    供不经 apply_npc_reply 的落账路径调用（如 server/world.py 的 /说
+    chat_actions 未结束分支手工 append NPC 发言后），口径与 _mem_key 一致。
+    """
+    _mark_talked_pair(player_id, npc_id)
+
+
 def has_talked_pair(player_id: str, npc_id: str) -> bool:
     """只读：该 (玩家, NPC) 对是否已有持久的「完成一轮」标记。"""
     try:

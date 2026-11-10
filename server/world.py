@@ -3841,6 +3841,15 @@ class World:
                                 rec2["updated_at"] = time.time()
                                 d[char.id] = rec2
                                 W.set(npc_chat._KEY, d)
+                                # MF-1（复审 6b）：本分支手工 append 不经
+                                # apply_npc_reply，须同口径补写 M4 按对标记——
+                                # player_say 已记玩家句、本次 NPC 文本已 append，
+                                # 双方各 ≥1 自动满足；否则切去与他人开会话
+                                # （单槽覆盖）后目标章交谈证据永久丢失。
+                                try:
+                                    npc_chat.mark_talked_pair(char.id, npc.id)
+                                except Exception:
+                                    pass
                             except Exception:
                                 pass
                         _eval_after_chat(char)

@@ -370,6 +370,64 @@ def test_ft03b_talked_evidence_survives_session_switch():
     assert th.chapters[1]["status"] == "active"
 
 
+def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
+    """MF-1 回归（复审 6b）：经 /说 chat_actions 赠礼（未结束）分支与目标
+    NPC 谈一轮——该分支手工 append NPC 发言、不经 apply_npc_reply，旧实现
+    不写 M4 按对标记；切去与他人开会话（单槽覆盖）后，目标章的交谈证据
+    永久丢失、永不完成。修复口径：append 成功后补 mark_talked_pair，此后
+    record_visit 触发求值时带 npc_id 的 visit_location 章应 done。
+
+    漏口复现关键：赠礼时命途线 visited 尚未含 ref（物理在场≠已记录到访），
+    赠礼分支内的即时求值因此不会提前把章做成；证据只能靠按对标记留存。
+    """
+    from core import npc_chat
+    from server.world import WORLD
+
+    WORLD.stop_tick()
+    npc_a = _npc("FT三丙向导甲")
+    npc_b = _npc("FT三丙向导乙")
+    char = _manual_origin_char("FT三丙", npc_a)
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["npc_id"] == npc_a.id
+    assert thread.chapters[0]["check"]["ref"] == LOC
+    assert LOC not in (thread.visited or []), \
+        "前置条件：visited 未含 ref，赠礼即时求值不得提前成章"
+    # ensure_thread 把章节目标挂在内存 char 上（不自行落盘），须回存，
+    # 否则 World 按 DB 重读 char 时章节目标缺失（ft03 同口径）。
+    CharacterRepository.save(char)
+
+    joined = WORLD.join(char.name, user_id=char.user_id)
+    tok = joined.get("token")
+    assert tok, joined
+    r0 = WORLD.handle(tok, f"/交谈 {npc_a.name}")
+    assert r0.get("chat_open") is True, r0
+    r = WORLD.handle(tok, "/说 赠你10灵石")
+    assert r.get("ok") is True, r
+    assert r.get("action") == "gift", r
+    assert r.get("chat_ended") is False, r
+    # 赠礼后章仍 active（visited 未含 ref）：证据此时只能靠按对标记留存
+    th_mid = FateThreadRepository.get_by_id(thread.id)
+    assert th_mid.chapters[0]["status"] == "active", th_mid.chapters[0]
+
+    # 切去与 B 开会话：单槽被 B 覆盖，A 的会话记录不再是当前槽
+    rb = WORLD.handle(tok, f"/交谈 {npc_b.name}")
+    assert rb.get("chat_open") is True, rb
+    slot = (npc_chat._load_all() or {}).get(char.id) or {}
+    assert slot.get("npc_id") == npc_b.id, "前置条件：单槽已切到 B"
+    assert npc_chat.has_talked_pair(char.id, npc_a.id) is True, \
+        "赠礼分支谈完一轮后应留下按 (玩家, 目标NPC) 对的交谈标记（MF-1）"
+
+    # 再触发求值：迁跃落点记 visited 后 evaluate，目标章应 done
+    char_now = CharacterRepository.get_by_id(char.id)
+    res = FateThreadEngine.record_visit(char_now, LOC)
+    if res.get("changed"):
+        CharacterRepository.save(char_now)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+
+
 def test_ft04_death_seal_and_next_life_seed():
     from core.legacy import LegacyEngine
 
