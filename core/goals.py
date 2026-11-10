@@ -519,10 +519,13 @@ class GoalEngine:
     def _talked_with_npc(character: Character, npc: Character) -> bool:
         """是否与该 NPC 有过一轮交谈（块一复测再修 B1-4 的判定信号）。
 
-        两路既有账，任一命中即算：① 进行中/已结束的交谈会话记录里
+        三路账，任一命中即算：① 进行中/已结束的交谈会话记录里
         同时出现玩家与该 NPC 的发言（open_session 建会话、player_say
         记玩家句、apply_npc_reply 记 NPC 句；会话关闭后记录仍保留）；
-        ② 已落账的交谈记忆摘要（close_session 写，换会话也不丢）。
+        ② 已落账的交谈记忆摘要（close_session 写，换会话也不丢）；
+        ③ M4 按 (玩家, NPC) 对持久留存的「已完成一轮」标记
+        （npc_chat.has_talked_pair，apply_npc_reply 落账时写入，
+        不被切换会话的单槽覆盖——①的单槽缺陷由此路补齐）。
         只读，不写任何账；任一读账失败按“未谈过”计（pending，不误判）。
         """
         try:
@@ -542,6 +545,13 @@ class GoalEngine:
             mem = _load_memory() or {}
             row = mem.get(_mem_key(character.id, npc.id)) or {}
             if row.get("summaries"):
+                return True
+        except Exception:
+            pass
+        try:
+            from core.npc_chat import has_talked_pair
+
+            if has_talked_pair(character.id, npc.id):
                 return True
         except Exception:
             pass

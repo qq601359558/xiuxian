@@ -330,6 +330,46 @@ def test_ft03_chapter_done_via_talk_and_next_activated():
     assert (goal.get("check") or {}).get("instance") == inst
 
 
+def test_ft03b_talked_evidence_survives_session_switch():
+    """M4 回归：谈 A（未挂断/未落摘要）后切去与 B 开会话，单槽被覆盖，
+    A 的交谈证据不得消失——A 章求值仍可成（旧实现只认单槽+摘要会误判）。"""
+    npc_a = _npc("FT三乙向导甲")
+    npc_b = _npc("FT三乙向导乙")
+    char = _manual_origin_char("FT三乙", npc_a)
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["npc_id"] == npc_a.id
+    char.location = LOC
+    CharacterRepository.save(char)
+    FateThreadEngine.record_visit(char, LOC)
+    from core import npc_chat
+
+    # 与 A 谈一轮（不挂断、不落摘要）
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc_a)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    assert npc_chat.has_talked_pair(char.id, npc_a.id) is True
+    # 切去与 B 开会话：单槽被 B 覆盖，A 的会话记录不再是当前槽
+    opened_b = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc_b)
+    assert opened_b.get("success") is True, opened_b
+    said_b = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "道友安好")
+    assert said_b.get("success") is True, said_b
+    npc_chat.apply_npc_reply(char.id, "安好，请坐。", True)
+    slot = (npc_chat._load_all() or {}).get(char.id) or {}
+    assert slot.get("npc_id") == npc_b.id, "前置条件：单槽已切到 B"
+    # 证据仍在：按对标记命中，求值 A 章可成
+    char_now = CharacterRepository.get_by_id(char.id)
+    assert GoalEngine._talked_with_npc(char_now, npc_a) is True
+    res = FateThreadEngine.evaluate_for(char_now)
+    if res.get("changed"):
+        CharacterRepository.save(char_now)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+
+
 def test_ft04_death_seal_and_next_life_seed():
     from core.legacy import LegacyEngine
 

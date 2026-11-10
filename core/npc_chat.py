@@ -11,6 +11,7 @@ from storage.db import CharacterRepository, WorldStateRepository
 
 _KEY = "npc_chat_sessions"
 _MEM_KEY = "npc_chat_memory"
+_TALKED_KEY = "npc_chat_talked_pairs"
 _INBOX_KEY = "player_chat_inbox"
 _P2P_KEY = "p2p_chat_history"
 _MAX_TURNS = 24
@@ -170,6 +171,35 @@ def _save_memory(d: Dict[str, Any]) -> None:
         WorldStateRepository.set(_MEM_KEY, d)
     except Exception:
         pass
+
+
+def _mark_talked_pair(player_id: str, npc_id: str) -> None:
+    """M4（修复轮3）：按 (玩家, NPC) 对持久记「已完成一轮交谈」标记。
+
+    只记布尔 + 时间戳，不碰任何数值结算（红线）。存独立 WorldState 键、
+    按对键索引，不随单槽会话切换被覆盖（旧实现只认当前会话槽，谈 A 后
+    切去谈 B，A 的证据即消失）。apply_npc_reply 在双方各发言 ≥1 时写入。
+    """
+    if not player_id or not npc_id:
+        return
+    try:
+        data = WorldStateRepository.get(_TALKED_KEY) or {}
+        key = _mem_key(player_id, npc_id)
+        if not (data.get(key) or {}).get("talked"):
+            data[key] = {"talked": True, "ts": time.time()}
+            WorldStateRepository.set(_TALKED_KEY, data)
+    except Exception:
+        pass
+
+
+def has_talked_pair(player_id: str, npc_id: str) -> bool:
+    """只读：该 (玩家, NPC) 对是否已有持久的「完成一轮」标记。"""
+    try:
+        data = WorldStateRepository.get(_TALKED_KEY) or {}
+        row = data.get(_mem_key(player_id, npc_id)) or {}
+        return bool(row.get("talked"))
+    except Exception:
+        return False
 
 
 def summarize_session_rule(rec: Dict[str, Any], player: Optional[Character] = None, npc: Optional[Character] = None) -> str:
@@ -470,6 +500,21 @@ def apply_npc_reply(
     msgs.append({"who": rec.get("npc_name") or "对方", "text": line, "ts": time.time()})
     rec["messages"] = msgs[-_MAX_TURNS:]
     rec["updated_at"] = time.time()
+    # M4：一轮成立（玩家与该 NPC 在本会话各发言 ≥1）即按对落持久标记，
+    # 不等挂断/落摘要；切去与他人开会话也不会覆盖这份证据。
+    try:
+        _npc_name = rec.get("npc_name") or ""
+        _who = {str(m.get("who") or "") for m in rec["messages"]}
+        _pname = ""
+        try:
+            _pobj = CharacterRepository.get_by_id(player_id)
+            _pname = _pobj.name if _pobj else ""
+        except Exception:
+            _pname = ""
+        if _npc_name in _who and ((_pname and _pname in _who) or len(_who) >= 2):
+            _mark_talked_pair(player_id, str(rec.get("npc_id") or ""))
+    except Exception:
+        pass
 
     try:
         w = int(rec.get("willingness") or 50)
