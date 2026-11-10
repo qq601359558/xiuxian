@@ -3733,6 +3733,30 @@ class World:
                 from core.npc_mind import _is_npc
                 is_target_npc = _is_npc(npc)
 
+                def _eval_after_chat(_char):
+                    """M3（修复轮3）：/说 各出口统一的命途求值点。
+
+                    口径与主链一致：evaluate_checked_goals + FateThreadEngine
+                    .evaluate_for 两段各自 try/except 包裹、不炸主流程；
+                    求值翻转/changed 才 CharacterRepository.save 回存。
+                    chat_actions 的两路提前 return 与主对话链统一调用本 helper，
+                    不再绕过求值（此前动作分支说完话章节永不推进）。
+                    """
+                    try:
+                        from core.goals import evaluate_checked_goals as _ev_goals
+
+                        if _ev_goals(_char):
+                            CharacterRepository.save(_char)
+                    except Exception:
+                        pass
+                    try:
+                        from core.fate_thread import FateThreadEngine as _FTE_ev
+
+                        if _FTE_ev.evaluate_for(_char).get("changed"):
+                            CharacterRepository.save(_char)
+                    except Exception:
+                        pass
+
                 # 头像下发（gallery-gameplay §10.3-5）：与同场 list_here
                 # 共用一处解析，本分支各 chat_open 返回点统一带 avatar。
                 from core.here import avatar_path_for_character as _avatar_fn
@@ -3787,6 +3811,7 @@ class World:
                                 attitude_delta=0,
                                 hangup_reason=act.get("hangup_reason") or "会话终止。",
                             )
+                            _eval_after_chat(char)
                             return {
                                 "ok": True,
                                 "text": act.get("text", ""),
@@ -3818,6 +3843,7 @@ class World:
                                 W.set(npc_chat._KEY, d)
                             except Exception:
                                 pass
+                        _eval_after_chat(char)
                         return {
                             "ok": True,
                             "text": act.get("text", ""),
@@ -3932,21 +3958,8 @@ class World:
                 # 命途求值点（块一复测再修 B1-4）：与目标 NPC 的一轮交谈是
                 # 第一章 visit_location 的完成条件之一（见 goals._talked_with_npc），
                 # 回复落账后立即求值，否则章须等下一次迁跃/登录触发才推进。
-                # 口径与 E3/T2 同：求值翻转才回存角色。
-                try:
-                    from core.goals import evaluate_checked_goals as _eval_goals_chat
-
-                    if _eval_goals_chat(char):
-                        CharacterRepository.save(char)
-                except Exception:
-                    pass
-                try:
-                    from core.fate_thread import FateThreadEngine as _FTE_chat
-
-                    if _FTE_chat.evaluate_for(char).get("changed"):
-                        CharacterRepository.save(char)
-                except Exception:
-                    pass
+                # M3：统一走 _eval_after_chat（chat_actions 两路分支同口径）。
+                _eval_after_chat(char)
                 banter_text = ""
                 banter_list: list = []
                 try:
