@@ -38,13 +38,48 @@ for _intent, _words in _KW.items():
         _pairs.append((len(_w), _w, _intent))
 _pairs.sort(reverse=True)
 
+# 良性复合词：内含单字动作关键词（打/摸/偷/杀），但语义非敌意/非动作。
+# 典型缺陷（块一复测 C4）：「想打听些消息」被单字「打」误判 attack，
+# 动作被安全区/新手庇护硬前置拒绝后整轮 NPC 回复被吞。分类前先剔除
+# 这些复合词再扫关键词；复合词之外另有真实关键词（如「打听完便一掌
+# 拍死你」）时仍按原意图判。同类先例：core/free_action.py 的 observe
+# 关键词以长词优先压住「打」。
+_BENIGN_COMPOUNDS: Tuple[str, ...] = (
+    "打招呼", "打个招呼", "打声招呼", "打听", "打探", "打量", "打算", "打坐", "打扮", "打趣",
+    "摸索", "偷闲", "偷懒", "杀价",
+)
+
+
+def _strip_benign(t: str) -> str:
+    for b in _BENIGN_COMPOUNDS:
+        if b in t:
+            t = t.replace(b, "")
+    return t
+
+
+def _scan_intent(t: str) -> str:
+    for _ln, w, intent in _pairs:
+        if w in t:
+            return intent
+    return "dialogue"
+
+
+def _hostility_only_from_benign(text: str) -> bool:
+    """原文敌意证据是否全部来自良性复合词内的单字（剔除后无敌意意图）。"""
+    t = (text or "").strip()
+    if not any(b in t for b in _BENIGN_COMPOUNDS):
+        return False
+    if _scan_intent(t) not in ("attack", "steal", "kidnap"):
+        return False
+    return _scan_intent(_strip_benign(t)) == "dialogue"
+
 
 def classify_local(text: str) -> Dict[str, Any]:
     t = (text or "").strip()
-    for _ln, w, intent in _pairs:
-        if w in t:
-            return {"intent": intent, "target_item": _extract_item(t), "stones": _extract_stones(t)}
-    return {"intent": "dialogue", "target_item": "", "stones": 0}
+    intent = _scan_intent(_strip_benign(t))
+    if intent == "dialogue":
+        return {"intent": "dialogue", "target_item": "", "stones": 0}
+    return {"intent": intent, "target_item": _extract_item(t), "stones": _extract_stones(t)}
 
 
 def classify_ai(text: str, player: Character, npc: Character) -> Dict[str, Any]:
@@ -69,6 +104,10 @@ def classify_ai(text: str, player: Character, npc: Character) -> Dict[str, Any]:
             return classify_local(text)
         intent = str(data.get("intent") or "").strip().lower()
         if intent not in INTENTS:
+            intent = "dialogue"
+        # C4 同口径纠偏：AI 若把打听类话术判敌意、而本地敌意证据全在
+        # 良性复合词内（剔除后无敌意），以规则证据为准判 dialogue。
+        if intent in ("attack", "steal", "kidnap") and _hostility_only_from_benign(text):
             intent = "dialogue"
         item = str(data.get("target_item") or "").strip()[:40]
         try:
