@@ -377,25 +377,39 @@ def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
     永久丢失、永不完成。修复口径：append 成功后补 mark_talked_pair，此后
     record_visit 触发求值时带 npc_id 的 visit_location 章应 done。
 
-    漏口复现关键：赠礼时命途线 visited 尚未含 ref（物理在场≠已记录到访），
-    赠礼分支内的即时求值因此不会提前把章做成；证据只能靠按对标记留存。
+    漏口复现关键（staging 修订）：赠礼分支内的即时求值不得提前成章，
+    证据只能靠按对标记留存。原 staging 靠「visited 未含 ref」挡成章，
+    已被 ft03d 的 C 口径取代——出生地同场原地谈完本就应即时成章，
+    再靠 visited 缺失挡章等于把已修缺陷当装置。故 staging 改挡在
+    另一半：赠礼时目标 NPC 暂离 ref（npc.location ≠ ref，求值恒
+    pending），玩家与 A、B 均暂置于万剑仙门峰同场完成赠礼与切会话；
+    末段 A 迁回 ref 后 record_visit 触发求值，隔离目标不变。
     """
     from core import npc_chat
     from server.world import WORLD
 
     WORLD.stop_tick()
     npc_a = _npc("FT三丙向导甲")
-    npc_b = _npc("FT三丙向导乙")
+    npc_b = _npc("FT三丙向导乙", location="万剑仙门峰")
     char = _manual_origin_char("FT三丙", npc_a)
     thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
     assert thread.chapters[0]["check"]["kind"] == "visit_location"
     assert thread.chapters[0]["check"]["npc_id"] == npc_a.id
     assert thread.chapters[0]["check"]["ref"] == LOC
     assert LOC not in (thread.visited or []), \
-        "前置条件：visited 未含 ref，赠礼即时求值不得提前成章"
+        "前置条件：visited 未含 ref（本测试全程不靠 visited 挡章，见 docstring）"
     # ensure_thread 把章节目标挂在内存 char 上（不自行落盘），须回存，
     # 否则 World 按 DB 重读 char 时章节目标缺失（ft03 同口径）。
     CharacterRepository.save(char)
+    # staging：A 暂离 ref、玩家随行至万剑仙门峰（B 亦在此），赠礼与
+    # 切会话都在该地同场进行；此时求值被 npc.location ≠ ref 挡住。
+    npc_a.location = "万剑仙门峰"
+    CharacterRepository.save(npc_a)
+    npc_a = CharacterRepository.get_by_id(npc_a.id)
+    assert npc_a.location != LOC, "前置条件：赠礼时目标 NPC 不在 ref"
+    char.location = "万剑仙门峰"
+    CharacterRepository.save(char)
+    char = CharacterRepository.get_by_id(char.id)
 
     joined = WORLD.join(char.name, user_id=char.user_id)
     tok = joined.get("token")
@@ -406,7 +420,7 @@ def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
     assert r.get("ok") is True, r
     assert r.get("action") == "gift", r
     assert r.get("chat_ended") is False, r
-    # 赠礼后章仍 active（visited 未含 ref）：证据此时只能靠按对标记留存
+    # 赠礼后章仍 active（目标 NPC 不在 ref）：证据此时只能靠按对标记留存
     th_mid = FateThreadRepository.get_by_id(thread.id)
     assert th_mid.chapters[0]["status"] == "active", th_mid.chapters[0]
 
@@ -418,7 +432,9 @@ def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
     assert npc_chat.has_talked_pair(char.id, npc_a.id) is True, \
         "赠礼分支谈完一轮后应留下按 (玩家, 目标NPC) 对的交谈标记（MF-1）"
 
-    # 再触发求值：迁跃落点记 visited 后 evaluate，目标章应 done
+    # A 迁回 ref 后再触发求值：迁跃落点记 visited 后 evaluate，目标章应 done
+    npc_a.location = LOC
+    CharacterRepository.save(npc_a)
     char_now = CharacterRepository.get_by_id(char.id)
     res = FateThreadEngine.record_visit(char_now, LOC)
     if res.get("changed"):
@@ -426,6 +442,63 @@ def test_ft03c_gift_branch_talked_evidence_survives_session_switch():
     th = res["thread"]
     assert th.chapters[0]["status"] == "done", th.chapters[0]
     assert th.chapters[1]["status"] == "active"
+
+
+def test_ft03d_born_at_target_talk_in_place_completes():
+    """出生地同场回归（simr2b 复现）：角色出生地即第一章 ref、目标 NPC
+    同场、从未 /go 过（visited 从未落账），原地交谈一轮后章节应 done。
+
+    卡点定性：visited 只由 /go 落点 record_visit 写入，出生地从未被记入；
+    旧求值只认 visited 一半，原地把话谈完（交谈证据正确落账）章节仍
+    active，必须离场再 /go 返回才完成。修复口径（C，纯求值、零写入）：
+    visit_location 求值时「角色当前所在地 == ref」视为已到访，与
+    visited 命中取或；visited 账本身不写、不污染其 /go 落点语义。
+    两半钉住：交谈前仅原地站立（到访一半成立、交谈一半缺）仍 active；
+    交谈后两半齐 → done，且 visited 仍未被写入（零写入口径）。
+    """
+    npc = _npc("FT三丁向导")  # 默认 LOC，与出生地同场
+    char = _manual_origin_char("FT三丁", npc)  # 默认 location=LOC、birthplace=LOC
+    thread = FateThreadEngine.ensure_thread(char, LegacyAccount(user_id=char.user_id))
+    assert thread.chapters[0]["check"]["kind"] == "visit_location"
+    assert thread.chapters[0]["check"]["ref"] == LOC
+    assert thread.chapters[0]["check"]["npc_id"] == npc.id
+    assert char.location == LOC, "前置条件：角色就在出生地（=章节 ref）"
+    assert LOC not in (thread.visited or []), \
+        "前置条件：从未 /go，visited 未含出生地 ref"
+    # ensure_thread 把章节目标挂在内存 char 上，须回存（ft03c 同口径）
+    CharacterRepository.save(char)
+
+    # 仅原地站立（未交谈）：到访一半成立、交谈一半缺 → 仍 active
+    assert GoalEngine._talked_with_npc(
+        CharacterRepository.get_by_id(char.id),
+        CharacterRepository.get_by_id(npc.id)) is False
+    res0 = FateThreadEngine.evaluate_for(char)
+    if res0.get("changed"):
+        CharacterRepository.save(char)
+    assert res0["thread"].chapters[0]["status"] == "active", \
+        res0["thread"].chapters[0]
+
+    # 原地交谈一轮（不 /go、不 record_visit）
+    from core import npc_chat
+
+    opened = npc_chat.open_session(CharacterRepository.get_by_id(char.id), npc)
+    assert opened.get("success") is True, opened
+    said = npc_chat.player_say(CharacterRepository.get_by_id(char.id), "幸会，道友")
+    assert said.get("success") is True, said
+    npc_chat.apply_npc_reply(char.id, "回礼，道友请坐。", True)
+    assert GoalEngine._talked_with_npc(
+        CharacterRepository.get_by_id(char.id),
+        CharacterRepository.get_by_id(npc.id)) is True
+
+    # 交谈后求值：两半齐 → 章节 done、下一章 active；visited 仍零写入
+    res = FateThreadEngine.evaluate_for(char)
+    if res.get("changed"):
+        CharacterRepository.save(char)
+    th = res["thread"]
+    assert th.chapters[0]["status"] == "done", th.chapters[0]
+    assert th.chapters[1]["status"] == "active"
+    assert LOC not in (th.visited or []), \
+        "C 口径为纯求值：完成不得靠回写 visited 污染 /go 落点账"
 
 
 def test_ft04_death_seal_and_next_life_seed():

@@ -441,7 +441,21 @@ class GoalEngine:
                 from core.fate_thread import FateThreadEngine
 
                 thread = FateThreadEngine._active_thread(character.id)
-                if thread is None or ref not in (thread.visited or []):
+                if thread is None:
+                    return None
+                # 块一复测残余（出生地同场）：visited 只由 /go 落点
+                # record_visit 写入，出生地从未落账——目标恰在出生地时
+                # 原地谈完也永远差「到访」一半，须离场再 /go 返回才成
+                # （simr2b 实测）。修复取 C 口径（纯求值、零写入）：
+                # 「角色当前所在地 == ref」视为已到访，与 visited 命中
+                # 取或。visited 全库核查：唯一写入者 record_visit
+                # （/go 落点）、唯一逻辑读者即此处，无展示/其他逻辑
+                # 消费，故不回写 visited、不污染其落点记录语义，对
+                # 既有账改动为零；已到访后离场者仍凭 visited 命中，
+                # 旧行为不变。带 npc_id 时下方交谈一半仍不可缺。
+                if ref not in (thread.visited or []) and str(
+                    getattr(character, "location", "") or ""
+                ) != ref:
                     return None
                 npc_id = str(check.get("npc_id") or "")
                 if npc_id:
