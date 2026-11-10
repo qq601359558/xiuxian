@@ -38,8 +38,10 @@ def _connect():
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-    except Exception:
-        pass
+    except Exception as exc:
+        # M5③（修复轮3）：不得静默吞 WAL 设置失败——记告警后退化返回连接
+        # （用默认 journal/synchronous 继续运行，胜过无声地以为 WAL 已生效）。
+        _log.warning("WAL/synchronous 设置失败，退化默认模式继续: %s", exc)
     return conn
 
 

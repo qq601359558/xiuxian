@@ -29,16 +29,25 @@ def backup_db() -> Path:
         return DB_PATH
     # 块一复测再修（B1-2）：库已切 WAL 模式（见 storage.db._connect），
     # 热拷只拷 .db 会丢 -wal 里未检查点的数据；拷前先检查点落盘。
-    try:
-        import sqlite3
+    # M5①（修复轮3）：检查 wal_checkpoint 返回的 busy 标志——非 0 表示
+    # 尚有读者/写者未落盘，不得静默继续拷库（会拷出缺数据的备份）；
+    # 有限次重试后仍 busy 则抛错中止备份。
+    import sqlite3
 
-        _c = sqlite3.connect(DB_PATH)
-        try:
-            _c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        finally:
-            _c.close()
-    except Exception:
-        pass
+    _c = sqlite3.connect(DB_PATH)
+    try:
+        for _attempt in range(3):
+            _row = _c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            _busy = int(_row[0]) if _row else 1
+            if _busy == 0:
+                break
+            if _attempt < 2:
+                time.sleep(0.05)
+                continue
+            raise RuntimeError(
+                f"wal_checkpoint(TRUNCATE) busy={_busy}，重试 3 次仍未落盘，备份中止")
+    finally:
+        _c.close()
     ts = time.strftime("%Y%m%d_%H%M%S")
     dest = DATA_DIR / f"tiandao_backup_{ts}.db"
     shutil.copy2(DB_PATH, dest)
@@ -49,8 +58,14 @@ def reset(keep_roster: bool = True) -> dict:
     """删除 DB 后重建并播种。返回统计。"""
     init_db()
     # 简单方案：直接删库重来（备份已做）
+    # M5②（修复轮3）：WAL 模式下须一并清理 -wal/-shm 兄弟文件，
+    # 否则残留 WAL 会被新库误读、把已删数据带回来。
     if DB_PATH.exists():
         DB_PATH.unlink()
+    for _suffix in ("-wal", "-shm"):
+        _sibling = Path(f"{DB_PATH}{_suffix}")
+        if _sibling.exists():
+            _sibling.unlink()
     init_db()
     stats = seed_roster()
     # 再补一张血令
