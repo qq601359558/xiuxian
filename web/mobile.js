@@ -58,6 +58,8 @@
     commands: [],
     busy: false,
     demo: false,
+    loginRetried: false,
+    loginRetryTimer: null,
     sug: [],
     sugI: 0,
     selectedBagName: "",
@@ -161,7 +163,73 @@
     }, 3200);
   }
 
+  // action-error-ux：后端报错原文不上界面。code 优先映射，未知给场景兜底，
+  // 原文只进 console。注意：读 code / lock_fallback 一律用括号记法
+  // （e["code"]），不得用点记法读该键
+  // （CT-01 冻结计数：三端读键漂移即变红）。
+  var ACTION_ERROR_TEXT = {
+    AUTH_REQUIRED: "登录已失效，请重新登录",
+    EMPTY_COMMAND: "指令为空，请重新输入",
+    ACTION_FAILED: "行动处理异常，请稍后重试。",
+    AUTH_FAILED: "账号或密匙有误",
+    WORLD_BUSY: "服务器正忙，请稍后再试"
+  };
+  var ACTION_ERROR_TEXT_BY_MSG = {
+    "需要 token": "登录已失效，请重新登录",
+    "需要 token 与 command": "登录已失效，请重新登录",
+    "需要 token 或账号与密匙": "登录已失效，请重新登录",
+    "会话无效": "登录已失效，请重新登录",
+    "会话无效，请用账号密匙重新 /login": "登录已失效，请重新登录",
+    "会话无效，请用账号密匙登录": "登录已失效，请重新登录",
+    "无法感应阵枢灵脉（请确认服务已启动）": "无法感应阵枢灵脉（请确认服务已启动）",
+    "行动处理异常，请稍后重试。": "行动处理异常，请稍后重试。",
+    "账号或密匙有误": "账号或密匙有误"
+  };
+  function humanizeActionError(e, fallback) {
+    var raw = "", code = "";
+    if (e && typeof e === "object") {
+      code = e["code"] || "";
+      raw = e["rawError"] || e["error"] || e["message"] || "";
+    } else if (typeof e === "string") raw = e;
+    if (code && ACTION_ERROR_TEXT[code]) return ACTION_ERROR_TEXT[code];
+    if (raw && ACTION_ERROR_TEXT_BY_MSG[raw]) return ACTION_ERROR_TEXT_BY_MSG[raw];
+    if (raw) { try { console.error("[action-error]", code, raw); } catch (_) {} }
+    return fallback || "操作失败，请重试";
+  }
+  function isAuthError(e) {
+    if (!e || typeof e !== "object") return false;
+    if (e["code"] === "AUTH_REQUIRED") return true;
+    var raw = e["rawError"] || e["error"] || e["message"] || "";
+    return raw === "会话无效" || raw === "会话无效，请用账号密匙重新 /login" ||
+      raw === "会话无效，请用账号密匙登录" || raw === "需要 token" ||
+      raw === "需要 token 与 command" || raw === "需要 token 或账号与密匙";
+  }
+  // 无 token 不发请求并引导重新登录（复用既有 showGate + doAuth，不新造会话机制）
+  function requireActionToken() {
+    if (state.demo || state.token) return true;
+    toast("登录已失效，请重新登录", "bad");
+    showGate("登录已失效，请重新登录");
+    return false;
+  }
+  // MF-1：自动重试定时器句柄可取消；手动提交/成功/非忙回退时清掉，
+  // 仅无挂起定时器时调度，避免重复/过期重试。
+  function clearLoginRetryTimer() {
+    if (state.loginRetryTimer) { clearTimeout(state.loginRetryTimer); state.loginRetryTimer = null; }
+  }
+  function syncCmdGoDisabled() {
+    var go = $("cmdGo"), inp = $("cmdInput");
+    if (!go || !inp) return;
+    go.disabled = !inp.value.trim() || !!state.busy;
+  }
+
   async function api(path, body) {
+    // action-error-ux 第二道防线：/action 与 /chat 无 token 时不发请求。
+    if ((path === "/action" || path === "/chat") && body && !body.token && !state.demo) {
+      var authErr = new Error("登录已失效，请重新登录");
+      authErr.code = "AUTH_REQUIRED";
+      authErr.rawError = "需要 token";
+      throw authErr;
+    }
     var base = (state.base || "").trim().replace(/\/$/, "");
     if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
     var opts = {
@@ -181,11 +249,16 @@
     }
     if (!res.ok) {
       var msg = res.statusText || String(res.status);
+      var code = "";
       try {
         var j = await res.json();
         msg = j.error || j.message || msg;
+        code = j["code"] || "";
       } catch (_) {}
-      throw new Error(msg);
+      var err = new Error(msg);
+      if (code) err.code = code;
+      err.rawError = msg;
+      throw err;
     }
     return res.json();
   }
@@ -260,6 +333,7 @@
     }
     var dot = $("busyDot");
     if (dot) dot.style.display = on ? "inline-block" : "none";
+    syncCmdGoDisabled();
   }
 
   // ---- 各分区渲染 ----
@@ -1199,7 +1273,7 @@ function cpMap(data) { var m = data.treasure_map; if (!m || typeof m!== "object"
   function cpMingwu(data) { var list = data.relics; if (!Array.isArray(list) || !list.length) return ""; var rows = list.map(function (r) { return cpRow(cpMain(cpS(r.name), cpS(cpPk(r, "线索", "clue", "desc", "description"))), null, cpS(cpPk(r, "type", "status") || "")); }).join(""); return cpCard("名物 · 听闻册", list.length + " 件", rows); }
   function cpSectRing(data) { var ring = data.status && data.status.sect_ring; if (!ring || typeof ring !== "object" || !Array.isArray(ring.themes) || !ring.themes.length) return ""; return cpCard("宗门环 · " + cpS(ring.day), ring.done ? "今日已完成" : "", ring.themes.map(function (t, i) { return cpRow(cpMain(cpS(t.label), cpS(t.lore || "") + (t.need_item ? " · 需 " + t.need_item : "") + (t.need_streak ? " · 需连环≥" + t.need_streak : "")), null, ring.accepted ? "已接取" : "") + (ring.done ? "" : cpChips([{ label: "接取此环", cmd: "/接宗门环 " + (t.id != null ? t.id : i + 1) }])); }).join("")); }
   function cpApocalypse(data) { var s = data.season; if (!s || typeof s !== "object") return ""; var kv = cpKvs([["纪元", "第 " + cpN(s.season_number) + " 纪", true], ["进度", "第 " + cpN(s.day_in_season) + " 天/共 " + cpN(s.total_days) + " 天", true], ["剩余", "约 " + cpN(s.remain_real_days) + " 天", true], ["终局", s.is_ended ? "已终局" : (s.is_final_week ? "终局之周" : "灵机尚稳"), false]]); return cpCard("大劫 · 纪元终局", "", kv + cpNote("大劫降临后输入 /大劫 结算，未飞升者应劫转世并结转道统。")); }
-  function cpAi(data) { var a = data.ai_data, dq = data.director_quality; if ((!a || typeof a !== "object") && !dq) return ""; var kv = a ? cpKvs([["模式", esc(cpLab({ CCSWITCH: "CC Switch 本机代理", OPENAI: "OpenAI 兼容直连" }, a.mode)), false], ["地址", esc(cpS(a.base)), false], ["模型", esc(cpS(a.model)), false], ["状态", a.ok ? "就绪" : esc(cpS(a.error || "未就绪")), false]]) : ""; var checks = ""; if (dq && Array.isArray(dq.checks)) checks = cpSec("天道导演链路（" + cpN(dq.passed) + "/" + cpN(dq.total) + " 通过）", dq.checks.map(function (c) { return cpRow(cpMain(cpS(c.name), cpS(c.detail || "")), null, c.ok ? "✓" : "✗"); }).join("")); return cpCard("AI 自检", "", kv + checks); }
+  function cpAi(data) { var a = data.ai_data, dq = data.director_quality; if ((!a || typeof a !== "object") && !dq) return ""; if (a && !a.ok && a.error) { try { console.warn("[action-error] ai:", a.error); } catch (_) {} } var kv = a ? cpKvs([["模式", esc(cpLab({ CCSWITCH: "CC Switch 本机代理", OPENAI: "OpenAI 兼容直连" }, a.mode)), false], ["地址", esc(cpS(a.base)), false], ["模型", esc(cpS(a.model)), false], ["状态", a.ok ? "就绪" : "未就绪", false]]) : ""; var checks = ""; if (dq && Array.isArray(dq.checks)) checks = cpSec("天道导演链路（" + cpN(dq.passed) + "/" + cpN(dq.total) + " 通过）", dq.checks.map(function (c) { return cpRow(cpMain(cpS(c.name), cpS(c.detail || "")), null, c.ok ? "✓" : "✗"); }).join("")); return cpCard("AI 自检", "", kv + checks); }
   function cpAilog(data) { var list = data.items; if (!Array.isArray(list) || !list.length) return ""; return cpCard("AI 调用日志", list.length + " 条", cpRows(list, function (it) { return cpRow(cpMain(cpS(it.channel || it.kind || ""), (it.prompt || "").slice(0, 40) + ((it.prompt || "").length > 40 ? "…" : "")), (it.duration_ms != null ? it.duration_ms + "ms" : "") + " · HTTP " + cpS(it.http_status), it.status || ""); }, 10)); }
 // ---- 附录 ----
 function cpPet(data) { var list = data.pets; if (!Array.isArray(list) ||!list.length) { var one = data.status && data.status.pet; list = (one && typeof one === "object")? [one]: [];} if (!list.length) return ""; var rows = list.map(function (p) { var deployed = cpPk(p, "出战", "deployed") || p.state === "出战中" || p.active === true; var chips = !deployed? cpChips([{ label: "出战", cmd: "/出战 " + (p.name || "")}]): ""; return cpRow(cpMain(cpS(p.name) + " · " + cpS(cpPk(p, "种", "species", "kind")), "境界 " + (p.level != null ? p.level + " 级" : cpS(cpPk(p, "境界", "realm"))) + " · 成长 " + cpN(cpPk(p, "成长", "growth"))), null, (deployed? "出战中": "") || cpS(cpPk(p, "状态", "state", "status")) || "") + chips;}).join(""); var total = data.status && data.status.pets_count; return cpCard("灵宠", total!= null? "共 " + total + "/3 只": list.length + " 只", rows);}
@@ -1336,30 +1410,32 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       String(data.text || "").split("\n").filter(Boolean).forEach(function (ln) { chatMsgM("", ln, "sys"); });
     }
     if (data.ok === false && !lines.length && (data.error || data.message))
-      chatMsgM("", data.error || data.message, "sys");
+      chatMsgM("", humanizeActionError(data, "传音失败，请重试"), "sys");
     if (data.chat_ended) state.chat.live = false;
     return true;
   }
   async function openChatWithM(name, firstText) {
     if (!name) return;
+    if (!requireActionToken()) return;
     openChatM(name, false, "");
     try {
       var data = state.demo ? demoResult("/交谈 " + name) : await api("/chat", { token: state.token, to: name });
       if (!routeChatDataM(data, "/交谈") && data && data.ok === false)
-        chatMsgM("", data.error || data.message || "无法开启交谈", "sys");
+        chatMsgM("", humanizeActionError(data, "传音失败，请重试"), "sys");
       if (firstText) {
         var inp = $("chatInputM");
         if (inp) inp.value = firstText;
         await chatSendM();
       }
     } catch (e) {
-      chatMsgM("", "传音失败：" + e.message, "sys");
+      chatMsgM("", humanizeActionError(e, "传音失败，请重试"), "sys");
     }
   }
   async function chatSendM() {
     var inp = $("chatInputM");
     var c = inp ? inp.value.trim() : "";
     if (!c || !state.chat.visible) return;
+    if (!requireActionToken()) return;
     inp.value = "";
     chatMsgM("你", c, "me");
     try {
@@ -1381,10 +1457,11 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
         routeChatDataM(data, "/说");
       }
       if (data && data.ok === false && !(data.chat_lines || []).length && (data.error || data.message))
-        chatMsgM("", data.error || data.message, "sys");
+        chatMsgM("", humanizeActionError(data, "传音失败，请重试"), "sys");
     } catch (e) {
-      chatMsgM("", "传音失败：" + e.message, "sys");
-      toast(e.message, "bad");
+      chatMsgM("", humanizeActionError(e, "传音失败，请重试"), "sys");
+      toast(humanizeActionError(e, "传音失败，请重试"), "bad");
+      if (isAuthError(e)) showGate("登录已失效，请重新登录");
     }
   }
 // == chat-structure: end ==
@@ -1392,6 +1469,7 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
   async function sendCmd(cmd) {
     var c = (cmd || "").trim();
     if (!c) return;
+    if (!requireActionToken()) return { ok: false, code: "AUTH_REQUIRED" };
     if (state.busy) {
       toast("天道神念推演中，诸法暂滞，请稍候…", "bad");
       return;
@@ -1415,8 +1493,10 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       var panelHtml = buildCommandPanel(c, data);
       if (panelHtml) pushFeedHtml(panelHtml, data.ok === false ? "bad" : undefined);
       else if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined, data.omen_image || "");
-      else if (data.ok === false && data.error)
-        pushFeed("敕令失败：" + data.error, "bad");
+      else if (data.ok === false && data.error) {
+        pushFeed("敕令失败：" + humanizeActionError(data), "bad");
+        if (isAuthError(data)) showGate("登录已失效，请重新登录");
+      }
       // 奇遇/天象选项芯片（CP-48）：与桌面 inline 条同构，配图保留在上条文本里。
       if (data.omen_inline === true && Array.isArray(data.omen_choices) && data.omen_choices.length)
         pushFeedHtml(buildOmenChipsM(data), "ok");
@@ -1430,9 +1510,11 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       hideSug();
       return data;
     } catch (e) {
-      pushFeed("敕令失败：" + e.message, "bad");
-      toast(e.message, "bad");
-      return { ok: false, error: e.message };
+      var errMsg = humanizeActionError(e, "操作失败，请重试");
+      pushFeed("敕令失败：" + errMsg, "bad");
+      toast(errMsg, "bad");
+      if (isAuthError(e)) showGate("登录已失效，请重新登录");
+      return { ok: false, error: errMsg };
     } finally {
       busy(false);
     }
@@ -1531,6 +1613,7 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     inp.value = it.cmd + " ";
     hideSug();
     inp.focus();
+    syncCmdGoDisabled();
   }
   function hideSug() {
     var el = $("suggest");
@@ -1575,6 +1658,9 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
 
   async function doAuth(e) {
     if (e && e.preventDefault) e.preventDefault();
+    // 手动提交重置自动重试计数；定时重试调 doAuth() 时 e 为空，不重置。
+    // MF-1：手动提交先取消挂起的自动重试定时器。
+    if (e) { clearLoginRetryTimer(); state.loginRetried = false; }
     var username = $("fUser").value.trim();
     var password = $("fPass").value;
     var name = ($("fName").value || username).trim();
@@ -1601,8 +1687,31 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
               name: name,
             });
       if (!payload || payload.ok === false) {
-        throw new Error((payload && payload.error) || "无法登临大千世界");
+        throw new Error(humanizeActionError(payload, "无法登临大千世界"));
       }
+      if (!payload.token) {
+        // action-error-ux（NAS 实锤）：tick 持锁窗口登录回退快照 token 为空
+        // 但 ok:true；无 token 不得进游戏，否则后续 /action 全是 400。
+        // 忙回退自动重试一次（复用本 doAuth）；重试仍无 token 则留门待手动重试。
+        var busy = payload["code"] === "WORLD_BUSY" || payload["lock_fallback"];
+        if (busy) {
+          if (!state.loginRetried) {
+            state.loginRetried = true;
+            $("gateMsg").textContent = "服务器正忙，正在重试…";
+            if (!state.loginRetryTimer) {
+              state.loginRetryTimer = setTimeout(function () { state.loginRetryTimer = null; doAuth(); }, 3000);
+            }
+          } else {
+            $("gateMsg").textContent = "服务器正忙，请稍后再试，或点「踏入大千世界」重试。";
+          }
+        } else {
+          clearLoginRetryTimer();
+          $("gateMsg").textContent = "入世受阻，请检查账号密匙后重试。";
+        }
+        return;
+      }
+      clearLoginRetryTimer();
+      state.loginRetried = false;
       state.token = payload.token;
       state.name = payload.name || name;
       state.user = username;
@@ -1638,8 +1747,9 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
       await loadCommands();
       await refreshAll();
     } catch (err) {
-      $("gateMsg").textContent = err.message || "入世受阻";
-      toast(err.message, "bad");
+      var authMsg = humanizeActionError(err, "入世受阻，请检查账号密匙后重试");
+      $("gateMsg").textContent = authMsg;
+      toast(authMsg, "bad");
     } finally {
       btn.disabled = false;
       btn.textContent = old;
@@ -1797,11 +1907,14 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
     $("cmdForm") &&
       $("cmdForm").addEventListener("submit", function (e) {
         e.preventDefault();
+        // action-error-ux：空指令在触发点堵住，不发请求。
+        if (!$("cmdInput").value.trim()) return;
         sendCmd($("cmdInput").value);
       });
     var inp = $("cmdInput");
     if (inp) {
-      inp.addEventListener("input", renderSug);
+      inp.addEventListener("input", function () { renderSug(); syncCmdGoDisabled(); });
+      syncCmdGoDisabled();
       inp.addEventListener("focus", function () {
         document.body.classList.add("kb-open");
       });
@@ -1904,6 +2017,7 @@ function buildCommandPanel(cmd, data) { if (!data || typeof data!== "object") re
           ci.value = fill.getAttribute("data-fill");
           ci.focus();
           renderSug();
+          syncCmdGoDisabled();
         }
         return;
       }
