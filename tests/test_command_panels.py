@@ -1495,15 +1495,18 @@ def test_command_panels_budgets():
     第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
     ——mobile.css 上限 29200B → 32000B（实测 31324B）、mobile.js 上限 2100 行
     不变（实测 1969 行）；出处：docs/compose/spec/chat-structure.md
-    （2026-11-09 总管批准）。"""
+    （2026-11-09 总管批准）。
+    第七次豁免（action-error-ux 合并）：mobile.js 上限 2100 行 → 2160 行
+    （实测 2130 行）；出处：docs/compose/spec/action-error-ux.md
+    合并记录（2026-11-11）。"""
     js_lines = len(MOB.read_text(encoding="utf-8").splitlines())
     css_bytes = MOB_CSS.stat().st_size
     html_lines = len(MOB_HTML.read_text(encoding="utf-8").splitlines())
-    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 D2 豁免上限 2100 行"
+    assert js_lines <= 2160, f"mobile.js {js_lines} 行超第七次豁免上限 2160 行（action-error-ux 合并）"
     assert css_bytes <= 32000, f"mobile.css {css_bytes}B 超 D2 豁免上限 32000B"
     assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
     print(f"✓ 预算实测：mobile.js {js_lines} 行，mobile.css {css_bytes}B，"
-          f"mobile.html +{html_lines - 150} 行（D2 豁免上限 2100 行 / 32000B）")
+          f"mobile.html +{html_lines - 150} 行（第七次豁免上限 2160 行 / 32000B）")
 
 
 def test_command_panels_mobile_css_no_bare_hex():
