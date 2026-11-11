@@ -462,6 +462,9 @@ class World:
             "first_night": None,
             "lock_fallback": True,
             "session_issued": False,
+            # action-error-ux：只增 code，令前端稳定识别“忙回退无 token”
+            # （与 503 SERVER_BUSY 同义；正常发 token 路径不带此键）。
+            "code": "WORLD_BUSY",
             # 游戏感第一期（§2.3）：繁忙回退不拼装，entry 明示待补
             "entry": None,
             "entry_pending": True,
@@ -1030,7 +1033,7 @@ class World:
                 _ceremony = build_death_ceremony(char, account)
             except Exception:
                 _ceremony = None
-        return {
+        _d = {
             "ok": True,
             "dead": True,
             "ceremony": _ceremony,
@@ -1074,6 +1077,10 @@ class World:
             "settlement_pending": settlement_pending,
             "settled": settled,
         }
+        if lock_fallback:
+            # action-error-ux：只增 code，与活角回退快照同口径；结算路径不带此键。
+            _d["code"] = "WORLD_BUSY"
+        return _d
 
     def legacy_info(self, token: str) -> Dict[str, Any]:
         char = self.get_char(token)

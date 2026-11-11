@@ -401,14 +401,19 @@ def test_mobile_redesign_budgets():
     （实测 1969 行），js 净增断言对齐第五次豁免已裁定的 928 行（文件上限
     2100 − 基线 1172；此前代码仍写 720 系 D1 落码遗漏，实测净增 797 行）；
     出处：docs/compose/spec/chat-structure.md，总管批准记录（2026-11-09），
-    token 纪律不豁免照旧。"""
+    token 纪律不豁免照旧。
+    第七次豁免（action-error-ux 合并）：mobile.js 文件上限 2100 行 → 2160 行
+    （净增上限 928 行 → 988 行）——块一 B1-1/B1-3 与本修复双端人话映射/
+    守卫/重试同时落地（main 2018 行 → 合并 2130 行，实测净增 958 行）；
+    出处：docs/compose/spec/action-error-ux.md 合并记录（2026-11-11），
+    CSS 上限不变，token 纪律不豁免照旧。"""
     css_bytes = (WEB / "mobile.css").stat().st_size
     assert css_bytes <= 32000, f"mobile.css {css_bytes}B 超 32000B 豁免预算（chat-structure D2）"
     html_lines = len((WEB / "mobile.html").read_text(encoding="utf-8").splitlines())
     js_lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     assert html_lines - 150 <= 60, f"mobile.html 净增 {html_lines - 150} 行超 60"
-    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 2100 行豁免上限（command-panels §7 / chat-structure D2）"
-    assert js_lines - 1172 <= 928, f"mobile.js 净增 {js_lines - 1172} 行超 928（command-panels §7 / chat-structure D2）"
+    assert js_lines <= 2160, f"mobile.js {js_lines} 行超 2160 行豁免上限（action-error-ux 合并第七次豁免）"
+    assert js_lines - 1172 <= 988, f"mobile.js 净增 {js_lines - 1172} 行超 988（action-error-ux 合并第七次豁免）"
     print(f"✓ 体积：css {css_bytes}B，html +{html_lines - 150} 行，js {js_lines} 行（净增 +{js_lines - 1172}）")
 
 

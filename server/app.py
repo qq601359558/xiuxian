@@ -567,7 +567,10 @@ class GameHandler(BaseHTTPRequestHandler):
             token = str(data.get("token") or "")
             command = str(data.get("command") or "")
             if not token or not command:
-                return _json_response(self, 400, {"ok": False, "error": "需要 token 与 command"})
+                # action-error-ux：只增 code 字段（前端按 code 映射人话，不再
+                # 按 error 文本猜）；状态码与 error 文案不变。
+                code = "AUTH_REQUIRED" if not token else "EMPTY_COMMAND"
+                return _json_response(self, 400, {"ok": False, "code": code, "error": "需要 token 与 command"})
             command_parts = command.split(None, 1)
             command_name = command_parts[0].lower() if command_parts else ""
             if command_name and command_name not in _ACTION_LOG_COMMANDS:

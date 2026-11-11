@@ -317,6 +317,8 @@
     busy: false,
     offline: false,
     demo: false,
+    loginRetried: false,
+    loginRetryTimer: null,
     chat: { open: false, npc: "", lines: [] },
     // 主界面内联奇遇（由服务端 omen_inline / omen_title / omen_choices 驱动）
     omen: { open: false, title: "", choices: [], key: "", image: "" },
@@ -463,7 +465,73 @@
     document.body.classList.toggle("is-offline", state.offline);
   }
 
+  // action-error-ux：后端报错原文不上界面。code 优先映射，未知给场景兜底，
+  // 原文只进 console。注意：读 code / lock_fallback 一律用括号记法
+  // （e["code"]），不得用点记法读该键
+  // （CT-01 冻结计数：三端读键漂移即变红）。
+  const ACTION_ERROR_TEXT = {
+    AUTH_REQUIRED: "登录已失效，请重新登录",
+    EMPTY_COMMAND: "指令为空，请重新输入",
+    ACTION_FAILED: "行动处理异常，请稍后重试。",
+    AUTH_FAILED: "账号或密匙有误",
+    WORLD_BUSY: "服务器正忙，请稍后再试",
+  };
+  const ACTION_ERROR_TEXT_BY_MSG = {
+    "需要 token": "登录已失效，请重新登录",
+    "需要 token 与 command": "登录已失效，请重新登录",
+    "需要 token 或账号与密匙": "登录已失效，请重新登录",
+    "会话无效": "登录已失效，请重新登录",
+    "会话无效，请用账号密匙重新 /login": "登录已失效，请重新登录",
+    "会话无效，请用账号密匙登录": "登录已失效，请重新登录",
+    "无法感应阵枢灵脉（请确认服务已启动）": "无法感应阵枢灵脉（请确认服务已启动）",
+    "行动处理异常，请稍后重试。": "行动处理异常，请稍后重试。",
+    "账号或密匙有误": "账号或密匙有误",
+  };
+  function humanizeActionError(e, fallback) {
+    let raw = "", code = "";
+    if (e && typeof e === "object") {
+      code = e["code"] || "";
+      raw = e["rawError"] || e["error"] || e["message"] || "";
+    } else if (typeof e === "string") raw = e;
+    if (code && ACTION_ERROR_TEXT[code]) return ACTION_ERROR_TEXT[code];
+    if (raw && ACTION_ERROR_TEXT_BY_MSG[raw]) return ACTION_ERROR_TEXT_BY_MSG[raw];
+    if (raw) { try { console.error("[action-error]", code, raw); } catch (_) {} }
+    return fallback || "操作失败，请重试";
+  }
+  function isAuthError(e) {
+    if (!e || typeof e !== "object") return false;
+    if (e["code"] === "AUTH_REQUIRED") return true;
+    const raw = e["rawError"] || e["error"] || e["message"] || "";
+    return raw === "会话无效" || raw === "会话无效，请用账号密匙重新 /login" ||
+      raw === "会话无效，请用账号密匙登录" || raw === "需要 token" ||
+      raw === "需要 token 与 command" || raw === "需要 token 或账号与密匙";
+  }
+  // 无 token 不发请求并引导重新登录（复用既有 showGate + doAuth，不新造会话机制）
+  function requireActionToken() {
+    if (state.demo || state.token) return true;
+    toast("登录已失效，请重新登录", "bad");
+    showGate("登录已失效，请重新登录");
+    return false;
+  }
+  // MF-1：自动重试定时器句柄可取消；手动提交/成功/非忙回退时清掉，
+  // 仅无挂起定时器时调度，避免重复/过期重试。
+  function clearLoginRetryTimer() {
+    if (state.loginRetryTimer) { clearTimeout(state.loginRetryTimer); state.loginRetryTimer = null; }
+  }
+  function syncCmdGoDisabled() {
+    const go = $("cmdGo"), inp = $("cmdInput");
+    if (!go || !inp) return;
+    go.disabled = !inp.value.trim() || !!state.busy;
+  }
+
   async function api(path, body) {
+    // action-error-ux 第二道防线：/action 与 /chat 无 token 时不发请求。
+    if ((path === "/action" || path === "/chat") && body && !body.token && !state.demo) {
+      const authErr = new Error("登录已失效，请重新登录");
+      authErr.code = "AUTH_REQUIRED";
+      authErr.rawError = "需要 token";
+      throw authErr;
+    }
     let base = (state.base || "").trim().replace(/\/$/, "");
     if (base && !/^https?:\/\//i.test(base)) base = "http://" + base;
     const url = base + path;
@@ -487,16 +555,20 @@
     }
     if (!res.ok) {
       let msg = res.statusText || String(res.status);
+      let code = "";
       let srvMsg = "";
       try {
         const j = await res.json();
         msg = j.error || j.message || msg;
+        code = j["code"] || "";
         srvMsg = j.message || "";
       } catch (_) {}
-      const httpErr = new Error(msg);
-      httpErr.status = res.status;
-      httpErr.serverMessage = srvMsg;
-      throw httpErr;
+      const err = new Error(msg);
+      if (code) err.code = code;
+      err.rawError = msg;
+      err.status = res.status;
+      err.serverMessage = srvMsg;
+      throw err;
     }
     setOffline(false);
     return res.json();
@@ -528,6 +600,7 @@
     const chatDot = $("chatBusy");
     if (chatDot) chatDot.style.display = on ? "inline-block" : "none";
     if (on && label) toast(label, "gold");
+    syncCmdGoDisabled();
   }
 
   // ---------- 状态同步 (支持请求代际单调锁与服务端版本号核验) ----------
@@ -1386,6 +1459,7 @@
         .then((res) => {
           if (res.status) applyStatus(res.status, reqEpoch);
           if (res.text) pushFeed(res.text, res.ok ? "ai" : "bad");
+          else if (res && res.ok === false) toast(humanizeActionError(res), "bad");
           ensureDefaultInventory();
           const isOverflow = !!(res.overflow || (res.status && res.status.crane_pending_item));
           const latestItem = (res.status && res.status.crane_pending_item) || (res.status && Array.isArray(res.status.items) && res.status.items[0]) || state.inventory[0];
@@ -1401,7 +1475,7 @@
           }
         })
         .catch((err) => {
-          toast("灵鹤神识传信受阻：" + err.message, "bad");
+          toast(humanizeActionError(err, "灵鹤神识传信受阻，请重试"), "bad");
         });
       return;
     }
@@ -1488,11 +1562,11 @@
             toast("仙鹤云巢机缘已顺利取回并存入百宝纳戒！", "gold");
             renderBody();
           } else {
-            toast(res.error || "取回机缘受阻", "bad");
+            toast(humanizeActionError(res, "取回机缘受阻，请重试"), "bad");
           }
         })
         .catch((err) => {
-          toast("神识传信受阻：" + err.message, "bad");
+          toast(humanizeActionError(err, "神识传信受阻，请重试"), "bad");
         });
       return;
     }
@@ -3017,11 +3091,11 @@
                 droppedItems = res.adventure.loot || [];
               } else {
                 isWin = !!res.ok;
-                narrative = res.text || "";
+                narrative = res.text || humanizeActionError(res, "探险受阻，请重试");
               }
             } catch (err) {
               isWin = false;
-              narrative = "神识传音受阻：" + err.message;
+              narrative = humanizeActionError(err, "神识传音受阻，请重试");
             } finally {
               busy(false);
             }
@@ -5064,8 +5138,9 @@
           .then(res => {
             if (res.status) applyStatus(res.status, reqEpoch);
             if (res.text) pushFeed(res.text, res.ok ? "ok" : "bad");
+            else if (res && res.ok === false) toast(humanizeActionError(res), "bad");
           })
-          .catch(err => toast("穿戴法宝神识受阻：" + err.message, "bad"));
+          .catch(err => toast(humanizeActionError(err, "穿戴法宝神识受阻，请重试"), "bad"));
       }
       renderBody();
       return;
@@ -5090,8 +5165,9 @@
           .then(res => {
             if (res.status) applyStatus(res.status, reqEpoch);
             if (res.text) pushFeed(res.text, res.ok ? "ok" : "bad");
+            else if (res && res.ok === false) toast(humanizeActionError(res), "bad");
           })
-          .catch(err => toast("卸下法宝神识受阻：" + err.message, "bad"));
+          .catch(err => toast(humanizeActionError(err, "卸下法宝神识受阻，请重试"), "bad"));
       }
       renderBody();
       return;
@@ -5397,11 +5473,11 @@
                     if (res.stone_gain) stoneGain = res.stone_gain;
                     if (res.stone_loss) stoneLoss = res.stone_loss;
                   } else {
-                    errMsg = res.text || "玄光溃散，未能启封古仙洞府。";
+                    errMsg = res.text || humanizeActionError(res, "玄光溃散，未能启封古仙洞府。");
                   }
                   pushFeed(res.text, res.ok ? "ok" : "bad");
                 } catch (err) {
-                  errMsg = "挖宝神识受阻：" + err.message;
+                  errMsg = humanizeActionError(err, "挖宝神识受阻，请重试");
                   toast(errMsg, "bad");
                 } finally {
                   busy(false);
@@ -6640,6 +6716,7 @@
   async function sendChat(text) {
     const c = (text || "").trim();
     if (!c) return;
+    if (!requireActionToken()) return;
     // 器灵灵语分流：走 /灵语 命令，不进 NPC /chat 会话通道
     if (state.chat.spiritMode) {
       chatMsg("你", c, "me");
@@ -6652,7 +6729,7 @@
         });
       }
       else if (data && data.text) chatMsg(state.chat.npc || "器灵", data.text, "npc");
-      else if (data && data.error) chatMsg("", data.error, "sys");
+      else if (data && data.error) chatMsg("", humanizeActionError(data, "传音失败，请重试"), "sys");
       return;
     }
     const isPlayer = !!state.chat.isPlayer;
@@ -6690,9 +6767,11 @@
         state.chat.lines = (state.chat.lines || []).filter((l) => !(l.cls === "sys" && l.text.includes("沉吟中")));
       }
       renderChat(true);
-      chatMsg("", "传音受阻：" + e.message, "sys");
+      const chatErrMsg = humanizeActionError(e, "传音失败，请重试");
+      chatMsg("", chatErrMsg, "sys");
       clearChatInputs();
-      toast(e.message, "bad");
+      toast(chatErrMsg, "bad");
+      if (isAuthError(e)) showGate("登录已失效，请重新登录");
     } finally {
       if (!isPlayer) busy(false);
       const inp = $("chatInput");
@@ -6720,11 +6799,12 @@
     if (data.status) applyStatus(data.status, reqEpoch);
     if (data.old_account) renderOldAccount(data.old_account);
     // 交谈内就地触发的奇遇（data.omen_chat）正文已并入 text，随玉简就地展示，不弹主界面芯片条
-    const text = data.text || data.error || "";
+    const text = data.text || (data.ok === false ? humanizeActionError(data, "传音未送达") : "");
     if (data.ok === false) {
       chatMsg("", text || "传音未送达", "sys");
       pushFeed(text, "bad");
       clearChatInputs();
+      if (isAuthError(data)) showGate("登录已失效，请重新登录");
       return;
     }
     if (data.is_player) {
@@ -7750,11 +7830,13 @@ function cpAi(data) {
   const a = data.ai_data;
   const dq = data.director_quality;
   if ((!a || typeof a !== "object") && !dq) return "";
+  // action-error-ux：诊断卡亦不上后端原文；原文只进 console。
+  if (a && !a.ok && a.error) { try { console.warn("[action-error] ai:", a.error); } catch (_) {} }
   const kv = a ? cpKvs([
     ["模式", esc(cpLab({ CCSWITCH: "CC Switch 本机代理", OPENAI: "OpenAI 兼容直连" }, a.mode)), false],
     ["地址", esc(cpStr(a.base)), false],
     ["模型", esc(cpStr(a.model)), false],
-    ["状态", a.ok ? "就绪" : esc(cpStr(a.error || "未就绪")), false],
+    ["状态", a.ok ? "就绪" : "未就绪", false],
   ]) : "";
   let checks = "";
   if (dq && Array.isArray(dq.checks)) {
@@ -8206,6 +8288,7 @@ return "";
   async function sendCmd(cmd) {
     let c = (cmd || "").trim();
     if (!c) return;
+    if (!requireActionToken()) return { ok: false, code: "AUTH_REQUIRED" };
     if (checkActionLock("天道神念推演中，诸法暂滞，请稍候再降法旨…")) return;
 
     if (state.chat.open && !c.startsWith("/")) {
@@ -8265,6 +8348,11 @@ return "";
       const panelHtml = buildCommandPanel(c, data);
       if (panelHtml) pushFeedHtml(panelHtml, data.ok === false ? "bad" : undefined);
       else if (data.text) pushFeed(data.text, data.ok === false ? "bad" : undefined);
+      else if (data.ok === false) {
+        // action-error-ux：无文本的 ok:false 响应此前静默丢弃，现给人话提示。
+        pushFeed("敕令失败：" + humanizeActionError(data), "bad");
+        if (isAuthError(data)) showGate("登录已失效，请重新登录");
+      }
       applyOmenPayload(data);
       // 游戏感第一期只增字段：/action 响应可携带 entry / origin_card / ceremony
       if (data.entry) { state.entry = data.entry; state.entryPending = false; }
@@ -8310,7 +8398,7 @@ return "";
                 </div>
                 <h4 class="text-lg font-bold text-rose-950">九天雷劫未破</h4>
                 <p class="text-xs text-slate-700 leading-relaxed max-w-md mx-auto">
-                  ${esc(data.error || data.text || "天劫狂暴，未能功成！")}
+                  ${esc(data.text || humanizeActionError(data, "天劫狂暴，未能功成！"))}
                 </p>
               </div>
             `,
@@ -8326,9 +8414,11 @@ return "";
       renderBody();
       return data;
     } catch (e) {
-      pushFeed("敕令失败：" + e.message, "bad");
-      toast(e.message, "bad");
-      return { ok: false, error: e.message };
+      const errMsg = humanizeActionError(e, "操作失败，请重试");
+      pushFeed("敕令失败：" + errMsg, "bad");
+      toast(errMsg, "bad");
+      if (isAuthError(e)) showGate("登录已失效，请重新登录");
+      return { ok: false, error: errMsg };
     } finally {
       busy(false);
       const inp = $("cmdInput");
@@ -8787,6 +8877,7 @@ return "";
     inp.value = it.cmd + " ";
     hideSug();
     inp.focus();
+    syncCmdGoDisabled();
   }
 
   function hideSug() {
@@ -8843,6 +8934,9 @@ return "";
 
   async function doAuth(e) {
     if (e && e.preventDefault) e.preventDefault();
+    // 手动提交重置自动重试计数；定时重试调 doAuth() 时 e 为空，不重置。
+    // MF-1：手动提交先取消挂起的自动重试定时器。
+    if (e) { clearLoginRetryTimer(); state.loginRetried = false; }
     const username = $("fUser").value.trim();
     const password = $("fPass").value;
     const name = ($("fName").value || username).trim();
@@ -8873,8 +8967,31 @@ return "";
         : await api("/login", { username, password, name });
 
       if (!payload || payload.ok === false) {
-        throw new Error((payload && payload.error) || "无法登临大千世界");
+        throw new Error(humanizeActionError(payload, "无法登临大千世界"));
       }
+      if (!payload.token) {
+        // action-error-ux（NAS 实锤）：tick 持锁窗口登录回退快照 token 为空
+        // 但 ok:true；无 token 不得进游戏，否则后续 /action 全是 400。
+        // 忙回退自动重试一次（复用本 doAuth）；重试仍无 token 则留门待手动重试。
+        const busy = payload["code"] === "WORLD_BUSY" || payload["lock_fallback"];
+        if (busy) {
+          if (!state.loginRetried) {
+            state.loginRetried = true;
+            $("gateMsg").textContent = "服务器正忙，正在重试…";
+            if (!state.loginRetryTimer) {
+              state.loginRetryTimer = setTimeout(() => { state.loginRetryTimer = null; doAuth(); }, 3000);
+            }
+          } else {
+            $("gateMsg").textContent = "服务器正忙，请稍后再试，或点「踏入大千世界」重试。";
+          }
+        } else {
+          clearLoginRetryTimer();
+          $("gateMsg").textContent = "入世受阻，请检查账号密匙后重试。";
+        }
+        return;
+      }
+      clearLoginRetryTimer();
+      state.loginRetried = false;
       state.token = payload.token;
       state.name = payload.name || name;
       state.user = username;
@@ -8908,9 +9025,9 @@ return "";
       await refreshAll();
     } catch (err) {
       // B1-1 文案分流（仅注册/登录调用点）：503 显示后端诚实文案（j.message，
-      // 如「世界正在演化，请稍后重试」），不得误报服务未启动；400 等显示后端
-      // error 原文（err.message 既有口径）；「无法感应」仅真网络失败（status 0）。
-      const authMsg = err.status === 503 ? (err.serverMessage || "世界正在演化，请稍后重试") : (err.message || "入世受阻");
+      // 如「世界正在演化，请稍后重试」），不得误报服务未启动；400 等经 action-error
+      // 人话映射；「无法感应」仅真网络失败（status 0）。
+      const authMsg = err.status === 503 ? (err.serverMessage || "世界正在演化，请稍后重试") : humanizeActionError(err, "入世受阻，请检查账号密匙后重试");
       $("gateMsg").textContent = authMsg;
       toast(authMsg, "bad");
     } finally {
@@ -9108,6 +9225,8 @@ return "";
     $("cmdForm") && $("cmdForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const val = $("cmdInput").value;
+      // action-error-ux：空指令在触发点堵住，不发请求。
+      if (!val.trim()) return;
       if (state.chat.open && val && !val.startsWith("/")) {
         sendChat(val);
       } else {
@@ -9115,7 +9234,8 @@ return "";
       }
     });
 
-    $("cmdInput") && $("cmdInput").addEventListener("input", renderSug);
+    $("cmdInput") && $("cmdInput").addEventListener("input", () => { renderSug(); syncCmdGoDisabled(); });
+    syncCmdGoDisabled();
     $("cmdInput") && $("cmdInput").addEventListener("keydown", (e) => {
       const sugBox = $("suggest");
       const open = sugBox && !sugBox.classList.contains("hidden") && state.sug.length;
@@ -9175,7 +9295,7 @@ return "";
           pushFeed("» /交谈 " + name, "cmd");
           api("/action", { token: state.token, command: "/交谈 " + name })
             .then(handleChatData)
-            .catch((err) => chatMsg("", "无法连通神识：" + err.message, "sys"));
+            .catch((err) => chatMsg("", humanizeActionError(err, "无法连通神识，请重试"), "sys"));
         }
         return;
       }
@@ -9302,6 +9422,7 @@ return "";
           if (inp) {
             inp.value = `/寄售 ${item} 100`;
             inp.focus();
+            syncCmdGoDisabled();
           }
           toast(`已预填敕令：/寄售 ${item} <灵石价格>`, "gold");
         } else if (a.startsWith("focus-cmd:")) {
@@ -9310,6 +9431,7 @@ return "";
           if (inp) {
             inp.value = prefix;
             inp.focus();
+            syncCmdGoDisabled();
           }
         }
       }
@@ -9378,6 +9500,7 @@ return "";
           if (target === $("cmdInput") && !target.value) {
             target.value = "/";
             renderSug();
+            syncCmdGoDisabled();
           }
         }
       }
