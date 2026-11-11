@@ -1,5 +1,20 @@
 # 更新日志
 
+## v0.3.16-gray.23（2026-11-11）— token/command 报错玩家化
+
+定位：体验修复轮（Martinez 本人 2026-11-10 17:48 撞到的 bug——tick 长锁窗口内登录返回 token 为空的「假成功」HTTP 200 ok:true，随后点任何动作把后端原文「需要 token 与 command」弹给玩家）。上一稳定点 v0.3.15-gray.22（03ae2bd）。分支 `feat/action-error-ux`（修复 `ac8170d` → 合并 `ad6a47b` → 预算补齐 `939bf2f`/`abf75b2`）。
+
+### 变更
+- 登录忙时有界重试与诚实报错：登录遇 tick 长锁窗口不再返回 ok:true + 空 token 的「假成功」；忙回退带 `code: "WORLD_BUSY"`，忙时人话提示并自动重试一次，重试仍无 token 则留门待用户手动重试
+- token 缺失前端拦截：双端 `sendCmd`/`api()` 双重守卫，无 token 不发请求，界面提示「登录已失效，请重新登录」并回到登录门；命令输入框空串时发送按钮禁用、提交不发请求
+- 后端 `/action` 缺参只增 `code`（`AUTH_REQUIRED` / `EMPTY_COMMAND`），状态码与 `error` 文案不变；前端按 code 映射玩家安全文案，后端原文只出现在 console/日志，不再弹给玩家
+- 合并解法（9 冲突点，双边语义全保留）：双端 `api()` 同时保留 `code`/`rawError`（分支）与 `serverMessage`/`status`（块一 B1-1，另补分支遗漏的 `err.status`）；交谈失败显示用人话映射 + 保留清输入框（B1-3）；doAuth 503 仍走后端诚实文案、其余走人话映射
+- 预算第七次豁免：mobile.js 合并 2130 行，文件上限 2100 → 2160、净增上限 928 → 988（CT04、phase1、FE-03、mobile_web、command-panels 五处断言收口；CSS 与 token 纪律不变）
+
+### 测试
+- 定向 `tests/test_action_error_ux.py` 20/20；交谈/登录/移动套件 122 过，仅 2 败均为基线旧账
+- 合并态全量回归（新鲜 DB）三轮：1533/13、1537/9、1537/9——最终轮失败集 = v0.3.15 基线 7 项全在（鉴权 join、死亡验收 join、status_dict×2、natural_omen、karma 链 flaky、workbench 活服务器冒烟）+ living_jianghu 与 dr01 两项顺序依赖 flaky（均在合并态新鲜库隔离单跑通过；world_director 仅第一轮出现、后两轮未复现）；归因新增失败 **0**；第三轮中途被环境 SIGTERM 截断一次（51%），清库重跑后完整通过
+
 ## v0.3.15-gray.22（2026-11-10）— 块一·玩不下去先清零
 
 定位：可玩性清障轮（依据模拟玩家本地实测清单 S1–S8，Martinez 2026-11-09 批准按清单开修）。上一稳定点 v0.3.14-gray.21（fed5332）。分支 `feat/playability-block1`（spec `d3cf67a` → 三路实现合并 `5c36291` → 评审修复 `93b2f42` → 复审修复 `83c791a` → 复测再修 `7f3f0b6` → 修复轮 3 与 MF-1 `50e0b90` → C4 修复 `a0da422` → 出生地修复 `c2846fc`）。
