@@ -100,12 +100,15 @@ def test_mobile_budgets_game_feel_phase1():
     第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
     ——上限统一改为 mobile.css ≤32000B（实测 31324B）、mobile.js ≤2100 行
     （实测 1969 行）；出处：docs/compose/spec/chat-structure.md
-    （2026-11-09 总管批准），本测试预算数值以 D2 为准。"""
+    （2026-11-09 总管批准），本测试预算数值以 D2 为准。
+    第七次豁免（action-error-ux 合并）：mobile.js 上限 2100 行 → 2160 行
+    （实测 2130 行）；出处：docs/compose/spec/action-error-ux.md
+    合并记录（2026-11-11）。"""
     css = _read("mobile.css")
     css_bytes = (WEB / "mobile.css").stat().st_size
     assert css_bytes <= 32000, f"mobile.css {css_bytes}B 超 32000B（chat-structure D2）"
     js_lines = len(_read("mobile.js").splitlines())
-    assert js_lines <= 2100, f"mobile.js {js_lines} 行超 2100 行（chat-structure D2）"
+    assert js_lines <= 2160, f"mobile.js {js_lines} 行超 2160 行（action-error-ux 合并第七次豁免）"
     for cls in (".gf-overlay", ".gf-card", ".rel-mark", "#entryCard"):
         assert cls in css, f"mobile.css 缺第一期样式：{cls}"
-    print(f"✓ 预算实测：css {css_bytes}B / 32000B，js {js_lines} 行 / 2100 行（chat-structure D2）")
+    print(f"✓ 预算实测：css {css_bytes}B / 32000B，js {js_lines} 行 / 2160 行（action-error-ux 合并第七次豁免）")

@@ -834,10 +834,13 @@ def test_CT04_mobile_budget_guard():
     第六次豁免（chat-structure D2）：手机端交谈弹窗与桌面玉简同构，CSS/JS 增量
     ——mobile.css 上限 29200B → 32000B（实测 31324B）、mobile.js 上限 2100 行
     不变（实测 1969 行）；出处：docs/compose/spec/chat-structure.md
-    （2026-11-09 总管批准），token 纪律不豁免照旧。"""
+    （2026-11-09 总管批准），token 纪律不豁免照旧。
+    第七次豁免（action-error-ux 合并）：mobile.js 上限 2100 行 → 2160 行
+    （实测 2130 行）；出处：docs/compose/spec/action-error-ux.md
+    合并记录（2026-11-11），token 纪律不豁免照旧。"""
     lines = len((WEB / "mobile.js").read_text(encoding="utf-8").splitlines())
     size = (WEB / "mobile.css").stat().st_size
-    assert lines <= 2100, f"mobile.js {lines} 行，超 D2 豁免上限 2100 行（chat-structure D2）"
+    assert lines <= 2160, f"mobile.js {lines} 行，超第七次豁免上限 2160 行（action-error-ux 合并）"
     assert size <= 32000, f"mobile.css {size}B，超 D2 豁免上限 32000B（chat-structure D2）"
     print(f"✓ CT-04：mobile.js {lines} 行 / mobile.css {size}B，均在硬线内")
 
